@@ -353,7 +353,7 @@ export const OrchFleetWorkerUnregisterSchema = z.object({
 export const OrchRunExecuteAgentSchema = z.object({
   _confirm: z.literal(true).describe('Must be true to execute this destructive operation.'),
   project_root: ProjectRootSchema,
-  run_id: RunIdSchema.describe('Run identifier whose manifest/checkpoints should be persisted under artifacts/runs/<run_id>/.'),
+  run_id: RunIdSchema.describe('Run identifier whose delegated-runtime manifest/checkpoints are persisted under artifacts/delegated-runs/direct/<run_id>/, or under the structurally separate team namespace when team execution is requested.'),
   model: z.string().min(1).describe('Preferred model hint for sampling/createMessage.'),
   messages: z.array(AgentMessageSchema).min(1).describe('Initial agent transcript. The recovery path can start from a pending assistant tool_use message.'),
   tools: z.array(AgentToolSchema).describe('Tool definitions exposed to the model during sampling.'),

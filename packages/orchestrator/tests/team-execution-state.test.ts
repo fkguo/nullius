@@ -115,9 +115,15 @@ describe('team execution state', () => {
     assignment.status = 'running';
     assignment.session_id = 'session-cancel-1';
     assignment.pending_redirect = { note: 'cancel me', payload: { reason: 'test' }, created_at: '2026-03-21T00:00:00Z' };
-    assignment.approval_id = 'apr_cancel';
-    assignment.approval_packet_path = 'artifacts/runs/run-3__assignment/approval_packet_v1.json';
-    assignment.approval_requested_at = '2026-03-21T00:00:00Z';
+    assignment.pending_approval = {
+      authority: 'run_gate',
+      gate_id: 'A3',
+      run_id: 'run-3__assignment',
+      approval_id: 'apr_cancel',
+      packet_path: 'artifacts/runs/run-3__assignment/approval_packet_v1.json',
+      approval_packet_sha256: 'a'.repeat(64),
+      requested_at: '2026-03-21T00:00:00Z',
+    };
     state.sessions.push({
       session_id: 'session-cancel-1',
       parent_session_id: null,
@@ -150,9 +156,7 @@ describe('team execution state', () => {
     expect(state.delegate_assignments[0]?.status).toBe('cancelled');
     expect(state.delegate_assignments[0]).toMatchObject({
       pending_redirect: null,
-      approval_id: null,
-      approval_packet_path: null,
-      approval_requested_at: null,
+      pending_approval: null,
     });
     expect(buildTeamControlPlaneView(state).live_status.pending_approvals).toEqual([]);
     expect(state.sessions[0]).toMatchObject({
@@ -178,9 +182,15 @@ describe('team execution state', () => {
     cascadeState.delegate_assignments[0]!.status = 'awaiting_approval';
     cascadeState.delegate_assignments[0]!.session_id = 'session-cascade-1';
     cascadeState.delegate_assignments[0]!.pending_redirect = { note: 'stop', payload: {}, created_at: '2026-03-21T00:00:00Z' };
-    cascadeState.delegate_assignments[0]!.approval_id = 'apr_cascade';
-    cascadeState.delegate_assignments[0]!.approval_packet_path = 'artifacts/runs/run-4__assignment/approval_packet_v1.json';
-    cascadeState.delegate_assignments[0]!.approval_requested_at = '2026-03-21T00:00:00Z';
+    cascadeState.delegate_assignments[0]!.pending_approval = {
+      authority: 'run_gate',
+      gate_id: 'A3',
+      run_id: 'run-4__assignment',
+      approval_id: 'apr_cascade',
+      packet_path: 'artifacts/runs/run-4__assignment/approval_packet_v1.json',
+      approval_packet_sha256: 'b'.repeat(64),
+      requested_at: '2026-03-21T00:00:00Z',
+    };
     cascadeState.sessions.push({
       session_id: 'session-cascade-1',
       parent_session_id: null,
@@ -209,7 +219,7 @@ describe('team execution state', () => {
     expect(cascadeRecord.kind).toBe('cascade_stop');
     expect(cascadeState.delegate_assignments.every(item => item.status === 'cascade_stopped')).toBe(true);
     expect(cascadeState.delegate_assignments.every(item => item.pending_redirect === null)).toBe(true);
-    expect(cascadeState.delegate_assignments.every(item => item.approval_id === null)).toBe(true);
+    expect(cascadeState.delegate_assignments.every(item => item.pending_approval === null)).toBe(true);
     expect(cascadeState.active_assignment_ids).toEqual([]);
     const view = buildTeamControlPlaneView(cascadeState);
     expect(view.live_status.terminal_assignments[0]?.status).toBe('cascade_stopped');
@@ -293,7 +303,7 @@ describe('team execution state', () => {
     expect(negativeState.delegate_assignments[0]?.status).toBe(originalStatus);
   });
 
-  it('clears persisted approval metadata when a task-scoped approve intervention resumes an awaiting assignment', () => {
+  it('clears a team-assignment approval reference when a task-scoped approve intervention resumes it', () => {
     const state = createTeamExecutionState({
       workspace_id: 'ws-approve',
       coordination_policy: 'supervised_delegate',
@@ -308,9 +318,12 @@ describe('team execution state', () => {
     }, 'run-approve');
 
     state.delegate_assignments[0]!.status = 'awaiting_approval';
-    state.delegate_assignments[0]!.approval_id = 'apr_nested';
-    state.delegate_assignments[0]!.approval_packet_path = 'artifacts/runs/run-approve__assignment/approval_packet_v1.json';
-    state.delegate_assignments[0]!.approval_requested_at = '2026-03-21T00:00:00Z';
+    state.delegate_assignments[0]!.pending_approval = {
+      authority: 'team_assignment',
+      approval_id: 'apr_nested',
+      packet_path: 'artifacts/runs/run-approve__assignment/approval_packet_v1.json',
+      requested_at: '2026-03-21T00:00:00Z',
+    };
 
     applyTeamIntervention(state, {
       kind: 'approve',
@@ -322,11 +335,61 @@ describe('team execution state', () => {
 
     expect(state.delegate_assignments[0]).toMatchObject({
       status: 'pending',
-      approval_id: null,
-      approval_packet_path: null,
-      approval_requested_at: null,
+      pending_approval: null,
     });
     expect(buildTeamControlPlaneView(state).live_status.pending_approvals).toEqual([]);
+  });
+
+  it('rejects team-local approval for run-gate authority without clearing metadata', () => {
+    const state = createTeamExecutionState({
+      workspace_id: 'ws-run-gate',
+      coordination_policy: 'supervised_delegate',
+      assignment: {
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-1',
+        task_id: 'task-run-gate',
+        task_kind: 'compute',
+      },
+      permissions: PERMISSIONS,
+    }, 'run-gate-owner');
+    const assignment = state.delegate_assignments[0]!;
+    assignment.status = 'awaiting_approval';
+    assignment.pending_approval = {
+      authority: 'run_gate',
+      gate_id: 'A3',
+      run_id: 'run-gate-owner__assignment',
+      approval_id: 'A3-0001',
+      packet_path: 'artifacts/runs/run-gate-owner__assignment/approval_packet_v1.json',
+      approval_packet_sha256: 'c'.repeat(64),
+      requested_at: '2026-03-21T00:00:00Z',
+    };
+    const pendingBefore = structuredClone(assignment.pending_approval);
+    const eventCountBefore = state.event_log.length;
+    const interventionCountBefore = state.interventions.length;
+
+    expect(() => applyTeamIntervention(state, {
+      kind: 'approve',
+      scope: 'task',
+      actor_role: 'lead',
+      actor_id: 'pi',
+      task_id: assignment.task_id,
+    })).toThrow(/cannot resolve run-gate authority.*orch_run_approve\/nullius approve/i);
+
+    expect(assignment.status).toBe('awaiting_approval');
+    expect(assignment.pending_approval).toEqual(pendingBefore);
+    expect(state.event_log).toHaveLength(eventCountBefore);
+    expect(state.interventions).toHaveLength(interventionCountBefore);
+
+    expect(() => applyTeamIntervention(state, {
+      kind: 'resume',
+      scope: 'task',
+      actor_role: 'lead',
+      actor_id: 'pi',
+      task_id: assignment.task_id,
+    })).toThrow(/cannot release run-gate authority without the canonical root-run state/i);
+    expect(assignment.status).toBe('awaiting_approval');
+    expect(assignment.pending_approval).toEqual(pendingBefore);
   });
 
   it('stores task-scoped redirect payloads on the targeted assignment without mutating sibling assignments', () => {
@@ -544,9 +607,12 @@ describe('team execution state', () => {
     }, 'run-6');
     const assignmentId = state.delegate_assignments[0]!.assignment_id;
     state.delegate_assignments[0]!.pending_redirect = { note: 'timeout', payload: { test: true }, created_at: '2026-03-19T00:00:00Z' };
-    state.delegate_assignments[0]!.approval_id = 'apr_timeout';
-    state.delegate_assignments[0]!.approval_packet_path = 'artifacts/runs/run-6__assignment/approval_packet_v1.json';
-    state.delegate_assignments[0]!.approval_requested_at = '2026-03-19T00:00:00Z';
+    state.delegate_assignments[0]!.pending_approval = {
+      authority: 'team_assignment',
+      approval_id: 'apr_timeout',
+      packet_path: 'artifacts/runs/run-6__assignment/approval_packet_v1.json',
+      requested_at: '2026-03-19T00:00:00Z',
+    };
     recordHeartbeat(state, assignmentId, '2026-03-19T12:00:00Z');
 
     const timedOut = markTimedOutAssignments(state, '2026-03-20T00:00:00Z');
@@ -554,9 +620,7 @@ describe('team execution state', () => {
     expect(state.delegate_assignments[0]?.status).toBe('timed_out');
     expect(state.delegate_assignments[0]).toMatchObject({
       pending_redirect: null,
-      approval_id: null,
-      approval_packet_path: null,
-      approval_requested_at: null,
+      pending_approval: null,
     });
     const view = buildTeamControlPlaneView(state);
     expect(view.live_status.terminal_assignments[0]?.timeout_at).toBe('2026-03-19T00:00:00Z');

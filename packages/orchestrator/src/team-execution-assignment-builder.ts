@@ -103,9 +103,7 @@ export function buildTeamDelegateAssignment(
     last_heartbeat_at: null,
     last_completed_step: null,
     resume_from: null,
-    approval_id: null,
-    approval_packet_path: null,
-    approval_requested_at: null,
+    pending_approval: null,
     pending_redirect: null,
     updated_at: timestamp,
   };

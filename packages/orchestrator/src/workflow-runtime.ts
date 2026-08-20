@@ -1,6 +1,12 @@
-import { McpClient, type McpToolResult, type ToolCaller } from './mcp-client.js';
+import {
+  McpClient,
+  type McpClientStartOptions,
+  type McpToolResult,
+  type ToolCaller,
+} from './mcp-client.js';
 import * as path from 'node:path';
 import { writeJsonAtomic } from './computation/io.js';
+import { resolveToolExecutionPolicy } from './tool-execution-policy.js';
 
 export type PersistedWorkflowExecution = {
   action: string | null;
@@ -103,7 +109,9 @@ export type WorkflowRuntimeDeps = {
 type WorkflowToolServerConfig = {
   command: string;
   args: string[];
-  env: Record<string, string> | undefined;
+  configEnv: Record<string, string> | undefined;
+  credentials: Record<string, string> | undefined;
+  requiredCredentialNames: string[];
 };
 
 function toolMessage(toolResult: McpToolResult, fallbackTool: string): string {
@@ -372,17 +380,32 @@ export function normalizeWorkflowRuntimeResult(
 }
 
 function parseWorkflowJsonEnv<T>(
-  name: 'NULLIUS_RUN_MCP_ARGS_JSON' | 'NULLIUS_RUN_MCP_ENV_JSON',
+  name: 'NULLIUS_RUN_MCP_ARGS_JSON'
+    | 'NULLIUS_RUN_MCP_ENV_JSON'
+    | 'NULLIUS_RUN_MCP_CREDENTIALS_JSON'
+    | 'NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON',
   raw: string,
 ): T {
   try {
     return JSON.parse(raw) as T;
   } catch {
-    if (name === 'NULLIUS_RUN_MCP_ARGS_JSON') {
-      throw new Error('NULLIUS_RUN_MCP_ARGS_JSON must decode to a JSON string array');
+    if (name === 'NULLIUS_RUN_MCP_ARGS_JSON' || name === 'NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON') {
+      throw new Error(`${name} must decode to a JSON string array`);
     }
-    throw new Error('NULLIUS_RUN_MCP_ENV_JSON must decode to a JSON object');
+    throw new Error(`${name} must decode to a JSON object`);
   }
+}
+
+function parseStringMapEnv(
+  name: 'NULLIUS_RUN_MCP_ENV_JSON' | 'NULLIUS_RUN_MCP_CREDENTIALS_JSON',
+  raw: string,
+): Record<string, string> | undefined {
+  if (!raw) return undefined;
+  const parsed = parseWorkflowJsonEnv<unknown>(name, raw);
+  if (!isRecord(parsed) || !Object.values(parsed).every(value => typeof value === 'string')) {
+    throw new Error(`${name} must decode to a JSON object with string values`);
+  }
+  return parsed as Record<string, string>;
 }
 
 export function loadWorkflowToolServerConfigFromEnv(): WorkflowToolServerConfig | null {
@@ -390,23 +413,27 @@ export function loadWorkflowToolServerConfigFromEnv(): WorkflowToolServerConfig 
   if (!command) return null;
   const argsRaw = (process.env.NULLIUS_RUN_MCP_ARGS_JSON ?? '').trim();
   const envRaw = (process.env.NULLIUS_RUN_MCP_ENV_JSON ?? '').trim();
+  const credentialsRaw = (process.env.NULLIUS_RUN_MCP_CREDENTIALS_JSON ?? '').trim();
+  const requiredCredentialsRaw = (process.env.NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON ?? '').trim();
   const args = argsRaw ? parseWorkflowJsonEnv<unknown>('NULLIUS_RUN_MCP_ARGS_JSON', argsRaw) : [];
   if (!Array.isArray(args) || !args.every(item => typeof item === 'string')) {
     throw new Error('NULLIUS_RUN_MCP_ARGS_JSON must decode to a JSON string array');
   }
-  let env: Record<string, string> | undefined;
-  if (envRaw) {
-    const parsed = parseWorkflowJsonEnv<unknown>('NULLIUS_RUN_MCP_ENV_JSON', envRaw);
-    if (!isRecord(parsed)) {
-      throw new Error('NULLIUS_RUN_MCP_ENV_JSON must decode to a JSON object');
-    }
-    env = Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value)]));
+  const configEnv = parseStringMapEnv('NULLIUS_RUN_MCP_ENV_JSON', envRaw);
+  const credentials = parseStringMapEnv('NULLIUS_RUN_MCP_CREDENTIALS_JSON', credentialsRaw);
+  const requiredCredentialNames = requiredCredentialsRaw
+    ? parseWorkflowJsonEnv<unknown>('NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON', requiredCredentialsRaw)
+    : [];
+  if (!Array.isArray(requiredCredentialNames)
+    || !requiredCredentialNames.every(item => typeof item === 'string')) {
+    throw new Error('NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON must decode to a JSON string array');
   }
-  return { command, args, env };
+  return { command, args, configEnv, credentials, requiredCredentialNames };
 }
 
 async function withWorkflowToolCaller<T>(
   deps: WorkflowRuntimeDeps,
+  projectRoot: string,
   fn: (toolCaller: ToolCaller) => Promise<T>,
 ): Promise<T> {
   if (deps.workflowToolCaller) {
@@ -419,7 +446,14 @@ async function withWorkflowToolCaller<T>(
     );
   }
   const client = new McpClient();
-  await client.start(serverConfig.command, serverConfig.args, serverConfig.env);
+  const startOptions: McpClientStartOptions = {
+    configEnv: serverConfig.configEnv,
+    credentials: serverConfig.credentials,
+    requiredCredentialNames: serverConfig.requiredCredentialNames,
+    cwd: projectRoot,
+    containment: 'required',
+  };
+  await client.start(serverConfig.command, serverConfig.args, startOptions);
   try {
     return await fn(client);
   } finally {
@@ -452,11 +486,21 @@ export async function executeWorkflowRuntimeRequest(
     };
   }
   try {
-    const toolResult = await withWorkflowToolCaller(deps, toolCaller => toolCaller.callTool(request.tool, request.params));
+    if (resolveToolExecutionPolicy(request.tool).approval_behavior === 'resolves_approval') {
+      throw new Error(
+        `workflow execution cannot resolve approvals through ${request.tool}; use the canonical host/operator approval surface`,
+      );
+    }
+    const toolResult = await withWorkflowToolCaller(
+      deps,
+      request.project_root,
+      toolCaller => toolCaller.callTool(request.tool, request.params),
+    );
     return normalizeWorkflowRuntimeResult(request, toolResult);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const code: WorkflowRuntimeDiagnosticCode = message.startsWith('NULLIUS_RUN_MCP_')
+      || /^MCP (?:config|credentials|credential-like|non-credential|environment|required credential)/.test(message)
       ? 'malformed_mcp_env'
       : message.includes('requires a configured MCP tool server')
         ? 'no_mcp_tool_server'

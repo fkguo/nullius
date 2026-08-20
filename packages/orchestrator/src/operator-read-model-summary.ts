@@ -14,6 +14,7 @@ export type RuntimeDiagnosticsCauseV1 =
   | 'context_overflow'
   | 'truncation'
   | 'approval_required'
+  | 'tool_outcome_unknown'
   | 'runtime_error'
   | 'max_turns'
   | 'unknown_terminal';
@@ -23,7 +24,8 @@ export type RuntimeDiagnosticsActionV1 =
   | 'inspect_runtime_evidence'
   | 'reframe_or_replan_before_resume'
   | 'approve_or_reject_and_resume'
-  | 'compact_or_reduce_context';
+  | 'compact_or_reduce_context'
+  | 'inspect_external_state_before_resume';
 
 export interface RuntimeDiagnosticsSummaryV1 {
   status: RuntimeDiagnosticsStatusV1;
@@ -39,6 +41,14 @@ export interface TeamTaskProjectionStatus {
 export function summarizeRuntimeProjectionForOperator(
   runtimeProjection: DelegatedRuntimeProjectionV1,
 ): RuntimeDiagnosticsSummaryV1 {
+  if (runtimeProjection.terminal_outcome?.type === 'done'
+    && runtimeProjection.terminal_outcome.stop_reason === 'tool_outcome_unknown') {
+    return {
+      status: 'needs_recovery',
+      primary_cause: 'tool_outcome_unknown',
+      recommended_action: 'inspect_external_state_before_resume',
+    };
+  }
   if (runtimeProjection.terminal_outcome?.type === 'error') {
     return { status: 'failed', primary_cause: 'runtime_error', recommended_action: 'inspect_runtime_evidence' };
   }

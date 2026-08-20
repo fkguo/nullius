@@ -45,6 +45,7 @@
 pnpm install
 pnpm -r build
 pnpm --filter @nullius/hep-mcp docs:tool-counts:check
+pnpm --filter @nullius/orchestrator exec vitest run tests/run-manifest.test.ts tests/agent-runner.test.ts tests/agent-runner-manifest.test.ts tests/agent-runner-ops-b8-regression.test.ts tests/tool-execution-policy.test.ts tests/tool-dispatch-boundary.test.ts tests/mcp-client-process.test.ts tests/workflow-runtime.test.ts
 ```
 
 可选：跑自动化测试。
@@ -52,6 +53,8 @@ pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 ```bash
 pnpm -r test
 ```
+
+委托 runtime 的故障恢复验收必须覆盖：派发前 intent、跨进程 compare-and-claim、transport 中断后的 `outcome_unknown` 停机、已提交结果的逐字节 replay、审批请求不写 completed checkpoint、根审批后重跑原 producer、root/direct/team 三个 journal namespace 的结构隔离，以及 denied/approval-resolver 批次的 underlying transport 零调用。MCP 子进程验收必须覆盖 ambient credential canary、authenticated proxy 不继承、generic explicit/required credentials、初始化失败、unexpected parent exit 与 timeout 后孙进程不再产生 sentinel、重连预算、timeout 后禁止重连，以及幂等 close。
 
 如需联网 smoke，再显式开启：
 

@@ -38,9 +38,7 @@ export function updateStateTimestamp(state: TeamExecutionState, timestamp: strin
 export function applyAssignmentUpdate(
   assignment: TeamDelegateAssignment,
   update: {
-    approval_id?: string | null;
-    approval_packet_path?: string | null;
-    approval_requested_at?: string | null;
+    pending_approval?: TeamDelegateAssignment['pending_approval'];
     checkpoint_id?: string | null;
     last_completed_step?: string | null;
     last_heartbeat_at?: string | null;
@@ -53,9 +51,7 @@ export function applyAssignmentUpdate(
   timestamp: string,
 ): void {
   if (update.status !== undefined) assignment.status = update.status;
-  if (update.approval_id !== undefined) assignment.approval_id = update.approval_id;
-  if (update.approval_packet_path !== undefined) assignment.approval_packet_path = update.approval_packet_path;
-  if (update.approval_requested_at !== undefined) assignment.approval_requested_at = update.approval_requested_at;
+  if (update.pending_approval !== undefined) assignment.pending_approval = update.pending_approval;
   if (update.checkpoint_id !== undefined) assignment.checkpoint_id = update.checkpoint_id;
   if (update.timeout_at !== undefined) assignment.timeout_at = update.timeout_at;
   if (update.status !== undefined && update.status !== 'paused' && update.paused_from_status === undefined) {
@@ -73,9 +69,7 @@ export function updateDelegateAssignment(
   state: TeamExecutionState,
   assignmentId: string,
   update: {
-    approval_id?: string | null;
-    approval_packet_path?: string | null;
-    approval_requested_at?: string | null;
+    pending_approval?: TeamDelegateAssignment['pending_approval'];
     status?: TeamDelegateAssignment['status'];
     checkpoint_id?: string | null;
     timeout_at?: string | null;
@@ -208,9 +202,7 @@ export function markTimedOutAssignments(
       {
         status: 'timed_out',
         pending_redirect: null,
-        approval_id: null,
-        approval_packet_path: null,
-        approval_requested_at: null,
+        pending_approval: null,
       },
       now,
     );

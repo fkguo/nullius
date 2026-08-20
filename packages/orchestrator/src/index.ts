@@ -3,7 +3,13 @@ export const VERSION = '0.5.0';
 
 export * from './types.js';
 export { StateManager } from './state-manager.js';
-export { McpClient, type McpToolResult, type McpClientOptions } from './mcp-client.js';
+export {
+  McpClient,
+  type McpClientOptions,
+  type McpClientStartOptions,
+  type McpProcessContainment,
+  type McpToolResult,
+} from './mcp-client.js';
 export { retryWithBackoff, RetryExhaustedError, type RetryAttempt, type RetryResult } from './retry.js';
 export { SpanCollector, ActiveSpan } from './tracing.js';
 export { utcNowIso } from './util.js';
@@ -23,9 +29,18 @@ export { type ChatRoutingConfig, type ResolvedChatRoute } from './routing/types.
 export { type SamplingRoutingConfig, type ResolvedSamplingRoute } from './routing/sampling-types.js';
 export { executeSamplingRequest, type HostSamplingRequest, type SamplingExecutionAudit, type SamplingExecutionResult } from './sampling-handler.js';
 export {
+  canonicalJson,
+  createToolAttemptIdentity,
   RunManifestManager,
+  sha256CanonicalJson,
+  sha256McpToolResult,
+  type PendingToolIntent,
+  type PersistedToolOutcome,
   type RunManifest,
   type StepCheckpoint,
+  type ToolApprovalBoundary,
+  type ToolAttemptClassification,
+  type ToolAttemptIdentity,
 } from './run-manifest.js';
 export {
   attachDelegatedFollowupTeamExecutionMetadata,

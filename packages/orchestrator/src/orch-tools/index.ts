@@ -69,6 +69,10 @@ import {
   OrchRunStageIdeaSchema,
   OrchRunStatusSchema,
 } from './schemas.js';
+import {
+  resolveToolExecutionPolicy,
+  type ToolExecutionPolicy,
+} from '../tool-execution-policy.js';
 
 type OrchestratorToolSpec<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
   name: string;
@@ -77,9 +81,12 @@ type OrchestratorToolSpec<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
   exposure: 'standard' | 'full';
   zodSchema: TSchema;
   handler: (params: unknown, ctx?: AgentToolHandlerContext) => Promise<unknown>;
+  execution_policy: ToolExecutionPolicy;
 };
 
-export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
+type OrchestratorToolSpecDefinition = Omit<OrchestratorToolSpec, 'execution_policy'>;
+
+const ORCH_TOOL_SPEC_DEFINITIONS: OrchestratorToolSpecDefinition[] = [
   ...FLEET_TOOL_SPECS,
   {
     name: ORCH_RUN_EXECUTE_AGENT,
@@ -237,3 +244,14 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     handler: async params => handleOrchPolicyQuery(params as z.output<typeof OrchPolicyQuerySchema>),
   },
 ];
+
+export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = ORCH_TOOL_SPEC_DEFINITIONS.map(spec => {
+  const executionPolicy = resolveToolExecutionPolicy(spec.name);
+  if (executionPolicy.metadata_source !== 'registry') {
+    throw new Error(`Missing orchestrator tool execution policy for ${spec.name}`);
+  }
+  return {
+    ...spec,
+    execution_policy: Object.freeze(executionPolicy),
+  };
+});

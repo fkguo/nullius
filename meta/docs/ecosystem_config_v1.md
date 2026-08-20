@@ -53,18 +53,24 @@ Note: host-side sampling and orchestration now own writing/model decisions. This
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|
 | `NULLIUS_CONTROL_DIR` | path | derived | Control-plane state directory for `.nullius` ledger/state/plan files | orchestrator, hep-mcp |
+| `NULLIUS_RUN_MCP_COMMAND` | path or command | (none) | Local stdio MCP server executable used by `nullius run` workflow steps | orchestrator |
+| `NULLIUS_RUN_MCP_ARGS_JSON` | JSON string array | `[]` | Arguments passed directly to the configured MCP executable | orchestrator |
+| `NULLIUS_RUN_MCP_ENV_JSON` | JSON string map | `{}` | Explicit non-secret MCP server configuration; credential-shaped and process-injection keys are rejected | orchestrator |
+| `NULLIUS_RUN_MCP_CREDENTIALS_JSON` | JSON string map | `{}` | Explicit MCP credential name/value declarations; values are not copied from the ambient environment | orchestrator |
+| `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` | JSON string array | `[]` | Credential names required by the configured MCP server; missing or empty declared values fail before spawn | orchestrator |
 
 ### MCP Subprocess Environment Allowlist
 
-MCP subprocess launchers must use strict environment allowlists. Only these variables are propagated by current local stdio launch paths:
+MCP subprocess launchers use an isolated temporary `HOME`, an explicit working directory, and a strict ambient baseline. Only these ambient variables are propagated by the orchestrator stdio launch path:
 
 ```
-PATH, NODE_PATH, NODE_OPTIONS, NVM_DIR, NVM_BIN,
-npm_config_prefix, PNPM_HOME, PYTHONPATH, VIRTUAL_ENV,
-LANG, LC_ALL, LC_CTYPE, HOME, USER, LOGNAME,
-TMPDIR, TEMP, TMP, SHELL,
-HEP_TOOL_MODE, PDG_DB_PATH, PDG_ARTIFACT_TTL_HOURS
+PATH, TMPDIR, TEMP, TMP, LANG, LC_ALL, LC_CTYPE, TZ,
+HTTP_PROXY, HTTPS_PROXY, ALL_PROXY, NO_PROXY,
+http_proxy, https_proxy, all_proxy, no_proxy,
+SSL_CERT_FILE, SSL_CERT_DIR, NODE_EXTRA_CA_CERTS
 ```
+
+Server configuration must be named explicitly in `NULLIUS_RUN_MCP_ENV_JSON`. Credential-shaped names are rejected there and must instead be named exactly in `NULLIUS_RUN_MCP_CREDENTIALS_JSON`; names listed by `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` are checked before spawn so authenticated providers cannot silently degrade to anonymous operation. Loader and shell injection variables such as `NODE_OPTIONS`, `PYTHONPATH`, `LD_PRELOAD`, `DYLD_*`, and `BASH_ENV` are rejected in both channels. Credential values are never included in validation errors. On POSIX systems the server runs in a dedicated process group so timeout and shutdown apply to its descendant tree. Required containment fails closed on platforms where that guarantee is unavailable; a direct-child-only Windows launch requires an explicit best-effort API selection.
 
 ## Security Notes
 

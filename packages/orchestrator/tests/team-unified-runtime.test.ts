@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { ComputationResultV1 } from '@nullius/shared';
+import { ORCH_RUN_PLAN_COMPUTATION, type ComputationResultV1 } from '@nullius/shared';
 
 import {
   executeComputationManifest,
@@ -24,6 +24,8 @@ import {
   taskProjectionFromAssignmentStatus,
 } from '../src/operator-read-model-summary.js';
 import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
+import { handleOrchRunApprove } from '../src/orch-tools/approval.js';
+import { handleToolCall } from '../src/tooling.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'team-unified-runtime-'));
@@ -152,6 +154,28 @@ const PERMISSIONS: TeamPermissionMatrix = {
 };
 
 describe('operator read-model summary helper', () => {
+  it('projects an indeterminate tool side effect as operator recovery, never completion', () => {
+    expect(summarizeRuntimeProjectionForOperator({
+      version: 1,
+      turn_count: 1,
+      recovery_turn_count: 0,
+      dialogue_turn_count: 1,
+      projected_turns: [],
+      runtime_marker_kinds: [],
+      approval_requested: false,
+      terminal_outcome: {
+        type: 'done',
+        phase: 'dialogue',
+        turn_count: 1,
+        stop_reason: 'tool_outcome_unknown',
+      },
+    })).toEqual({
+      status: 'needs_recovery',
+      primary_cause: 'tool_outcome_unknown',
+      recommended_action: 'inspect_external_state_before_resume',
+    });
+  });
+
   it('projects runtime diagnostics with one shared status/cause/action vocabulary', () => {
     expect(summarizeRuntimeProjectionForOperator({
       version: 1,
@@ -897,20 +921,51 @@ describe('team unified runtime control paths', () => {
     }
   });
 
-  it('persists nested approval metadata and resumes after a task-scoped approve intervention', async () => {
+  it('persists run-gate approval authority, rejects team-local approval, and re-dispatches on resume', async () => {
     const projectRoot = makeTmpDir();
     try {
-      const approvalClient = vi.fn(async () => ({
-        ok: true,
-        isError: false,
-        rawText: '{"requires_approval":true,"approval_id":"apr_nested","packet_path":"artifacts/runs/run-approval/approval_packet_v1.json"}',
-        json: {
-          requires_approval: true,
-          approval_id: 'apr_nested',
-          packet_path: 'artifacts/runs/run-approval/approval_packet_v1.json',
+      const runDir = ensureRunDir(projectRoot, 'run-approval');
+      const sourceHandoffUri = 'hep://runs/source-run/artifact/idea_handoff_c2_v1.json';
+      fs.writeFileSync(path.join(runDir, 'artifacts', 'outline_seed_v1.json'), JSON.stringify({
+        thesis: 'Exercise the canonical delegated approval boundary.',
+        claims: [{ claim_text: 'The producer must observe root approval before continuing.' }],
+        hypotheses: ['Canonical approval and delegated replay remain coupled.'],
+        source_handoff_uri: sourceHandoffUri,
+      }, null, 2) + '\n');
+      fs.writeFileSync(path.join(runDir, 'artifacts', 'idea_handoff_hints_v1.json'), JSON.stringify({
+        version: 1,
+        source_handoff_uri: sourceHandoffUri,
+        hints: {
+          required_observables: ['approval_boundary'],
+          minimal_compute_plan: [{
+            step: 'Produce a deterministic approval-bound plan',
+            method: 'structured derivation',
+            estimated_difficulty: 'moderate',
+          }],
         },
-        errorCode: null,
-      }));
+      }, null, 2) + '\n');
+      const rootStateManager = initRunState(projectRoot, 'run-approval');
+      fs.writeFileSync(
+        rootStateManager.policyPath,
+        JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n',
+      );
+      const realPlanTool = vi.fn(async (name: string, args: Record<string, unknown>) => {
+        const response = await handleToolCall(name, args, 'full');
+        const rawText = response.content.map(part => part.text).join('\n');
+        return {
+          ok: response.isError !== true,
+          isError: response.isError === true,
+          rawText,
+          json: JSON.parse(rawText) as unknown,
+          errorCode: null,
+        };
+      });
+      const planToolInput = {
+        task_id: 'task-approval',
+        run_id: 'run-approval',
+        project_root: projectRoot,
+        run_dir: runDir,
+      };
 
       const first = await executeUnifiedTeamRuntime({
         projectRoot,
@@ -922,17 +977,38 @@ describe('team unified runtime control paths', () => {
           { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-approval', task_kind: 'compute' },
         ],
         messages: [{ role: 'user', content: 'go' }],
-        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        tools: [{ name: ORCH_RUN_PLAN_COMPUTATION, input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
-        mcpClient: { callTool: approvalClient },
-        _messagesCreate: vi.fn().mockResolvedValue(toolUseResponse('tu_approval', 'do_thing', { task_id: 'task-approval' })),
+        mcpClient: { callTool: realPlanTool },
+        _messagesCreate: vi.fn().mockResolvedValue(toolUseResponse(
+          'tu_approval',
+          ORCH_RUN_PLAN_COMPUTATION,
+          planToolInput,
+        )),
       });
+
+      const pendingApproval = first.team_state.delegate_assignments[0]?.pending_approval;
+      if (!pendingApproval || pendingApproval.authority !== 'run_gate') {
+        throw new Error('expected real planning handler to create a run-gate approval');
+      }
+      const {
+        approval_id: approvalId,
+        packet_path: packetPath,
+        approval_packet_sha256: approvalPacketSha256,
+      } = pendingApproval;
+      expect(realPlanTool).toHaveBeenCalledOnce();
 
       expect(first.assignment_results[0]?.status).toBe('awaiting_approval');
       expect(first.team_state.delegate_assignments[0]).toMatchObject({
         status: 'awaiting_approval',
-        approval_id: 'apr_nested',
-        approval_packet_path: 'artifacts/runs/run-approval/approval_packet_v1.json',
+        pending_approval: {
+          authority: 'run_gate',
+          gate_id: 'A3',
+          run_id: 'run-approval',
+          approval_id: approvalId,
+          packet_path: packetPath,
+          approval_packet_sha256: approvalPacketSha256,
+        },
       });
       expect(first.team_state).not.toHaveProperty('pending_approvals');
       expect(first.team_state.sessions[0]).toMatchObject({
@@ -952,7 +1028,11 @@ describe('team unified runtime control paths', () => {
       });
       const firstSessionId = first.team_state.sessions[0]!.session_id;
       expect(first.live_status.pending_approvals[0]).toMatchObject({
-        approval_id: 'apr_nested',
+        authority: 'run_gate',
+        gate_id: 'A3',
+        run_id: 'run-approval',
+        approval_id: approvalId,
+        approval_packet_sha256: approvalPacketSha256,
         agent_id: 'delegate-1',
         session_id: firstSessionId,
       });
@@ -965,14 +1045,7 @@ describe('team unified runtime control paths', () => {
         task_status: 'active',
       });
 
-      const resumedCallTool = vi.fn(async () => ({
-        ok: true,
-        isError: false,
-        rawText: 'should-not-run',
-        json: null,
-        errorCode: null,
-      }));
-      const resumed = await executeUnifiedTeamRuntime({
+      await expect(executeUnifiedTeamRuntime({
         projectRoot,
         runId: 'run-approval',
         workspaceId: 'workspace:run-approval',
@@ -986,20 +1059,105 @@ describe('team unified runtime control paths', () => {
           { role: 'user', content: 'resume' },
           { role: 'assistant', content: [{ type: 'tool_use', id: 'tu_approval', name: 'do_thing', input: { task_id: 'task-approval' } }] },
         ],
-        tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
+        tools: [{ name: ORCH_RUN_PLAN_COMPUTATION, input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
-        mcpClient: { callTool: resumedCallTool },
+        mcpClient: { callTool: realPlanTool },
+        _messagesCreate: vi.fn().mockResolvedValue(textResponse('must not run')),
+      })).rejects.toThrow(/cannot resolve run-gate authority.*orch_run_approve\/nullius approve/i);
+      expect(realPlanTool).toHaveBeenCalledTimes(1);
+
+      const afterRejectedApprove = new TeamExecutionStateManager(projectRoot).load('run-approval')!;
+      expect(afterRejectedApprove.delegate_assignments[0]).toMatchObject({
+        status: 'awaiting_approval',
+        pending_approval: {
+          authority: 'run_gate',
+          approval_id: approvalId,
+          approval_packet_sha256: approvalPacketSha256,
+        },
+      });
+
+      await expect(executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-approval',
+        workspaceId: 'workspace:run-approval',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-approval', task_kind: 'compute' },
+        ],
+        interventions: [{ kind: 'resume', scope: 'task', actor_role: 'lead', actor_id: 'pi', task_id: 'task-approval' }],
+        messages: [
+          { role: 'user', content: 'resume before canonical run approval' },
+          {
+            role: 'assistant',
+            content: [{
+              type: 'tool_use',
+              id: 'tu_approval',
+              name: ORCH_RUN_PLAN_COMPUTATION,
+              input: planToolInput,
+            }],
+          },
+        ],
+        tools: [{ name: ORCH_RUN_PLAN_COMPUTATION, input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: realPlanTool },
+        _messagesCreate: vi.fn().mockResolvedValue(textResponse('must not run')),
+      })).rejects.toThrow(/canonical approval .* is not satisfied/i);
+      expect(realPlanTool).toHaveBeenCalledTimes(1);
+
+      const canonicalApproval = await handleOrchRunApprove({
+        _confirm: true,
+        project_root: projectRoot,
+        approval_id: approvalId,
+        approval_packet_sha256: approvalPacketSha256,
+        note: 'approve delegated runtime producer',
+      }) as Record<string, unknown>;
+      expect(canonicalApproval).toMatchObject({
+        approved: true,
+        approval_id: approvalId,
+        category: 'A3',
+        run_status: 'running',
+      });
+      expect(rootStateManager.readState()).toMatchObject({
+        run_status: 'running',
+        pending_approval: null,
+        gate_satisfied: { A3: approvalId },
+      });
+
+      const resumed = await executeUnifiedTeamRuntime({
+        projectRoot,
+        runId: 'run-approval',
+        workspaceId: 'workspace:run-approval',
+        coordinationPolicy: 'supervised_delegate',
+        permissions: PERMISSIONS,
+        assignments: [
+          { stage: 0, owner_role: 'lead', delegate_role: 'delegate', delegate_id: 'delegate-1', task_id: 'task-approval', task_kind: 'compute' },
+        ],
+        interventions: [{ kind: 'resume', scope: 'task', actor_role: 'lead', actor_id: 'pi', task_id: 'task-approval' }],
+        messages: [
+          { role: 'user', content: 'resume after canonical run approval' },
+          {
+            role: 'assistant',
+            content: [{
+              type: 'tool_use',
+              id: 'tu_approval',
+              name: ORCH_RUN_PLAN_COMPUTATION,
+              input: planToolInput,
+            }],
+          },
+        ],
+        tools: [{ name: ORCH_RUN_PLAN_COMPUTATION, input_schema: { type: 'object', properties: {} } }],
+        model: 'claude-opus-4-6',
+        mcpClient: { callTool: realPlanTool },
         _messagesCreate: vi.fn().mockResolvedValue(textResponse('approved and resumed')),
       });
 
       expect(resumed.assignment_results[0]?.status).toBe('completed');
       expect(resumed.assignment_results[0]?.resumed).toBe(true);
-      expect(resumed.assignment_results[0]?.skipped_step_ids).toEqual(['tu_approval']);
+      expect(resumed.assignment_results[0]?.skipped_step_ids).toEqual([]);
       expect(resumed.team_state.delegate_assignments[0]).toMatchObject({
         status: 'completed',
-        approval_id: null,
-        approval_packet_path: null,
-        approval_requested_at: null,
+        pending_approval: null,
       });
       expect(resumed.team_state).not.toHaveProperty('pending_approvals');
       expect(resumed.team_state.sessions).toHaveLength(2);
@@ -1023,7 +1181,27 @@ describe('team unified runtime control paths', () => {
         task_lifecycle_status: 'completed',
         task_status: 'completed',
       });
-      expect(resumedCallTool).not.toHaveBeenCalled();
+      expect(realPlanTool).toHaveBeenCalledTimes(2);
+      expect(realPlanTool).toHaveBeenLastCalledWith(
+        ORCH_RUN_PLAN_COMPUTATION,
+        planToolInput,
+      );
+      const committedManifest = JSON.parse(fs.readFileSync(
+        path.join(projectRoot, resumed.assignment_results[0]!.manifest_path),
+        'utf8',
+      )) as { checkpoints: Array<Record<string, unknown>> };
+      expect(committedManifest.checkpoints[0]).toMatchObject({
+        step_id: 'tu_approval',
+        approval_boundary_count: 1,
+        last_approval_boundary: {
+          authority: 'run_gate',
+          gate_id: 'A3',
+          run_id: 'run-approval',
+          approval_id: approvalId,
+          packet_path: packetPath,
+          approval_packet_sha256: approvalPacketSha256,
+        },
+      });
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

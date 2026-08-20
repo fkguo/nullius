@@ -3,9 +3,15 @@
 
 import { generateTraceId } from '@nullius/shared';
 import { createChatBackend, type ChatBackendFactory } from './backends/backend-factory.js';
-import type { ChatBackend, MessageParam, MessagesCreateFn, Tool } from './backends/chat-backend.js';
+import type { ChatBackend, MessageParam, MessagesCreateFn, Tool, ToolUseContent } from './backends/chat-backend.js';
 import type { ToolCaller } from './mcp-client.js';
-import { RunManifestManager, type RunManifest } from './run-manifest.js';
+import { createToolAttemptIdentity, RunManifestManager } from './run-manifest.js';
+import type { RuntimePermissionProfileV1 } from './runtime-permission-profile.js';
+import {
+  buildRuntimeToolPermissionView,
+  filterToolsForPermissionView,
+  type ToolPermissionView,
+} from './tool-execution-policy.js';
 import type { ResolvedChatRoute } from './routing/types.js';
 import { DEFAULT_CHAT_MAX_TOKENS, loadRoutingConfig, resolveChatRoute } from './routing/loader.js';
 import type { SpanCollector } from './tracing.js';
@@ -37,20 +43,26 @@ export interface AgentRunnerOptions {
   model: string;
   maxTurns?: number;
   runId: string;
+  approvalRunId: string;
+  approvalProjectRoot: string;
   mcpClient: ToolCaller;
+  permissionProfile: RuntimePermissionProfileV1;
   spanCollector?: SpanCollector;
   routingConfig?: unknown;
   backendFactory?: ChatBackendFactory;
-  manifestManager?: RunManifestManager;
+  manifestManager: RunManifestManager;
   _messagesCreate?: MessagesCreateFn;
 }
 
 export class AgentRunner {
   private readonly maxTurns: number;
   readonly runId: string;
+  private readonly approvalRunId: string;
+  private readonly approvalProjectRoot: string;
   private readonly mcpClient: ToolCaller;
   private readonly spanCollector: SpanCollector | null;
-  private readonly manifestManager: RunManifestManager | null;
+  private readonly manifestManager: RunManifestManager;
+  private readonly permissionView: ToolPermissionView;
   private readonly route: ResolvedChatRoute;
   private readonly chatBackend: ChatBackend;
   private lastRuntimeProjection: DelegatedRuntimeProjectionV1 | null = null;
@@ -58,15 +70,18 @@ export class AgentRunner {
   constructor(options: AgentRunnerOptions) {
     this.maxTurns = options.maxTurns ?? 50;
     this.runId = options.runId;
+    this.approvalRunId = options.approvalRunId;
+    this.approvalProjectRoot = options.approvalProjectRoot;
     this.mcpClient = options.mcpClient;
     this.spanCollector = options.spanCollector ?? null;
-    this.manifestManager = options.manifestManager ?? null;
+    this.manifestManager = options.manifestManager;
+    this.permissionView = buildRuntimeToolPermissionView(options.permissionProfile);
     const routingConfig = loadRoutingConfig(options.routingConfig, options.model);
     this.route = resolveChatRoute(routingConfig, options.model);
     this.chatBackend = (options.backendFactory ?? createChatBackend)(this.route, { messagesCreate: options._messagesCreate });
   }
 
-  async *run(messages: MessageParam[], tools: Tool[], runOptions?: { manifest?: RunManifest }): AsyncGenerator<AgentEvent> {
+  async *run(messages: MessageParam[], tools: Tool[]): AsyncGenerator<AgentEvent> {
     this.lastRuntimeProjection = null;
     const prior = _laneQueue.get(this.runId) ?? Promise.resolve();
     let releaseLane!: () => void;
@@ -77,7 +92,7 @@ export class AgentRunner {
 
     try {
       await prior;
-      yield* this.runImpl(messages, tools, runOptions?.manifest ?? null);
+      yield* this.runImpl(messages, filterToolsForPermissionView(tools, this.permissionView));
     } finally {
       releaseLane();
       if (_laneQueue.get(this.runId) === lane) _laneQueue.delete(this.runId);
@@ -88,21 +103,44 @@ export class AgentRunner {
     return this.lastRuntimeProjection;
   }
 
-  private async *runImpl(messages: MessageParam[], tools: Tool[], manifest: RunManifest | null): AsyncGenerator<AgentEvent> {
+  private async *runImpl(messages: MessageParam[], tools: Tool[]): AsyncGenerator<AgentEvent> {
     let currentMessages: MessageParam[] = [...messages];
     const runtimeState = createAgentRuntimeState();
     const projectionBuilder = createDelegatedRuntimeProjectionBuilder();
     const traceId = generateTraceId();
     const manifestManager = this.manifestManager;
-    const checkpointRecorder = async (stepId: string, resultSummary: string) => {
-      manifestManager?.saveCheckpoint(this.runId, stepId, resultSummary);
-    };
+    const existingManifest = manifestManager.loadManifest(this.runId);
+    manifestManager.ensureManifest(this.runId);
+    if (!existingManifest) {
+      const last = currentMessages.at(-1);
+      const initialPendingToolUses = last?.role === 'assistant' && Array.isArray(last.content)
+        ? last.content.filter((block): block is ToolUseContent => block.type === 'tool_use')
+        : [];
+      if (initialPendingToolUses.length > 0) {
+        // The public execute-agent contract permits an initial transcript to end
+        // with a host-produced assistant tool_use. Make that first dispatch
+        // durable before recovery logic sees it. Once a manifest exists, a
+        // missing intent remains a hard recovery error.
+        manifestManager.observeToolIntents(
+          this.runId,
+          initialPendingToolUses.map(block => createToolAttemptIdentity({
+            stepId: block.id,
+            toolName: block.name,
+            input: block.input,
+          })),
+        );
+      }
+    }
     const recovery = await resolveIncompleteToolUses({
       messages: currentMessages,
-      manifest,
+      runId: this.runId,
+      approvalRunId: this.approvalRunId,
+      approvalProjectRoot: this.approvalProjectRoot,
       mcpClient: this.mcpClient,
-      checkpointRecorder,
-      shouldSkipStep: manifestManager ? (resumeManifest, stepId) => manifestManager.shouldSkipStep(resumeManifest, stepId) : undefined,
+      permissionView: this.permissionView,
+      manifestManager,
+      traceId,
+      spanCollector: this.spanCollector,
     });
     if (recovery !== null) {
       recordDelegatedRuntimeProjectionTurn({
@@ -144,9 +182,13 @@ export class AgentRunner {
           turnCount: turn + 1,
           runtimeState,
           traceId,
+          runId: this.runId,
+          approvalRunId: this.approvalRunId,
+          approvalProjectRoot: this.approvalProjectRoot,
           mcpClient: this.mcpClient,
+          permissionView: this.permissionView,
+          manifestManager,
           spanCollector: this.spanCollector,
-          checkpointRecorder,
         });
         recordDelegatedRuntimeProjectionTurn({
           builder: projectionBuilder,

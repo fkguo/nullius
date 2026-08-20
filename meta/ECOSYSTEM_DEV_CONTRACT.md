@@ -296,13 +296,11 @@ pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 
 ### CFG-03: 环境变量传播白名单
 
-**规则**: MCP subprocess launchers must keep strict env allowlists aligned with `CFG-01`. 新增配置键时必须同步更新白名单。
+**规则**: MCP subprocess launchers must keep a strict ambient baseline, isolate `HOME`, separate explicit non-secret configuration from generic named credentials, reject loader/shell injection keys and authenticated ambient proxies, fail before spawn for declared missing credentials, terminate the owned process tree on initialization failure, unexpected parent exit, timeout, and close, and bound reconnects across the client lifetime. 新增配置键时必须同步更新 registry、help 与边界测试。
 
 **CI 验证**:
 ```bash
-# 当前没有独立的 repo-local env-whitelist validator。
-# 先由边界/配置 tests 覆盖该约束。
-pnpm --filter @nullius/hep-mcp test -- tests/docs/docToolDrift.test.ts
+pnpm --filter @nullius/orchestrator exec vitest run tests/mcp-client-process.test.ts tests/workflow-runtime.test.ts
 ```
 
 **违规行为**: **fail-closed** — 配置键未传播阻断 CI

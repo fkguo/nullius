@@ -2,12 +2,8 @@ import * as path from 'node:path';
 import { AgentRunner, type AgentEvent, type MessageParam, type Tool } from '../agent-runner.js';
 import type { ChatBackendFactory } from '../backends/backend-factory.js';
 import type { MessagesCreateFn, ToolUseContent } from '../backends/chat-backend.js';
-import { bindToolPermissionView, type ToolCaller } from '../mcp-client.js';
+import type { ToolCaller } from '../mcp-client.js';
 import { RunManifestManager, type RunManifest } from '../run-manifest.js';
-import {
-  buildRuntimeToolPermissionView,
-  filterToolsForPermissionView,
-} from '../tool-execution-policy.js';
 import type { RuntimePermissionProfileV1 } from '../runtime-permission-profile.js';
 import {
   writeRuntimeDiagnosticsBridgeArtifact,
@@ -15,10 +11,15 @@ import {
 } from '../runtime-diagnostics-bridge.js';
 import type { SpanCollector } from '../tracing.js';
 import {
-  delegatedRuntimeArtifactRefs,
+  assertDelegatedRuntimeHandleV1,
+  directDelegatedRuntimeArtifactRefs,
   type DelegatedRuntimeHandleV1,
 } from '../delegated-runtime-handle.js';
 import type { DelegatedRuntimeProjectionV1 } from './delegated-runtime-projection.js';
+import {
+  DIRECT_DELEGATED_RUNTIME_ARTIFACT_ROOT,
+  TEAM_DELEGATED_RUNTIME_ARTIFACT_ROOT,
+} from '../execution-identity.js';
 
 export interface ExecuteDelegatedAgentRuntimeInput {
   projectRoot: string;
@@ -51,8 +52,13 @@ export interface ExecuteDelegatedAgentRuntimeResult {
   last_completed_step: string | null;
 }
 
-function createManifestManager(projectRoot: string): RunManifestManager {
-  return new RunManifestManager(path.join(projectRoot, 'artifacts', 'runs'));
+function createManifestManager(projectRoot: string, delegatedTeamRuntime: boolean): RunManifestManager {
+  return new RunManifestManager(path.join(
+    projectRoot,
+    delegatedTeamRuntime
+      ? TEAM_DELEGATED_RUNTIME_ARTIFACT_ROOT
+      : DIRECT_DELEGATED_RUNTIME_ARTIFACT_ROOT,
+  ));
 }
 
 function pendingToolUses(messages: MessageParam[]): ToolUseContent[] {
@@ -77,16 +83,18 @@ function buildResumeManifest(manifest: RunManifest | null, resumeFrom?: string):
 export async function executeDelegatedAgentRuntime(
   input: ExecuteDelegatedAgentRuntimeInput,
 ): Promise<ExecuteDelegatedAgentRuntimeResult> {
-  if (input.delegated_runtime_handle
-    && input.delegated_runtime_handle.identity.runtime_run_id !== input.runId) {
+  const delegatedRuntimeHandle = input.delegated_runtime_handle === undefined
+    ? null
+    : assertDelegatedRuntimeHandleV1(input.delegated_runtime_handle);
+  if (delegatedRuntimeHandle
+    && delegatedRuntimeHandle.identity.runtime_run_id !== input.runId) {
     throw new Error('delegated runtime handle run id mismatch');
   }
-  const artifactRefs = input.delegated_runtime_handle?.artifacts
-    ?? delegatedRuntimeArtifactRefs({ runtime_run_id: input.runId });
-  const manifestManager = createManifestManager(input.projectRoot);
+  const artifactRefs = delegatedRuntimeHandle?.artifacts
+    ?? directDelegatedRuntimeArtifactRefs({ runtime_run_id: input.runId });
+  const manifestManager = createManifestManager(input.projectRoot, delegatedRuntimeHandle !== null);
   const persistedManifest = manifestManager.loadManifest(input.runId);
   const runtimeManifest = buildResumeManifest(persistedManifest, input.resumeFrom);
-  const toolPermissionView = buildRuntimeToolPermissionView(input.permissionProfile);
   const skippedStepIds = runtimeManifest
     ? pendingToolUses(input.messages)
       .map(toolUse => toolUse.id)
@@ -96,7 +104,10 @@ export async function executeDelegatedAgentRuntime(
     model: input.model,
     maxTurns: input.maxTurns,
     runId: input.runId,
-    mcpClient: bindToolPermissionView(input.mcpClient, toolPermissionView),
+    approvalRunId: delegatedRuntimeHandle?.identity.project_run_id ?? input.runId,
+    approvalProjectRoot: input.projectRoot,
+    mcpClient: input.mcpClient,
+    permissionProfile: input.permissionProfile,
     spanCollector: input.spanCollector,
     routingConfig: input.routingConfig,
     backendFactory: input.backendFactory,
@@ -104,8 +115,7 @@ export async function executeDelegatedAgentRuntime(
     _messagesCreate: input._messagesCreate,
   });
   const events: AgentEvent[] = [];
-  const visibleTools = filterToolsForPermissionView(input.tools, toolPermissionView);
-  for await (const event of runner.run(input.messages, visibleTools, runtimeManifest ? { manifest: runtimeManifest } : undefined)) {
+  for await (const event of runner.run(input.messages, input.tools)) {
     events.push(event);
   }
   const savedManifest = manifestManager.loadManifest(input.runId);

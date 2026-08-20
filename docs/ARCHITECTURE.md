@@ -28,6 +28,10 @@ This document explains the current front-door architecture of the monorepo. It i
 - `idea-mcp` remains experimental and must not reclaim root workflow authority; the idea-engine has been restarted into a probability-managed idea portfolio, and the idea-engine search/eval runtime is archived rather than a default capability-expansion lane, with contracts + store retained and scoring consuming an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4).
 - `research_brainstorm` is a lightweight planning-only durable harness recipe under `nullius workflow-plan`: it persists a brainstorm-to-handoff plan and emits a `next_contract` for optional heavier recipes, but it does not provide built-in runtime tools or invoke host-native thinking process, idea-engine, full research-team, broad retrieval, memory graph expansion, or a new front door.
 - Large outputs are written to disk as artifacts; MCP results return compact summaries plus file or artifact pointers.
+- The delegated agent runtime is a host-client execution harness inside the control plane, not a second scientific authority. Its versioned `manifest.json` durably records each tool attempt as `not_started`, `outcome_unknown`, or `committed`, including the exact committed MCP result. `outcome_unknown` stops for operator reconciliation and is never automatically retried or converted into model-visible retry advice.
+- `AgentRunner` owns the non-optional permission view and whole-turn preflight. Approval-resolving tools stay at the host/operator boundary; a delegated tool result becomes a run-gate request only when a registered producer returns the complete hash-bound envelope for the root run. Team assignment state stores that gate only as a tagged projection and cannot grant it.
+- Orchestrator-owned MCP subprocesses run in an explicit execution world: a declared working directory, isolated temporary `HOME`, allowlisted ambient baseline, separately declared configuration and credentials, and required-credential checks before spawn. POSIX launches use a dedicated process group; initialization failure, unexpected parent exit, request timeout, and close terminate the descendant group. Reconnects have a lifetime budget; a timed-out client is unusable and cannot reconnect.
+- Runtime diagnostics are projections of the durable runtime manifest and runtime projection. They are operational evidence only and are never accepted as research findings, verification results, or promoted conclusions.
 - Missing or unauthorized writing citations fail hard at render time; source and artifact paths stay constrained under allowed roots.
 - For initialized external project roots, `.nullius/HARNESS`, `.nullius/` state, `project_index.md`, project-local durable memory, and registered immutable reports remain the enduring reconnect truth.
 - `research_plan.md#Current Status` is the human status entry for final target, current phase, completion state, blocker, next step, stop condition, and evidence pointers before the longer task board and log.
@@ -104,6 +108,15 @@ The generic lifecycle package writes to real external project roots:
     runs/<run_id>/
       approvals/<approval_id>/
         approval_packet_v1.json
+    delegated-runs/
+      direct/<run_id>/
+        manifest.json                # direct agent-runtime tool-attempt journal v2
+        spans.jsonl
+        runtime_diagnostics_bridge_v1.json
+      team/<runtime_run_id>/
+        manifest.json                # tuple-derived team-runtime tool-attempt journal v2
+        spans.jsonl
+        runtime_diagnostics_bridge_v1.json
 ```
 
 Key files:

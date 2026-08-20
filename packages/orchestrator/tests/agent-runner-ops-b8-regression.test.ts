@@ -1,178 +1,172 @@
-/**
- * B-8 regression: Recovery tool_result leak before approval gate.
- *
- * Before this fix, `resolveIncompleteToolUses` committed cached
- * `tool_result` blocks to the message thread eagerly. If a batch contained
- * `[cached_block, approval_block]` the cached result was committed BEFORE
- * the approval gate fired, leaving the message thread inconsistent on
- * resume and leaking partial state to the model if approval was later
- * denied.
- *
- * The fix stages all tool_results locally and discards them all if any
- * fresh tool call in the batch raises `requires_approval`. The whole batch
- * re-runs after approval (cached lookups are idempotent).
- */
-
-import { describe, expect, it, vi } from 'vitest';
+import { ORCH_RUN_EXECUTE_MANIFEST } from '@nullius/shared';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveIncompleteToolUses } from '../src/agent-runner-ops.js';
-import type { MessageParam } from '../src/backends/chat-backend.js';
-import type { ToolCaller, McpToolResult } from '../src/mcp-client.js';
-import type { RunManifest } from '../src/run-manifest.js';
+import type { MessageParam, Tool } from '../src/backends/chat-backend.js';
+import type { McpToolResult, ToolCaller } from '../src/mcp-client.js';
+import { createToolAttemptIdentity, RunManifestManager } from '../src/run-manifest.js';
+import { buildDirectRuntimePermissionProfile } from '../src/runtime-permission-profile.js';
+import { buildRuntimeToolPermissionView } from '../src/tool-execution-policy.js';
 
-function freshAssistantBatch(blocks: Array<{ id: string; name: string; input?: Record<string, unknown> }>): MessageParam {
+function assistantBatch(blocks: Array<{ id: string; name: string; input?: Record<string, unknown> }>): MessageParam {
   return {
     role: 'assistant',
-    content: blocks.map(b => ({ type: 'tool_use' as const, id: b.id, name: b.name, input: b.input ?? {} })),
+    content: blocks.map(block => ({ type: 'tool_use' as const, ...block, input: block.input ?? {} })),
   };
 }
 
-function manifestWithCheckpoint(runId: string, stepId: string, resultSummary: string): RunManifest {
-  return {
-    run_id: runId,
-    created_at: new Date().toISOString(),
-    resume_from: 'recovery',
-    checkpoints: [{ step_id: stepId, completed_at: new Date().toISOString(), result_summary: resultSummary }],
-  };
-}
-
-function mockClient(responses: Map<string, McpToolResult>): ToolCaller {
-  return {
-    callTool: vi.fn(async (toolName: string) => {
-      const res = responses.get(toolName);
-      if (!res) throw new Error(`B-8 test: no mock for ${toolName}`);
-      return res;
-    }),
-  };
-}
-
-function approvalRequiredResult(approvalId: string, packetPath: string): McpToolResult {
-  return {
-    ok: true,
-    isError: false,
-    rawText: 'requires approval',
-    json: { requires_approval: true, approval_id: approvalId, packet_path: packetPath } as Record<string, unknown>,
-    errorCode: null,
-  };
-}
-
-function plainOkResult(text: string): McpToolResult {
+function ok(text: string): McpToolResult {
   return { ok: true, isError: false, rawText: text, json: null, errorCode: null };
 }
 
-function countToolResultsInMessages(messages: MessageParam[]): number {
-  let count = 0;
-  for (const msg of messages) {
-    if (Array.isArray(msg.content)) {
-      for (const c of msg.content) {
-        if (c.type === 'tool_result') count += 1;
-      }
-    }
-  }
-  return count;
+function approval(): McpToolResult {
+  const json = {
+    status: 'requires_approval',
+    requires_approval: true,
+    gate_id: 'A3',
+    run_id: 'run-b8',
+    approval_id: 'A3-0001',
+    packet_path: 'artifacts/runs/run-b8/approval.json',
+    approval_packet_sha256: 'a'.repeat(64),
+  };
+  return { ok: true, isError: false, rawText: JSON.stringify(json), json, errorCode: null };
 }
 
-describe('B-8: resolveIncompleteToolUses all-or-nothing batch on approval gate', () => {
-  it('does NOT commit cached tool_result when a later fresh call requires approval', async () => {
+function countToolResults(messages: MessageParam[]): number {
+  return messages.flatMap(message => Array.isArray(message.content) ? message.content : [])
+    .filter(block => block.type === 'tool_result').length;
+}
+
+describe('durable recovery batch is all-or-nothing', () => {
+  let tmpDir: string;
+  let manager: RunManifestManager;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-b8-'));
+    manager = new RunManifestManager(path.join(tmpDir, 'runs'));
+  });
+
+  afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+
+  function runtime(tools: Tool[]) {
+    return {
+      runId: 'run-b8',
+      approvalRunId: 'run-b8',
+      approvalProjectRoot: '/project',
+      manifestManager: manager,
+      permissionView: buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({ tools })),
+    };
+  }
+
+  function observe(id: string, name: string, input: Record<string, unknown> = {}) {
+    const identity = createToolAttemptIdentity({ stepId: id, toolName: name, input });
+    manager.observeToolIntents('run-b8', [identity]);
+    return identity;
+  }
+
+  it('does not inject a cached result when a later call reaches a real run gate', async () => {
+    const cached = observe('tu-cached', 'cached_tool');
+    manager.markToolIntentsDispatched('run-b8', [cached]);
+    manager.commitToolAttempt('run-b8', cached, ok('cached-value'));
+    observe('tu-approval', ORCH_RUN_EXECUTE_MANIFEST, { run_id: 'run-b8', project_root: '/project' });
     const messages: MessageParam[] = [
-      { role: 'user', content: 'go' },
-      freshAssistantBatch([
-        { id: 'tu_cached', name: 'cached_tool' },
-        { id: 'tu_approval', name: 'sensitive_tool' },
+      { role: 'user', content: 'resume' },
+      assistantBatch([
+        { id: 'tu-cached', name: 'cached_tool' },
+        {
+          id: 'tu-approval',
+          name: ORCH_RUN_EXECUTE_MANIFEST,
+          input: { run_id: 'run-b8', project_root: '/project' },
+        },
       ]),
     ];
-    const manifest = manifestWithCheckpoint('run_b8', 'tu_cached', 'cached_value');
-    const mcpClient = mockClient(new Map([
-      ['sensitive_tool', approvalRequiredResult('app_001', '/tmp/packet_b8.json')],
-    ]));
+    const mcpClient: ToolCaller = { callTool: vi.fn(async () => approval()) };
+    const tools: Tool[] = [
+      { name: 'cached_tool', input_schema: { type: 'object', properties: {} } },
+      { name: ORCH_RUN_EXECUTE_MANIFEST, input_schema: { type: 'object', properties: {} } },
+    ];
 
-    const result = await resolveIncompleteToolUses({ messages, manifest, mcpClient });
+    const result = await resolveIncompleteToolUses({ messages, mcpClient, ...runtime(tools) });
 
-    expect(result).not.toBeNull();
-    expect(result!.done).toBe(true);
-    // The approval_required event must be present.
-    const approvalEvent = result!.events.find(e => e.type === 'approval_required');
-    expect(approvalEvent).toBeDefined();
-    // CRITICAL: messages array must be UNCHANGED — no new user message with
-    // staged tool_results. The cached `tu_cached` result must NOT leak into
-    // the message thread.
-    expect(result!.messages).toEqual(messages);
-    expect(countToolResultsInMessages(result!.messages)).toBe(0);
-    // mcpClient.callTool was invoked exactly once (for the approval block;
-    // the cached block was served from the checkpoint without a tool call).
+    expect(result?.done).toBe(true);
+    expect(result?.messages).toEqual(messages);
+    expect(countToolResults(result!.messages)).toBe(0);
+    expect(result?.events).toContainEqual(expect.objectContaining({
+      type: 'approval_required',
+      authority: 'run_gate',
+      approvalId: 'A3-0001',
+    }));
     expect(mcpClient.callTool).toHaveBeenCalledTimes(1);
-    expect(mcpClient.callTool).toHaveBeenCalledWith('sensitive_tool', {});
+    expect(manager.classifyToolAttempt('run-b8', createToolAttemptIdentity({
+      stepId: 'tu-approval',
+      toolName: ORCH_RUN_EXECUTE_MANIFEST,
+      input: { run_id: 'run-b8', project_root: '/project' },
+    }))).toMatchObject({ state: 'not_started' });
   });
 
-  it('commits all tool_results when no block requires approval', async () => {
+  it('injects committed and newly committed results together when the batch is known', async () => {
+    const cached = observe('tu-cached', 'cached_tool');
+    manager.markToolIntentsDispatched('run-b8', [cached]);
+    manager.commitToolAttempt('run-b8', cached, ok('cached-value'));
+    observe('tu-fresh', 'fresh_tool');
     const messages: MessageParam[] = [
-      { role: 'user', content: 'go' },
-      freshAssistantBatch([
-        { id: 'tu_cached', name: 'cached_tool' },
-        { id: 'tu_fresh', name: 'fresh_tool' },
+      { role: 'user', content: 'resume' },
+      assistantBatch([
+        { id: 'tu-cached', name: 'cached_tool' },
+        { id: 'tu-fresh', name: 'fresh_tool' },
       ]),
     ];
-    const manifest = manifestWithCheckpoint('run_b8', 'tu_cached', 'cached_value');
-    const mcpClient = mockClient(new Map([
-      ['fresh_tool', plainOkResult('fresh_value')],
-    ]));
+    const mcpClient: ToolCaller = { callTool: vi.fn(async () => ok('fresh-value')) };
+    const tools: Tool[] = ['cached_tool', 'fresh_tool'].map(name => ({
+      name, input_schema: { type: 'object', properties: {} },
+    }));
 
-    const result = await resolveIncompleteToolUses({ messages, manifest, mcpClient });
+    const result = await resolveIncompleteToolUses({ messages, mcpClient, ...runtime(tools) });
 
-    expect(result).not.toBeNull();
-    expect(result!.done).toBe(false);
-    // Whole batch's tool_results committed to a new user message.
-    expect(countToolResultsInMessages(result!.messages)).toBe(2);
-    const lastMsg = result!.messages[result!.messages.length - 1];
-    expect(lastMsg.role).toBe('user');
-    expect(Array.isArray(lastMsg.content)).toBe(true);
-    const lastContent = lastMsg.content as Array<{ type: string; tool_use_id?: string; content?: string }>;
-    expect(lastContent[0]).toMatchObject({ type: 'tool_result', tool_use_id: 'tu_cached', content: 'cached_value' });
-    expect(lastContent[1]).toMatchObject({ type: 'tool_result', tool_use_id: 'tu_fresh', content: 'fresh_value' });
+    expect(result?.done).toBe(false);
+    expect(countToolResults(result!.messages)).toBe(2);
+    expect(mcpClient.callTool).toHaveBeenCalledTimes(1);
   });
 
-  it('does NOT commit anything when an approval-only batch hits the gate', async () => {
+  it('fails closed before transport when a recovery block lacks durable intent', async () => {
     const messages: MessageParam[] = [
-      { role: 'user', content: 'go' },
-      freshAssistantBatch([{ id: 'tu_approval', name: 'sensitive_tool' }]),
+      { role: 'user', content: 'resume' },
+      assistantBatch([{ id: 'tu-missing', name: 'missing_tool' }]),
     ];
-    const mcpClient = mockClient(new Map([
-      ['sensitive_tool', approvalRequiredResult('app_002', '/tmp/packet_b8b.json')],
-    ]));
+    const mcpClient: ToolCaller = { callTool: vi.fn(async () => ok('must-not-run')) };
+    const tools: Tool[] = [{ name: 'missing_tool', input_schema: { type: 'object', properties: {} } }];
 
-    const result = await resolveIncompleteToolUses({ messages, manifest: null, mcpClient });
+    const result = await resolveIncompleteToolUses({ messages, mcpClient, ...runtime(tools) });
 
-    expect(result).not.toBeNull();
-    expect(result!.done).toBe(true);
-    expect(result!.messages).toEqual(messages);
-    expect(countToolResultsInMessages(result!.messages)).toBe(0);
+    expect(result?.events).toContainEqual(expect.objectContaining({
+      type: 'tool_outcome_unknown', reason: 'missing_durable_intent',
+    }));
+    expect(mcpClient.callTool).not.toHaveBeenCalled();
   });
 
-  it('stops on first approval and does NOT call subsequent fresh tools', async () => {
-    // Three-block batch: fresh-ok, fresh-approval, fresh-ok. The third
-    // tool must NOT be invoked once the second returns requires_approval.
+  it('preflights the full batch and calls nothing when any member is outcome_unknown', async () => {
+    observe('tu-first', 'first_tool');
+    const unknown = observe('tu-unknown', 'unknown_tool');
+    manager.markToolIntentsDispatched('run-b8', [unknown]);
     const messages: MessageParam[] = [
-      { role: 'user', content: 'go' },
-      freshAssistantBatch([
-        { id: 'tu_one', name: 'tool_one' },
-        { id: 'tu_two', name: 'tool_two' },
-        { id: 'tu_three', name: 'tool_three' },
+      { role: 'user', content: 'resume' },
+      assistantBatch([
+        { id: 'tu-first', name: 'first_tool' },
+        { id: 'tu-unknown', name: 'unknown_tool' },
       ]),
     ];
-    const mcpClient = mockClient(new Map([
-      ['tool_one', plainOkResult('value_one')],
-      ['tool_two', approvalRequiredResult('app_003', '/tmp/packet_b8c.json')],
-      ['tool_three', plainOkResult('value_three')],
-    ]));
+    const mcpClient: ToolCaller = { callTool: vi.fn(async () => ok('must-not-run')) };
+    const tools: Tool[] = ['first_tool', 'unknown_tool'].map(name => ({
+      name, input_schema: { type: 'object', properties: {} },
+    }));
 
-    const result = await resolveIncompleteToolUses({ messages, manifest: null, mcpClient });
+    const result = await resolveIncompleteToolUses({ messages, mcpClient, ...runtime(tools) });
 
-    expect(result).not.toBeNull();
-    expect(result!.done).toBe(true);
-    expect(result!.messages).toEqual(messages);
-    expect(countToolResultsInMessages(result!.messages)).toBe(0);
-    // tool_one and tool_two were called; tool_three was NOT.
-    expect(mcpClient.callTool).toHaveBeenCalledTimes(2);
-    expect(mcpClient.callTool).toHaveBeenNthCalledWith(1, 'tool_one', {});
-    expect(mcpClient.callTool).toHaveBeenNthCalledWith(2, 'tool_two', {});
+    expect(result?.events).toContainEqual(expect.objectContaining({
+      type: 'tool_outcome_unknown', stepId: 'tu-unknown',
+    }));
+    expect(mcpClient.callTool).not.toHaveBeenCalled();
   });
 });

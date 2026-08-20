@@ -34,7 +34,11 @@ import {
 } from './team-execution-scoping.js';
 import { appendTeamEvent } from './team-execution-events.js';
 import { TeamExecutionStateManager } from './team-execution-storage.js';
-import type { TeamAssignmentStatus, TeamExecutionState } from './team-execution-types.js';
+import type {
+  TeamAssignmentStatus,
+  TeamExecutionState,
+  TeamPendingApprovalReference,
+} from './team-execution-types.js';
 import type {
   ExecuteUnifiedTeamRuntimeInput,
   TeamAssignmentExecutionResult,
@@ -123,17 +127,17 @@ function resolveAssignmentResumeFrom(
     ?? undefined;
 }
 
-function approvalMetadataFromEvents(events: AgentEvent[]): {
-  approval_id: string;
-  approval_packet_path: string;
-  approval_requested_at: string;
-} | null {
+function approvalMetadataFromEvents(events: AgentEvent[]): TeamPendingApprovalReference | null {
   const event = events.find((item): item is Extract<AgentEvent, { type: 'approval_required' }> => item.type === 'approval_required');
   if (!event) return null;
   return {
+    authority: 'run_gate',
+    gate_id: event.gateId,
+    run_id: event.runId,
     approval_id: event.approvalId,
-    approval_packet_path: event.packetPath,
-    approval_requested_at: utcNowIso(),
+    packet_path: event.packetPath,
+    approval_packet_sha256: event.approvalPacketSha256,
+    requested_at: utcNowIso(),
   };
 }
 
@@ -147,6 +151,7 @@ export function deriveAssignmentStatus(
     if (event.type === 'done' && status === 'running') {
       if (event.stopReason === 'approval_required') status = 'awaiting_approval';
       if (event.stopReason === 'diminishing_returns') status = 'needs_recovery';
+      if (event.stopReason === 'tool_outcome_unknown') status = 'needs_recovery';
       if (isTerminalCompletionStopReason(event.stopReason)) status = 'completed';
     }
   }
@@ -458,9 +463,7 @@ function mergeLaunchOutcome(
       ...(status === 'failed'
         ? {
             pending_redirect: null,
-            approval_id: null,
-            approval_packet_path: null,
-            approval_requested_at: null,
+            pending_approval: null,
           }
         : {}),
     });
@@ -551,15 +554,15 @@ function mergeLaunchOutcome(
     }
   }
   const approval = status === 'awaiting_approval'
-    ? approvalMetadataFromEvents(runtimeResult.events)
-    : null;
+    ? (approvalMetadataFromEvents(runtimeResult.events) ?? current.pending_approval)
+    : status === 'needs_recovery'
+      ? current.pending_approval
+      : null;
   updateDelegateAssignment(state, current.assignment_id, {
     status,
     last_completed_step: runtimeResult.last_completed_step,
     resume_from: runtimeResult.resume_from,
-    approval_id: approval?.approval_id ?? null,
-    approval_packet_path: approval?.approval_packet_path ?? null,
-    approval_requested_at: approval?.approval_requested_at ?? null,
+    pending_approval: approval,
     pending_redirect: null,
   });
   const updated = state.delegate_assignments.find(item => item.assignment_id === current.assignment_id)!;

@@ -139,6 +139,8 @@ nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-
 
 > 说明：较底层的 checked-in Python `workflow-plan` consumer 与 internal regression/parser-residue 路径见 `docs/TESTING_GUIDE.md`；不要把它们当成新的 quickstart 默认入口。
 
+若后续用 `nullius run` 驱动配置的本地 stdio MCP server，请把普通配置与凭据分开：`NULLIUS_RUN_MCP_ENV_JSON` 只放非敏感 string map，`NULLIUS_RUN_MCP_CREDENTIALS_JSON` 放显式凭据；需要鉴权的 server 再用 `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` 声明必需 key，使缺失凭据在 spawn 前失败。委托 runtime 对结果未知的副作用不会自动重试，而是以 `outcome_unknown` 停机等待核对；direct 与 team journal 分别位于 `artifacts/delegated-runs/direct/<run_id>/` 和 `artifacts/delegated-runs/team/<runtime_run_id>/`，也不与 root run 的 `artifacts/runs/<run_id>/` 共用 namespace。
+
 5) `hep_export_project`
 - 在通过验证与集成后导出完整项目成果。
 

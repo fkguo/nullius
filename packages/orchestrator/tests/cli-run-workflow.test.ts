@@ -41,8 +41,13 @@ async function withEnv<T>(
   env: Record<string, string | undefined>,
   fn: () => Promise<T>,
 ): Promise<T> {
+  const isolatedEnv = {
+    NULLIUS_RUN_MCP_CREDENTIALS_JSON: undefined,
+    NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON: undefined,
+    ...env,
+  };
   const previous = new Map<string, string | undefined>();
-  for (const [key, value] of Object.entries(env)) {
+  for (const [key, value] of Object.entries(isolatedEnv)) {
     previous.set(key, process.env[key]);
     if (value === undefined) {
       delete process.env[key];

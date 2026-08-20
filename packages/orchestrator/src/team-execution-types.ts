@@ -55,6 +55,23 @@ export interface TeamPendingRedirect {
   created_at: string;
 }
 
+export type TeamPendingApprovalReference =
+  | {
+      authority: 'run_gate';
+      gate_id: string;
+      run_id: string;
+      approval_id: string;
+      packet_path: string;
+      approval_packet_sha256: string;
+      requested_at: string;
+    }
+  | {
+      authority: 'team_assignment';
+      approval_id: string;
+      packet_path: string;
+      requested_at: string;
+    };
+
 export interface TeamPermissionMatrix {
   delegation: TeamDelegationPermission[];
   interventions: TeamInterventionPermission[];
@@ -122,22 +139,17 @@ export interface TeamDelegateAssignment {
   last_heartbeat_at: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
-  approval_id: string | null;
-  approval_packet_path: string | null;
-  approval_requested_at: string | null;
+  pending_approval: TeamPendingApprovalReference | null;
   pending_redirect: TeamPendingRedirect | null;
   updated_at: string;
 }
 
-export interface TeamPendingApproval {
-  approval_id: string;
+export type TeamPendingApproval = TeamPendingApprovalReference & {
   agent_id: string;
   assignment_id: string;
   session_id: string | null;
   runtime_run_id: string;
-  packet_path: string;
-  requested_at: string;
-}
+};
 
 export interface TeamAssignmentSession {
   session_id: string;

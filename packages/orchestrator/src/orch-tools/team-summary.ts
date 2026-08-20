@@ -73,7 +73,7 @@ export function readTeamSummaryView(projectRoot: string, state: RunState): {
           delegate_id: item.agent_id,
           handoff_kind: item.handoff_kind,
           resume_from: item.resume_from,
-          approval_id: item.approval_id,
+          pending_approval: item.pending_approval,
         })),
         terminal_assignments: live.terminal_assignments.map(item => ({
           assignment_id: item.assignment_id,
@@ -83,7 +83,7 @@ export function readTeamSummaryView(projectRoot: string, state: RunState): {
           delegate_id: item.agent_id,
           handoff_kind: item.handoff_kind,
           resume_from: item.resume_from,
-          approval_id: item.approval_id,
+          pending_approval: item.pending_approval,
         })),
       },
       team_summary_error: null,
