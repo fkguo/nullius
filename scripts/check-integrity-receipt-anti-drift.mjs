@@ -104,7 +104,7 @@ async function main() {
     for (const abs of allTs) {
       const content = readFileSync(abs, 'utf-8');
       if (!APPROVE_HANDLER_SYMBOL_RE.test(content)) continue;
-      const rel = path.relative(repoRoot, abs);
+      const rel = path.relative(repoRoot, abs).split(path.sep).join('/');
       if (!trackedSet.has(rel)) {
         errors.push(
           `${rel}: defines \`handleOrchRunApprove\` but is not registered in APPROVAL_GATE_HANDLERS ` +

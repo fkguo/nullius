@@ -72,6 +72,37 @@ function makeIo(cwd: string) {
   };
 }
 
+const IS_WINDOWS = process.platform === 'win32';
+const PROJECT_LOCAL_LAUNCHER = IS_WINDOWS
+  ? '.nullius/bin/nullius.cmd'
+  : '.nullius/bin/nullius';
+const PROJECT_LOCAL_STATUS_COMMAND = `${PROJECT_LOCAL_LAUNCHER} status --json`;
+
+function projectLocalLauncherPath(projectRoot: string): string {
+  return path.join(projectRoot, '.nullius', 'bin', IS_WINDOWS ? 'nullius.cmd' : 'nullius');
+}
+
+function executeProjectLocalLauncher(
+  launcherPath: string,
+  args: string[],
+  options: { cwd: string; env?: NodeJS.ProcessEnv; timeout?: number },
+): string {
+  if (IS_WINDOWS) {
+    return execFileSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/c', 'call', launcherPath, ...args], {
+      cwd: options.cwd,
+      encoding: 'utf-8',
+      env: options.env,
+      timeout: options.timeout,
+    });
+  }
+  return execFileSync(launcherPath, args, {
+    cwd: options.cwd,
+    encoding: 'utf-8',
+    env: options.env,
+    timeout: options.timeout,
+  });
+}
+
 describe('nullius CLI init/export', () => {
   it('rejects repo-internal init before writing runtime state', async () => {
     const projectRoot = path.join(process.cwd(), '.tmp', `repo-internal-init-denied-${Date.now()}`);
@@ -115,15 +146,15 @@ describe('nullius CLI init/export', () => {
       schema_version: 1,
       kind: 'nullius_project_harness',
       status_receipt_required: true,
-      project_local_status_command: '.nullius/bin/nullius status --json',
+      project_local_status_command: PROJECT_LOCAL_STATUS_COMMAND,
       fallback_status_command: 'nullius status --json',
       host_skill: 'research-harness',
       lifecycle_authority: 'nullius',
       milestone_executor: 'research-team',
     });
-    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+    const launcherPath = projectLocalLauncherPath(projectRoot);
     expect(fs.existsSync(launcherPath)).toBe(true);
-    expect((fs.statSync(launcherPath).mode & 0o111) !== 0).toBe(true);
+    if (!IS_WINDOWS) expect((fs.statSync(launcherPath).mode & 0o111) !== 0).toBe(true);
     for (const rel of CANONICAL_SCAFFOLD_FILES) {
       expect(fs.existsSync(path.join(projectRoot, rel))).toBe(true);
     }
@@ -138,12 +169,11 @@ describe('nullius CLI init/export', () => {
       expect(generatedText).not.toContain(token);
     }
 
-    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+    const statusJson = executeProjectLocalLauncher(launcherPath, ['status', '--json'], {
       cwd: projectRoot,
-      encoding: 'utf-8',
       env: {
         ...process.env,
-        PATH: '/usr/bin:/bin',
+        PATH: IS_WINDOWS ? process.env.PATH : '/usr/bin:/bin',
       },
     });
     expect(JSON.parse(statusJson)).toMatchObject({
@@ -151,8 +181,8 @@ describe('nullius CLI init/export', () => {
       recovery_context: {
         status_commands: {
           canonical: 'nullius status --json',
-          project_local_fallback: '.nullius/bin/nullius status --json',
-          harness_entrypoint: '.nullius/bin/nullius status --json',
+          project_local_fallback: PROJECT_LOCAL_STATUS_COMMAND,
+          harness_entrypoint: PROJECT_LOCAL_STATUS_COMMAND,
         },
         control_files: {
           harness: {
@@ -172,7 +202,7 @@ describe('nullius CLI init/export', () => {
     });
   });
 
-  it('calls the project-contracts scaffold authority without a variant argument', () => {
+  it.skipIf(IS_WINDOWS)('calls the project-contracts scaffold authority without a variant argument', () => {
     const parentDir = makeTempDir('nullius-scaffold-spawn-');
     const projectRoot = path.join(parentDir, 'project-root');
     const argvLog = path.join(parentDir, 'argv.log');
@@ -212,28 +242,33 @@ describe('nullius CLI init/export', () => {
     const code = await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], io);
 
     expect(code).toBe(0);
-    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+    const launcherPath = projectLocalLauncherPath(projectRoot);
     expect(fs.existsSync(launcherPath)).toBe(true);
     const harnessPath = path.join(projectRoot, '.nullius', 'HARNESS');
     expect(fs.existsSync(harnessPath)).toBe(true);
     const launcherScript = fs.readFileSync(launcherPath, 'utf-8');
     // Portable launcher: self-derives the project root and prefers an nullius
     // on PATH — but never itself — so the project works on another machine.
-    expect(launcherScript).toContain('PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)');
-    expect(launcherScript).toContain('case "$_nullius_dir" in /*) ;; *) continue;; esac');
-    expect(launcherScript).toContain('-ef "$0"');
-    expect(launcherScript).toContain('exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"');
-    expect(launcherScript).toContain('--launcher-protocol');
-    expect(launcherScript).not.toContain("PROJECT_ROOT='");
+    if (IS_WINDOWS) {
+      expect(launcherScript).toContain('for %%I in ("%~dp0..\\..") do set "PROJECT_ROOT=%%~fI"');
+      expect(launcherScript).toContain('nullius-launcher-protocol 2');
+      expect(launcherScript).toContain('--launcher-generation=2 --project-root "%PROJECT_ROOT%" %*');
+    } else {
+      expect(launcherScript).toContain('PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)');
+      expect(launcherScript).toContain('case "$_nullius_dir" in /*) ;; *) continue;; esac');
+      expect(launcherScript).toContain('-ef "$0"');
+      expect(launcherScript).toContain('exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"');
+      expect(launcherScript).toContain('--launcher-protocol');
+      expect(launcherScript).not.toContain("PROJECT_ROOT='");
+    }
     expect(launcherScript).toContain('nullius init --runtime-only');
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(false);
 
-    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+    const statusJson = executeProjectLocalLauncher(launcherPath, ['status', '--json'], {
       cwd: projectRoot,
-      encoding: 'utf-8',
       env: {
         ...process.env,
-        PATH: '/usr/bin:/bin',
+        PATH: IS_WINDOWS ? process.env.PATH : '/usr/bin:/bin',
       },
     });
     const payload = JSON.parse(statusJson);
@@ -242,8 +277,8 @@ describe('nullius CLI init/export', () => {
       recovery_context: {
         status_commands: {
           canonical: 'nullius status --json',
-          project_local_fallback: '.nullius/bin/nullius status --json',
-          harness_entrypoint: '.nullius/bin/nullius status --json',
+          project_local_fallback: PROJECT_LOCAL_STATUS_COMMAND,
+          harness_entrypoint: PROJECT_LOCAL_STATUS_COMMAND,
         },
         control_files: {
           harness: {
@@ -266,7 +301,7 @@ describe('nullius CLI init/export', () => {
     expect(stdout.join('')).toBe('nullius-launcher-protocol 2\n');
   });
 
-  it('prefers the baked CLI and gates PATH fallback on the protocol handshake', async () => {
+  it.skipIf(IS_WINDOWS)('prefers the baked CLI and gates PATH fallback on the protocol handshake', async () => {
     const parentDir = makeTempDir('nullius-cli-protocol-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
@@ -351,7 +386,7 @@ describe('nullius CLI init/export', () => {
     expect(argvLines[3]).toBe('status');
   }, 30000);
 
-  it('fails closed at dispatch when the probe passed but the parser generation is old', async () => {
+  it.skipIf(IS_WINDOWS)('fails closed at dispatch when the probe passed but the parser generation is old', async () => {
     const parentDir = makeTempDir('nullius-cli-genswap-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
@@ -407,7 +442,7 @@ describe('nullius CLI init/export', () => {
     ).rejects.toThrow('launcher generation mismatch');
   });
 
-  it('refuses a present-but-older-generation baked target instead of trusting it with the root', async () => {
+  it.skipIf(IS_WINDOWS)('refuses a present-but-older-generation baked target instead of trusting it with the root', async () => {
     const parentDir = makeTempDir('nullius-cli-stale-baked-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
@@ -448,7 +483,7 @@ describe('nullius CLI init/export', () => {
     expect(new Set(staleLines)).toEqual(new Set(['--launcher-generation=2 --launcher-protocol']));
   }, 30000);
 
-  it('reports a mixed-generation baked target as incompatible in launcher health', async () => {
+  it.skipIf(IS_WINDOWS)('reports a mixed-generation baked target as incompatible in launcher health', async () => {
     const parentDir = makeTempDir('nullius-cli-mixed-health-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
@@ -481,7 +516,7 @@ describe('nullius CLI init/export', () => {
     }
   });
 
-  it('never advertises a cwd-relative PATH candidate the launcher guard would reject', async () => {
+  it.skipIf(IS_WINDOWS)('never advertises a cwd-relative PATH candidate the launcher guard would reject', async () => {
     const parentDir = makeTempDir('nullius-cli-empty-path-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
@@ -536,7 +571,7 @@ describe('nullius CLI init/export', () => {
     }
   });
 
-  it('keeps PATH components literal on both sides: glob and dot-dot parity', async () => {
+  it.skipIf(IS_WINDOWS)('keeps PATH components literal on both sides: glob and dot-dot parity', async () => {
     const parentDir = makeTempDir('nullius-cli-path-literal-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
@@ -607,20 +642,22 @@ describe('nullius CLI init/export', () => {
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
     const binDir = path.join(projectRoot, '.nullius', 'bin');
-    const launcherPath = path.join(binDir, 'nullius');
+    const launcherPath = projectLocalLauncherPath(projectRoot);
     // Put the launcher's own dir first on PATH: the self-resolution guard must skip
     // itself and fall through to the baked CLI instead of recursing forever. The
     // 20s timeout fails the test (rather than hanging) if recursion regresses.
-    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+    const statusJson = executeProjectLocalLauncher(launcherPath, ['status', '--json'], {
       cwd: projectRoot,
-      encoding: 'utf-8',
       timeout: 20000,
-      env: { ...process.env, PATH: `${binDir}${path.delimiter}/usr/bin:/bin` },
+      env: {
+        ...process.env,
+        PATH: `${binDir}${path.delimiter}${IS_WINDOWS ? (process.env.PATH ?? '') : '/usr/bin:/bin'}`,
+      },
     });
     expect(JSON.parse(statusJson).run_status).toBe('idle');
   });
 
-  it('treats a PATH symlink back to the launcher as itself and does not self-hop', async () => {
+  it.skipIf(IS_WINDOWS)('treats a PATH symlink back to the launcher as itself and does not self-hop', async () => {
     const parentDir = makeTempDir('nullius-cli-symlink-path-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
@@ -679,7 +716,9 @@ describe('nullius CLI init/export', () => {
     expect(output).toContain(`[ok] wrote: ${outPath}`);
     expect(output).not.toContain('Export summary generated');
     expect(output).not.toContain('no files copied');
-    const archiveListing = execFileSync('unzip', ['-Z', '-1', outPath], { encoding: 'utf-8' }).trim().split('\n');
+    const archiveListing = execFileSync('unzip', ['-Z', '-1', outPath], { encoding: 'utf-8' })
+      .trim()
+      .split(/\r?\n/u);
     expect(archiveListing).toContain('artifacts/runs/M1/result.txt');
     expect(archiveListing).toContain('team/runs/M1/summary.md');
     expect(archiveListing).toContain('knowledge_base/literature/paper.md');
@@ -790,7 +829,7 @@ describe('nullius CLI init --refresh', () => {
     expect(fs.existsSync(path.join(projectRoot, '.nullius'))).toBe(false);
   });
 
-  it('threads --refresh and --dry-run to the scaffold authority and parses the enriched result', () => {
+  it.skipIf(IS_WINDOWS)('threads --refresh and --dry-run to the scaffold authority and parses the enriched result', () => {
     const parentDir = makeTempDir('nullius-scaffold-refresh-spawn-');
     const projectRoot = path.join(parentDir, 'project-root');
     const argvLog = path.join(parentDir, 'argv.log');

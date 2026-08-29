@@ -82,10 +82,10 @@ The triggers above bind to result-bearing moments; how much verification a momen
 
 ## Nullius session start protocol
 
-- If `.nullius/HARNESS` exists, this is a managed nullius project. Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout, run `.nullius/bin/nullius status --json`; if that project-local launcher is unavailable, run `nullius status --json`.
+- If `.nullius/HARNESS` exists, this is a managed nullius project. Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout, run `.nullius/bin/nullius status --json` on POSIX or `.nullius\bin\nullius.cmd status --json` on native Windows; if that project-local launcher is unavailable, run `nullius status --json`.
 - If the host agent exposes a `research-harness` skill or equivalent project-harness entrypoint, use that entrypoint first for reconnect, recovery, routing, verification, and handoff. It restores this project's durable state and then routes lifecycle work to `nullius`, milestone execution to `research-team`, and provider/domain work to the relevant tool layer.
 - On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.nullius/` exists but `.nullius/HARNESS` is missing, run `nullius status --json` before taking any new action, then repair the runtime handshake with `nullius init --runtime-only`.
-- If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` instead.
+- If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` on POSIX or `.nullius\bin\nullius.cmd status --json` on native Windows instead.
 - Treat `nullius` as the guaranteed root entrypoint for this scaffold.
 - Treat that status output as the authoritative recovery briefing for the current run, recovery context, plan view, and bounded workflow outputs.
 - After reading status, start with [research_plan.md#Current Status](research_plan.md#current-status), continue through the checked-in files in the order above, and read [research_notebook.md](research_notebook.md) only when it already contains substantive content.

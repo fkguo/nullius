@@ -22,6 +22,9 @@ import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const PROJECT_LOCAL_LAUNCHER = process.platform === 'win32'
+  ? '.nullius/bin/nullius.cmd'
+  : '.nullius/bin/nullius';
 
 function makeTempProjectRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-cli-'));
@@ -1413,7 +1416,7 @@ describe('nullius CLI', () => {
         state_json: { path: '.nullius/state.json', exists: true },
         plan_md: { path: '.nullius/plan.md', exists: true },
         ledger_jsonl: { path: '.nullius/ledger.jsonl', exists: true },
-        project_local_launcher: { path: '.nullius/bin/nullius', exists: false },
+        project_local_launcher: { path: PROJECT_LOCAL_LAUNCHER, exists: false },
       },
       current_run: {
         run_id: 'M-LEGACY-1',

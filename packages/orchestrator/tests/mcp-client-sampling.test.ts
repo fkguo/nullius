@@ -8,6 +8,10 @@ import { handleMcpServerRequest } from '../src/mcp-server-request-handler.js';
 import { buildDirectRuntimePermissionProfile } from '../src/runtime-permission-profile.js';
 import { buildRuntimeToolPermissionView } from '../src/tool-execution-policy.js';
 
+const platformContainment = process.platform === 'win32'
+  ? { containment: 'best_effort' as const }
+  : {};
+
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-client-sampling-'));
 }
@@ -94,7 +98,10 @@ describe('McpClient sampling support', () => {
       },
     });
 
-    await client.start(process.execPath, [scriptPath], { configEnv: { RESULT_PATH: resultPath } });
+    await client.start(process.execPath, [scriptPath], {
+      ...platformContainment,
+      configEnv: { RESULT_PATH: resultPath },
+    });
     const result = JSON.parse(await waitForFile(resultPath));
     await client.close();
 
@@ -118,7 +125,7 @@ describe('McpClient sampling support', () => {
     `);
 
     const client = new McpClient();
-    await expect(client.start(process.execPath, [scriptPath])).rejects.toThrow(
+    await expect(client.start(process.execPath, [scriptPath], platformContainment)).rejects.toThrow(
       'MCP server negotiated unsupported protocol version',
     );
     await client.close();
@@ -152,7 +159,10 @@ describe('McpClient sampling support', () => {
     `);
 
     const client = new McpClient();
-    await client.start(process.execPath, [scriptPath], { configEnv: { RESULT_PATH: resultPath } });
+    await client.start(process.execPath, [scriptPath], {
+      ...platformContainment,
+      configEnv: { RESULT_PATH: resultPath },
+    });
 
     const permissionView = buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({
       tools: [{ name: 'allowed_tool', input_schema: {} }],
@@ -197,7 +207,10 @@ describe('McpClient sampling support', () => {
     `);
 
     const client = new McpClient();
-    await client.start(process.execPath, [scriptPath], { configEnv: { RESULT_PATH: resultPath } });
+    await client.start(process.execPath, [scriptPath], {
+      ...platformContainment,
+      configEnv: { RESULT_PATH: resultPath },
+    });
 
     const permissionView = buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({
       tools: [{ name: 'allowed_tool', input_schema: {} }],

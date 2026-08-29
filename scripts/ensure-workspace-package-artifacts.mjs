@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 import {
   collectArtifactPaths,
@@ -13,7 +14,7 @@ import {
   resolvePackageFreshnessRoots,
 } from './lib/workspace-package-freshness.mjs';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function findWorkspacePackageDir(packageName) {
   const packagesDir = path.join(repoRoot, 'packages');
@@ -65,10 +66,22 @@ function ensureBuilt(packageName) {
   }
 
   console.log(`[ensure-artifacts] building ${packageName}`);
-  const result = spawnSync('pnpm', ['--filter', packageName, 'build'], {
+  // Windows package-manager shims are .cmd files. Node cannot execute those
+  // directly, so use the native command interpreter there; keep direct argv
+  // spawning on POSIX. packageName has already been matched to a checked-in
+  // workspace package above, rather than accepting an arbitrary shell token.
+  const command = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'pnpm';
+  const args = process.platform === 'win32'
+    ? ['/d', '/c', 'pnpm', '--filter', packageName, 'build']
+    : ['--filter', packageName, 'build'];
+  const result = spawnSync(command, args, {
     cwd: repoRoot,
     stdio: 'inherit',
   });
+  if (result.error) {
+    console.error(`[ensure-artifacts] failed to launch ${command}: ${result.error.message}`);
+    process.exit(1);
+  }
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }

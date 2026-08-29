@@ -1,15 +1,23 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { writeJsonAtomicDurable } from '@nullius/shared';
+import {
+  projectLocalNulliusStatusCommand,
+  type ProjectLocalNulliusStatusCommand,
+} from './project-local-nullius.js';
 
 const NULLIUS_DIRNAME = '.nullius';
 const HARNESS_FILENAME = 'HARNESS';
+const PROJECT_LOCAL_STATUS_COMMANDS = new Set<ProjectLocalNulliusStatusCommand>([
+  '.nullius/bin/nullius status --json',
+  '.nullius/bin/nullius.cmd status --json',
+]);
 
 export type NulliusHarnessSentinelPayload = {
   schema_version: 1;
   kind: 'nullius_project_harness';
   status_receipt_required: true;
-  project_local_status_command: '.nullius/bin/nullius status --json';
+  project_local_status_command: ProjectLocalNulliusStatusCommand;
   fallback_status_command: 'nullius status --json';
   host_skill: 'research-harness';
   lifecycle_authority: 'nullius';
@@ -34,7 +42,7 @@ export function nulliusHarnessSentinelPayload(): NulliusHarnessSentinelPayload {
     schema_version: 1,
     kind: 'nullius_project_harness',
     status_receipt_required: true,
-    project_local_status_command: '.nullius/bin/nullius status --json',
+    project_local_status_command: projectLocalNulliusStatusCommand(),
     fallback_status_command: 'nullius status --json',
     host_skill: 'research-harness',
     lifecycle_authority: 'nullius',
@@ -48,7 +56,10 @@ function isNulliusHarnessSentinelPayload(value: unknown): value is NulliusHarnes
   return payload.schema_version === 1
     && payload.kind === 'nullius_project_harness'
     && payload.status_receipt_required === true
-    && payload.project_local_status_command === '.nullius/bin/nullius status --json'
+    // A project may move between Windows and POSIX. Both current protocol-2
+    // launcher spellings are portable sentinel truth; the read model chooses
+    // the host-preferred spelling when presenting the reconnect command.
+    && PROJECT_LOCAL_STATUS_COMMANDS.has(payload.project_local_status_command as ProjectLocalNulliusStatusCommand)
     && payload.fallback_status_command === 'nullius status --json'
     && payload.host_skill === 'research-harness'
     && payload.lifecycle_authority === 'nullius'

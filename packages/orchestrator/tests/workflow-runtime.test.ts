@@ -377,6 +377,25 @@ describe('workflow runtime diagnostics', () => {
     ]);
   });
 
+  it.runIf(process.platform === 'win32')('reports required MCP process-tree containment as unavailable before spawn', async () => {
+    await withEnv({
+      NULLIUS_RUN_MCP_COMMAND: process.execPath,
+      NULLIUS_RUN_MCP_ARGS_JSON: '[]',
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
+    }, async () => {
+      const result = await executeWorkflowRuntimeRequest(makeRequest());
+      expect(result.status).toBe('failed');
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({
+          code: 'mcp_server_unavailable',
+          message: expect.stringContaining(
+            'MCP required process-tree containment is unavailable on Windows',
+          ),
+        }),
+      ]);
+    });
+  });
+
   it('surfaces partial_result as structured diagnostics', async () => {
     const result = await executeWorkflowRuntimeRequest(
       makeRequest({ degrade_mode: 'partial_result' }),

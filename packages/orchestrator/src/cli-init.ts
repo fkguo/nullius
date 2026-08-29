@@ -4,7 +4,10 @@ import * as path from 'node:path';
 import { writeBytesAtomicDurable, writeJsonAtomicDurable } from '@nullius/shared';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 import { ensureNulliusHarnessSentinel } from './nullius-harness-sentinel.js';
-import { ensureProjectLocalNulliusLauncher, projectLocalNulliusRelativePath } from './project-local-nullius.js';
+import {
+  ensureProjectLocalNulliusLauncher,
+  projectLocalNulliusPreferredRelativePath,
+} from './project-local-nullius.js';
 import { ensureProjectScaffold, type ProjectScaffoldResult } from './project-scaffold.js';
 import { type CliIo } from './cli-lifecycle.js';
 import { StateManager } from './state-manager.js';
@@ -331,7 +334,7 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
     } catch {
       // the next status/current read names the block state
     }
-    io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusRelativePath()} (${launcher.launcher_mode})\n`);
+    io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusPreferredRelativePath()} (${launcher.launcher_mode})\n`);
     io.stdout('[ok] project scaffold skipped (--runtime-only)\n');
     return;
   }
@@ -364,5 +367,5 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
       io.stdout(`- ... (${scaffold.created.length - 50} more)\n`);
     }
   }
-  io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusRelativePath()} (${launcher.launcher_mode})\n`);
+  io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusPreferredRelativePath()} (${launcher.launcher_mode})\n`);
 }

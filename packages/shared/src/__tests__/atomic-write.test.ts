@@ -16,17 +16,17 @@
  *   writeBytesAtomicDurable / writeJsonAtomicDurable / writeExecutableAtomicDurable:
  *     mkdir (dirname) → open (tmp, 'w', mode?) → write → [fchmod (mode)]
  *     → fsync (fd) → close (fd) → rename (tmp → final)
- *     → open (dirname, 'r') → fsync (dirFd) → close (dirFd)
+ *     → open (dirname, 'r' on POSIX; 'r+' on Windows) → fsync (dirFd) → close (dirFd)
  *
  *   appendJsonlDurable / appendBytesDurable:
  *     mkdir (dirname) → open (final, 'a') → write → fsync (fd) → close (fd)
- *     → open (dirname, 'r') → fsync (dirFd) → close (dirFd)
+ *     → open (dirname, 'r' on POSIX; 'r+' on Windows) → fsync (dirFd) → close (dirFd)
  *
  *   commitStagedDurable:
- *     rename (staged → final) → open (dirname, 'r') → fsync (dirFd) → close (dirFd)
+ *     rename (staged → final) → open (dirname, platform flag) → fsync (dirFd) → close (dirFd)
  *
  *   fsyncParentDirectoryDurable:
- *     open (dirname, 'r') → fsync (dirFd) → close (dirFd)
+ *     open (dirname, platform flag) → fsync (dirFd) → close (dirFd)
  */
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -78,7 +78,13 @@ describe('fsyncParentDirectoryDurable — recovery confirmation', () => {
     expect(kinds(rec.log)).toEqual(['open', 'fsync', 'close']);
     const open = rec.log[0] as Extract<AtomicWriteAuditEvent, { kind: 'open' }>;
     expect(open.path).toBe(tmp);
-    expect(open.flags).toBe('r');
+    expect(open.flags).toBe(process.platform === 'win32' ? 'r+' : 'r');
+  });
+
+  it('propagates a directory-flush setup failure to the caller', () => {
+    const file = path.join(tmp, 'missing-parent', 'state.json');
+    expect(() => fsyncParentDirectoryDurable(file)).toThrow();
+    expect(rec.log).toEqual([]);
   });
 });
 
@@ -129,11 +135,11 @@ describe('writeBytesAtomicDurable — sequence lock', () => {
     expect(openTmp.flags).toBe('w');
   });
 
-  it('directory fsync uses "r" flag (not "w")', () => {
+  it('directory fsync uses the platform flag that permits a real flush', () => {
     writeBytesAtomicDurable(path.join(tmp, 'state.json'), 'payload');
     const opens = rec.log.filter((e): e is Extract<AtomicWriteAuditEvent, { kind: 'open' }> => e.kind === 'open');
     expect(opens[0].flags).toBe('w');  // tmp file
-    expect(opens[1].flags).toBe('r');  // dir fsync
+    expect(opens[1].flags).toBe(process.platform === 'win32' ? 'r+' : 'r');
   });
 
   it('runs a commit guard after staging closes and removes the tmp file when it refuses', () => {
@@ -198,7 +204,7 @@ describe('appendJsonlDurable — sequence lock', () => {
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best-effort */ }
   });
 
-  it('emits sequence: mkdir → open(a) → write → fsync(fd) → close → open(dir,r) → fsync(dir) → close', () => {
+  it('emits sequence: mkdir → open(a) → write → fsync(fd) → close → open(dir,platform flag) → fsync(dir) → close', () => {
     appendJsonlDurable(path.join(tmp, 'ledger.jsonl'), { event: 'created' });
     expect(kinds(rec.log)).toEqual([
       'mkdir',
@@ -212,7 +218,7 @@ describe('appendJsonlDurable — sequence lock', () => {
     ]);
     const opens = rec.log.filter((e): e is Extract<AtomicWriteAuditEvent, { kind: 'open' }> => e.kind === 'open');
     expect(opens[0].flags).toBe('a');
-    expect(opens[1].flags).toBe('r');
+    expect(opens[1].flags).toBe(process.platform === 'win32' ? 'r+' : 'r');
   });
 
   it('writes JSON + trailing newline', () => {
@@ -225,10 +231,12 @@ describe('appendJsonlDurable — sequence lock', () => {
     const file = path.join(tmp, 'ledger.jsonl');
     fs.writeFileSync(file, 'unterminated', 'utf-8');
     fs.chmodSync(file, 0o600);
+    const originalMode = fs.statSync(file).mode & 0o777;
+    if (process.platform !== 'win32') expect(originalMode).toBe(0o600);
     rec.log.length = 0;
     appendBytesDurable(file, '\n');
     expect(fs.readFileSync(file, 'utf-8')).toBe('unterminated\n');
-    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    expect(fs.statSync(file).mode & 0o777).toBe(originalMode);
     // Same durable sequence as the JSONL append: no tmp+rename inode swap.
     expect(kinds(rec.log)).toEqual(['mkdir', 'open', 'write', 'fsync', 'close', 'open', 'fsync', 'close']);
   });
@@ -281,7 +289,7 @@ describe('commitStagedDurable — rename-only with parent-dir fsync', () => {
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best-effort */ }
   });
 
-  it('emits sequence: rename → open(dir,r) → fsync(dir) → close', () => {
+  it('emits sequence: rename → open(dir,platform flag) → fsync(dir) → close', () => {
     const staged = path.join(tmp, 'state.json.next');
     const final = path.join(tmp, 'state.json');
     fs.writeFileSync(staged, '{}'); // staged file must exist
@@ -324,7 +332,7 @@ describe('end-to-end behavior', () => {
     const file = path.join(tmp, 'mode.bin');
     writeBytesAtomicDurable(file, 'private', 0o600);
     const stat = fs.statSync(file);
-    expect(stat.mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') expect(stat.mode & 0o777).toBe(0o600);
   });
 
   it('writeBytesAtomicDurable cleans up tmp on rename failure', () => {
@@ -354,7 +362,7 @@ describe('end-to-end behavior', () => {
     const file = path.join(tmp, 'bin/launcher');
     writeExecutableAtomicDurable(file, '#!/bin/sh\necho hi\n');
     expect(fs.readFileSync(file, 'utf-8')).toBe('#!/bin/sh\necho hi\n');
-    expect(fs.statSync(file).mode & 0o777).toBe(0o700);
+    if (process.platform !== 'win32') expect(fs.statSync(file).mode & 0o777).toBe(0o700);
   });
 
   it('commitStagedDurable promotes staged file to final', () => {

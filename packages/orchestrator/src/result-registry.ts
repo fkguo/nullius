@@ -82,6 +82,12 @@ function issue(code: string, message: string): ResultRegistryIssue {
   return { code, message, path: 'project_index.md' };
 }
 
+function isPathContainedBy(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === ''
+    || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
 function blockBounds(text: string): { start: number; end: number } | null {
   if (text.split(RESULT_REGISTRY_START).length !== 2) return null;
   if (text.split(RESULT_REGISTRY_END).length !== 2) return null;
@@ -281,12 +287,21 @@ export function resolveResultArtifact(
     issues.push(issue('result_artifact_link_missing', `${resultId} has no artifact Markdown link`));
     return null;
   }
-  if (target.startsWith('/') || /^[a-z]+:/i.test(target)) {
+  const relative = target.split('#')[0]!;
+  if (
+    path.posix.isAbsolute(relative)
+    || path.win32.isAbsolute(relative)
+    // Keep registry targets portable and prevent NTFS alternate data stream
+    // names such as "result.json:stream" from masquerading as artifacts.
+    || relative.includes(':')
+  ) {
     issues.push(issue('invalid_result_artifact_target', `${resultId} must use a project-relative link`));
     return null;
   }
-  const relative = target.split('#')[0]!;
-  const parts = relative.split('/').filter(part => part.length > 0);
+  // Markdown conventionally uses '/', but a hand-written registry can carry
+  // '\\'. Treat both as separators on every host so a Windows-style parent
+  // traversal cannot become a literal filename on POSIX or escape on Windows.
+  const parts = relative.split(/[\\/]+/).filter(part => part.length > 0);
   if (parts.includes('..')) {
     issues.push(issue('invalid_result_artifact_target', `${resultId} target cannot contain parent traversal`));
     return null;
@@ -295,6 +310,10 @@ export function resolveResultArtifact(
   let cursor = rootReal;
   for (const part of parts) {
     cursor = path.join(cursor, part);
+    if (!isPathContainedBy(rootReal, cursor)) {
+      issues.push(issue('result_artifact_escapes_project', `${resultId} artifact escapes the project root`));
+      return null;
+    }
     if (!fs.existsSync(cursor)) {
       issues.push(issue('result_artifact_missing', `${resultId} artifact ${relative} does not exist`));
       return null;
@@ -309,7 +328,7 @@ export function resolveResultArtifact(
     return null;
   }
   const real = fs.realpathSync(cursor);
-  if (real !== cursor && !real.startsWith(rootReal + path.sep)) {
+  if (!isPathContainedBy(rootReal, real)) {
     issues.push(issue('result_artifact_escapes_project', `${resultId} artifact escapes the project root`));
     return null;
   }

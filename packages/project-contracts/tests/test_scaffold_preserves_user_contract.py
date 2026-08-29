@@ -108,6 +108,29 @@ Text.
 """
 
 
+def _write_template_contract(path: Path) -> None:
+    """Write the canonical byte fixture without host newline translation."""
+    path.write_bytes(load_scaffold_template(RESEARCH_CONTRACT).encode("utf-8"))
+
+
+def _can_create_symlinks() -> bool:
+    if not hasattr(os, "symlink"):
+        return False
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        target = root / "target"
+        link = root / "link"
+        target.write_bytes(b"x")
+        try:
+            link.symlink_to(target)
+        except OSError:
+            return False
+        return link.is_symlink()
+
+
+_CAN_CREATE_SYMLINKS = _can_create_symlinks()
+
+
 def _mature_project(root: Path) -> None:
     """A project whose seed files all exist, as on any real re-init."""
     root.mkdir(parents=True, exist_ok=True)
@@ -342,9 +365,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
             root.mkdir(parents=True)
-            (root / "research_contract.md").write_text(
-                load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8"
-            )
+            _write_template_contract(root / "research_contract.md")
             (root / "research_notebook.md").write_text(
                 "# N\n\n## Scope\n\nT.\n\n## References\n\n- A, [DOI](https://ex.org/a)\n",
                 encoding="utf-8",
@@ -420,6 +441,8 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             for label, dest, symlink in destinations:
                 with self.subTest(destination=label):
                     if symlink is not None:
+                        if not _CAN_CREATE_SYMLINKS:
+                            continue
                         symlink.unlink(missing_ok=True)
                         symlink.symlink_to(Path("..") / "research_contract.md")
                     before = _project_digest(root)
@@ -543,6 +566,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             proposal = Path(result["proposal_path"]).read_text(encoding="utf-8")
             self.assertIn(result["notebook_sha256"], proposal)
 
+    @unittest.skipUnless(_CAN_CREATE_SYMLINKS, "host cannot create symlinks")
     def test_a_link_planted_after_the_check_cannot_capture_the_write(self):
         # The atomicity control. The destination check and the write are separate
         # operations; the write must not be a second open() of the checked path,
@@ -622,6 +646,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             with self.subTest(mutation=label):
                 self.assertFalse(research_contract._is_untouched_template_block(mutate(template)))
 
+    @unittest.skipUnless(_CAN_CREATE_SYMLINKS, "host cannot create symlinks")
     def test_swapping_the_destination_directory_cannot_redirect_the_write(self):
         # Pinning only the destination leaf is not enough: renaming its PARENT
         # to a symlink after validation redirected both the temp create and the
@@ -651,6 +676,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                     )
             self.assertEqual("OWNER\n", owned.read_text(encoding="utf-8"))
 
+    @unittest.skipUnless(_CAN_CREATE_SYMLINKS, "host cannot create symlinks")
     def test_a_link_planted_after_the_template_check_cannot_capture_the_sync(self):
         # The in-place write had the same capture the proposal path was fixed
         # for: it re-opened the checked path with open("w").
@@ -658,7 +684,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             root = Path(td) / "proj"
             root.mkdir(parents=True)
             contract = root / "research_contract.md"
-            contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+            _write_template_contract(contract)
             (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
             victim = root / "victim.md"
             victim.write_text("VICTIM\n", encoding="utf-8")
@@ -681,12 +707,13 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                     _sync(root)
             self.assertEqual("VICTIM\n", victim.read_text(encoding="utf-8"))
 
+    @unittest.skipIf(os.name == "nt", "Windows mode bits do not encode owner-only access")
     def test_a_private_contract_stays_private(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
             root.mkdir(parents=True)
             contract = root / "research_contract.md"
-            contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+            _write_template_contract(contract)
             (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
             contract.chmod(0o600)
 
@@ -694,7 +721,10 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
 
             self.assertEqual(0o600, _project_modes(root)["research_contract.md"])
 
-    @unittest.skipIf(os.geteuid() == 0, "root holds CAP_DAC_OVERRIDE: os.access ignores the mode")
+    @unittest.skipIf(
+        getattr(os, "geteuid", lambda: -1)() == 0,
+        "root holds CAP_DAC_OVERRIDE: os.access ignores the mode",
+    )
     def test_a_read_only_destination_is_refused_rather_than_replaced(self):
         # rename() needs write permission on the directory, not on the file it
         # replaces, so the atomic writer silently overwrote where the previous
@@ -703,7 +733,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             root = Path(td) / "proj"
             root.mkdir(parents=True)
             contract = root / "research_contract.md"
-            contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+            _write_template_contract(contract)
             (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
             contract.chmod(0o444)
             before = contract.read_bytes()
@@ -713,6 +743,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
 
             self.assertEqual(before, contract.read_bytes())
 
+    @unittest.skipIf(os.name == "nt", "Windows mode bits do not encode POSIX permissions")
     def test_a_proposal_replacing_an_earlier_one_keeps_its_mode(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
@@ -747,6 +778,10 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             )
             self.assertEqual(b"kept", os.getxattr(proposal, "user.nullius_test"))
 
+    @unittest.skipUnless(
+        research_contract._CAN_PIN_PARENT_DIRECTORY,
+        "ordering belongs to the descriptor-pinned writer",
+    )
     def test_attributes_are_carried_before_the_mode_is_restored(self):
         """The ordering, locked by observing the call sequence.
 
@@ -842,6 +877,10 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                 Path(result["proposal_path"]).read_text(encoding="utf-8"),
             )
 
+    @unittest.skipUnless(
+        research_contract._CAN_PIN_PARENT_DIRECTORY,
+        "dir_fd race probe belongs to the descriptor-pinned writer",
+    )
     def test_a_destination_swapped_during_validation_is_refused(self):
         # The mode, the attributes and the refusal are all bound to one
         # descriptor. Putting a different inode at the name between the open and
@@ -870,6 +909,10 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                         repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
                     )
 
+    @unittest.skipUnless(
+        research_contract._CAN_PIN_PARENT_DIRECTORY,
+        "Windows releases its read handle and has a dedicated substitution probe",
+    )
     def test_a_file_swapped_in_after_the_content_check_is_not_overwritten(self):
         """The decision and the file it was about must be the same file.
 
@@ -885,7 +928,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             root = Path(td) / "proj"
             root.mkdir(parents=True)
             contract = root / "research_contract.md"
-            contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+            _write_template_contract(contract)
             (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
             curated = root / "curated.md"
             curated.write_text("# CURATED — eighteen months of work\n", encoding="utf-8")

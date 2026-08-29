@@ -44,9 +44,12 @@
 ```bash
 pnpm install
 pnpm -r build
+pnpm install:cli
 pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 pnpm --filter @nullius/orchestrator exec vitest run tests/run-manifest.test.ts tests/agent-runner.test.ts tests/agent-runner-manifest.test.ts tests/agent-runner-ops-b8-regression.test.ts tests/tool-execution-policy.test.ts tests/tool-dispatch-boundary.test.ts tests/mcp-client-process.test.ts tests/workflow-runtime.test.ts
 ```
+
+原生 Windows 还必须在开发仓外的临时目录完成 lifecycle smoke：运行 `nullius --project-root <temp> init`，确认 `.nullius/bin/nullius.cmd` 与 `.nullius/HARNESS` 存在，再执行 `.\.nullius\bin\nullius.cmd status --json`、`nullius --project-root <temp> init --runtime-only`，并重复 status。临时路径应至少覆盖空格；CI 同时覆盖非 ASCII 路径。Windows gate 还运行 MCP process/sampling/workflow-runtime suites：与 containment 无关的 fixture 显式使用 `best_effort`，同时单独锁定公开 workflow 的 `required` process-tree containment 在 spawn 前 fail closed。
 
 可选：跑自动化测试。
 

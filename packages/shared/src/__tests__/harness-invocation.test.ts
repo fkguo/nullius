@@ -484,10 +484,10 @@ describe('path helpers', () => {
   });
 
   it('nulliusStatePath joins under project root', () => {
-    expect(nulliusStatePath('/proj')).toBe(`/proj/${NULLIUS_STATE_FILE}`);
+    expect(nulliusStatePath('/proj')).toBe(path.join('/proj', NULLIUS_STATE_FILE));
   });
 
   it('nulliusLedgerPath joins under project root', () => {
-    expect(nulliusLedgerPath('/proj')).toBe(`/proj/${NULLIUS_LEDGER_FILE}`);
+    expect(nulliusLedgerPath('/proj')).toBe(path.join('/proj', NULLIUS_LEDGER_FILE));
   });
 });

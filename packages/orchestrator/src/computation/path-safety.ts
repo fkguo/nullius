@@ -75,7 +75,7 @@ export function sanitizeRelativePath(relativePath: string, label: string): strin
 }
 
 export function runtimeTokenForTool(tool: ManifestTool): string {
-  if (tool === 'python') return 'python3';
+  if (tool === 'python') return process.platform === 'win32' ? 'python' : 'python3';
   if (tool === 'bash') return 'bash';
   if (tool === 'julia') return 'julia';
   return 'wolframscript';

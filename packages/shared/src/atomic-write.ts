@@ -1,7 +1,7 @@
 /**
  * Durable atomic file writes (P1).
  *
- * Provides seven primitives that guarantee POSIX-correct durability against
+ * Provides seven primitives that request host-correct durability against
  * crash / power-loss between syscalls — the gold-standard pattern already
  * proven in `packages/orchestrator/src/run-manifest.ts:82-97` (Batch 8 R2
  * fix). Lifted into `@nullius/shared` so every package that writes
@@ -19,7 +19,7 @@
  *   5. fsyncSync(fd)                     // file contents to disk
  *   6. closeSync(fd)
  *   7. renameSync(tmp, final)            // atomic rename
- *   8. dirFd = openSync(dirname, 'r')
+ *   8. dirFd = openSync(dirname, 'r' on POSIX; 'r+' on Windows)
  *   9. fsyncSync(dirFd)                  // directory entry persisted
  *   10. closeSync(dirFd)
  *
@@ -56,7 +56,7 @@ import * as path from 'node:path';
 /**
  * Instrumentation hook used by tests to lock the EXACT syscall sequence
  * of each primitive (mkdir → open → write → fsync(fd) → close → rename →
- * open(dir,r) → fsync(dirFd) → close). Production code never sets this.
+ * open(dir,platform flag) → fsync(dirFd) → close). Production code never sets this.
  *
  * The audit hook is opt-in and fires AFTER each operation completes — it
  * cannot alter behavior, only record. Sequence-locking tests register a
@@ -110,20 +110,20 @@ function makeTmpPath(filePath: string): string {
  * to guarantee the new directory entry survives a crash on POSIX
  * filesystems (ext4/xfs/btrfs/APFS).
  *
- * Opens with `'r'` because directory-fsync only needs read access on
- * Linux/macOS; `'w'` would fail with EISDIR on most systems.
- *
- * **Windows note**: opening a directory + `FlushFileBuffers` is
- * undefined on NTFS and returns ERROR_ACCESS_DENIED. This codebase
- * targets macOS + Linux (the nullius project's CI matrix), and
- * Node.js itself documents `fsync` on a directory fd as
- * platform-dependent. If a Windows port is ever added, gate this on
- * `process.platform`.
+ * POSIX opens the directory with `'r'`: directory-fsync only needs read
+ * access there, while `'w'` would fail with EISDIR on common filesystems.
+ * Windows uses `'r+'` so Node opens a write-capable directory handle;
+ * `fs.fsyncSync` maps to `FlushFileBuffers`, which rejects the read-only
+ * handle with EPERM. The flag opens the existing directory without create or
+ * truncate semantics. We still execute and require the fsync on Windows -- it
+ * is never silently skipped. Any platform/filesystem that cannot confirm the
+ * flush throws, preserving the caller's commit-uncertain recovery path.
  */
 export function fsyncParentDirectoryDurable(filePath: string): void {
   const dir = path.dirname(filePath);
-  const dirFd = fs.openSync(dir, 'r');
-  audit({ kind: 'open', path: dir, flags: 'r', fd: dirFd });
+  const flags = process.platform === 'win32' ? 'r+' : 'r';
+  const dirFd = fs.openSync(dir, flags);
+  audit({ kind: 'open', path: dir, flags, fd: dirFd });
   try {
     fs.fsyncSync(dirFd);
     audit({ kind: 'fsync', fd: dirFd });
@@ -136,7 +136,8 @@ export function fsyncParentDirectoryDurable(filePath: string): void {
 /**
  * Primitive 1: durable atomic byte/string write.
  *
- * Writes `bytes` to `filePath` with full POSIX durability:
+ * Writes `bytes` to `filePath` with full durability confirmation on supported
+ * platforms and filesystems:
  * write tmp → fsync(fd) → rename → fsync(dirFd). Caller-supplied `mode`
  * is set at file create AND enforced via `fchmodSync` before fsync
  * (defends against umask clipping AND closes the post-rename chmod race

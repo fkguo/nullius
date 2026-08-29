@@ -8,6 +8,7 @@ import type { ValidityEventV1 } from '@nullius/shared';
 import { appendValidityEvent, buildValidityEvent } from '../src/validity-ledger.js';
 import {
   parseResultRegistry,
+  resolveResultArtifact,
   setCurrentResult,
   validateResultRegistry,
 } from '../src/result-registry.js';
@@ -235,22 +236,79 @@ describe('result registry — stage-2 r1 review locks', () => {
     expect(state.current).toHaveLength(0);
   });
 
-  it('rejects symlinked artifacts in validator AND writer (containment parity)', () => {
+  it('rejects symlinked and traversing artifacts in validator AND writer (containment parity)', () => {
     setupRepo();
     stampedRun('run-1');
     const outside = path.join(os.tmpdir(), `outside-${Date.now()}.json`);
     fs.writeFileSync(outside, '{}');
     try {
-      fs.symlinkSync(outside, path.join(projectRoot, 'artifacts', 'runs', 'run-1', 'link.json'));
-      expect(() => setCurrentResult(projectRoot, {
-        resultId: 'r', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/link.json',
-      })).toThrow(/symlink/);
       expect(() => setCurrentResult(projectRoot, {
         resultId: 'r', runId: 'run-1', artifactRelPath: '../escape.json',
       })).toThrow(/traversal/);
+      expect(() => setCurrentResult(projectRoot, {
+        resultId: 'r', runId: 'run-1', artifactRelPath: '..\\escape.json',
+      })).toThrow(/traversal/);
+
+      const issues: Parameters<typeof resolveResultArtifact>[3] = [];
+      expect(resolveResultArtifact(projectRoot, 'r', '..\\outside.json', issues)).toBeNull();
+      expect(issues.map(entry => entry.code)).toContain('invalid_result_artifact_target');
+
+      const rootedIssues: Parameters<typeof resolveResultArtifact>[3] = [];
+      expect(resolveResultArtifact(projectRoot, 'r', '\\outside.json', rootedIssues)).toBeNull();
+      expect(rootedIssues.map(entry => entry.code)).toContain('invalid_result_artifact_target');
+
+      const streamIssues: Parameters<typeof resolveResultArtifact>[3] = [];
+      expect(resolveResultArtifact(
+        projectRoot,
+        'r',
+        'artifacts/runs/run-1/result.json:stream',
+        streamIssues,
+      )).toBeNull();
+      expect(streamIssues.map(entry => entry.code)).toContain('invalid_result_artifact_target');
+
+      const linkPath = path.join(projectRoot, 'artifacts', 'runs', 'run-1', 'link.json');
+      let symlinkCreated = false;
+      try {
+        fs.symlinkSync(outside, linkPath);
+        symlinkCreated = true;
+      } catch (error) {
+        // Windows requires Developer Mode or elevation for symlink creation.
+        // Preserve the assertion whenever the host grants that capability;
+        // EPERM alone is a host policy limitation, not a registry pass.
+        if (process.platform !== 'win32' || (error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+      }
+      if (symlinkCreated) {
+        expect(() => setCurrentResult(projectRoot, {
+          resultId: 'r', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/link.json',
+        })).toThrow(/symlink/);
+      }
     } finally {
       fs.rmSync(outside, { force: true });
     }
+  });
+
+  it.runIf(process.platform === 'win32')('rejects existing NTFS alternate data streams as artifacts', () => {
+    setupRepo();
+    stampedRun('run-1');
+    const artifactPath = path.join(projectRoot, 'artifacts', 'runs', 'run-1', 'result.json');
+    const streamPath = `${artifactPath}:nullius-test`;
+    fs.writeFileSync(artifactPath, '{}');
+    fs.writeFileSync(streamPath, '{"stream":true}');
+    expect(fs.existsSync(streamPath)).toBe(true);
+
+    const issues: Parameters<typeof resolveResultArtifact>[3] = [];
+    expect(resolveResultArtifact(
+      projectRoot,
+      'r',
+      'artifacts/runs/run-1/result.json:nullius-test',
+      issues,
+    )).toBeNull();
+    expect(issues.map(entry => entry.code)).toContain('invalid_result_artifact_target');
+    expect(() => setCurrentResult(projectRoot, {
+      resultId: 'r',
+      runId: 'run-1',
+      artifactRelPath: 'artifacts/runs/run-1/result.json:nullius-test',
+    })).toThrow(/project-relative/);
   });
 
   it('requires an exact code identity for current results (aligned/unbound refused)', () => {

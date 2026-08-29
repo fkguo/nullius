@@ -21,6 +21,14 @@ from .scaffold_template_loader import load_scaffold_template
 SYNC_START = "<!-- RESEARCH_NOTEBOOK_SYNC_START -->"
 SYNC_END = "<!-- RESEARCH_NOTEBOOK_SYNC_END -->"
 
+# The POSIX writer below depends on descriptor-relative operations so the
+# directory it validated is the directory it later writes through. CPython does
+# not expose that capability on Windows. Keep the capability boundary explicit:
+# Windows has a deliberately separate path instead of silently weakening the
+# descriptor-pinned algorithm for every platform.
+_CAN_PIN_PARENT_DIRECTORY = os.open in os.supports_dir_fd
+_ValidatedFileSnapshot = tuple[tuple[int, int], bytes]
+
 
 def _sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -243,7 +251,7 @@ def sync_research_contract(
         if not create_missing:
             raise FileNotFoundError(f"research contract not found: {contract}")
         contract.parent.mkdir(parents=True, exist_ok=True)
-        contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+        contract.write_bytes(load_scaffold_template(RESEARCH_CONTRACT).encode("utf-8"))
 
     # newline="" keeps the file's own line endings, and strict decoding refuses
     # rather than replacing a byte it cannot read: both regions outside the
@@ -256,6 +264,7 @@ def sync_research_contract(
     # and the write applies that judgement to a file it was never about — a
     # curated contract, overwritten because a different file passed the check.
     validated_fd = os.open(contract, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    windows_snapshot: _ValidatedFileSnapshot | None = None
     try:
         with os.fdopen(os.dup(validated_fd), encoding="utf-8", errors="strict", newline="") as handle:
             contract_text = handle.read()
@@ -278,9 +287,22 @@ def sync_research_contract(
         # execute, and this file has carried enough comments promising more than the
         # code delivers.
         updated = _replace_sync_block(contract_text, "\n".join(lines))
-        _write_file_atomically(contract, updated, newline="", validated_fd=validated_fd)
+        if _CAN_PIN_PARENT_DIRECTORY:
+            _write_file_atomically(contract, updated, newline="", validated_fd=validated_fd)
+        else:
+            # Windows will not replace a destination held open through the CRT:
+            # the descriptor must be released first. Preserve the binding that
+            # matters to this caller as an identity + exact-content snapshot;
+            # the Windows writer revalidates both before replacing the name.
+            validated_stat = os.fstat(validated_fd)
+            windows_snapshot = (
+                (validated_stat.st_dev, validated_stat.st_ino),
+                contract_text.encode("utf-8"),
+            )
     finally:
         os.close(validated_fd)
+    if windows_snapshot is not None:
+        _write_file_atomically(contract, updated, newline="", validated_snapshot=windows_snapshot)
     return {
         "contract_path": str(contract),
         "notebook_sha256": notebook_sha,
@@ -422,7 +444,274 @@ def _carry_extended_attributes(source_fd: int, tmp_name: str, *, parent_fd: int)
             pass
 
 
-def _write_file_atomically(
+def _file_identity(info: os.stat_result) -> tuple[int, int]:
+    return info.st_dev, info.st_ino
+
+
+def _is_windows_reparse_point(info: os.stat_result) -> bool:
+    attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(attribute and getattr(info, "st_file_attributes", 0) & attribute)
+
+
+def _lstat_or_none(path: Path) -> os.stat_result | None:
+    try:
+        return path.lstat()
+    except FileNotFoundError:
+        return None
+
+
+def _assert_windows_destination_unchanged(
+    target: Path,
+    expected_identity: tuple[int, int] | None,
+    *,
+    validated_snapshot: _ValidatedFileSnapshot | None,
+    expected_existing_prefix: bytes | None = None,
+) -> None:
+    """Revalidate a Windows destination immediately before replacement.
+
+    Windows offers no `dir_fd`, so this is intentionally a path check and not a
+    claim of POSIX descriptor binding. The open sibling guard held by the caller
+    prevents the immediate parent from being renamed while this check and the
+    replacement run. A destination reparse point is safe only when it is an
+    unvalidated name that will itself be replaced; it is never followed here.
+    """
+    current = _lstat_or_none(target)
+    if expected_identity is None:
+        if current is not None:
+            raise FileExistsError(
+                f"refusing to replace {target}: it appeared after validation"
+            )
+        return
+    if current is None or _file_identity(current) != expected_identity:
+        raise FileExistsError(
+            f"refusing to replace {target}: it changed identity during validation"
+        )
+    if validated_snapshot is None and expected_existing_prefix is None:
+        return
+    if _is_windows_reparse_point(current):
+        if validated_snapshot is None:
+            # A link planted after the caller's check is replaced as a link;
+            # never open it merely to check the previous-proposal sentinel.
+            return
+        raise FileExistsError(
+            f"refusing to replace {target}: the validated file became a reparse point"
+        )
+    if not stat.S_ISREG(current.st_mode):
+        raise FileExistsError(f"refusing to replace non-file destination: {target}")
+    with target.open("rb") as handle:
+        opened = os.fstat(handle.fileno())
+        content = handle.read()
+    if _file_identity(opened) != expected_identity:
+        raise FileExistsError(
+            f"refusing to replace {target}: it changed identity during validation"
+        )
+    if validated_snapshot is not None and content != validated_snapshot[1]:
+        raise FileExistsError(
+            f"refusing to replace {target}: its validated content changed before replacement"
+        )
+    if expected_existing_prefix is not None and not content.startswith(expected_existing_prefix):
+        raise FileExistsError(
+            f"refusing to replace {target}: it is no longer an earlier proposal"
+        )
+
+
+def _call_replace_file_windows(target: Path, replacement: Path, backup: Path) -> int:
+    """Return zero on ReplaceFileW success, otherwise the native error code."""
+    import ctypes
+    from ctypes import wintypes
+
+    replace_file = ctypes.WinDLL("kernel32", use_last_error=True).ReplaceFileW
+    replace_file.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.LPVOID,
+    )
+    replace_file.restype = wintypes.BOOL
+    if replace_file(
+        os.fspath(target), os.fspath(replacement), os.fspath(backup), 0, None, None
+    ):
+        return 0
+    return ctypes.get_last_error()
+
+
+def _replace_file_windows(
+    target: Path,
+    replacement: Path,
+    *,
+    destination: os.stat_result | None,
+    backup: Path,
+) -> None:
+    """Replace a Windows file without silently discarding owner metadata.
+
+    `os.replace` moves the replacement inode over the destination and therefore
+    drops the destination's DACL, encryption/compression state, and NTFS named
+    streams. ReplaceFileW is the Windows operation designed for this case: with
+    no ignore flags it preserves that metadata and fails when it cannot merge
+    it. A destination that was absent is renamed with fail-if-exists semantics;
+    a reparse point is replaced as a link and is never opened here.
+    """
+    if destination is None:
+        os.rename(replacement, target)
+        return
+    if _is_windows_reparse_point(destination):
+        os.replace(replacement, target)
+        return
+
+    error = _call_replace_file_windows(target, replacement, backup)
+    if error == 0:
+        try:
+            backup.unlink()
+        except OSError as exc:
+            raise OSError(
+                exc.errno,
+                f"replacement succeeded but its recovery backup could not be removed: {backup}",
+            ) from exc
+        return
+
+    recovery = "the original destination remains in place"
+    if backup.exists():
+        if not target.exists():
+            try:
+                os.rename(backup, target)
+                recovery = "the original destination was restored from the recovery backup"
+            except OSError:
+                recovery = f"the original destination is retained at recovery backup {backup}"
+        else:
+            recovery = f"an original-file recovery backup is retained at {backup}"
+    import ctypes
+
+    raise OSError(
+        error,
+        f"ReplaceFileW failed while preserving metadata for {target}: "
+        f"{ctypes.FormatError(error)}; {recovery}",
+    )
+
+
+def _write_file_atomically_windows(
+    target: Path,
+    text: str,
+    *,
+    newline: str | None,
+    validated_snapshot: _ValidatedFileSnapshot | None,
+    expected_existing_prefix: bytes | None,
+) -> None:
+    """Atomically replace a file using native-Windows-safe primitives.
+
+    CPython on Windows exposes neither descriptor-relative opens nor
+    descriptor-relative replacement. This path therefore makes a narrower,
+    honest guarantee than the POSIX path: the destination is created as an
+    exclusive temporary sibling and replaced atomically, while a second open
+    sibling prevents Windows from renaming the immediate parent during the
+    operation. Destination identity (and caller-validated content, when
+    supplied) is checked again immediately before the native replacement call.
+
+    This is atomic replacement, not a compare-and-swap or a claim of crash
+    durability. The sibling guard excludes immediate-parent renames but cannot
+    exclude a writer that edits or substitutes the destination after the final
+    validation syscall and before ReplaceFileW. The POSIX writer has the same
+    final check-to-rename boundary. This path also does not claim descriptor
+    binding for ancestors above the immediate parent. A writer able to rename
+    those ancestors already holds write authority inside the project and can
+    edit the destination directly.
+    """
+    if os.name != "nt":
+        raise NotImplementedError(
+            "path-guarded atomic replacement is currently defined only for Windows"
+        )
+
+    parent = target.parent
+    parent_info = parent.lstat()
+    if not stat.S_ISDIR(parent_info.st_mode) or _is_windows_reparse_point(parent_info):
+        raise NotADirectoryError(f"refusing to write through a reparse-point parent: {parent}")
+    parent_identity = _file_identity(parent_info)
+
+    token = f"{os.getpid()}.{secrets.token_hex(8)}"
+    guard = parent / f".{target.name}.{token}.write-guard"
+    temporary = parent / f".{target.name}.{token}.partial"
+    backup = parent / f".{target.name}.{token}.backup"
+    guard_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    guard_fd = os.open(guard, guard_flags, 0o600)
+    temporary_created = False
+    try:
+        # Creating and holding this sibling is load-bearing on Windows. CRT
+        # handles opened by os.open do not share delete access, so the parent
+        # cannot be renamed while the guard remains open. Confirm it is still
+        # the directory observed before the guard creation.
+        guarded_parent = parent.lstat()
+        if _file_identity(guarded_parent) != parent_identity:
+            raise FileExistsError(f"refusing to write {target}: its parent changed identity")
+
+        destination = _lstat_or_none(target)
+        expected_identity = _file_identity(destination) if destination is not None else None
+        existing_mode: int | None = None
+        if destination is not None and not _is_windows_reparse_point(destination):
+            if not stat.S_ISREG(destination.st_mode):
+                raise FileExistsError(f"refusing to replace non-file destination: {target}")
+            existing_mode = stat.S_IMODE(destination.st_mode)
+            if not os.access(target, os.W_OK):
+                raise PermissionError(f"refusing to replace {target}: it is not writable")
+            if expected_existing_prefix is not None:
+                with target.open("rb") as handle:
+                    opened = os.fstat(handle.fileno())
+                    prefix = handle.read(len(expected_existing_prefix))
+                if _file_identity(opened) != expected_identity or prefix != expected_existing_prefix:
+                    raise FileExistsError(
+                        f"refusing to replace {target}: it is no longer an earlier proposal"
+                    )
+
+        if validated_snapshot is not None:
+            if expected_identity != validated_snapshot[0]:
+                raise FileExistsError(
+                    f"refusing to replace {target}: it changed identity during validation"
+                )
+            _assert_windows_destination_unchanged(
+                target, expected_identity, validated_snapshot=validated_snapshot
+            )
+
+        create = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_BINARY", 0)
+            | getattr(os, "O_NOINHERIT", 0)
+        )
+        fd = os.open(temporary, create, 0o644)
+        temporary_created = True
+        with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as handle:
+            handle.write(text)
+        if existing_mode is not None:
+            # Windows represents only its read-only attribute through chmod;
+            # this preserves that capability without claiming POSIX ACL/mode
+            # fidelity that the platform cannot provide.
+            os.chmod(temporary, existing_mode)
+
+        if _file_identity(parent.lstat()) != parent_identity:
+            raise FileExistsError(f"refusing to replace {target}: its parent changed identity")
+        _assert_windows_destination_unchanged(
+            target,
+            expected_identity,
+            validated_snapshot=validated_snapshot,
+            expected_existing_prefix=expected_existing_prefix,
+        )
+        _replace_file_windows(target, temporary, destination=destination, backup=backup)
+        temporary_created = False
+    finally:
+        if temporary_created:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+        os.close(guard_fd)
+        try:
+            guard.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _write_file_atomically_with_pinned_parent(
     target: Path, text: str, *, newline: str | None = None, validated_fd: int | None = None
 ) -> None:
     """Write `target` through a pinned directory and a rename.
@@ -551,6 +840,33 @@ def _write_file_atomically(
         os.close(parent_fd)
 
 
+def _write_file_atomically(
+    target: Path,
+    text: str,
+    *,
+    newline: str | None = None,
+    validated_fd: int | None = None,
+    validated_snapshot: _ValidatedFileSnapshot | None = None,
+    expected_existing_prefix: bytes | None = None,
+) -> None:
+    if _CAN_PIN_PARENT_DIRECTORY:
+        if validated_snapshot is not None:
+            raise ValueError("descriptor-pinned writes accept validated_fd, not a path snapshot")
+        _write_file_atomically_with_pinned_parent(
+            target, text, newline=newline, validated_fd=validated_fd
+        )
+        return
+    if validated_fd is not None:
+        raise ValueError("Windows atomic replacement requires a closed validation snapshot")
+    _write_file_atomically_windows(
+        target,
+        text,
+        newline=newline,
+        validated_snapshot=validated_snapshot,
+        expected_existing_prefix=expected_existing_prefix,
+    )
+
+
 def propose_research_contract_block(
     *,
     repo_root: Path,
@@ -587,7 +903,11 @@ def propose_research_contract_block(
     lines = _derived_block_lines(notebook_sha, notebook_text)
     contract_before = _sha256_file(contract) if contract.is_file() else None
     proposal.parent.mkdir(parents=True, exist_ok=True)
-    _write_file_atomically(proposal, PROPOSAL_HEADER + "\n".join(lines) + "\n")
+    _write_file_atomically(
+        proposal,
+        PROPOSAL_HEADER + "\n".join(lines) + "\n",
+        expected_existing_prefix=PROPOSAL_SENTINEL.encode("utf-8"),
+    )
     contract_after = _sha256_file(contract) if contract.is_file() else None
     return {
         "proposal_path": str(proposal),

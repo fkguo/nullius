@@ -69,7 +69,7 @@ describe('isIntegrityVerifySkipped', () => {
 
 describe('integrityLogPath', () => {
   it('joins INTEGRITY_LOG_FILE under projectRoot', () => {
-    expect(integrityLogPath('/proj')).toBe(`/proj/${INTEGRITY_LOG_FILE}`);
+    expect(integrityLogPath('/proj')).toBe(path.join('/proj', INTEGRITY_LOG_FILE));
   });
 });
 

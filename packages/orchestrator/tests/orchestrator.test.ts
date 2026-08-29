@@ -15,6 +15,8 @@ import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
 import { buildRunStatusView, readApprovalsView, readRunListView } from '../src/orch-tools/run-read-model.js';
 import { OrchRunApprovalsListSchema } from '../src/orch-tools/schemas.js';
 
+const posixIt = process.platform === 'win32' ? it.skip : it;
+
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'orch-test-'));
 }
@@ -479,7 +481,7 @@ describe('StateManager', () => {
     expect(exportView.message).not.toContain('wrote:');
   });
 
-  it('does not advertise a stale project-local launcher as a healthy status fallback', () => {
+  posixIt('does not advertise a stale project-local launcher as a healthy status fallback', () => {
     const state = baseState({
       run_id: 'test-run-stale-launcher',
       run_status: 'idle',
@@ -568,7 +570,7 @@ describe('StateManager', () => {
     ]));
   });
 
-  it('treats a project-local launcher with a missing baked target as healthy when nullius is on PATH', () => {
+  posixIt('treats a project-local launcher with a missing baked target as healthy when nullius is on PATH', () => {
     const state = baseState({
       run_id: 'test-run-path-launcher',
       run_status: 'idle',
@@ -630,7 +632,7 @@ describe('StateManager', () => {
     expect(launcher.issue_code).toBeNull();
   });
 
-  it('does not treat a directory named nullius on PATH as a usable CLI fallback', () => {
+  posixIt('does not treat a directory named nullius on PATH as a usable CLI fallback', () => {
     const state = baseState({
       run_id: 'test-run-dir-on-path',
       run_status: 'idle',
@@ -688,7 +690,7 @@ describe('StateManager', () => {
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
   });
 
-  it('does not treat the project-local launcher itself on PATH as a usable CLI fallback', () => {
+  posixIt('does not treat the project-local launcher itself on PATH as a usable CLI fallback', () => {
     const state = baseState({
       run_id: 'test-run-self-on-path',
       run_status: 'idle',
@@ -744,7 +746,7 @@ describe('StateManager', () => {
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
   });
 
-  it('does not treat a hard link to the launcher on PATH as a usable CLI fallback', () => {
+  posixIt('does not treat a hard link to the launcher on PATH as a usable CLI fallback', () => {
     const state = baseState({
       run_id: 'test-run-hardlink-on-path',
       run_status: 'idle',
@@ -804,7 +806,7 @@ describe('StateManager', () => {
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
   });
 
-  it('flags a launcher whose resolver block was relocated below the guard as unparseable', () => {
+  posixIt('flags a launcher whose resolver block was relocated below the guard as unparseable', () => {
     const state = baseState({
       run_id: 'test-run-relocated-resolver',
       run_status: 'idle',
@@ -853,7 +855,7 @@ describe('StateManager', () => {
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_UNPARSEABLE');
   });
 
-  it('flags an old self-recursing launcher shape (no self-identity guard) as unparseable', () => {
+  posixIt('flags an old self-recursing launcher shape (no self-identity guard) as unparseable', () => {
     const state = baseState({
       run_id: 'test-run-old-launcher-shape',
       run_status: 'idle',
@@ -889,7 +891,7 @@ describe('StateManager', () => {
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_UNPARSEABLE');
   });
 
-  it('does not advertise an unparseable project-local launcher as a healthy status fallback', () => {
+  posixIt('does not advertise an unparseable project-local launcher as a healthy status fallback', () => {
     const state = baseState({
       run_id: 'test-run-malformed-launcher',
       run_status: 'idle',
@@ -923,7 +925,7 @@ describe('StateManager', () => {
     ]));
   });
 
-  it('does not advertise a wrong executable as a healthy project-local status fallback', () => {
+  posixIt('does not advertise a wrong executable as a healthy project-local status fallback', () => {
     const state = baseState({
       run_id: 'test-run-wrong-launcher',
       run_status: 'idle',
@@ -3354,7 +3356,7 @@ describe('Stage 3c: writePlanMd', () => {
 
   it('writes plan.md atomically and returns relative path', () => {
     const relPath = sm.writePlanMd(basePlan());
-    expect(relPath).toBe(path.join('.nullius', 'plan.md'));
+    expect(relPath).toBe('.nullius/plan.md');
     const content = fs.readFileSync(path.join(tmpDir, '.nullius', 'plan.md'), 'utf-8');
     expect(content).toContain('# Plan (derived view)');
     expect(fs.existsSync(path.join(tmpDir, '.nullius', 'plan.md.tmp'))).toBe(false);
@@ -3383,9 +3385,9 @@ describe('Stage 3c: saveState with plan', () => {
   it('validates plan, sets plan_md_path, and derives plan.md on saveState', () => {
     const state = baseState({ plan: basePlan() });
     sm.saveState(state);
-    expect(state.plan_md_path).toBe(path.join('.nullius', 'plan.md'));
+    expect(state.plan_md_path).toBe('.nullius/plan.md');
     const stateJson = JSON.parse(fs.readFileSync(path.join(tmpDir, '.nullius', 'state.json'), 'utf-8'));
-    expect(stateJson.plan_md_path).toBe(path.join('.nullius', 'plan.md'));
+    expect(stateJson.plan_md_path).toBe('.nullius/plan.md');
     const md = fs.readFileSync(path.join(tmpDir, '.nullius', 'plan.md'), 'utf-8');
     expect(md).toContain('# Plan (derived view)');
   });
@@ -3411,7 +3413,9 @@ describe('Stage 3c: saveState with plan', () => {
       const state = baseState({ plan: basePlan() });
       customSm.saveState(state);
       // plan_md_path should be relative to repoRoot (custom_state_dir/plan.md)
-      expect(state.plan_md_path).toBe(path.relative(tmpDir, path.join(customDir, 'plan.md')));
+      expect(state.plan_md_path).toBe(
+        path.relative(tmpDir, path.join(customDir, 'plan.md')).split(path.sep).join('/'),
+      );
       expect(fs.existsSync(path.join(customDir, 'plan.md'))).toBe(true);
     } finally {
       if (origEnv === undefined) delete process.env['NULLIUS_CONTROL_DIR'];
@@ -3445,7 +3449,7 @@ describe('Stage 3c: saveStateWithLedger with plan', () => {
   it('validates plan and derives plan.md during saveStateWithLedger', () => {
     const state = baseState({ plan: basePlan(), run_status: 'running', run_id: 'r1' });
     sm.saveStateWithLedger(state, 'checkpoint', { details: {} });
-    expect(state.plan_md_path).toBe(path.join('.nullius', 'plan.md'));
+    expect(state.plan_md_path).toBe('.nullius/plan.md');
     expect(fs.existsSync(path.join(tmpDir, '.nullius', 'plan.md'))).toBe(true);
   });
 

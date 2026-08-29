@@ -22,6 +22,7 @@ First determine whether it is already initialized.
 
 If .nullius/HARNESS exists, obtain a status receipt before doing any work:
 ./.nullius/bin/nullius status --json
+On native Windows, use: .\.nullius\bin\nullius.cmd status --json
 If the project-local launcher is unavailable, run:
 nullius status --json
 
@@ -33,6 +34,7 @@ If AGENTS.md and .nullius/HARNESS are both missing, initialize the project:
 nullius init
 Then read the generated AGENTS.md and run:
 ./.nullius/bin/nullius status --json
+On native Windows, use: .\.nullius\bin\nullius.cmd status --json
 
 To pull newer managed scaffold doc (AGENTS.md) into an
 already-initialized project without touching your own notes, preview then apply:
@@ -72,7 +74,7 @@ Open questions stay counted in every status receipt (oldest ten itemized; the re
 via: nullius decision list) until resolved.
 ```
 
-新 decision 条目先使用 6 字符的 branch-local handle，其原始抽样为 30 个无偏随机 bit（$32^6 = 2^{30}$）。与 durable `D<n>` 同形的候选、本地已有 id 与既有映射都会重抽，因此精确的逐对碰撞概率依上下文而变；无本地占位时为 $1/(2^{30}-90{,}000)\approx 9.314\times 10^{-10}$，略高于 $2^{-30}$。这是概率保证而非结构保证，碰撞时 fail closed。`--resolves` 是关闭关系，只接受仍然 open 的 `pending` 目标；`--relates` 是非关闭关系，可以指向更早且可读的 `decided` 或 `pending` 条目。回放时若持久化关系格式错误或语义不成立，工具会在 `unrecognized_relations` 中报告并忽略该链接，但不会让整条记录失效。旧版或未知的非空字符串 `kind` 会继续按当前 `decided` 语义读取，并通过 `source_kind` 与 `normalized_kinds` 保留原始拼写；只有精确的持久化 `pending` 才会创建 open item，而归一化条目上其余合法的 `resolves` 仍会关闭对应 pending。分支内容进入权威主干后，`decision land` 原子分配后续 durable `D<n>`、改写指向 handle 的关系，并以 `provisional_id` 保留映射。既有 `D<n>` ledger 无需迁移，仍可读取和 resolve。若同一 provisional id 映射到多条记录或又被用作当前 id，list/status 会具名冲突行，land 在零改写下拒绝。初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`project_index.md`、`research_plan.md`、`research_contract.md`、当前主研究报告和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
+新 decision 条目先使用 6 字符的 branch-local handle，其原始抽样为 30 个无偏随机 bit（$32^6 = 2^{30}$）。与 durable `D<n>` 同形的候选、本地已有 id 与既有映射都会重抽，因此精确的逐对碰撞概率依上下文而变；无本地占位时为 $1/(2^{30}-90{,}000)\approx 9.314\times 10^{-10}$，略高于 $2^{-30}$。这是概率保证而非结构保证，碰撞时 fail closed。`--resolves` 是关闭关系，只接受仍然 open 的 `pending` 目标；`--relates` 是非关闭关系，可以指向更早且可读的 `decided` 或 `pending` 条目。回放时若持久化关系格式错误或语义不成立，工具会在 `unrecognized_relations` 中报告并忽略该链接，但不会让整条记录失效。旧版或未知的非空字符串 `kind` 会继续按当前 `decided` 语义读取，并通过 `source_kind` 与 `normalized_kinds` 保留原始拼写；只有精确的持久化 `pending` 才会创建 open item，而归一化条目上其余合法的 `resolves` 仍会关闭对应 pending。分支内容进入权威主干后，`decision land` 原子分配后续 durable `D<n>`、改写指向 handle 的关系，并以 `provisional_id` 保留映射。既有 `D<n>` ledger 无需迁移，仍可读取和 resolve。若同一 provisional id 映射到多条记录或又被用作当前 id，list/status 会具名冲突行，land 在零改写下拒绝。初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、POSIX 上的 `.nullius/bin/nullius` 或 Windows 上的 `.nullius/bin/nullius.cmd`、`AGENTS.md`、`project_index.md`、`research_plan.md`、`research_contract.md`、当前主研究报告和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
 
 如果你还没初始化外部 project root，先走这一条：
 
@@ -139,7 +141,7 @@ nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-
 
 > 说明：较底层的 checked-in Python `workflow-plan` consumer 与 internal regression/parser-residue 路径见 `docs/TESTING_GUIDE.md`；不要把它们当成新的 quickstart 默认入口。
 
-若后续用 `nullius run` 驱动配置的本地 stdio MCP server，请把普通配置与凭据分开：`NULLIUS_RUN_MCP_ENV_JSON` 只放非敏感 string map，`NULLIUS_RUN_MCP_CREDENTIALS_JSON` 放显式凭据；需要鉴权的 server 再用 `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` 声明必需 key，使缺失凭据在 spawn 前失败。委托 runtime 对结果未知的副作用不会自动重试，而是以 `outcome_unknown` 停机等待核对；direct 与 team journal 分别位于 `artifacts/delegated-runs/direct/<run_id>/` 和 `artifacts/delegated-runs/team/<runtime_run_id>/`，也不与 root run 的 `artifacts/runs/<run_id>/` 共用 namespace。
+若后续用 `nullius run` 驱动配置的本地 stdio MCP server，请把普通配置与凭据分开：`NULLIUS_RUN_MCP_ENV_JSON` 只放非敏感 string map，`NULLIUS_RUN_MCP_CREDENTIALS_JSON` 放显式凭据；需要鉴权的 server 再用 `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` 声明必需 key，使缺失凭据在 spawn 前失败。委托 runtime 对结果未知的副作用不会自动重试，而是以 `outcome_unknown` 停机等待核对；direct 与 team journal 分别位于 `artifacts/delegated-runs/direct/<run_id>/` 和 `artifacts/delegated-runs/team/<runtime_run_id>/`，也不与 root run 的 `artifacts/runs/<run_id>/` 共用 namespace。原生 Windows 上，该公开 workflow 仍要求 process-tree containment，因此会在 spawn 前 fail closed；显式 `best_effort` 只属于底层 `McpClient`，不是 public workflow fallback。
 
 5) `hep_export_project`
 - 在通过验证与集成后导出完整项目成果。

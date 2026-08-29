@@ -143,6 +143,86 @@ jobs:
 
       - run: make contract-test
 
+  windows-native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Windows portability anti-drift
+        run: |
+          node scripts/check-shell-boundary-anti-drift.mjs
+          node scripts/check-atomic-write-anti-drift.mjs
+          node scripts/check-harness-invocation-anti-drift.mjs
+          node scripts/check-integrity-receipt-anti-drift.mjs
+
+      - name: Build all workspace packages on native Windows
+        run: pnpm -r build
+
+      - name: Install CLI export archive tools
+        run: choco install zip unzip --yes --no-progress
+
+      - name: Windows-focused Node regressions
+        run: >-
+          pnpm --filter @nullius/orchestrator exec vitest run
+          tests/local-cli-install.test.ts
+          tests/windows-runtime-resolution.test.ts
+          tests/project-local-nullius-windows.test.ts
+          tests/traceability-stage2.test.ts
+          tests/orchestrator.test.ts
+          tests/mcp-client-process.test.ts
+          tests/mcp-client-sampling.test.ts
+          tests/workflow-runtime.test.ts
+          tests/nullius-cli-init-export.test.ts
+
+      - name: Shared atomic and path contracts on native Windows
+        run: >-
+          pnpm --filter @nullius/shared exec vitest run
+          src/__tests__/atomic-write.test.ts
+          src/__tests__/harness-invocation.test.ts
+          src/__tests__/integrity-receipt.test.ts
+
+      - name: Project-contract Windows regressions
+        run: |
+          python -m pip install pytest pyyaml pydantic
+          python -m pytest packages/project-contracts/tests -q
+
+      - name: External-project CLI, init, and reconnect smoke
+        shell: pwsh
+        run: |
+          $binDir = Join-Path $env:RUNNER_TEMP 'nullius bin'
+          pnpm install:cli -- --bin-dir $binDir
+          if ($LASTEXITCODE -ne 0) { throw 'source-checkout CLI installation failed' }
+          $wrapper = Join-Path $binDir 'nullius.cmd'
+          & $wrapper --help | Select-String 'Canonical generic lifecycle and workflow-plan entrypoint'
+          if ($LASTEXITCODE -ne 0) { throw 'nullius --help failed' }
+
+          $projectRoot = Join-Path $env:RUNNER_TEMP 'nullius Windows Ω smoke'
+          & $wrapper --project-root $projectRoot init
+          if ($LASTEXITCODE -ne 0) { throw 'nullius init failed' }
+          $launcher = Join-Path $projectRoot '.nullius\bin\nullius.cmd'
+          if (-not (Test-Path -LiteralPath $launcher)) { throw 'Windows project-local launcher is missing' }
+          if (-not (Test-Path -LiteralPath (Join-Path $projectRoot '.nullius\HARNESS'))) { throw 'HARNESS is missing' }
+          $status = (& $launcher status --json | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or $status.run_status -ne 'idle') { throw 'project-local status failed' }
+
+          & $wrapper --project-root $projectRoot init --runtime-only
+          if ($LASTEXITCODE -ne 0) { throw 'runtime-only refresh failed' }
+          $status = (& $launcher status --json | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or $status.run_status -ne 'idle') { throw 'runtime-only reconnect failed' }
+
   python-contracts-test:
     runs-on: ubuntu-latest
     steps:

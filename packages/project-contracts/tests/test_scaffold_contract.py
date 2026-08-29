@@ -732,16 +732,16 @@ class TestScaffoldRefresh(unittest.TestCase):
             (root / "AGENTS.md").write_text("TAMPERED-AGENTS\n", encoding="utf-8")
 
             target = root.resolve() / "AGENTS.md"
-            orig_write = pathlib.Path.write_text
+            orig_write = pathlib.Path.write_bytes
 
             def flaky_write(self, data, *args, **kwargs):
                 # Fail the OVERWRITE of the managed file (template content),
                 # but allow its backup write (which holds the TAMPERED- text).
-                if self == target and not data.startswith("TAMPERED-"):
+                if self == target and not data.startswith(b"TAMPERED-"):
                     raise OSError("simulated write failure")
                 return orig_write(self, data, *args, **kwargs)
 
-            with mock.patch.object(pathlib.Path, "write_text", flaky_write):
+            with mock.patch.object(pathlib.Path, "write_bytes", flaky_write):
                 with self.assertRaises(OSError):
                     ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
 

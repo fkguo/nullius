@@ -26,6 +26,7 @@ Work from the external project root, not from the `nullius` development repo.
 2. Prefer the project-local CLI when it exists:
    ```bash
    ./.nullius/bin/nullius status --json
+   # Native Windows PowerShell: .\.nullius\bin\nullius.cmd status --json
    ```
 3. Otherwise use the installed CLI:
    ```bash
@@ -96,6 +97,7 @@ The check is also skipped for:
    ```bash
    nullius init --runtime-only
    ./.nullius/bin/nullius status --json
+   # Native Windows PowerShell: .\.nullius\bin\nullius.cmd status --json
    ```
    If `nullius` is not on `PATH`, run the same one-time repair through your nullius checkout (substitute its absolute path):
    ```bash

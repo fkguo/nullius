@@ -5,6 +5,10 @@ import * as path from 'node:path';
 
 import { McpClient } from '../src/mcp-client.js';
 
+const platformContainment = process.platform === 'win32'
+  ? { containment: 'best_effort' as const }
+  : {};
+
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-client-process-'));
 }
@@ -52,6 +56,20 @@ describe('McpClient subprocess containment', () => {
     }
   });
 
+  it.runIf(process.platform === 'win32')('keeps required process-tree containment fail-closed on Windows', async () => {
+    const defaultClient = new McpClient();
+    await expect(defaultClient.start(process.execPath, ['unused'])).rejects.toThrow(
+      'MCP required process-tree containment is unavailable on Windows',
+    );
+    await defaultClient.close();
+
+    const explicitClient = new McpClient();
+    await expect(explicitClient.start(process.execPath, ['unused'], {
+      containment: 'required',
+    })).rejects.toThrow('MCP required process-tree containment is unavailable on Windows');
+    await explicitClient.close();
+  });
+
   it('passes only the controlled baseline plus declared config and credentials', async () => {
     const tmpDir = makeTmpDir();
     tmpDirs.push(tmpDir);
@@ -74,6 +92,7 @@ describe('McpClient subprocess containment', () => {
     `);
     const client = new McpClient({ shutdownGraceMs: 20, killGraceMs: 20 });
     await client.start(process.execPath, [scriptPath], {
+      ...platformContainment,
       configEnv: { RESULT_PATH: resultPath, SERVER_MODE: 'isolated' },
       credentials: { TEST_API_KEY: 'declared-secret' },
       cwd: fs.realpathSync(tmpDir),
@@ -93,12 +112,14 @@ describe('McpClient subprocess containment', () => {
   it('rejects loader injection and credential/config channel confusion without echoing values', async () => {
     const client = new McpClient();
     await expect(client.start(process.execPath, ['unused'], {
+      ...platformContainment,
       configEnv: { NODE_OPTIONS: 'secret-loader-value' },
     })).rejects.toThrow('MCP config environment rejects dangerous key: NODE_OPTIONS');
     await expect(client.close()).resolves.toBeUndefined();
 
     const second = new McpClient();
     await expect(second.start(process.execPath, ['unused'], {
+      ...platformContainment,
       configEnv: { TEST_API_KEY: 'secret-api-value' },
     })).rejects.toThrow('MCP credential-like key must be supplied through credentials: TEST_API_KEY');
     await expect(second.close()).resolves.toBeUndefined();
@@ -119,6 +140,7 @@ describe('McpClient subprocess containment', () => {
     `);
     const client = new McpClient({ shutdownGraceMs: 20, killGraceMs: 20 });
     await client.start(process.execPath, [scriptPath], {
+      ...platformContainment,
       configEnv: { RESULT_PATH: resultPath },
       credentials: { DATABASE_URL: 'postgres://declared-only' },
       requiredCredentialNames: ['DATABASE_URL'],
@@ -146,6 +168,7 @@ describe('McpClient subprocess containment', () => {
       `);
       const client = new McpClient({ shutdownGraceMs: 20, killGraceMs: 20 });
       await client.start(process.execPath, [scriptPath], {
+        ...platformContainment,
         configEnv: { RESULT_PATH: resultPath },
         cwd: tmpDir,
       });
@@ -160,6 +183,7 @@ describe('McpClient subprocess containment', () => {
   it('fails before spawn when a declared server credential is missing or empty', async () => {
     const client = new McpClient();
     await expect(client.start(process.execPath, ['must-not-run'], {
+      ...platformContainment,
       credentials: {},
       requiredCredentialNames: ['OPENALEX_API_KEY'],
     })).rejects.toThrow('MCP required credential is missing: OPENALEX_API_KEY');
@@ -167,14 +191,14 @@ describe('McpClient subprocess containment', () => {
 
     const second = new McpClient();
     await expect(second.start(process.execPath, ['must-not-run'], {
+      ...platformContainment,
       credentials: { OPENALEX_API_KEY: '' },
       requiredCredentialNames: ['OPENALEX_API_KEY'],
     })).rejects.toThrow('MCP required credential is missing: OPENALEX_API_KEY');
     await second.close();
   });
 
-  it('cleans the process group when initialization fails', async () => {
-    if (process.platform === 'win32') return;
+  it.skipIf(process.platform === 'win32')('cleans the process group when initialization fails', async () => {
     const tmpDir = makeTmpDir();
     tmpDirs.push(tmpDir);
     const scriptPath = path.join(tmpDir, 'server.mjs');
@@ -196,8 +220,7 @@ describe('McpClient subprocess containment', () => {
     expect(fs.existsSync(sentinelPath)).toBe(false);
   });
 
-  it('makes a timed-out client unusable and kills child and grandchild work', async () => {
-    if (process.platform === 'win32') return;
+  it.skipIf(process.platform === 'win32')('makes a timed-out client unusable and kills child and grandchild work', async () => {
     const tmpDir = makeTmpDir();
     tmpDirs.push(tmpDir);
     const scriptPath = path.join(tmpDir, 'server.mjs');
@@ -225,8 +248,7 @@ describe('McpClient subprocess containment', () => {
     expect(fs.existsSync(sentinelPath)).toBe(false);
   });
 
-  it('cleans the exited server process group before reconnecting', async () => {
-    if (process.platform === 'win32') return;
+  it.skipIf(process.platform === 'win32')('cleans the exited server process group before reconnecting', async () => {
     const tmpDir = makeTmpDir();
     tmpDirs.push(tmpDir);
     const scriptPath = path.join(tmpDir, 'server.mjs');
@@ -265,8 +287,7 @@ describe('McpClient subprocess containment', () => {
     await client.close();
   });
 
-  it('bounds repeated post-initialize crashes across successful reconnects', async () => {
-    if (process.platform === 'win32') return;
+  it.skipIf(process.platform === 'win32')('bounds repeated post-initialize crashes across successful reconnects', async () => {
     const tmpDir = makeTmpDir();
     tmpDirs.push(tmpDir);
     const scriptPath = path.join(tmpDir, 'server.mjs');
@@ -319,7 +340,7 @@ describe('McpClient subprocess containment', () => {
       }
     `);
     const client = new McpClient({ shutdownGraceMs: 20, killGraceMs: 20 });
-    await client.start(process.execPath, [scriptPath], { cwd: tmpDir });
+    await client.start(process.execPath, [scriptPath], { ...platformContainment, cwd: tmpDir });
     await Promise.all([client.close(), client.close()]);
     await expect(client.close()).resolves.toBeUndefined();
   });

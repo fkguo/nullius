@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { defaultPythonRuntime } from './python-runtime.js';
 
 type ReportIo = {
   stderr: (text: string) => void;
@@ -18,7 +19,7 @@ function projectContractsEnv(): NodeJS.ProcessEnv {
 }
 
 export function runReportValidateCommand(projectRoot: string, io: ReportIo): number {
-  const python = process.env.NULLIUS_PYTHON || 'python3';
+  const python = defaultPythonRuntime();
   const result = spawnSync(
     python,
     ['-m', 'project_contracts.main_research_report_cli', '--project-root', projectRoot],

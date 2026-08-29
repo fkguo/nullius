@@ -46,7 +46,10 @@ def _write_text_if_missing(
         skipped.append(rel)
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text.rstrip() + "\n", encoding="utf-8")
+    # Templates are checked byte-for-byte by downstream contract guards. Write
+    # their canonical LF bytes on every host; text-mode writes translate LF to
+    # CRLF on Windows and make a contract created moments ago look user-edited.
+    path.write_bytes((text.rstrip() + "\n").encode("utf-8"))
     created.append(rel)
     if existed:
         # `force` is an explicit destructive request and stays destructive, but
@@ -121,7 +124,7 @@ def _refresh_project_scaffold(
         if not path.exists():
             if not dry_run:
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(new_text, encoding="utf-8")
+                path.write_bytes(new_text.encode("utf-8"))
             created.append(rel)
             continue
         # Read raw bytes so the backup is byte-exact even if a managed file was
@@ -135,7 +138,7 @@ def _refresh_project_scaffold(
             assert_path_within_project(backup_path, project_root=repo_root, label="scaffold backup")
             backup_path.parent.mkdir(parents=True, exist_ok=True)
             backup_path.write_bytes(old_bytes)
-            path.write_text(new_text, encoding="utf-8")
+            path.write_bytes(new_text.encode("utf-8"))
         refreshed.append(rel)
         backed_up.append(rel)
 

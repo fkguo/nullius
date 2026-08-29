@@ -13,9 +13,12 @@ import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import { readNulliusHarnessSentinelHealth } from '../nullius-harness-sentinel.js';
+import {
+  projectLocalNulliusStatusCommand,
+  readProjectLocalNulliusLauncherHealth,
+} from '../project-local-nullius.js';
 import { openDecisions, readDecisionsLedger, sortDecisionsByTimestamp } from '../decisions-ledger.js';
 import { decisionOverlayForFingerprint, mutationProposalFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
-import { readProjectLocalNulliusLauncherHealth } from '../project-local-nullius.js';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
 import { pauseFilePath, readJson, type ApprovalGateFilter } from './common.js';
@@ -608,7 +611,7 @@ function readRecoveryContextView(
       canonical: 'nullius status --json',
       project_local_fallback: launcherHealth.healthy ? `${launcherHealth.path} status --json` : null,
       harness_entrypoint: harnessSentinel.valid && harnessSentinel.payload
-        ? harnessSentinel.payload.project_local_status_command
+        ? projectLocalNulliusStatusCommand()
         : null,
     },
     control_files: controlFiles,

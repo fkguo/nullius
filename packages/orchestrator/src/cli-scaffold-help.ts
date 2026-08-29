@@ -4,6 +4,8 @@ Bootstrap a real external project root and initialize .nullius state.
 
 Behavior:
   Always writes the project-local fallback launcher at \`.nullius/bin/nullius\`.
+  Native Windows also receives \`.nullius/bin/nullius.cmd\`, which preserves the
+  same protocol-2 root binding and is the preferred local recovery command there.
   That wrapper keeps \`nullius status --json\` as the canonical recovery command even when
   \`nullius\` is unavailable on PATH for a fresh external project.
   --refresh re-applies the current managed scaffold doc (AGENTS.md),

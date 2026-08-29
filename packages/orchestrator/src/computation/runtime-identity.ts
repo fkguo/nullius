@@ -39,8 +39,24 @@ function candidateRuntimePaths(token: string): string[] {
   const stableDirs = process.platform === 'win32'
     ? []
     : ['/usr/bin', '/bin', '/usr/local/bin', '/opt/homebrew/bin'];
-  for (const dir of [...pathDirs, ...stableDirs]) candidates.push(path.join(dir, token));
-  return [...new Set(candidates.map(candidate => path.resolve(candidate)))];
+  const suffixes = process.platform === 'win32'
+    ? ['', ...(process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
+        .split(';')
+        .map(extension => extension.trim())
+        .filter(Boolean)]
+    : [''];
+  for (const dir of [...pathDirs, ...stableDirs]) {
+    for (const suffix of suffixes) candidates.push(path.join(dir, `${token}${suffix}`));
+  }
+  const seen = new Set<string>();
+  return candidates
+    .map(candidate => path.resolve(candidate))
+    .filter(candidate => {
+      const key = process.platform === 'win32' ? candidate.toLowerCase() : candidate;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 export function resolveCanonicalNativeRuntime(params: {
