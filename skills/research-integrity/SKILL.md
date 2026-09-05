@@ -771,8 +771,10 @@ checks whether the implementation matches the derived **form**, not whether the 
   implementation solves its *declared* model correctly — every internal route shares the
   model definition, so none of them can see a mistranscribed element. D3 binds exactly
   the claims that assert the source's *own prescription* was solved or reproduced; a
-  deliberately independent comparison (a different model, an experimental value) is
-  D2's territory — label it there, it is not a D3 failure. *Minimum disconfirming
+  comparison that does not assert the source's prescription — against a structurally
+  different model (D2's different-model labeling), or against measured/experimental
+  data, which is a measurement comparison rather than a model reproduction — is not a
+  D3 failure. *Minimum disconfirming
   check:* for each such claim, produce an exact element-level embedding of the source's
   prescription into the current framework (a frame map) with an elementwise identity
   test over the transcription, plus an as-printed run of the source's exact
@@ -819,11 +821,12 @@ shapes pass silently:
   after the fix, so a superseded number travels on as current truth.
 
 **Minimum disconfirming check.** For each still-quoted number downstream of the fix,
-produce either its measured immune/bounded status from the impact map — each probe
-paired with an identity control (a point whose expected outcome is strict identity)
-that passed; a probe whose control fails counts as no measurement — or the post-fix
-recomputation that superseded it, with superseded stored values marked do-not-quote
-where they live. A cell with neither is an unmeasured claim: do not cross the boundary.
+produce its measured immune/bounded status from the impact map — each probe paired
+with an identity control (a point whose expected outcome is strict identity) that
+passed; a probe whose control fails counts as no measurement — or the post-fix
+recomputation that superseded it (superseded stored values marked do-not-quote where
+they live), or a demonstration that its inputs lie wholly outside the affected domain.
+A number with none of the three is an unmeasured claim: do not cross the boundary.
 
 This is **not a new receipt mode**: record it under **M3** (a quoted number's validity)
 and **M5** (an artifact of a since-fixed defect treated as a result). The active gate is

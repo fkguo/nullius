@@ -149,10 +149,12 @@ Each check names its own minimum disconfirming test — never accept a number be
   prescription into the current framework (a frame map) and gate the transcription itself with an
   elementwise identity test; and run the source's exact prescription **as printed**, as a falsification
   instrument in its own right — the source's numbers are candidates to test against, never input truths
-  to calibrate to. The axis binds exactly that claim class: a deliberately independent comparison (a
-  different scientific model, an experimental value) owes no frame map — label it under the
-  different-scientific-model rule above instead — and when the source prints no complete prescription,
-  record the as-printed run as unavailable, a stated limitation rather than a silent skip. (G8 then
+  to calibrate to. The axis binds exactly that claim class: a comparison that does not assert the
+  source's prescription — against a structurally different scientific model (labeled under the
+  different-scientific-model rule above), or against measured/experimental data, which is a measurement
+  comparison rather than a model reproduction — owes no frame map; and when the source prints no
+  complete prescription, record the as-printed run as unavailable, a stated limitation rather than a
+  silent skip. (G8 then
   governs the number-level comparison; without this axis a numerical match can conceal compensating
   transcription errors, and a mismatch cannot be attributed — a genuine model difference and a
   transcription slip read the same.)
@@ -254,10 +256,13 @@ Each check names its own minimum disconfirming test — never accept a number be
   enumerate every downstream artifact — quoted numbers, table rows, rendered figures, stored grids —
   whose inputs intersect the affected domain, and **measure** each cell's status as immune (an exact
   identity), bounded (a deviation measured, and small against its use's stated tolerance), or
-  superseded (recomputed) — never argued small from the cell's position in the domain. The region where the defect is mildest needs its own probe,
-  not an exemption: a mild upstream deviation can be amplified downstream (a response function near a
-  resonance or steep feature), so the mildest-affected zone can be largest in effect. And every probe
-  is **self-validating**: pair each in-question point with a control point whose expected outcome is a
+  superseded (recomputed) — never argued small from the cell's position in the domain. An `immune` or
+  `bounded` cell discharges the **provably unaffected** branch of the record above — the identity, or
+  the measured bound against the stated tolerance, is its recorded reason; every cell with neither
+  status is recomputed. The region where the defect is mildest needs its own probe, not an exemption: a
+  mild upstream deviation can be amplified downstream (a response function near a resonance or steep
+  feature), so the mildest-affected zone can be largest in effect. And every probe is
+  **self-validating**: pair each in-question point with a control point whose expected outcome is a
   strict identity (bit-level agreement, or a known small class); a probe whose control fails is invalid
   regardless of what the in-question point shows — the control is also what separates defect signal
   from instrument differences (direct evaluation vs a cached/interpolated table). Superseded stored
@@ -304,9 +309,9 @@ Each check names its own minimum disconfirming test — never accept a number be
   G1–G7 and still misstate how it relates to the literature.) A claim that the source's *own
   prescription* was solved additionally presupposes the transcription axis (G2): the frame-map identity
   test and the as-printed falsification run certify that the model being solved IS the source's — only
-  then does the number-level comparison here test agreement rather than coincidence. The
-  `reference_match` record states whether that axis was gated; an ungated axis is a stated limitation
-  in `notes`, never a silent pass. The **strongest execution form** of this
+  then does the number-level comparison here test agreement rather than coincidence. State in `notes`,
+  alongside the `reference_match` record, whether that axis was gated; an ungated axis is a stated
+  limitation there, never a silent pass. The **strongest execution form** of this
   gate is the opt-in independent reproduction check in
   [`research-harness`](../research-harness/SKILL.md): it reruns the project's declared reproduction
   entry in a fresh, isolated checkout of committed state and machine-compares each declared expected
