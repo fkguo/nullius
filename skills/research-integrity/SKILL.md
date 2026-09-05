@@ -774,12 +774,12 @@ checks whether the implementation matches the derived **form**, not whether the 
   comparison that does not assert the source's prescription — against a structurally
   different model (D2's different-model labeling), or against measured/experimental
   data, which is a measurement comparison rather than a model reproduction — is not a
-  D3 failure. *Minimum disconfirming
-  check:* for each such claim, produce an exact element-level embedding of the source's
-  prescription into the current framework (a frame map) with an elementwise identity
-  test over the transcription, plus an as-printed run of the source's exact
-  prescription used as a falsification instrument — the source's numbers are candidates
-  to test against, never input truths to calibrate to. When the source prints no
+  D3 failure. *Minimum disconfirming check:* for each such claim, produce an exact
+  element-level embedding of the source's prescription into the current framework (a
+  frame map) with an elementwise identity test over the transcription, plus an
+  as-printed run of the source's exact prescription used as a falsification
+  instrument — the source's numbers are candidates to test against, never input
+  truths to calibrate to. When the source prints no
   complete prescription, record the as-printed run as unavailable — a stated
   limitation, never a silent skip. (The note-layer counterpart is the *Extraction /
   transcription fidelity* checklist above; D3 gates the *implemented* model — a clean
