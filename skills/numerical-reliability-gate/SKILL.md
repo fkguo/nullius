@@ -154,10 +154,9 @@ Each check names its own minimum disconfirming test — never accept a number be
   different-scientific-model rule above), or against measured/experimental data, which is a measurement
   comparison rather than a model reproduction — owes no frame map; and when the source prints no
   complete prescription, record the as-printed run as unavailable, a stated limitation rather than a
-  silent skip. (G8 then
-  governs the number-level comparison; without this axis a numerical match can conceal compensating
-  transcription errors, and a mismatch cannot be attributed — a genuine model difference and a
-  transcription slip read the same.)
+  silent skip. (G8 then governs the number-level comparison; without this axis a numerical match can
+  conceal compensating transcription errors, and a mismatch cannot be attributed — a genuine model
+  difference and a transcription slip read the same.)
   **Which LLM/engine runs a method is not the cross-check axis — the *route* is.** `>=2` orthogonal methods
   run by ONE LLM is a valid G2 floor (parallelize them across same-model subagents if useful, one method
   each — the independence lives in the method, never in the agent label), so a single-LLM host is never
@@ -311,12 +310,11 @@ Each check names its own minimum disconfirming test — never accept a number be
   test and the as-printed falsification run certify that the model being solved IS the source's — only
   then does the number-level comparison here test agreement rather than coincidence. State in `notes`,
   alongside the `reference_match` record, whether that axis was gated; an ungated axis is a stated
-  limitation there, never a silent pass. The **strongest execution form** of this
-  gate is the opt-in independent reproduction check in
-  [`research-harness`](../research-harness/SKILL.md): it reruns the project's declared reproduction
-  entry in a fresh, isolated checkout of committed state and machine-compares each declared expected
-  value under an explicit absolute/relative tolerance, default-deny. It is adopted per project and
-  changes no default workflow.
+  limitation there, never a silent pass. The **strongest execution form** of this gate is the opt-in
+  independent reproduction check in [`research-harness`](../research-harness/SKILL.md): it reruns the
+  project's declared reproduction entry in a fresh, isolated checkout of committed state and
+  machine-compares each declared expected value under an explicit absolute/relative tolerance,
+  default-deny. It is adopted per project and changes no default workflow.
 
 - **G9 — Gate discrimination: a validation must be able to fail (independent reference, negative
   controls).** When a value's trust rests on a purpose-built consistency check — "it reduces to a

@@ -99,11 +99,11 @@ derivation-verify matrix is not whole-method validation** — route the realizat
 let a green symbolic matrix be read as "the method is verified". A green matrix is also **domain-scoped**:
 it certifies each claim only on the explicit domain the derivations actually covered (a stated slice of a
 larger domain, a parameter subrange, one branch) — state that domain in the claim's `statement` /
-`report_format`, so every blind derivation answers on the same domain and the recorded answer carries it. Using the
-certified object outside it is a fresh, uncertified claim even when evaluation is mechanically possible —
-extend the verification to the new domain first, or obtain the out-of-domain quantity through an
-instrument whose own certification covers the use (the numerical-side rule, with its continuation
-example, is [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G6).
+`report_format`, so every blind derivation answers on the same domain and the recorded answer carries
+it. Using the certified object outside it is a fresh, uncertified claim even when evaluation is
+mechanically possible — extend the verification to the new domain first, or obtain the out-of-domain
+quantity through an instrument whose own certification covers the use (the numerical-side rule, with
+its continuation example, is [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G6).
 
 See [`references/contract.md`](references/contract.md) for the full schema (any executor must satisfy it).
 
