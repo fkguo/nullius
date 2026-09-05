@@ -511,8 +511,9 @@ that a correctness / methodology / honesty review routinely passes over:
   `numerical-reliability-gate` G2's shared-model-definition clause. Internal convergence and cross-method
   agreement cannot certify this (every internal route shares the model definition), so such a reproduction
   claim with an ungated transcription axis is unverified regardless of how well the numbers agree. A
-  deliberately independent comparison (a different model, an experimental value) owes no frame map — it is
-  covered by D2's different-model labeling instead.
+  comparison that does not assert the source's prescription owes no frame map — a different-model
+  comparison is covered by D2's labeling, and a comparison against measured/experimental data is a
+  measurement comparison, not a model reproduction.
 
 Record in `meta.json` whether a reviewer **computed-and-compared vs. only read** the match assertion; a
 swarm in which *no* reviewer recomputed the claimed observable on the comparable state is a **static-only**
