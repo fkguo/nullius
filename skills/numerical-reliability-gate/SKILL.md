@@ -127,6 +127,26 @@ Each check names its own minimum disconfirming test — never accept a number be
   evaluate the same expression at the decision point) is **blind by construction** and must not be counted
   as evidence about the branch; only a decision-free reference (direct quadrature along the parameterized
   path, a marched continuation with no per-point choices) can arbitrate.
+  **A many-knob invariance test is evidence only about what the varied knobs do NOT share.** Varying
+  many numerical knobs (grids, orders, tolerances, window placements) and finding the value invariant
+  under all of them reads as broad robustness, but if every varied knob feeds the same underlying
+  decision, subtraction, or model element, invariance under all of them is structurally consistent with
+  that shared element being wrong — no setting of any knob ever perturbed it. Record with every
+  knob-invariance result an explicit statement of what it CANNOT see (the elements all varied knobs
+  share), and probe those elements through an axis that actually varies them — the continuity scan
+  above, a decision-free reference, or the transcription audit below.
+  **The model definition is the largest shared setting of all — transcription is a separate
+  verification axis.** "The implementation solves its declared model correctly" and "the declared model
+  IS the source's model" are independent claims, and every internal gate — the convergence ladder, the
+  orthogonal methods, the regression anchors — certifies only the former, because all internal routes
+  share the model definition: a mistranscribed element is invisible to each of them. Before claiming
+  reproduction of, or comparison against, an external source (a manuscript, a predecessor code), build
+  an exact element-level embedding of the source's prescription into the current framework (a frame
+  map) and gate the transcription itself with an elementwise identity test; and run the source's exact
+  prescription **as printed**, as a falsification instrument in its own right — the source's numbers
+  are candidates to test against, never input truths to calibrate to. (G8 then governs the number-level
+  comparison; without this axis a numerical match can conceal compensating transcription errors, and a
+  mismatch cannot be attributed — a genuine model difference and a transcription slip read the same.)
   **Which LLM/engine runs a method is not the cross-check axis — the *route* is.** `>=2` orthogonal methods
   run by ONE LLM is a valid G2 floor (parallelize them across same-model subagents if useful, one method
   each — the independence lives in the method, never in the agent label), so a single-LLM host is never
@@ -200,6 +220,16 @@ Each check names its own minimum disconfirming test — never accept a number be
   not timestamp, is the staleness key: an unrelated commit does not invalidate gate evidence whose
   fingerprint inputs it provably did not touch, so a change re-opens only the checks whose inputs it
   altered — untouched evidence remains valid without re-execution or re-review.
+  **Certification is domain-scoped — record the certified domain with the construction.** A derivation,
+  a fix, or an evaluator construction is certified only on the explicit domain its gates actually
+  covered (a real slice of a complex domain, a parameter subrange, one regime of a continuation
+  parameter). Evaluating it outside that domain is an uncertified act even when the code happily
+  returns numbers: either extend the gate evidence to the new domain first, or route the task through
+  an instrument whose own certification covers the use — e.g. determine an off-domain quantity from
+  certified-domain data via a validated rational continuation rather than evaluating the construction
+  directly at uncertified points. Record the certified domain explicitly alongside the construction and
+  its gate evidence, so a later consumer can tell use from misuse (the symbolic-side counterpart is
+  `derivation-verify`'s domain-scoped green matrix).
   **After a correction, recompute downstream — never relabel.** When a defect is found in anything upstream
   of already-accepted results, every downstream result — table rows, folded numbers, rendered figures — must
   be **recomputed**, not relabelled, caveated, or annotated in place. The record then states explicitly
@@ -208,6 +238,19 @@ Each check names its own minimum disconfirming test — never accept a number be
   closed (`stale_artifact`): the caveat stays with the prose while the number travels on alone, and the
   reader cannot tell the two apart. (Distinct from **G4**, which anchors the reference configuration
   *before* a variation; this is the obligation that falls due *after* one.)
+  The instrument that makes "recomputed vs provably unaffected" honest is a **defect impact map**:
+  enumerate every downstream artifact — quoted numbers, table rows, rendered figures, stored grids —
+  whose inputs intersect the affected domain, and **measure** each cell's status as immune (an exact
+  identity), bounded (a deviation measured and small), or superseded (recomputed) — never argued small
+  from the cell's position in the domain. The region where the defect is mildest needs its own probe,
+  not an exemption: a mild upstream deviation can be amplified downstream (a response function near a
+  resonance or steep feature), so the mildest-affected zone can be largest in effect. And every probe
+  is **self-validating**: pair each in-question point with a control point whose expected outcome is a
+  strict identity (bit-level agreement, or a known small class); a probe whose control fails is invalid
+  regardless of what the in-question point shows — the control is also what separates defect signal
+  from instrument differences (direct evaluation vs a cached/interpolated table). Superseded stored
+  values stay on disk but marked do-not-quote; the map closes only when every still-quoted number
+  demonstrably rests on rows outside the affected domain or on post-fix recomputation.
   **Connected-series homogeneity: missing evidence fails the check.** Before joining points from several runs into one line,
   trajectory, interpolation, fit, or downstream summary, require every joined point to carry the same
   complete evaluator fingerprint. The fingerprint covers the scientific model and branch/sheet choice,
@@ -245,7 +288,10 @@ Each check names its own minimum disconfirming test — never accept a number be
   the comparable regime, and the ratio / signed difference. (Distinct from **G4**: G4 anchors your *own
   pipeline* on a known result before you trust a variation; G8 tests whether a *headline external-match
   claim* actually holds when the observable is recomputed on the comparable state — a result can pass
-  G1–G7 and still misstate how it relates to the literature.) The **strongest execution form** of this
+  G1–G7 and still misstate how it relates to the literature.) A reproduction claim also presupposes
+  the transcription axis (G2): the frame-map identity test and the as-printed falsification run certify
+  that the model being solved IS the source's — only then does the number-level comparison here test
+  agreement rather than coincidence. The **strongest execution form** of this
   gate is the opt-in independent reproduction check in
   [`research-harness`](../research-harness/SKILL.md): it reruns the project's declared reproduction
   entry in a fresh, isolated checkout of committed state and machine-compares each declared expected

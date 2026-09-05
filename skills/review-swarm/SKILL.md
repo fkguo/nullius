@@ -487,7 +487,7 @@ severity-graded, one round per fix batch).
 
 A claim that a result **reproduces / matches / agrees with a published reference value** is a *quantitative*
 claim a static read cannot certify — reading the prose only confirms the prose. When a packet asserts such a
-match, at least **one reviewer must take a "reference-reproduction" role** and cover two distinct dimensions
+match, at least **one reviewer must take a "reference-reproduction" role** and cover three distinct dimensions
 that a correctness / methodology / honesty review routinely passes over:
 
 - **D1 — recompute and compare.** **Compute the claimed observable on a comparable state / regime /
@@ -504,6 +504,12 @@ that a correctness / methodology / honesty review routinely passes over:
   presented as validation**; and when no apples-to-apples independent check is feasible, the **absence is
   recorded as an explicit stated limitation** rather than an established cross-check being allowed to
   silently disappear.
+- **D3 — the transcription axis was gated.** Confirm the packet demonstrates that the model being solved
+  IS the source's model — the frame-map / elementwise-identity / as-printed-run evidence defined by the
+  `research-integrity` *Reference-reproduction fidelity* D3 dimension and `numerical-reliability-gate` G2's
+  shared-model-definition clause. Internal convergence and cross-method agreement cannot certify this
+  (every internal route shares the model definition), so a reproduction claim whose transcription axis was
+  never gated is unverified regardless of how well the numbers agree.
 
 Record in `meta.json` whether a reviewer **computed-and-compared vs. only read** the match assertion; a
 swarm in which *no* reviewer recomputed the claimed observable on the comparable state is a **static-only**
