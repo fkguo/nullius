@@ -769,13 +769,19 @@ checks whether the implementation matches the derived **form**, not whether the 
   failure mode is reading internal verification as external fidelity: the convergence
   ladder, independent discretizations, and regression anchors certify only that the
   implementation solves its *declared* model correctly — every internal route shares the
-  model definition, so none of them can see a mistranscribed element. *Minimum
-  disconfirming check:* before any reproduction / agreement claim, produce an exact
-  element-level embedding of the source's prescription into the current framework (a
-  frame map) with an elementwise identity test over the transcription, plus an
-  as-printed run of the source's exact prescription used as a falsification instrument —
-  the source's numbers are candidates to test against, never input truths to calibrate
-  to.
+  model definition, so none of them can see a mistranscribed element. D3 binds exactly
+  the claims that assert the source's *own prescription* was solved or reproduced; a
+  deliberately independent comparison (a different model, an experimental value) is
+  D2's territory — label it there, it is not a D3 failure. *Minimum disconfirming
+  check:* for each such claim, produce an exact element-level embedding of the source's
+  prescription into the current framework (a frame map) with an elementwise identity
+  test over the transcription, plus an as-printed run of the source's exact
+  prescription used as a falsification instrument — the source's numbers are candidates
+  to test against, never input truths to calibrate to. When the source prints no
+  complete prescription, record the as-printed run as unavailable — a stated
+  limitation, never a silent skip. (The note-layer counterpart is the *Extraction /
+  transcription fidelity* checklist above; D3 gates the *implemented* model — a clean
+  source-note does not certify the implementation.)
 
 This is **not a new receipt mode.** It is a cross-cutting check that **augments M3** (the
 cited / compared number) and **M5b** (when the result's own validity *is* the claimed
@@ -800,12 +806,17 @@ statically reading the assertion.
 After an upstream defect is found and fixed, the durable record owes a **defect impact
 map**: an enumeration of every downstream artifact — quoted numbers, table rows,
 figures, stored grids — whose inputs intersect the affected domain, with each cell's
-status **measured** as immune (an exact identity), bounded (a deviation measured and
-small), or superseded (recomputed). Two failure shapes pass silently: a cell argued
-negligible from its *position* in the domain ("the defect is mildest there") — a
-downstream response can amplify a mild upstream deviation (near a resonance or steep
-feature), so the mildest-affected zone can be largest in effect; and superseded stored
-values left quotable, so a pre-fix number travels on as current truth.
+status **measured** as immune (an exact identity), bounded (a deviation measured, and
+small against its use's stated tolerance), or superseded (recomputed). Two failure
+shapes pass silently:
+
+- **(a) position-argued negligibility** — a cell declared negligible from its
+  *position* in the domain ("the defect is mildest there"). A downstream response can
+  amplify a mild upstream deviation (near a resonance or steep feature), so the
+  mildest-affected zone can be largest in effect and needs its own probe, not an
+  exemption.
+- **(b) superseded values left quotable** — pre-fix stored values that remain quotable
+  after the fix, so a superseded number travels on as current truth.
 
 **Minimum disconfirming check.** For each still-quoted number downstream of the fix,
 produce either its measured immune/bounded status from the impact map — each probe
