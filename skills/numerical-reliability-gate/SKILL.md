@@ -112,6 +112,21 @@ Each check names its own minimum disconfirming test — never accept a number be
   presuppose the quantity in question, so their agreement measures the shared setting rather than testing
   it. Vary the suspect setting in at least one route, or record the check as "agree, but cannot resolve
   `<the setting under suspicion>`".
+  **Analytic-layer decisions are invisible to every discretization axis.** An evaluator that makes a
+  piecewise *analytic* decision — a branch of a multivalued function, a contour or sheet selection, a
+  window/domain classification — can be wrong on one side of the decision while every resolution axis
+  (quadrature order, mesh, node count) and every table/cache source agrees perfectly: the decision is
+  identical at all refinements, so refinement-based convergence and any cross-check sharing the decision
+  logic are **structurally blind** to it. Two consequences are mandatory. (1) For any evaluator containing
+  such decisions, run a **continuation-parameter continuity scan** as a standing falsification gate: sweep
+  the physical continuation variable (energy, coupling, kinematic invariant) densely across the declared
+  domain and fail on any step exceeding the local smoothness scale — an isolated jump localizes a wrong
+  branch to the step's position even when every other check passes. Anchor the correct branch at a point
+  where the decision is unambiguous (a threshold, a limit where the multivaluedness degenerates) and
+  demand continuity from that anchor. (2) An identity gate whose two sides *share* the decision (both
+  evaluate the same expression at the decision point) is **blind by construction** and must not be counted
+  as evidence about the branch; only a decision-free reference (direct quadrature along the parameterized
+  path, a marched continuation with no per-point choices) can arbitrate.
   **Which LLM/engine runs a method is not the cross-check axis — the *route* is.** `>=2` orthogonal methods
   run by ONE LLM is a valid G2 floor (parallelize them across same-model subagents if useful, one method
   each — the independence lives in the method, never in the agent label), so a single-LLM host is never
