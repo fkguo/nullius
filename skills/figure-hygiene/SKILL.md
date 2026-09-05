@@ -40,6 +40,12 @@ Data fidelity, the label-economy floor, the anti-pattern list, and render-then-v
   The scan is mechanical, and precedes presentation, exactly because a smooth-looking rendering is what
   hides such a defect: the eye certifies the smooth majority, an isolated jump reads as texture, and the
   wrong values travel on into tables and conclusions.
+- **Fail-closed substitution of corrected values.** When corrected values replace superseded stored rows
+  in a figure or table pipeline — after an upstream defect fix — the substitution must fail closed: a
+  missing corrected value raises an error and stops the render; it never silently falls back to the
+  superseded stored number. A silent fallback re-publishes the defect exactly where the correction is
+  incomplete, behind marks that look current. (The recomputation obligation itself is
+  `numerical-reliability-gate` G6; this rule is its display side.)
 - **Self-consistency.** Every key, threshold, and title inside the figure must be satisfied by every plotted row. Before saving, walk each categorical outcome label back to the rule that defines it; if a row's value contradicts its label or the title, the figure is wrong, not the data.
 - **Claim-titles must be true.** A sentence-title is tested against every category on the axis before rendering. If any category contradicts it, qualify the title ("on 3 of 4 cases") or downgrade it to a description.
 - **State n and what was held fixed.** Every panel that draws a summary mark states the number of observations and the unit of replication; every small multiple that holds a variable fixed states the fixed value — in the panel or, when the label budget is tight, in the caption.
@@ -108,6 +114,8 @@ These are correctness failures, not style preferences:
 - A claim-title contradicted by a category on its own axis.
 - A neighbour-to-neighbour jump in a rendered field, away from any declared singularity, annotated on the
   figure instead of traced to its mechanism.
+- A corrected-value substitution that silently falls back to a superseded stored row when the corrected
+  value is missing.
 
 ## Render, Then Verify
 

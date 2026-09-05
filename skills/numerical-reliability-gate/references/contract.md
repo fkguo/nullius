@@ -223,7 +223,14 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   annotated in place — and the matrix MUST state which rows were recomputed after the fix and which were
   **provably unaffected, with the reason**. A pre-fix row carrying only a status caveat stays
   `stale_artifact`; a matrix (or a downstream table or figure built from it) that mixes pre-fix and post-fix
-  rows without saying which is which is not foldable, whatever the individual rows claim.
+  rows without saying which is which is not foldable, whatever the individual rows claim. The
+  recomputed-versus-unaffected record is made by a **defect impact map**: every downstream cell whose
+  inputs intersect the affected domain carries a **measured** status — immune (an exact identity), bounded
+  (a deviation measured, and small against its use's stated tolerance), or superseded (recomputed) — never
+  a position-in-the-domain argument; an `immune` or `bounded` cell discharges the **provably unaffected**
+  branch (the identity, or the measured bound against the stated tolerance, is the recorded reason), and
+  every cell with neither status is recomputed; each probe is paired with an identity control whose failure
+  invalidates the probe, and superseded stored values are marked do-not-quote where they live.
 - **G7 method-precondition (when applicable)**: for any `reliable` verdict whose method's validity rests on
   a structural property (commutation with a projector/symmetrizer, Hermiticity, self-adjointness,
   idempotency, unitarity, variational-subspace invariance), the matrix MUST record that property's
@@ -262,6 +269,10 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   (verdict `reference_mismatch`) when the computed and published values differ by an order of magnitude in
   the same direction or by a sign; a qualitative "same scale / same sign" assertion, or merely citing the
   source, does NOT satisfy G8. The field is `null` only when the result makes no published-value match claim.
+  When the match claim asserts the source's *own prescription* was solved (not an independent-model
+  comparison), the row MUST also state in `notes`, alongside `reference_match`, whether the transcription
+  axis was gated (the frame-map elementwise identity and the as-printed run of G2's shared-model-definition
+  clause); an ungated axis is a stated limitation there, never passed silently.
 - **G9 gate-validity (when applicable)**: for any `reliable` verdict whose trust rests on a purpose-built
   consistency gate / validation chain (rather than only on the G1–G8 evidence in the row itself), record a
   `gate_validity` object with the reference's provenance (and why it is independent of the assumption under
