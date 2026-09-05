@@ -487,7 +487,7 @@ severity-graded, one round per fix batch).
 
 A claim that a result **reproduces / matches / agrees with a published reference value** is a *quantitative*
 claim a static read cannot certify — reading the prose only confirms the prose. When a packet asserts such a
-match, at least **one reviewer must take a "reference-reproduction" role** and cover two distinct dimensions
+match, at least **one reviewer must take a "reference-reproduction" role** and cover three distinct dimensions
 that a correctness / methodology / honesty review routinely passes over:
 
 - **D1 — recompute and compare.** **Compute the claimed observable on a comparable state / regime /
@@ -504,6 +504,16 @@ that a correctness / methodology / honesty review routinely passes over:
   presented as validation**; and when no apples-to-apples independent check is feasible, the **absence is
   recorded as an explicit stated limitation** rather than an established cross-check being allowed to
   silently disappear.
+- **D3 — the transcription axis was gated (when the source's own prescription is claimed).** When the
+  packet claims the source's *own prescription* was solved or reproduced, confirm it demonstrates that the
+  model being solved IS the source's — the frame-map / elementwise-identity / as-printed-run evidence
+  defined by the `research-integrity` *Reference-reproduction fidelity* D3 dimension and
+  `numerical-reliability-gate` G2's shared-model-definition clause. Internal convergence and cross-method
+  agreement cannot certify this (every internal route shares the model definition), so such a reproduction
+  claim with an ungated transcription axis is unverified regardless of how well the numbers agree. A
+  comparison that does not assert the source's prescription owes no frame map — a different-model
+  comparison is covered by D2's labeling, and a comparison against measured/experimental data is a
+  measurement comparison, not a model reproduction.
 
 Record in `meta.json` whether a reviewer **computed-and-compared vs. only read** the match assertion; a
 swarm in which *no* reviewer recomputed the claimed observable on the comparable state is a **static-only**

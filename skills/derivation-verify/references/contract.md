@@ -42,8 +42,8 @@ input and produce this output, so a caller's `claims` port verbatim across execu
 ```
 
 **Blindness requirement.** `statement` and `report_format` must not leak the answer; derivers receive
-`context` + `statement` + their own `method` only. This is what makes the >=2 confirmations independent
-rather than confirmatory.
+`context` + `statement` + `report_format` + their own `method` only. This is what makes the >=2
+confirmations independent rather than confirmatory.
 
 ## Per-claim algorithm (the gate)
 
