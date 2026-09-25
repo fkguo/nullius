@@ -56,14 +56,18 @@ pnpm --filter @nullius/orchestrator exec vitest run tests/run-manifest.test.ts t
 
 ```bash
 node scripts/check-portable-paths-anti-drift.mjs
+node scripts/check-harness-invocation-anti-drift.mjs
 node --test scripts/tests/check-portable-paths-anti-drift.test.mjs
 pnpm --filter @nullius/orchestrator exec vitest run tests/runtime-installation.test.ts
 python3 -m pytest -q packages/skills-market/tests/test_personal_plugin.py packages/skills-market/tests/test_install_skill.py
 NULLIUS_REAL_PLUGIN_SMOKE=1 python3 -m pytest -q -s packages/skills-market/tests/test_personal_plugin_live.py
 pnpm --filter @nullius/project-mcp exec vitest run tests/research-loop.test.ts
+pnpm --filter @nullius/project-mcp exec vitest run tests/harness-invocation.test.ts
 ```
 
 真实迁移检查先构建一次插件与普通 skills copy 安装，再搬迁这两个既有产物及运行 checkout，删除原输出，配置新 CLI 和包外私有配置后运行。在临时外部项目初始化 `.nullius/HARNESS`、state 和项目 launcher，启动真实三个 server，仅发送 `initialize` / `tools/list`，检查工具无重名及进程 cwd；还执行复制后的 harness 帮助与 team scaffold。provider 数据目录也限于临时 fixture，不调用 provider 工具。研究闭环测试分别执行正常计算并登记已核验结果，以及篡改生产输出后拒绝错误的 operator pass。
+
+项目入口核验测试显式设置 `NULLIUS_HARNESS_VERIFY=on`，覆盖首次初始化、过期记录拒绝且无副作用、status 恢复、后台执行再次核验、精确重放、符号链接边界和 sampling 内部调用；不能依赖默认测试环境跳过核验后的结果。
 
 交付验收必须区分传输和研究：后台变更使用稳定 `delivery_id`，`outcome_unknown` 不得自动重试，`finalizing` 等待项目锁释放，`committed` 只代表原响应已持久化。还须保留项目文件越界拒绝、本地主机审批、缺少 sampling 时 `unavailable` 等边界；本机脚本不是 OS sandbox 中的代码。上述本地验收不证明 ChatGPT Chat/Work 或 Claude 宿主已接通，tunnel/app ID 和对应宿主验收仍待用户配置。
 

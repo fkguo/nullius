@@ -48,7 +48,9 @@ python3 packages/skills-market/scripts/build_personal_plugin.py \
 
 生成的清单组合 `project-mcp`、`hep-mcp` 和 `idea-mcp`，不另列 HEP 已组合的原子 provider，也不写入本机目录或凭据。生成后可直接搬到另一台机器，由目标机器提供 CLI、配置及外部工具。本步骤不安装 marketplace、不建立 ChatGPT 连接，也不提供外部模型登录。Chat/Work/Claude 宿主接通及所需 tunnel/app ID 仍待用户配置和验收。
 
-[`project-mcp`](../packages/project-mcp/README.md) 的后台变更请求需稳定的 `delivery_id`；断线后用该 ID 查询 `project_delivery_read`，不要换 ID 重试未知副作用。`outcome_unknown` 需要本地核对，`finalizing` 要等项目锁释放，`committed` 仅表示原始响应已保存，仍须读取响应和 canonical 研究状态来判断成败。审批在本地主机完成；sampling 仅在客户端支持且前台连接持续时可用。项目文件边界不等于本机脚本的 OS sandbox。
+[`project-mcp`](../packages/project-mcp/README.md) 初始化项目后，先调用 `project_cli` 的 `status` 或 `orch_run_status` 获取当前项目状态；state 或 ledger 变化后再次调用，再继续项目读写。缺失、过期或属于其他项目的核验记录会阻止新操作。status、能力查询、交付查询和已有请求的精确重放仍可用于恢复。
+
+后台变更请求需稳定的 `delivery_id`；断线后用该 ID 查询 `project_delivery_read`，不要换 ID 重试未知副作用。`outcome_unknown` 需要本地核对，`finalizing` 要等项目锁释放，`committed` 仅表示原始响应已保存，仍须读取响应和 canonical 研究状态来判断成败。审批在本地主机完成；sampling 仅在客户端支持且前台连接持续时可用。项目文件边界不等于本机脚本的 OS sandbox。
 
 在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.nullius/HARNESS`、`.nullius/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `nullius`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
 

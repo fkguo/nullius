@@ -85,6 +85,11 @@ function entriesIfDirectory(target: string): fs.Dirent[] {
   }
 }
 
+/** Validate every path the shared invocation verifier reads before it follows it. */
+export function guardHarnessPaths(root: string): void {
+  for (const relative of ['.nullius/HARNESS_INVOCATION', '.nullius/state.json', '.nullius/ledger.jsonl']) boundPath(root, relative);
+}
+
 /** Guard control metadata, not inert research data, environments or provider caches. */
 export function guardRuntimePaths(root: string, manifestPath?: string): void {
   const visit = (target: string): void => {

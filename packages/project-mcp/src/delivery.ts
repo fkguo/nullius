@@ -57,7 +57,7 @@ export function readDelivery(root: string, id: string, offset = 0, maxBytes = 65
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   return { delivery_id: id, state: 'committed', ...response, result_sha256: classified.result_sha256 };
 }
-export function submitDelivery(request: DeliveryRequest) {
+export function submitDelivery(request: DeliveryRequest, beforeDispatch: () => void) {
   assertProjectIdentity(request.root, request.root_identity);
   const id = safeId(request.delivery_id);
   const manager = journal(request.root);
@@ -65,6 +65,7 @@ export function submitDelivery(request: DeliveryRequest) {
   // Exact replay is available even while another request owns the project lock.
   const existing = manager.classifyToolAttempt(id, identity);
   if (existing.state === 'committed' || existing.state === 'outcome_unknown') return readDelivery(request.root, id);
+  beforeDispatch();
   acquireExecution(request.root, id);
   let dispatched = false;
   try {

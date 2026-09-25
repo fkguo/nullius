@@ -37,12 +37,13 @@ const DISPATCHER_ENTRYPOINTS = [
   'packages/idea-mcp/src/server.ts',
   'packages/openalex-mcp/src/tools/dispatcher.ts',
   'packages/pdg-mcp/src/tools/dispatcher.ts',
+  'packages/project-mcp/src/adapter.ts',
   'packages/zotero-mcp/src/tools/dispatcher.ts',
 ];
 
 // Paths searched (in order) for the dispatcher entry-point of a newly
 // discovered *-mcp package. The first existing match wins.
-const CANDIDATE_ENTRY_RELS = ['src/tools/dispatcher.ts', 'src/server.ts', 'src/dispatcher.ts'];
+const CANDIDATE_ENTRY_RELS = ['src/tools/dispatcher.ts', 'src/server.ts', 'src/dispatcher.ts', 'src/adapter.ts'];
 const MCP_PACKAGE_NAME_RE = /^[a-z][a-z0-9-]*-mcp$/;
 
 const IMPORT_PATTERN = /verifyHarnessInvocationMarker[^;]*from\s+['"]@nullius\/shared['"]/;

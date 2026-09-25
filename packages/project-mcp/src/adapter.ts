@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { invalidParams } from '@nullius/shared';
+import { invalidParams, verifyHarnessInvocationMarker } from '@nullius/shared';
 import { readFile, writeFile } from './files.js';
-import { projectRoot, guardRuntimePaths, projectIdentity, assertProjectIdentity, type ProjectIdentity } from './paths.js';
+import { projectRoot, guardRuntimePaths, guardHarnessPaths, projectIdentity, assertProjectIdentity, type ProjectIdentity } from './paths.js';
 import { coreArguments, coreSpecs, isBackground, samplingTools, type Context } from './policy.js';
 import { extraSchemas, toolsList } from './registry.js';
 import { cliArguments, cliWrites, cliSchema } from './cli.js';
@@ -10,6 +10,7 @@ import { readDelivery, submitDelivery } from './delivery.js';
 import { acquireExecution, releaseExecution } from './execution-lock.js';
 import { execute } from './execute.js';
 import { errorResult, jsonResult, type Result } from './result.js';
+import { isStateTouchingProjectMcp } from './state-touch-classification.js';
 
 const deliverySchema = z.object({ delivery_id: z.string(), timeout_seconds: z.number().int().min(1).max(3600).default(300) });
 export class ProjectAdapter {
@@ -21,6 +22,18 @@ export class ProjectAdapter {
     try {
       // Detect a root replaced with a symlink since server startup.
       assertProjectIdentity(this.root, this.identity);
+      const verifyInvocation = () => {
+        guardHarnessPaths(this.root);
+        verifyHarnessInvocationMarker(this.root, {
+          toolIsStateTouching: isStateTouchingProjectMcp(this.root, name, args),
+        });
+      };
+      const background = name === 'project_cli'
+        ? cliWrites(cliSchema.parse(args).action)
+        : !Object.hasOwn(extraSchemas, name) && isBackground(name);
+      // A durable replay reads the original response without executing the tool.
+      // Fresh background work verifies before its first lock or journal write.
+      if (!background) verifyInvocation();
       if (name === 'project_capabilities') {
         extraSchemas.project_capabilities.parse(args);
         return jsonResult({ project_root: this.root, transport: 'stdio', control_plane: '@nullius/orchestrator',
@@ -49,8 +62,8 @@ export class ProjectAdapter {
         guardRuntimePaths(this.root);
         const input = cliSchema.parse(args);
         cliArguments(this.root, input);
-        if (!cliWrites(input.action)) return execute(this.root, name, input);
-        return this.submit(name, input);
+        if (!cliWrites(input.action)) return await execute(this.root, name, input);
+        return this.submit(name, input, verifyInvocation);
       }
       const parsed = coreArguments(this.root, name, args);
       guardRuntimePaths(this.root, typeof parsed.manifest_path === 'string' ? parsed.manifest_path : undefined);
@@ -65,20 +78,20 @@ export class ProjectAdapter {
             callTool: (tool, input) => {
               if (samplingTools.has(tool)) throw invalidParams('Recursive delegated runtimes are not exposed.');
               coreArguments(this.root, tool, input);
-              return execute(this.root, tool, input);
+              return execute(this.root, tool, input).catch(errorResult);
             },
           });
         } finally { releaseExecution(this.root, owner); }
       }
-      if (isBackground(name)) return this.submit(name, { ...parsed, delivery_id: args.delivery_id, timeout_seconds: args.timeout_seconds });
-      return execute(this.root, name, parsed);
+      if (isBackground(name)) return this.submit(name, { ...parsed, delivery_id: args.delivery_id, timeout_seconds: args.timeout_seconds }, verifyInvocation);
+      return await execute(this.root, name, parsed);
     } catch (error) { return errorResult(error); }
   }
-  private submit(name: string, input: Record<string, unknown>): Result {
+  private submit(name: string, input: Record<string, unknown>, beforeDispatch: () => void): Result {
     const delivery = deliverySchema.parse(input);
     const args = { ...input };
     delete args.delivery_id;
     delete args.timeout_seconds;
-    return jsonResult(submitDelivery({ root: this.root, root_identity: this.identity, name, args, ...delivery }));
+    return jsonResult(submitDelivery({ root: this.root, root_identity: this.identity, name, args, ...delivery }, beforeDispatch));
   }
 }
