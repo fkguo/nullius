@@ -47,10 +47,15 @@ def _sha256_file(path: Path) -> str:
 def _default_skills_dir() -> Path:
     """Host-neutral agent skills root (no single host privileged).
 
-    Honor an explicitly advertised host home (CLAUDE_CONFIG_DIR / CODEX_HOME) when
+    Prefer sibling skills; otherwise honor a host home (CLAUDE_CONFIG_DIR / CODEX_HOME) when
     set, else probe the known agent skill homes that actually exist, else fall back
     to this script's own install location. `--skills-dir` overrides this entirely.
     """
+    # A complete checkout/plugin carries its own reviewed runner versions.
+    # Explicit command-line runner overrides still take precedence.
+    sibling_root = Path(__file__).resolve().parents[3]
+    if (sibling_root / "claude-cli-runner" / "scripts" / "run_claude.sh").is_file():
+        return sibling_root
     for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
         val = os.environ.get(env_var, "").strip()
         if val:

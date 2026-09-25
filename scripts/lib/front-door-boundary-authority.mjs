@@ -41,6 +41,9 @@ export const FRONT_DOOR_SNIPPETS = [
       'posterior-based rank/promote, node posterior/lifecycle/grounding-audit/card-revision updates, provenance correction, and generation-pack import (`node.import_generated`) remain `idea-engine` runtime-contract truth, not a root front door',
       '| Stateful CLI front door | `nullius` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, stateful `workflow-plan` persistence, main-report structural validation, and `graph` dependency-map rendering (claims / progress / literature / roadmap) |',
       '| Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |',
+      'Local stdio leaf adapter for canonical control-plane operations and bounded project-file transport, bound by `NULLIUS_PROJECT_ROOT`',
+      'it delegates to the canonical orchestrator tool dispatcher and CLI.',
+      'No app connection or marketplace publication is created by the builder.',
       '| Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md` |',
       '| Provider atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded, schema-driven MCP operators are easier to compose than provider-local CLI mirrors |',
       '`research_plan.md#Current Status` is the human status entry',
@@ -193,7 +196,11 @@ export const FRONT_DOOR_SNIPPETS = [
       'Paper originals, extracted text, arXiv source tarballs, and source trees are filesystem materials, not product-level protocol surfaces.',
       '## 4. Why Provider MCP Stays MCP',
       '- Stateful workflow entry remains above provider packs: `nullius workflow-plan` owns checked-in workflow authority, and `nullius run` remains the only execution front door.',
-      'Users who need generic lifecycle state should invoke `nullius` directly rather than expecting the root MCP server to own that surface today.',
+      'Users can invoke `nullius` directly or use the project-bound `project-mcp` leaf adapter; both reuse the same canonical lifecycle authority.',
+      'reuses canonical `handleToolCall` and `runCli`, without acquiring control-plane authority',
+      'Delivery reuses `RunManifestManager` for intent and response records, with no second queue or research-state authority.',
+      '`committed` means a transport response is available, including error or approval-request responses; it is not a successful research verdict.',
+      'absent support returns `unavailable`',
     ],
     forbiddenSnippets: [
       '`literature-gap` still exists on the legacy Pipeline A CLI surface as a wrapper',
@@ -216,7 +223,9 @@ export const FRONT_DOOR_SNIPPETS = [
     relPath: 'docs/TESTING_GUIDE.md',
     snippets: [
       '本指南面向手工验收当前 front-door truth。`nullius` 是 generic lifecycle + workflow-plan front door；`@nullius/hep-mcp` 是当前最成熟的 domain MCP front door，提供 Project/Run、evidence、writing/export、literature/data、Zotero、PDG 能力。本页重点覆盖两者的衔接，而不是把 `hep-mcp` 重新写成 root 产品身份。',
-      '本文所有 MCP 配置都以 `packages/hep-mcp/dist/index.js` 为当前 domain MCP front door，而不是 generic root front door。',
+      '下文 HEP 配置以 `packages/hep-mcp/dist/index.js` 为 domain MCP front door；个人插件另组合绑定项目的 `project-mcp` 叶层 adapter。',
+      '目前暴露 16 个 `orch_*` 操作和 5 个 transport 工具，共 21 个。',
+      'tunnel/app ID 和对应宿主验收仍待用户配置。',
       '### 0.0 先确认 front-door 角色',
 	      '- `nullius` = generic lifecycle + workflow-plan + main-report structural-validation front door',
 	      '- `.nullius/HARNESS` = `nullius init` 写入的机器可读 runtime handshake',
@@ -259,6 +268,8 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/URI_REGISTRY.md',
     snippets: [
+      'add no URI scheme or MCP resource surface.',
+      'Provider caches outside the bound project are not exposed through that file API.',
       'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, `file://`, and `project://`.',
       'It is not an MCP resources contract; current MCP servers expose tools only.',
       '`hep://` and `orch://` are separate owned namespaces.',

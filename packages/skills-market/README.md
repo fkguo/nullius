@@ -2,20 +2,24 @@
 
 Cross-host skill distribution catalog and copy-installer for the Nullius ecosystem.
 
-## Status: designed, currently dormant
+## Status: local distribution
 
-This package is a **fully-designed but currently dormant** distribution surface.
-It is the ecosystem's only real cross-host distribution mechanism — a package
+This package provides a local personal-plugin builder and a cross-host package
 catalog (`packages/*.json`) plus a copy-installer (`install_skill.py`) with a
-per-package publish allowlist/denylist (`source.include` / `source.exclude`) — but
-nothing depends on it today:
+per-package publish allowlist/denylist (`source.include` / `source.exclude`).
+The personal-plugin builder consumes this catalog. Both it and ordinary copied
+skills discover the destination runtime through the installed `nullius` CLI;
+generated metadata does not record source-machine paths. Project/provider paths
+and credentials stay in host-private configuration, outside distributed payloads.
+See [Local personal plugin](docs/PERSONAL_PLUGIN.md).
 
-- **Real distribution currently runs through direct symlinks**: hosts link the
+- Direct skill distribution can use symlinks: hosts link the
   in-repo `skills/` directory straight into their skills home (see the
-  `install_symlink_*.sh` scripts and `docs/SYMLINK_INSTALL.md`). No package
-  consumes the copy-installer catalog yet.
-- The copy-installer + catalog exist to distribute skills **to hosts that do not
-  have a local checkout of this monorepo** — that use case is not live yet.
+  `install_symlink_*.sh` scripts and `docs/SYMLINK_INSTALL.md`). No
+  standalone publish repository is required for this route.
+- The copy-installer + catalog distribute skills independently of their original
+  source location. Skills that execute Nullius workflows still need a built
+  destination runtime (`nullius` on PATH or `NULLIUS_WORKSPACE_ROOT`).
 - The former GitHub mirror is retired (see Notes); the checked-in catalog and
   manifest are the only live copies.
 
@@ -62,19 +66,19 @@ Full symlink install (link the in-repo `skills/` into a host, superpowers-style)
 ```bash
 # Codex full install (all market skill-pack entries)
 bash scripts/install_symlink_codex.sh \
-  --skills-root ~/Coding/Agents/nullius/skills
+  --skills-root ~/src/nullius/skills
 
 # Claude Code full install
 bash scripts/install_symlink_claude_code.sh \
-  --skills-root ~/Coding/Agents/nullius/skills
+  --skills-root ~/src/nullius/skills
 
 # OpenCode full install
 bash scripts/install_symlink_opencode.sh \
-  --skills-root ~/Coding/Agents/nullius/skills
+  --skills-root ~/src/nullius/skills
 
 # Kimi Code full install
 bash scripts/install_symlink_kimi_code.sh \
-  --skills-root ~/Coding/Agents/nullius/skills
+  --skills-root ~/src/nullius/skills
 ```
 
 Detailed guide:
@@ -162,7 +166,7 @@ When a skill opts in via `runtime.python`, the installed payload records `python
 
 ## Notes
 
-- This distribution surface is dormant, not published: no external marketplace or
+- The standalone distribution is not published: no external marketplace or
   mirror is live. Installer/runtime truth follows the checked-in catalog and
   manifest in this monorepo, not any external or private rollout assumption.
 - Runtime compatibility SSOT:

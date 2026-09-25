@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import os
+import json
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -93,6 +96,28 @@ cat >"${stdin_file}" || true
     printf 'gemini_api_key=%s\\n' "${GEMINI_API_KEY:-}"
     printf 'google_gemini_base_url=%s\\n' "${GOOGLE_GEMINI_BASE_URL:-}"
     ;;
+  audit_home|fail_home|sleep_home)
+    python3 - <<'PY'
+import json, os, stat
+from pathlib import Path
+home = Path(os.environ["GEMINI_CLI_HOME"])
+root = home / ".gemini"
+report = {"home": str(home), "home_mode": stat.S_IMODE(home.stat().st_mode),
+          "directory_mode": stat.S_IMODE(root.stat().st_mode),
+          "file_modes": {p.name: stat.S_IMODE(p.stat().st_mode) for p in root.iterdir()},
+          "oauth_present": (root / "oauth_creds.json").is_file(),
+          "settings": json.loads((root / "settings.json").read_text())}
+Path(os.environ["FAKE_HOME_REPORT"]).write_text(json.dumps(report))
+PY
+    if [[ "${mode}" == "sleep_home" ]]; then
+      exec sleep 60
+    fi
+    printf 'Observed %s\\n' "${GEMINI_CLI_HOME}"
+    if [[ "${mode}" == "fail_home" ]]; then
+      printf 'failure at %s\\n' "${GEMINI_CLI_HOME}" >&2
+      exit 7
+    fi
+    ;;
   deterministic_unbound_variable)
     echo 'gemini: line 1: GEMINI_FAKE_VAR: unbound variable' >&2
     exit 1
@@ -134,9 +159,13 @@ def _run_runner(
     system = tmp_path / "system.txt"
 
     env = os.environ.copy()
+    for key in ("GEMINI_CLI_HOME", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_BASE_URL", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_GENAI_USE_GCA"):
+        env.pop(key, None)
+    env["HOME"] = str(tmp_path / "fake-home")
     env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
     env["FAKE_MODE"] = fake_mode
     env["FAKE_COUNT_FILE"] = str(tmp_path / "fake_gemini_calls.log")
+    env["FAKE_HOME_REPORT"] = str(tmp_path / "home-observation.json")
     if extra_env:
         env.update(extra_env)
 
@@ -147,6 +176,7 @@ def _run_runner(
         str(prompt),
         "--out",
         str(out),
+        "--no-proxy-first",
     ]
     if system_text is not None:
         system.write_text(system_text, encoding="utf-8")
@@ -253,7 +283,7 @@ def test_isolated_gemini_home_bootstraps_auth_env_from_default_home(tmp_path: Pa
     assert "google_gemini_base_url=http://127.0.0.1:5000" in _out_text(out_path)
 
 
-def test_isolated_gemini_home_bridges_oauth_personal_from_default_home(tmp_path: Path) -> None:
+def test_explicit_gemini_home_does_not_receive_default_oauth(tmp_path: Path) -> None:
     home_dir = tmp_path / "home"
     home_gemini_dir = home_dir / ".gemini"
     isolated_home = tmp_path / "isolated-home"
@@ -279,10 +309,80 @@ def test_isolated_gemini_home_bridges_oauth_personal_from_default_home(tmp_path:
     assert proc.returncode == 0, proc.stderr
     assert _out_text(out_path) == "OK_DEFAULT\n"
 
-    settings_payload = (isolated_home / ".gemini" / "settings.json").read_text(encoding="utf-8")
-    assert '"selectedType": "oauth-personal"' in settings_payload
-    assert (isolated_home / ".gemini" / "oauth_creds.json").exists()
-    assert (isolated_home / ".gemini" / "google_accounts.json").exists()
+    assert not isolated_home.exists()
+
+
+def _fake_oauth_home(tmp_path: Path) -> Path:
+    home = tmp_path / "user-home"
+    auth = home / ".gemini"
+    auth.mkdir(parents=True)
+    (auth / "settings.json").write_text('{"security":{"auth":{"selectedType":"oauth-personal"}}}')
+    (auth / "oauth_creds.json").write_text('{"token":"dummy-never-valid"}')
+    (auth / "google_accounts.json").write_text('{"accounts":[]}')
+    return home
+
+
+@pytest.mark.parametrize("mode,expected", [("audit_home", 0), ("fail_home", 7)])
+def test_review_owns_private_temporary_home_and_removes_it(tmp_path: Path, mode: str, expected: int) -> None:
+    home = _fake_oauth_home(tmp_path)
+    proc, out = _run_runner(tmp_path, args=["--tool-mode", "review", "--no-fallback"], fake_mode=mode,
+                            extra_env={"HOME": str(home), "TMPDIR": str(tmp_path)})
+    assert proc.returncode == expected, proc.stderr
+    report = json.loads((tmp_path / "home-observation.json").read_text())
+    assert not Path(report["home"]).exists()
+    assert not Path(report["home"]).is_relative_to(tmp_path.resolve())
+    assert report["home_mode"] == report["directory_mode"] == 0o700
+    assert set(report["file_modes"].values()) == {0o600}
+    assert report["oauth_present"]
+    assert report["settings"]["mcpServers"] == {}
+    assert report["settings"]["security"]["auth"]["selectedType"] == "oauth-personal"
+    assert report["home"] not in proc.stdout + proc.stderr + _out_text(out)
+    assert "dummy-never-valid" not in proc.stdout + proc.stderr + _out_text(out)
+
+
+def test_explicit_home_credentials_and_settings_are_untouched(tmp_path: Path) -> None:
+    source_home = _fake_oauth_home(tmp_path)
+    explicit = tmp_path / "explicit"
+    auth = explicit / ".gemini"
+    auth.mkdir(parents=True)
+    for name in ("settings.json", "oauth_creds.json", "google_accounts.json"):
+        (auth / name).write_text('{"user_owned":"dummy-existing"}')
+    before = {p.name: p.read_bytes() for p in auth.iterdir()}
+    proc, _ = _run_runner(tmp_path, args=["--tool-mode", "review", "--gemini-cli-home", str(explicit)],
+                          extra_env={"HOME": str(source_home)})
+    assert proc.returncode == 0, proc.stderr
+    assert {p.name: p.read_bytes() for p in auth.iterdir()} == before
+
+
+@pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP])
+def test_review_signal_cleans_managed_home(tmp_path: Path, signum: int) -> None:
+    home = _fake_oauth_home(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_gemini(bin_dir)
+    prompt = tmp_path / "prompt"
+    prompt.write_text("test")
+    report_path = tmp_path / "observation.json"
+    env = os.environ.copy()
+    for key in ("GEMINI_CLI_HOME", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_BASE_URL", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_GENAI_USE_GCA"):
+        env.pop(key, None)
+    env.update(HOME=str(home), PATH=f"{bin_dir}:{env['PATH']}", FAKE_MODE="sleep_home", FAKE_HOME_REPORT=str(report_path))
+    proc = subprocess.Popen(["bash", str(RUNNER), "--prompt-file", str(prompt), "--out", str(tmp_path / "out"),
+                             "--tool-mode", "review"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        deadline = time.monotonic() + 5
+        while not report_path.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert report_path.exists()
+        proc.send_signal(signum)
+        stdout, stderr = proc.communicate(timeout=5)
+        assert proc.returncode == 128 + signum, (stdout, stderr)
+        report = json.loads(report_path.read_text())
+        assert not Path(report["home"]).exists()
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
 
 
 def _fake_call_count(tmp_path: Path) -> int:

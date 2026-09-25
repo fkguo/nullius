@@ -8,13 +8,18 @@
       "owner": "@nullius/orchestrator",
       "notes": [
         "Canonical stateful CLI front door for initialized external project roots.",
-        "Owns lifecycle state, workflow-plan, bounded execution, verification, higher-conclusion gating, and proposal decisions."
+        "Owns lifecycle state, workflow-plan, bounded execution, verification, higher-conclusion gating, and proposal decisions.",
+        "runtime locates the installed source and launches registered MCP servers with host-private configuration; it does not execute research workflows."
       ],
       "exact_inventory_source": "packages/orchestrator/src/cli-command-inventory.ts",
       "commands": [
         {
           "command": "init",
           "usage": "nullius init [options]"
+        },
+        {
+          "command": "runtime",
+          "usage": "nullius runtime path | nullius runtime mcp <server>"
         },
         {
           "command": "run",
@@ -114,6 +119,18 @@
         "orch_policy_*",
         "orch_fleet_*"
       ]
+    },
+    "project_mcp": {
+      "classification": "canonical_public",
+      "surface_kind": "mcp_tool_inventory",
+      "owner": "@nullius/project-mcp",
+      "notes": [
+        "Project-bound stdio leaf adapter consuming the orchestrator public dispatcher and CLI.",
+        "Preserves control-plane authority; no provider aggregation, independent project state or scheduler.",
+        "Personal plugin distribution remains local until a host connection is configured and verified."
+      ],
+      "exact_inventory_source": "packages/project-mcp/src/registry.ts",
+      "drift_test_source": "packages/project-mcp/tests/boundaries.test.ts"
     },
     "idea_mcp": {
       "classification": "canonical_public",

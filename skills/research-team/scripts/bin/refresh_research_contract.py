@@ -8,7 +8,10 @@ from pathlib import Path
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+    from literature_workflow_plan import _workspace_root
+
+    return _workspace_root()
 
 
 def main() -> int:

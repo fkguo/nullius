@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { parseCliArgs } from './cli-args.js';
 import { renderHelp } from './cli-help.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 
-type CliIo = {
+export type CliIo = {
   cwd: string;
   stderr: (text: string) => void;
   stdout: (text: string) => void;
@@ -41,6 +42,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
   if (parsed.command === 'help') {
     io.stdout(renderHelp(parsed.topic));
     return 0;
+  }
+  if (parsed.command === 'runtime') {
+    const { runRuntimeCommand } = await import('./cli-runtime.js');
+    return runRuntimeCommand(parsed.passthrough, parsed.projectRoot, io);
   }
   if (parsed.command === 'init') {
     const { runInitCommand } = await import('./cli-init.js');
@@ -249,7 +254,7 @@ async function main(): Promise<void> {
   }
 }
 
-const entryHref = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
+const entryHref = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : null;
 if (entryHref && import.meta.url === entryHref) {
   await main();
 }

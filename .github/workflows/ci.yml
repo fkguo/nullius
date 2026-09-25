@@ -57,9 +57,11 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-version-consistency.mjs
 
-      - name: Check portable paths anti-drift (no machine-specific home paths)
+      - name: Check source privacy and portable paths anti-drift
         if: ${{ matrix.node-version == 22 }}
-        run: node scripts/check-portable-paths-anti-drift.mjs
+        run: |
+          node --test scripts/tests/check-portable-paths-anti-drift.test.mjs
+          node scripts/check-portable-paths-anti-drift.mjs
 
       - name: Check scaffold authority (single baseline-doc scaffold source)
         if: ${{ matrix.node-version == 22 }}

@@ -55,6 +55,14 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
     driftTestSource: 'packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts',
   }),
   Object.freeze({
+    surface: 'project_mcp',
+    classification: 'canonical_public',
+    owner: '@nullius/project-mcp',
+    relPath: 'packages/project-mcp/src/registry.ts',
+    exactInventoryKind: 'mcp_tool_inventory',
+    driftTestSource: 'packages/project-mcp/tests/boundaries.test.ts',
+  }),
+  Object.freeze({
     surface: 'idea_mcp',
     classification: 'canonical_public',
     owner: '@nullius/idea-mcp',

@@ -10,6 +10,7 @@ This document explains the current front-door architecture of the monorepo. It i
 | --- | --- | --- |
 | Workflow authority | checked-in recipes consumed by `nullius workflow-plan` | High-level workflow meaning stays above provider packs |
 | Stateful control plane | `nullius` plus `orch_*` | One shared authority for lifecycle state, approvals, bounded execution, verification, proposal and conversational decisions, and read models |
+| Project transport leaf | `@nullius/project-mcp` | One externally bound project; reuses canonical `handleToolCall` and `runCli`, without acquiring control-plane authority |
 | Agent project harness | `research-harness` skill | Thin host-client entrypoint for recovery, routing, verification, and handoff in external research project roots |
 | Experimental runtime bridge | `@nullius/idea-engine`, `@nullius/idea-mcp` | Explicit runtime bridge, narrower than the full engine contract, search/eval runtime archived, not a root front door |
 | Domain workflow pack | `@nullius/hep-mcp`, `hep_*` | Current strongest end-to-end example without becoming the root identity |
@@ -154,17 +155,27 @@ Paper originals, extracted text, arXiv source tarballs, and source trees are fil
 
 ### 7.1 MCP clients
 
-Current MCP clients connect to:
+The project transport and domain server have separate local stdio entrypoints:
 
 ```text
+NULLIUS_PROJECT_ROOT=/absolute/path/to/external-project node /absolute/path/to/nullius/packages/project-mcp/dist/index.js
 node /absolute/path/to/nullius/packages/hep-mcp/dist/index.js
 ```
 
 The current public MCP contract is intentionally narrow: local stdio process launch, tool `inputSchema`, compact JSON/text tool results, and no prompts. Research material placement remains filesystem-first: temporary files for one-off checks, project/run artifacts for durable verification and continuation. Remote MCP transports, OAuth, registry publishing, and a separately packaged generic root MCP server are future deployment surfaces, not current architecture. `orch_*` is the orchestrator-owned operator/tool inventory for the control plane rather than an independent root MCP server process.
 
+[`project-mcp`](../packages/project-mcp/README.md) is a leaf adapter exposing a selected canonical `orch_*` subset plus five project-transport tools. The [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md) composes it with HEP and idea servers and existing skills; project and idea launchers require an external project; HEP may run standalone. A bound project becomes the cwd. Skills are copied snapshots. Both the plugin and ordinary copied skills discover the destination installation through `nullius runtime path`; MCP manifests invoke `nullius runtime mcp <server>`, with relative entrypoints owned by `packages/skills-market/runtime-servers.json`. No builder-machine paths are stored in distribution metadata.
+
+Background mutations carry a stable `delivery_id`. Delivery reuses `RunManifestManager` for intent and response records, with no second queue or research-state authority. `outcome_unknown` requires local reconciliation and must not trigger automatic replay; `finalizing` means the response is persisted but the worker has not released the project lock. `committed` means a transport response is available, including error or approval-request responses; it is not a successful research verdict. Canonical run state and artifacts remain authoritative.
+
+Project-file reads return bounded chunks from permitted real files inside the bound project; provider caches outside that project are not exposed by this API. Path restrictions do not sandbox local scripts at OS level. Approval resolvers stay on the local host. Sampling-backed calls are foreground operations requiring client sampling support and a live connection; absent support returns `unavailable`, and no model authentication or background scheduler is supplied by the plugin. ChatGPT Chat/Work and Claude-host connections remain untested; required tunnel/app registration is separate user configuration.
+
 Expected environment knobs at the front door:
 
 - `project_root` tool argument for project-local durable artifacts
+- `NULLIUS_RUNTIME_CONFIG` for a host-private server environment map (default: `${XDG_CONFIG_HOME:-$HOME/.config}/nullius/runtime.json`), kept outside plugin/skill payloads
+- `NULLIUS_PROJECT_ROOT` for project/idea binding and optional HEP binding
+- `IDEA_MCP_DATA_DIR` for explicit external idea storage
 - `HEP_DATA_DIR`
 - `HEP_TOOL_MODE`
 - `ZOTERO_BASE_URL`
@@ -179,7 +190,7 @@ Some clients expose namespaced tool names such as `mcp__<serverAlias>__<toolName
 
 ### 7.3 CLI users
 
-Users who need generic lifecycle state should invoke `nullius` directly rather than expecting the root MCP server to own that surface today.
+Users can invoke `nullius` directly or use the project-bound `project-mcp` leaf adapter; both reuse the same canonical lifecycle authority.
 
 ## 8. Related docs
 

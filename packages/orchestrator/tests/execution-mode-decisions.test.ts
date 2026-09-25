@@ -282,13 +282,13 @@ describe('decision ledger', () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
 
-    const decided = await recordDecision(projectRoot, 'record', 'Adopt the larger cutoff for the scattering length', ['--by', 'FKG']);
+    const decided = await recordDecision(projectRoot, 'record', 'Adopt the larger cutoff for the scattering length', ['--by', 'researcher']);
     const pending = await recordDecision(projectRoot, 'pending', 'Freeze the bibliography before the next milestone?');
     expect(decided).not.toBe(pending);
 
     const lines = readDecisionLines(projectRoot);
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatchObject({ id: decided, kind: 'decided', by: 'FKG', resolves: null });
+    expect(lines[0]).toMatchObject({ id: decided, kind: 'decided', by: 'researcher', resolves: null });
     expect(lines[1]).toMatchObject({ id: pending, kind: 'pending', by: 'user' });
 
     const eventTypes = readLedgerEvents(projectRoot).map(event => event.event_type);
@@ -575,14 +575,14 @@ describe('decision ledger', () => {
     expect(ledger.open_items).toMatchObject([{ id: question, text: 'Which sign convention for the isospin projection?' }]);
 
     const resolve = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Keep the convention as derived; audit closed', '--resolves', question, '--by', 'FKG'], resolve.io)).toBe(0);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Keep the convention as derived; audit closed', '--resolves', question, '--by', 'researcher'], resolve.io)).toBe(0);
     const answer = mintedId(resolve.stdout.join(''), 'recorded');
     expect(resolve.stdout.join('')).toContain(`resolved: ${question}`);
 
     payload = await statusJson(projectRoot);
     ledger = payload.decision_ledger as Record<string, unknown>;
     expect(ledger).toMatchObject({ decided_count: 1, pending_count: 1, open_count: 0 });
-    expect(ledger.latest_decided).toMatchObject({ id: answer, resolves: question, by: 'FKG' });
+    expect(ledger.latest_decided).toMatchObject({ id: answer, resolves: question, by: 'researcher' });
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
@@ -762,7 +762,7 @@ describe('decision ledger', () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     writeLedger(projectRoot, [
-      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'already answered question', by: 'FKG', resolves: null },
+      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'already answered question', by: 'researcher', resolves: null },
       { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'long-standing open question', by: 'user', resolves: null },
       { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'answer for the first question', by: 'user', resolves: 'D1' },
     ]);
@@ -1751,9 +1751,9 @@ describe('decision ledger', () => {
     await initRuntimeOnly(projectRoot);
 
     const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--by', 'FKG', '--', '-keep the negative branch'], record.io)).toBe(0);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--by', 'researcher', '--', '-keep the negative branch'], record.io)).toBe(0);
     mintedId(record.stdout.join(''), 'recorded');
-    expect(readDecisionLines(projectRoot)[0]).toMatchObject({ text: '-keep the negative branch', by: 'FKG' });
+    expect(readDecisionLines(projectRoot)[0]).toMatchObject({ text: '-keep the negative branch', by: 'researcher' });
 
     // Without the terminator a leading-hyphen text still errors clearly.
     await expect(
@@ -2588,7 +2588,7 @@ describe('file-mode recovery quieting', () => {
   it('keeps mode and decision fields visible through buildRunStatusView for library callers', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot, ['--mode=file']);
-    await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Fold the verified pole position into the contract', '--by', 'FKG'], makeIo(projectRoot).io);
+    await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Fold the verified pole position into the contract', '--by', 'researcher'], makeIo(projectRoot).io);
 
     const view = buildRunStatusView(projectRoot, new StateManager(projectRoot).readState()) as Record<string, unknown>;
     expect(view.execution_mode).toBe('file');

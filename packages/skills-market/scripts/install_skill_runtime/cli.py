@@ -125,8 +125,6 @@ def main(argv: list[str] | None = None) -> int:
                         "source_subpath": str(pathlib.Path(str(source["subpath"])).as_posix()),
                         "source_commit": git_head(repo_root_path),
                     }
-                    if local_source_root is not None and (local_source_root / "pnpm-workspace.yaml").is_file():
-                        metadata["source_workspace_root"] = str(local_source_root)
                     install_payload(
                         package_id=package_id,
                         target_root=target_root,

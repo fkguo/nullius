@@ -1,0 +1,17 @@
+{
+  "hep-mcp": {
+    "entrypoint": "packages/hep-mcp/dist/index.js",
+    "project_root": "optional",
+    "required_directories": []
+  },
+  "project-mcp": {
+    "entrypoint": "packages/project-mcp/dist/index.js",
+    "project_root": "required",
+    "required_directories": []
+  },
+  "idea-mcp": {
+    "entrypoint": "packages/idea-mcp/dist/server.js",
+    "project_root": "required",
+    "required_directories": ["IDEA_MCP_DATA_DIR"]
+  }
+}

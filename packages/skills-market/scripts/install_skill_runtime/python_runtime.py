@@ -74,6 +74,7 @@ def create_isolated_venv(skill_root: pathlib.Path, packages: list[str]) -> dict[
         "mode": "isolated-venv",
         "venv_dir": ".venv",
         "venv_python": python_bin_relative_path().as_posix(),
-        "installer_python": str(python_executable),
-        "packages": packages,
+        # Dependency inputs may be private wheel paths or authenticated URLs.
+        # Keep those install-time values out of copied installation metadata.
+        "requested_package_count": len(packages),
     }

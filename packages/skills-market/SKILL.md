@@ -12,9 +12,10 @@ metadata + installer package, not a task skill. A host that linked the whole mar
 the directory is a well-formed, inert catalog entry rather than a `SKILL.md`-less directory that a strict
 skill loader could reject.
 
-This cross-host copy-installer is currently **dormant**: real distribution runs through
-direct in-repo symlinks today, and this catalog exists to serve hosts without a local
-monorepo checkout once that route goes live. See `README.md` for the full status.
+Local distribution supports direct in-repo symlinks and the personal-plugin builder
+(`scripts/build_personal_plugin.py`). The plugin copies this catalog's skill payloads
+and requires its configured local checkout. Standalone distribution to hosts without
+a checkout remains unpublished. See `README.md` and `docs/PERSONAL_PLUGIN.md`.
 
 ## Install specific skills (recommended)
 

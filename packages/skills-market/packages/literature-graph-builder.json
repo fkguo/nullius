@@ -41,7 +41,8 @@
       "**/.pytest_cache/**",
       "**/__pycache__/**",
       "**/*.pyc",
-      "**/.DS_Store"
+      "**/.DS_Store",
+      "scripts/dev/**"
     ]
   }
 }

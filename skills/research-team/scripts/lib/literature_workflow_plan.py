@@ -8,32 +8,49 @@ from typing import Any, Iterable
 
 
 def _valid_workspace_root(path: Path) -> Path | None:
-    root = path.expanduser().resolve()
-    if (root / "pnpm-workspace.yaml").is_file():
-        return root
-    return None
+    path = path.expanduser()
+    if not path.is_absolute():
+        return None
+    root = path.resolve()
+    if not (root / "pnpm-workspace.yaml").is_file():
+        return None
+    try:
+        package = json.loads((root / "package.json").read_text(encoding="utf-8"))
+        orchestrator = json.loads((root / "packages/orchestrator/package.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(package, dict) or not isinstance(orchestrator, dict):
+        return None
+    if package.get("name") != "nullius" or orchestrator.get("name") != "@nullius/orchestrator":
+        return None
+    if orchestrator.get("bin") != {"nullius": "dist/cli.js"}:
+        return None
+    required = (
+        "packages/orchestrator/src/cli.ts",
+        "packages/literature-workflows/src/index.ts",
+        "packages/project-contracts/src/project_contracts/research_contract.py",
+    )
+    return root if all((root / relative).is_file() for relative in required) else None
 
 
-def _workspace_root_from_install_record(current: Path) -> Path | None:
-    for candidate in [current, *current.parents]:
-        record_path = candidate / ".market_install.json"
-        if not record_path.is_file():
-            continue
-        try:
-            record = json.loads(record_path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            raise RuntimeError(f"invalid skills-market install provenance: {record_path}: {exc}") from exc
-        source_root = record.get("source_workspace_root")
-        if not isinstance(source_root, str) or not source_root.strip():
-            return None
-        workspace_root = _valid_workspace_root(Path(source_root))
-        if workspace_root is None:
-            raise RuntimeError(
-                "skills-market install provenance source_workspace_root does not point to an "
-                f"nullius workspace containing pnpm-workspace.yaml: {source_root}"
-            )
-        return workspace_root
-    return None
+def _workspace_root_from_runtime() -> Path:
+    try:
+        completed = subprocess.run(
+            ["nullius", "runtime", "path"], capture_output=True, text=True,
+            check=False, timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(
+            "Unable to locate Nullius runtime. Make nullius available on PATH or set "
+            "NULLIUS_WORKSPACE_ROOT to an absolute Nullius checkout."
+        ) from exc
+    value = completed.stdout.strip()
+    root = _valid_workspace_root(Path(value)) if value and "\n" not in value and "\r" not in value else None
+    if completed.returncode != 0 or root is None:
+        raise RuntimeError(
+            "nullius runtime path did not return one absolute Nullius source workspace with its canonical packages and entrypoints."
+        )
+    return root
 
 
 def _workspace_root() -> Path:
@@ -43,24 +60,16 @@ def _workspace_root() -> Path:
         workspace_root = _valid_workspace_root(Path(env_root))
         if workspace_root is None:
             raise RuntimeError(
-                "NULLIUS_WORKSPACE_ROOT does not point to an nullius workspace "
-                f"containing pnpm-workspace.yaml: {env_root}"
+                "NULLIUS_WORKSPACE_ROOT does not point to a Nullius workspace "
+                f"with its canonical packages and entrypoints: {env_root}"
             )
         return workspace_root
-
-    installed_root = _workspace_root_from_install_record(current)
-    if installed_root is not None:
-        return installed_root
 
     for candidate in [current, *current.parents]:
         workspace_root = _valid_workspace_root(candidate)
         if workspace_root is not None:
             return workspace_root
-    raise RuntimeError(
-        "Unable to locate nullius workspace root for literature workflow launcher. "
-        "Copied skills-market installs require source_workspace_root install provenance or "
-        "NULLIUS_WORKSPACE_ROOT pointing to a checkout containing pnpm-workspace.yaml."
-    )
+    return _workspace_root_from_runtime()
 
 
 def resolve_workflow_plan(
@@ -115,3 +124,7 @@ process.stdin.on('end', () => {
         detail = completed.stderr.strip() or completed.stdout.strip() or "unknown launcher error"
         raise RuntimeError(f"literature workflow launcher failed: {detail}")
     return json.loads(completed.stdout)
+
+
+if __name__ == "__main__":
+    print(_workspace_root())

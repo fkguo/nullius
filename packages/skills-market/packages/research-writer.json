@@ -37,7 +37,8 @@
       "templates/**",
       "schemas/**",
       "agents/**",
-      ".gitignore"
+      ".gitignore",
+      "README.zh.md"
     ],
     "exclude": [
       "**/tests/**",
@@ -52,7 +53,8 @@
       "process/*",
       "process/**/*",
       ".tmp*/*",
-      ".tmp*/**/*"
+      ".tmp*/**/*",
+      "scripts/dev/**"
     ]
   }
 }

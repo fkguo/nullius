@@ -12,6 +12,17 @@ Domain workflow pack. The strongest end-to-end example in the repo, but **not th
 
 The live tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE` (`standard`, `full`). Exact counts live in the generated category and status docs, not in this README — see the drift lock below.
 
+The [personal plugin](../skills-market/docs/PERSONAL_PLUGIN.md) composes this server
+with [`project-mcp`](../project-mcp/README.md) and `idea-mcp`, plus the existing
+research skills. It does not register the atomic providers again. Portable manifests launch it through `nullius runtime mcp hep-mcp` using host-private
+configuration. HEP can run standalone; when `NULLIUS_PROJECT_ROOT` is configured
+it becomes the cwd so the existing project harness applies;
+HEP tool calls still use their own `project_root` argument for durable artifact
+routing. HEP retains its local-server capabilities and trust boundary; the
+project adapter's file restrictions do not sandbox HEP or expose HEP caches
+outside the bound project. Chat/Work/Claude-host connections are separate from
+the locally tested composition and remain unverified.
+
 ## Data root
 
 Resolved per tool call, in this order:

@@ -10,6 +10,46 @@
 
 ## Generic First-Touch（先走 generic front door）
 
+普通安装、独立 skills 和[个人插件](../packages/skills-market/docs/PERSONAL_PLUGIN.md)共用本机 Nullius CLI。先在 checkout 根目录构建并安装命令入口：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm -r build
+mkdir -p "$HOME/.local/bin"
+ln -sf "$(pwd)/packages/orchestrator/dist/cli.js" "$HOME/.local/bin/nullius"
+chmod +x "$HOME/.local/bin/nullius"
+export PATH="$HOME/.local/bin:$PATH"
+nullius --help
+nullius runtime path
+nullius init --project-root /absolute/path/to/research-project
+```
+
+路径只由每位用户的本机安装决定。复制安装的 skills 优先使用显式 `NULLIUS_WORKSPACE_ROOT`、源文件所在 checkout，或 `nullius runtime path`；迁移 checkout 后更新命令入口即可，不需要修改已复制的 skills。将 PATH 同样配置给实际运行 MCP 的宿主；终端中的 export 不会自动配置 GUI 应用。
+
+MCP 可直接使用 `nullius runtime mcp <server>`。在私有 `${XDG_CONFIG_HOME:-$HOME/.config}/nullius/runtime.json` 中设置 `servers.<server>.env`，或用 `NULLIUS_RUNTIME_CONFIG` 选择其他绝对配置文件；该文件留在分发目录之外。示例：
+
+```json
+{
+  "servers": {
+    "project-mcp": {"env": {"NULLIUS_PROJECT_ROOT": "/absolute/path/to/research-project"}},
+    "idea-mcp": {"env": {"NULLIUS_PROJECT_ROOT": "/absolute/path/to/research-project", "IDEA_MCP_DATA_DIR": "/absolute/path/to/idea-data"}},
+    "hep-mcp": {"env": {"HEP_TOOL_MODE": "standard"}}
+  }
+}
+```
+
+每个服务的配置覆盖宿主环境。默认配置不存在时使用宿主环境，显式指定的配置缺失或无效则拒绝启动。project 和 idea 服务必须绑定外部项目，idea 还需外部数据目录；HEP 可独立启动。需要组合插件时再运行：
+
+```bash
+python3 packages/skills-market/scripts/build_personal_plugin.py \
+  --source-root "$PWD" \
+  --output /absolute/path/to/plugins/nullius
+```
+
+生成的清单组合 `project-mcp`、`hep-mcp` 和 `idea-mcp`，不另列 HEP 已组合的原子 provider，也不写入本机目录或凭据。生成后可直接搬到另一台机器，由目标机器提供 CLI、配置及外部工具。本步骤不安装 marketplace、不建立 ChatGPT 连接，也不提供外部模型登录。Chat/Work/Claude 宿主接通及所需 tunnel/app ID 仍待用户配置和验收。
+
+[`project-mcp`](../packages/project-mcp/README.md) 的后台变更请求需稳定的 `delivery_id`；断线后用该 ID 查询 `project_delivery_read`，不要换 ID 重试未知副作用。`outcome_unknown` 需要本地核对，`finalizing` 要等项目锁释放，`committed` 仅表示原始响应已保存，仍须读取响应和 canonical 研究状态来判断成败。审批在本地主机完成；sampling 仅在客户端支持且前台连接持续时可用。项目文件边界不等于本机脚本的 OS sandbox。
+
 在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.nullius/HARNESS`、`.nullius/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `nullius`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
 
 若项目已提升主研究报告，还要从 `project_index.md#Main research report` 读取唯一当前报告及其 supersession registry。

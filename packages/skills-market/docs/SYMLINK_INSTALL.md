@@ -2,9 +2,8 @@
 
 This document describes the **clone + symlink** route (similar to superpowers), for
 installing market-listed skills without copying files. The live skill source is the
-in-repo `skills/` directory of this monorepo; a standalone `nullius/skills` publish
-repo is a planned, not-yet-live target (see the package README's dormant-surface
-note), so today you point the installer at the monorepo's own `skills/` directory.
+in-repo `skills/` directory of this monorepo. Point the installer at that directory;
+the former standalone mirror is retired.
 
 ## 1) Scope
 
@@ -27,9 +26,16 @@ Use the Python installer (`scripts/install_skill.py`) when you want:
   - validators
   - install scripts
 - skill source directories — the live source is the monorepo's in-repo `skills/`
-  directory (`skills/<skill-id>/SKILL.md`). A standalone `nullius/skills` publish
-  repo is a planned, not-yet-live target; until it exists, point `--skills-root` at
-  the monorepo's `skills/` directory.
+  directory (`skills/<skill-id>/SKILL.md`). Point `--skills-root` at the
+  monorepo's `skills/` directory.
+
+Symlinks are local installation state: after moving a checkout, rerun the installer
+with the new `--skills-root` and update the `nullius` PATH entry. Copying an absolute
+symlink to another machine does not copy its target. Copy installs and plugin
+payloads instead discover the destination runtime through `nullius runtime path`
+or an explicit `NULLIUS_WORKSPACE_ROOT`; Python virtual environments must be rebuilt
+on the destination. Keep per-user paths and credentials outside all distributed
+payloads.
 
 ## 3) Prerequisites
 
@@ -40,7 +46,7 @@ Use the Python installer (`scripts/install_skill.py`) when you want:
 ## 4) Local Layout
 
 ```text
-~/Coding/Agents/nullius/          # this monorepo
+~/src/nullius/          # this monorepo
   packages/skills-market/
   skills/
     research-team/
@@ -57,35 +63,35 @@ Notes:
 From the monorepo's `packages/skills-market/` directory:
 
 ```bash
-cd ~/Coding/Agents/nullius/packages/skills-market
+cd ~/src/nullius/packages/skills-market
 ```
 
 ### 5.1 Codex
 
 ```bash
 bash scripts/install_symlink_codex.sh \
-  --skills-root ~/Coding/Agents/nullius/skills
+  --skills-root ~/src/nullius/skills
 ```
 
 ### 5.2 Claude Code
 
 ```bash
 bash scripts/install_symlink_claude_code.sh \
-  --skills-root ~/Coding/Agents/nullius/skills
+  --skills-root ~/src/nullius/skills
 ```
 
 ### 5.3 OpenCode
 
 ```bash
 bash scripts/install_symlink_opencode.sh \
-  --skills-root ~/Coding/Agents/nullius/skills
+  --skills-root ~/src/nullius/skills
 ```
 
 ### 5.4 Kimi Code
 
 ```bash
 bash scripts/install_symlink_kimi_code.sh \
-  --skills-root ~/Coding/Agents/nullius/skills
+  --skills-root ~/src/nullius/skills
 ```
 
 ## 6) Target Paths
@@ -110,7 +116,7 @@ Example:
 
 ```bash
 bash scripts/install_symlink_codex.sh \
-  --skills-root ~/Coding/Agents/nullius/skills \
+  --skills-root ~/src/nullius/skills \
   --dry-run
 ```
 
@@ -119,7 +125,7 @@ bash scripts/install_symlink_codex.sh \
 When the in-repo `skills/` source updates, pull the monorepo:
 
 ```bash
-cd ~/Coding/Agents/nullius
+cd ~/src/nullius
 git pull
 ```
 

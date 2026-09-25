@@ -1,5 +1,6 @@
 // @nullius/orchestrator — public package exports
 export const VERSION = '0.5.0';
+export { runCli, type CliIo } from './cli.js';
 
 export * from './types.js';
 export { StateManager } from './state-manager.js';

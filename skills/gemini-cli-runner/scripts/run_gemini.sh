@@ -20,6 +20,8 @@ DRY_RUN=0
 NO_FALLBACK=0
 NO_PROXY_FIRST=0
 GEMINI_CLI_HOME_OVERRIDE="${GEMINI_CLI_HOME:-}"
+MANAGED_GEMINI_HOME=""
+GEMINI_PID=""
 
 usage() {
   cat <<'EOF'
@@ -35,7 +37,7 @@ Options:
   --approval-mode MODE    Default: default. Choices: default, auto_edit, yolo, plan.
   --sandbox               Run Gemini CLI in sandbox mode.
   --system-prompt-file F  Optional. If set, it is prepended to stdin before the prompt file (separated by a blank line).
-  --gemini-cli-home DIR   Optional. If set, run Gemini with GEMINI_CLI_HOME=DIR (isolated state dir).
+  --gemini-cli-home DIR   Optional user-owned state dir; its authentication is never copied or replaced by this runner.
   --prompt-file FILE      Required
   --out PATH              Required
   --no-fallback           If set, do not retry without -m when the model alias is invalid (strict mode).
@@ -85,18 +87,44 @@ print_shell_cmd() {
 
 print_gemini_cmd() {
   if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
-    print_shell_cmd env "GEMINI_CLI_HOME=${GEMINI_CLI_HOME_OVERRIDE}" gemini "$@"
+    print_shell_cmd env "GEMINI_CLI_HOME=[Gemini home]" gemini "$@"
   else
     print_shell_cmd gemini "$@"
   fi
 }
 
 run_gemini_cmd() {
-  if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
-    env "GEMINI_CLI_HOME=${GEMINI_CLI_HOME_OVERRIDE}" gemini "$@"
+  local result=0
+  if [[ -n "${MANAGED_GEMINI_HOME}" ]]; then
+    # Keep a supervisor outside the CLI process group so a caught interruption
+    # stops the whole CLI/sandbox tree before deleting its authentication home.
+    python3 -c '
+import os, signal, subprocess, sys
+proc = None
+def stop(signum, frame):
+    raise SystemExit(128 + signum)
+for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+    signal.signal(signum, stop)
+try:
+    proc = subprocess.Popen(sys.argv[1:], start_new_session=True)
+    raise SystemExit(proc.wait())
+finally:
+    if proc is not None:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+' env "GEMINI_CLI_HOME=${GEMINI_CLI_HOME_OVERRIDE}" gemini "$@" <&0 &
+  elif [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
+    env "GEMINI_CLI_HOME=${GEMINI_CLI_HOME_OVERRIDE}" gemini "$@" <&0 &
   else
-    gemini "$@"
+    gemini "$@" <&0 &
   fi
+  GEMINI_PID=$!
+  wait "${GEMINI_PID}" || result=$?
+  GEMINI_PID=""
+  return "${result}"
 }
 
 load_proxy_env_from_interactive_shell() {
@@ -347,7 +375,8 @@ EOF
 }
 
 bridge_oauth_personal_from_default_home() {
-  if [[ -z "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
+  # An explicit home belongs to the caller. Only bridge into our fresh temp dir.
+  if [[ -z "${MANAGED_GEMINI_HOME}" ]]; then
     return 0
   fi
   if [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" || -n "${GOOGLE_GEMINI_BASE_URL:-}" || -n "${GOOGLE_GENAI_USE_VERTEXAI:-}" || -n "${GOOGLE_GENAI_USE_GCA:-}" ]]; then
@@ -403,13 +432,15 @@ target_security["auth"] = auth
 target_payload["security"] = target_security
 
 target_root = target_settings.parent
-target_root.mkdir(parents=True, exist_ok=True)
+target_root.mkdir(mode=0o700, parents=True, exist_ok=True)
 target_settings.write_text(json.dumps(target_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+target_settings.chmod(0o600)
 
 for name in ("oauth_creds.json", "google_accounts.json"):
     src = source_home / name
     if src.is_file():
         shutil.copy2(src, target_root / name)
+        (target_root / name).chmod(0o600)
 PY
 }
 
@@ -681,7 +712,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "sandbox: ${SANDBOX}"
   echo "no_proxy_first: ${NO_PROXY_FIRST}"
   if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
-    echo "gemini_cli_home: ${GEMINI_CLI_HOME_OVERRIDE}"
+    echo "gemini_cli_home: [user-supplied Gemini home]"
+  elif [[ "${TOOL_MODE}" == "review" ]]; then
+    echo "gemini_cli_home: [managed temporary Gemini home]"
   else
     echo "gemini_cli_home: (default)"
   fi
@@ -704,14 +737,15 @@ stdin_file="${PROMPT_FILE}"
 combined_stdin=""
 tmp_raw_out=""
 tmp_err=""
-if [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
-  mkdir -p "${GEMINI_CLI_HOME_OVERRIDE}"
-fi
-load_proxy_env_from_interactive_shell
-load_auth_env_from_default_home
-bridge_oauth_personal_from_default_home
 cleanup() {
   # Do not let cleanup affect the script exit status.
+  if [[ -n "${GEMINI_PID}" ]]; then
+    kill -TERM "${GEMINI_PID}" 2>/dev/null || true
+    wait "${GEMINI_PID}" 2>/dev/null || true
+  fi
+  if [[ -n "${MANAGED_GEMINI_HOME}" ]]; then
+    rm -rf -- "${MANAGED_GEMINI_HOME}" || true
+  fi
   if [[ -n "${tmp_out}" ]]; then
     rm -f "${tmp_out}" || true
   fi
@@ -726,6 +760,34 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+if [[ "${TOOL_MODE}" == "review" && -z "${GEMINI_CLI_HOME_OVERRIDE}" ]]; then
+  # Fixed system temp parent: TMPDIR may point inside a research artifact tree.
+  MANAGED_GEMINI_HOME="$(mktemp -d /tmp/nullius-gemini.XXXXXXXX)"
+  MANAGED_GEMINI_HOME="$(cd "${MANAGED_GEMINI_HOME}" && pwd -P)"
+  GEMINI_CLI_HOME_OVERRIDE="${MANAGED_GEMINI_HOME}"
+  chmod 700 "${MANAGED_GEMINI_HOME}"
+  mkdir -m 700 "${MANAGED_GEMINI_HOME}/.gemini"
+  (umask 077; printf '%s\n' '{"mcp":{"allowed":[]},"mcpServers":{}}' >"${MANAGED_GEMINI_HOME}/.gemini/settings.json")
+fi
+load_proxy_env_from_interactive_shell
+load_auth_env_from_default_home
+bridge_oauth_personal_from_default_home
+
+redact_gemini_home() {
+  [[ -n "${GEMINI_CLI_HOME_OVERRIDE}" ]] || return 0
+  python3 - "${GEMINI_CLI_HOME_OVERRIDE}" "$@" <<'PY'
+import sys
+from pathlib import Path
+for name in sys.argv[2:]:
+    path = Path(name)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    path.write_text(text.replace(sys.argv[1], "[Gemini home]"), encoding="utf-8")
+PY
+}
 
 if [[ -n "${SYSTEM_PROMPT_FILE}" ]]; then
   combined_stdin="$(mktemp)"
@@ -776,6 +838,7 @@ else
   code=$?
 fi
 set -e
+redact_gemini_home "${tmp_out}" "${tmp_err}"
 
 # Deterministic failures reproduce identically on every retry: exit with the
 # diagnostic instead of trying the model-alias / generateContent fallbacks (a
@@ -802,6 +865,7 @@ if [[ $code -ne 0 && -n "${MODEL}" ]]; then
     run_gemini_cmd_with_sandbox "${base_args[@]}" <"${stdin_file}" >"${tmp_out}" 2>"${tmp_err}"
     code=$?
     set -e
+    redact_gemini_home "${tmp_out}" "${tmp_err}"
   fi
 fi
 

@@ -25,6 +25,7 @@ Nullius 是一个面向理论研究的 domain-neutral、evidence-first monorepo�
 | --- | --- | --- |
 | Stateful CLI front door | `nullius` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`、stateful `workflow-plan` 持久化、主报告结构校验，以及 `graph` 依赖图渲染（claims / progress / literature / roadmap） |
 | Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |
+| 绑定项目的 MCP adapter | [`@nullius/project-mcp`](../packages/project-mcp/README.md) | 通过 `NULLIUS_PROJECT_ROOT` 绑定外部项目的本地 stdio 叶层，复用 canonical control-plane 操作并提供受限项目文件传输 |
 | Stateful 文献规划入口 | `nullius workflow-plan` | 通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md` |
 | Agent research project harness skill | `research-harness` | 面向 Codex / Claude Code / OpenCode 的薄客户端 skill，用于恢复外部项目状态、把工作路由到 `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`，并把结果折回长期 artifacts |
 | 实验性 idea runtime bridge | `node /absolute/path/to/nullius/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted campaign lifecycle bridge，覆盖 `idea_campaign_*`；posterior 排序的 rank/promote、节点 posterior/lifecycle/grounding-audit/card-revision 更新、溯源修正与 generation-pack 导入（`node.import_generated`）属于 `idea-engine` runtime-contract truth，不是 root front door |
@@ -114,9 +115,11 @@ Approval packet 会落在该 run 的 `artifacts/runs/<run_id>/approvals/<approva
 
 ## 5. 用户如何从 MCP clients / agent clients 接入
 
-当前的 MCP 接入模型是本地 stdio only。仓库目前还没有“单体的” generic root MCP server 可执行入口；今天最成熟的领域 MCP 入口仍是 `hep-mcp`，而 generic control plane 已经由 `nullius` CLI 与公开的 `orch_*` MCP/operator surface 共同构成，后者的 live truth 记录在 [`meta/docs/orchestrator-mcp-tools-spec.md`](../meta/docs/orchestrator-mcp-tools-spec.md)。换句话说，generic lifecycle/control-plane 已经不再是“只有 CLI”，只是还没有独立打包成一个 root MCP server 进程。
+当前的 MCP 接入模型是本地 stdio。[`project-mcp`](../packages/project-mcp/README.md) 是绑定单个外部项目的叶层 adapter，通过 `NULLIUS_PROJECT_ROOT` 指定项目，并复用 orchestrator 的 canonical tool dispatcher 与 CLI。仓库仍没有“单体的” generic root MCP server；`nullius` 保持 stateful front door，HEP 与 idea server 保持各自职责。
 
 当前公开 MCP contract 是：本地 stdio 进程启动、tool `inputSchema`、紧凑 JSON/text tool result、没有 prompts。研究材料放置遵循 filesystem-first：临时抓取放本机临时目录，需要后续验证或接续的材料写成 project/run artifact。`orch_*` 是 orchestrator package 暴露的 operator/tool inventory，不是单独打包的 root MCP server。Remote MCP transports、OAuth 与 registry publishing 都仍是未来部署面，不属于当前 local-stdio contract。
+
+[本地个人插件构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 同源复制现有技能，生成 Codex 与 Claude Code 清单，默认组合 `project-mcp`、`hep-mcp`、`idea-mcp`，不重复注册原子 provider。普通安装和插件均通过本机已安装的 `nullius` CLI 定位运行包，生成的清单与技能元数据不记录构建者路径。项目、provider 和数据路径由宿主环境或私有 `${XDG_CONFIG_HOME:-$HOME/.config}/nullius/runtime.json` 配置；也可用 `NULLIUS_RUNTIME_CONFIG` 指向分发目录外的绝对文件。project 和 idea 服务要求外部项目，idea 还需 `IDEA_MCP_DATA_DIR`；HEP 可独立运行，配置项目时以该项目为 cwd。外部工具仍需本机安装。文件 API 限定项目路径，但本机脚本执行没有 OS sandbox；审批留在本地主机，sampling 需要客户端支持并保持前台连接，缺少时返回 `unavailable`。本地执行与组合已验收；ChatGPT Chat/Work 与 Claude 宿主连接尚未验收，需要的 tunnel/app ID 留待用户配置，构建器不会创建应用连接或上架插件。
 
 通用 MCP 配置模式：
 

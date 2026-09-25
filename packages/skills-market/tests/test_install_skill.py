@@ -5,19 +5,37 @@ import hashlib
 import importlib.util
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import zipfile
+
+import pytest
 from types import ModuleType, SimpleNamespace
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from install_skill_runtime import python_runtime
 from install_skill_runtime.cli import main as install_main
 from install_skill_runtime.market_index import default_market_root, load_json
 from install_skill_runtime.python_runtime import python_bin_relative_path
-from install_skill_runtime.source_payload import collect_payload_files
+from install_skill_runtime.source_payload import collect_payload_files, sensitive_file_name
 from install_skill_runtime.skill_note import NOTE_START, inject_python_runtime_note
+
+
+def _write_nullius_workspace(root):
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "pnpm-workspace.yaml").write_text("packages: []\n")
+    (root / "package.json").write_text(json.dumps({"name": "nullius"}))
+    package = root / "packages/orchestrator/package.json"
+    package.parent.mkdir(parents=True, exist_ok=True)
+    package.write_text(json.dumps({"name": "@nullius/orchestrator", "bin": {"nullius": "dist/cli.js"}}))
+    for relative in ("packages/orchestrator/src/cli.ts", "packages/literature-workflows/src/index.ts",
+                     "packages/project-contracts/src/project_contracts/research_contract.py"):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("# unit fixture\n")
 
 
 def _installed_venv_python(install_dir: pathlib.Path) -> pathlib.Path:
@@ -129,6 +147,10 @@ def test_real_install_uses_skill_local_venv_and_writes_runtime_record(tmp_path: 
     assert install_record["install_mode"] == "default"
     assert install_record["python_runtime"]["mode"] == "isolated-venv"
     assert install_record["python_runtime"]["venv_python"] == expected_venv_python
+    assert "installer_python" not in install_record["python_runtime"]
+    assert "packages" not in install_record["python_runtime"]
+    assert install_record["python_runtime"]["requested_package_count"] == 1
+    assert str(tmp_path) not in json.dumps(install_record)
 
 
 def test_force_reinstall_replaces_existing_install_and_cleanup_is_fail_closed(tmp_path: pathlib.Path) -> None:
@@ -187,7 +209,7 @@ def test_kimi_code_platform_installs_to_selected_target_root(tmp_path: pathlib.P
     assert (target_root / "kimi-skill" / "SKILL.md").is_file()
 
 
-def test_research_team_workflow_plan_copy_uses_source_workspace_provenance(monkeypatch, tmp_path: pathlib.Path) -> None:
+def test_moved_research_team_copy_uses_current_runtime(monkeypatch, tmp_path: pathlib.Path) -> None:
     repo_root = ROOT.parents[1]
     target_root = tmp_path / "target"
     assert install_main(
@@ -205,7 +227,18 @@ def test_research_team_workflow_plan_copy_uses_source_workspace_provenance(monke
         ]
     ) == 0
 
-    module_path = target_root / "research-team" / "scripts" / "lib" / "literature_workflow_plan.py"
+    records = list(target_root.glob("*/.market_install.json"))
+    assert records
+    for record in records:
+        assert "source_workspace_root" not in json.loads(record.read_text())
+        assert str(repo_root) not in record.read_text()
+    moved = tmp_path / "another-host" / "skills"
+    shutil.copytree(target_root, moved)
+    shutil.rmtree(target_root)
+    destination_runtime = tmp_path / "another-checkout"
+    _write_nullius_workspace(destination_runtime)
+    monkeypatch.delenv("NULLIUS_WORKSPACE_ROOT", raising=False)
+    module_path = moved / "research-team" / "scripts" / "lib" / "literature_workflow_plan.py"
     spec = importlib.util.spec_from_file_location("installed_literature_workflow_plan", module_path)
     assert spec is not None
     assert spec.loader is not None
@@ -215,7 +248,13 @@ def test_research_team_workflow_plan_copy_uses_source_workspace_provenance(monke
 
     captured: dict[str, object] = {}
 
-    def fake_run(command, *, cwd, input, capture_output, text, check):
+    def fake_run(command, **kwargs):
+        if command == ["nullius", "runtime", "path"]:
+            captured["runtime_path_called"] = True
+            assert kwargs["timeout"] == 10
+            return SimpleNamespace(returncode=0, stdout=str(destination_runtime) + "\n", stderr="")
+        cwd, input = kwargs["cwd"], kwargs["input"]
+        capture_output, text, check = kwargs["capture_output"], kwargs["text"], kwargs["check"]
         captured["command"] = command
         captured["cwd"] = cwd
         captured["input"] = input
@@ -232,10 +271,11 @@ def test_research_team_workflow_plan_copy_uses_source_workspace_provenance(monke
     )
 
     assert payload["entry_tool"] == "literature_workflows.resolve"
-    assert captured["cwd"] == str(repo_root)
-    assert captured["command"][:3] == ["pnpm", "--dir", str(repo_root)]
-    assert (target_root / "research-team" / "assets" / "research_team_config_template.json").is_file()
-    assert (target_root / "research-team" / "assets" / "knowledge_base_readme_template.md").is_file()
+    assert captured["runtime_path_called"] is True
+    assert captured["cwd"] == str(destination_runtime)
+    assert captured["command"][:3] == ["pnpm", "--dir", str(destination_runtime)]
+    assert (moved / "research-team" / "assets" / "research_team_config_template.json").is_file()
+    assert (moved / "research-team" / "assets" / "knowledge_base_readme_template.md").is_file()
 
 
 def test_research_team_package_payload_includes_template_assets() -> None:
@@ -253,3 +293,103 @@ def test_research_team_package_payload_includes_template_assets() -> None:
 
     assert "assets/research_team_config_template.json" in relative_files
     assert "assets/knowledge_base_readme_template.md" in relative_files
+
+
+@pytest.mark.parametrize("relative,payload,category", [
+    ("scripts/.env", "DUMMY=redacted", "sensitive filename"),
+    ("scripts/oauth_creds.json", '{}', "sensitive filename"),
+    ("scripts/local.txt", "/home/" + "private-person/data", "concrete machine home path"),
+    ("scripts/local.txt", "/Users/" + "研究员/data", "concrete machine home path"),
+    ("scripts/local.txt", "C:" + chr(92) + "Users" + chr(92) + "private-person" + chr(92) + "data", "concrete machine home path"),
+    ("scripts/key.txt", "-----BEGIN " + "PRIVATE KEY-----", "high-confidence credential"),
+    ("scripts/token.txt", "ghp_" + "a" * 36, "high-confidence credential"),
+])
+def test_copy_installer_rejects_sensitive_selected_payload(tmp_path, capsys, relative, payload, category):
+    market, source = _make_market(tmp_path, "unsafe-skill", None)
+    catalog_file = market / "packages/unsafe-skill.json"
+    catalog = json.loads(catalog_file.read_text())
+    catalog["source"]["include"].append("scripts/**")
+    catalog_file.write_text(json.dumps(catalog))
+    target = source / "skills/unsafe-skill" / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(payload)
+    (source / ".gitignore").write_text(str(target.relative_to(source)) + "\n")
+    subprocess.run(["git", "init", "-q", str(source)], check=True)
+    assert subprocess.run(["git", "-C", str(source), "check-ignore", "--quiet", str(target)]).returncode == 0
+    output = tmp_path / "installed"
+    assert install_main(["--platform", "codex", "--market-root", str(market), "--source-root", str(source),
+                         "--target-root", str(output), "--package", "unsafe-skill"]) == 1
+    error = capsys.readouterr().err
+    assert category in error
+    assert payload not in error
+    assert not (output / "unsafe-skill").exists()
+
+
+def test_payload_gate_respects_excludes_and_allows_generic_examples(tmp_path):
+    source = tmp_path / "skill"
+    source.mkdir()
+    (source / "SKILL.md").write_text("Use $API_KEY and /Users/<user>/data or /home/username/data.\n")
+    (source / "oauth_creds.json").write_text("excluded local content")
+    assert collect_payload_files(source, ["**/*"], ["oauth_creds.json"]) == [source / "SKILL.md"]
+    outside = tmp_path / "outside-directory"
+    outside.mkdir()
+    (source / "linked-directory").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(RuntimeError, match="outside source root"):
+        collect_payload_files(source, ["**/*"], ["oauth_creds.json"])
+
+
+def test_python_runtime_record_omits_private_interpreter_path(tmp_path, monkeypatch):
+    interpreter = tmp_path / "private-person/pyenv/bin/python"
+    monkeypatch.setattr(python_runtime, "resolve_base_python", lambda: interpreter)
+    observed = []
+
+    def fake_checked(command):
+        observed.append(command)
+        target = tmp_path / "skill" / python_bin_relative_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("unit fixture")
+
+    monkeypatch.setattr(python_runtime, "run_checked", fake_checked)
+    packages = [str(tmp_path / "private-wheel.whl"), "https://example.invalid/package.whl?access=private-test-value"]
+    record = python_runtime.create_isolated_venv(tmp_path / "skill", packages)
+    assert observed[0][0] == str(interpreter)
+    assert "installer_python" not in record
+    assert str(tmp_path) not in json.dumps(record)
+    assert "private-test-value" not in json.dumps(record)
+    assert record["requested_package_count"] == 2
+
+
+SENSITIVE_FILE_CASES = [
+    ".env", ".envrc", ".env.local", "OAUTH_CREDS.JSON", "oauth_credentials.json", ".oauth.json",
+    "credentials.yaml", "credential.yml", "secret.toml", "secrets.jsonl", "token.toml", "auth.json",
+    "service-account.json", "google_accounts.json", "client_secret_example.json", "key.PEM", "key.p12",
+    "key.pfx", "key.keystore", "key.jks", "id_ed25519", ".netrc", ".npmrc", ".pypirc",
+    ".aws/credentials", ".docker/config.json", ".ssh/config", ".kube/config",
+]
+
+
+def test_payload_filename_policy_matches_source_guard():
+    cases = SENSITIVE_FILE_CASES + [".env.example", "key.pem.sample", "credentials.template.json", "SKILL.md"]
+    source_guard = ROOT.parents[1] / "scripts/check-portable-paths-anti-drift.mjs"
+    code = "import { sensitiveFileName } from " + json.dumps(source_guard.as_uri()) + "; console.log(JSON.stringify(JSON.parse(process.argv[1]).map(sensitiveFileName)));"
+    result = subprocess.run(["node", "--input-type=module", "--eval", code, json.dumps(cases)],
+                            capture_output=True, text=True, check=True)
+    expected = json.loads(result.stdout)
+    assert expected == [True] * len(SENSITIVE_FILE_CASES) + [False] * 4
+    assert [sensitive_file_name(pathlib.PurePosixPath(case)) for case in cases] == expected
+
+
+@pytest.mark.parametrize("filename", SENSITIVE_FILE_CASES)
+def test_copy_installer_rejects_entire_ignored_sensitive_filename_family(tmp_path, capsys, filename):
+    test_copy_installer_rejects_sensitive_selected_payload(
+        tmp_path, capsys, "scripts/" + filename, "fixture-content", "sensitive filename",
+    )
+
+
+def test_template_filename_does_not_exempt_secret_content(tmp_path):
+    source = tmp_path / "skill"
+    source.mkdir()
+    (source / "SKILL.md").write_text("General instructions")
+    (source / ".env.example").write_text("sk-" + "a" * 40)
+    with pytest.raises(RuntimeError, match="high-confidence credential"):
+        collect_payload_files(source, ["**/*"], [])

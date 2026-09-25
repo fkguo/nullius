@@ -30,6 +30,22 @@ Notes:
 
 const COMMAND_HELP: Record<string, string> = {
   init: INIT_HELP,
+  runtime: `nullius runtime path | nullius runtime mcp <server>
+
+Locate this installed source workspace or start one registered MCP stdio server.
+This is host installation plumbing; research execution remains nullius run.
+
+Configuration:
+  NULLIUS_RUNTIME_CONFIG selects an absolute private JSON configuration file.
+  Default: $XDG_CONFIG_HOME/nullius/runtime.json, or $HOME/.config/nullius/runtime.json
+  Format: {"servers":{"<server>":{"env":{"NAME":"value"}}}}
+  Per-server configuration overrides the host environment. A missing default
+  file uses the host environment; an explicitly selected missing file fails.
+  The checked-in runtime-servers.json declares project/data directory needs.
+  Project roots must exist outside the installation; required data directories
+  must also be external. No author-specific paths belong in plugin manifests.
+  --project-root is not accepted here; use per-server NULLIUS_PROJECT_ROOT.
+`,
   run: `nullius run --workflow-id <id> [options]
 
 Execute a bounded run slice through the canonical TS run front door.

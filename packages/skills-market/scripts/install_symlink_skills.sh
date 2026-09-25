@@ -14,7 +14,7 @@ install_symlink_skills.sh
 Install all market-listed skill-pack skills as symlinks (superpowers-style).
 
 Usage:
-  install_symlink_skills.sh --platform codex --skills-root ~/Coding/Agents/nullius/skills
+  install_symlink_skills.sh --platform codex --skills-root ~/src/nullius/skills
 
 Options:
   --platform PLATFORM        Required: codex | claude_code | kimi_code | opencode

@@ -138,6 +138,14 @@ class MultiTaskTests(unittest.TestCase):
     def tearDownClass(cls):
         os.environ.pop("REVIEW_SWARM_NO_AUTO_CONFIG", None)
 
+    def setUp(self):
+        # Review profiles must never read the developer's real login material.
+        home = tempfile.TemporaryDirectory()
+        self.addCleanup(home.cleanup)
+        env = _temp_env(HOME=home.name)
+        env.__enter__()
+        self.addCleanup(env.__exit__, None, None, None)
+
     def test_prompt_guard_bytes_over_limit_truncate_records_audit_fields(self):
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
@@ -260,6 +268,8 @@ class MultiTaskTests(unittest.TestCase):
 
             argv = [
                 "run_multi_task.py",
+                "--codex-runner",
+                str(td_path / "missing_codex_runner.sh"),
                 "--out-dir",
                 str(out_dir),
                 "--opencode-runner",
@@ -297,6 +307,8 @@ class MultiTaskTests(unittest.TestCase):
 
             argv = [
                 "run_multi_task.py",
+                "--claude-runner",
+                str(td_path / "missing_claude_runner.sh"),
                 "--out-dir",
                 str(out_dir),
                 "--opencode-runner",
@@ -724,18 +736,17 @@ class MultiTaskTests(unittest.TestCase):
             self.assertEqual(profile["source"], "auto_isolated_review")
             self.assertEqual(profile["tool_mode"], "review")
 
-            home_path = Path(profile["home"])
-            settings_path = Path(profile["settings_path"])
-            self.assertEqual(home_path, (out_dir / "runtime" / "gemini_cli_home" / "agent_1").resolve())
-            self.assertTrue(settings_path.exists())
+            self.assertEqual(profile["home"], "[managed temporary Gemini home]")
+            self.assertNotIn("settings_path", profile)
+            self.assertFalse((out_dir / "runtime" / "gemini_cli_home").exists())
             self.assertEqual(
-                json.loads(settings_path.read_text(encoding="utf-8")),
+                profile["settings_payload"],
                 {"mcp": {"allowed": []}, "mcpServers": {}},
             )
 
             start_event = next(e for e in events if e.get("event") == "agent_0_start")
             self.assertIn("--gemini-cli-home", start_event["cmd"])
-            self.assertIn(str(home_path), start_event["cmd"])
+            self.assertIn("[Gemini home]", start_event["cmd"])
 
     def test_gemini_review_auto_isolates_cli_home_and_bridges_oauth_personal(self):
         with tempfile.TemporaryDirectory() as td:
@@ -796,11 +807,11 @@ class MultiTaskTests(unittest.TestCase):
                 ["google_accounts.json", "oauth_creds.json"],
             )
 
-            settings_path = Path(profile["settings_path"])
-            settings_payload = json.loads(settings_path.read_text(encoding="utf-8"))
-            self.assertEqual(settings_payload["security"]["auth"]["selectedType"], "oauth-personal")
-            self.assertTrue((settings_path.parent / "oauth_creds.json").exists())
-            self.assertTrue((settings_path.parent / "google_accounts.json").exists())
+            self.assertNotIn("settings_path", profile)
+            self.assertNotIn("security", profile["settings_payload"])
+            self.assertEqual(profile["auth_bridge"]["source"], "default_user_home")
+            self.assertFalse(list(out_dir.rglob("oauth_creds.json")))
+            self.assertNotIn(str(source_gemini_home), (out_dir / "trace.jsonl").read_text())
 
     def test_explicit_gemini_cli_home_preserves_override_for_review_mode(self):
         with tempfile.TemporaryDirectory() as td:
@@ -840,7 +851,7 @@ class MultiTaskTests(unittest.TestCase):
             config_event = next(e for e in events if e.get("event") == "config")
             profile = config_event["gemini_review_profiles"][0]
             self.assertEqual(profile["source"], "explicit")
-            self.assertEqual(profile["home"], str(explicit_home.resolve()))
+            self.assertEqual(profile["home"], "[user-supplied Gemini home]")
             self.assertFalse((explicit_home / ".gemini" / "settings.json").exists())
 
     def test_timeout_marks_agent_failure_and_returns_nonzero(self):
@@ -923,6 +934,7 @@ TXT
 
             argv = [
                 "run_multi_task.py",
+                "--codex-runner", str(codex_runner),
                 "--out-dir",
                 str(out_dir),
                 "--opencode-runner",
@@ -1015,6 +1027,7 @@ TXT
 
             argv = [
                 "run_multi_task.py",
+                "--kimi-runner", str(td_path / "missing_kimi_runner.sh"),
                 "--out-dir",
                 str(out_dir),
                 "--opencode-runner",
@@ -1070,6 +1083,8 @@ class ProjectConfigTests(unittest.TestCase):
 
             argv = [
                 "run_multi_task.py",
+                "--codex-runner", str(fake_codex_home / "skills/codex-cli-runner/scripts/run_codex.sh"),
+                "--gemini-runner", str(fake_codex_home / "skills/gemini-cli-runner/scripts/run_gemini.sh"),
                 "--out-dir", str(out_dir),
                 "--system", str(sys_prompt),
                 "--prompt", str(user_prompt),
@@ -1107,6 +1122,7 @@ class ProjectConfigTests(unittest.TestCase):
 
             argv = [
                 "run_multi_task.py",
+                "--codex-runner", str(runner_path),
                 "--out-dir", str(out_dir),
                 "--system", str(sys_prompt),
                 "--prompt", str(user_prompt),
@@ -1148,6 +1164,8 @@ class ProjectConfigTests(unittest.TestCase):
 
             argv = [
                 "run_multi_task.py",
+                "--codex-runner", str(fake_codex_home / "skills/codex-cli-runner/scripts/run_codex.sh"),
+                "--gemini-runner", str(fake_codex_home / "skills/gemini-cli-runner/scripts/run_gemini.sh"),
                 "--out-dir", str(out_dir),
                 "--system", str(sys_prompt),
                 "--prompt", str(user_prompt),

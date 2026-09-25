@@ -1,5 +1,6 @@
 export const NULLIUS_PUBLIC_COMMAND_INVENTORY = [
   { command: 'init', usage: 'nullius init [options]' },
+  { command: 'runtime', usage: 'nullius runtime path | nullius runtime mcp <server>' },
   { command: 'run', usage: 'nullius run --workflow-id <id> [options]' },
   { command: 'verify', usage: 'nullius verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> --checker-path <path> --checker-runtime <python3|node> --quantity-id <id> --layer-id <id> --reference-provenance-json <object> --disputed-dimension <name> --required-negative-control-id <id>' },
   { command: 'final-conclusions', usage: 'nullius final-conclusions --run-id <id> [--note "..."]' },

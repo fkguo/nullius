@@ -37,7 +37,9 @@
       "templates/**",
       "schemas/**",
       "agents/**",
-      ".gitignore"
+      ".gitignore",
+      "FULL_VALIDATION_CONTRACT.md",
+      "knowledge_base/methodology_traces/literature_queries.md"
     ],
     "exclude": [
       "**/tests/**",
@@ -52,7 +54,8 @@
       "process/*",
       "process/**/*",
       ".tmp*/*",
-      ".tmp*/**/*"
+      ".tmp*/**/*",
+      "scripts/dev/**"
     ]
   }
 }

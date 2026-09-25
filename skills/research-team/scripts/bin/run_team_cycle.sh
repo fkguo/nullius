@@ -877,7 +877,7 @@ SCRIPTS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILL_ROOT="$(cd "${SCRIPTS_DIR}/.." && pwd)"
 SKILLS_DIR="$(cd "${SKILL_ROOT}/.." && pwd)"
 GATES_DIR="${SCRIPTS_DIR}/gates"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+REPO_ROOT="$(python3 "${SCRIPT_DIR}/../lib/literature_workflow_plan.py")"
 PROJECT_CONTRACTS_SRC="${REPO_ROOT}/packages/project-contracts/src"
 
 project_contracts_policy_cli() {

@@ -16,6 +16,29 @@
 - `standard=75`, `full=82`
 - `HEP_ENABLE_ZOTERO=0` → `standard=66`, `full=73`
 
+## Local installation and personal plugin
+
+The [`project-mcp`](../packages/project-mcp/README.md) leaf adapter binds one
+external project through `NULLIUS_PROJECT_ROOT` and reuses canonical
+`handleToolCall` / `runCli`. Its 16 selected `orch_*` operations plus five transport
+tools expose 21 tools. The [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md)
+combines project 21, default HEP 75, and idea 6: 102 unique tool names verified
+against the real local stdio servers. Runtime configuration is host-private; generated
+plugin manifests and ordinary copy-install metadata do not record source-machine
+paths. Copied skill helpers discover the current runtime through an explicit
+workspace, a source ancestor, or `nullius runtime path`. Project and idea require
+an external project; HEP also supports standalone use. Real computation checks cover both checked-result
+registration and rejection after production-output corruption.
+
+Delivery uses `RunManifestManager`, not another queue or research-state authority.
+Background mutations require a stable `delivery_id`; unknown outcomes need local
+reconciliation, `finalizing` waits for lock release, and `committed` confirms only
+the stored transport response. Approval resolution remains local, and sampling
+requires client support plus a live foreground connection. Project-file bounds
+do not constitute an OS sandbox for local scripts. ChatGPT Chat/Work and Claude-host
+connections remain untested; any required tunnel and app ID await user configuration.
+This is a local build and validation result, not an installed marketplace release.
+
 ## What is live today
 
 - **Main generic lifecycle + native TS computation + workflow-plan entrypoint**: `nullius` CLI for external project roots and `.nullius/` state

@@ -39,6 +39,9 @@ from typing import Any, Optional
 
 
 _TRACE_LOCK = threading.Lock()
+_PROCESS_LOCK = threading.RLock()
+_ACTIVE_PROCESSES: set[subprocess.Popen] = set()
+_STOP_REQUESTED = threading.Event()
 _RE_MODEL_SLUG = re.compile(r"[^A-Za-z0-9._-]+")
 _EXIT_NEEDS_USER_DECISION = 4
 _DEFAULT_TIMEOUT_SECS = 900
@@ -122,12 +125,17 @@ def _atomic_write_text(path: Path, text: str) -> None:
 def _agent_skills_root() -> Path:
     """Host-neutral agent skills root holding the sibling runner skills.
 
-    No single host is privileged: honor an explicitly advertised host home
+    Prefer runners alongside this skill; otherwise honor an advertised host home
     (CLAUDE_CONFIG_DIR / CODEX_HOME) when set, else probe the known agent skill
     homes that actually exist, else fall back to this script's own install
     location (which also covers hosts not listed here). Explicit `--*-runner`
     flags override the result entirely.
     """
+    # A complete checkout/plugin carries its own reviewed runner versions.
+    # Explicit command-line runner overrides still take precedence.
+    sibling_root = Path(__file__).resolve().parents[3]
+    if (sibling_root / "claude-cli-runner" / "scripts" / "run_claude.sh").is_file():
+        return sibling_root
     for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
         val = os.environ.get(env_var, "").strip()
         if val:
@@ -587,8 +595,9 @@ def _copy_default_gemini_oauth_support_files(home_root: Path) -> list[str]:
         src = source_root / name
         if not src.is_file():
             continue
-        target_root.mkdir(parents=True, exist_ok=True)
+        target_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         shutil.copy2(src, target_root / name)
+        (target_root / name).chmod(0o600)
         copied.append(name)
     return copied
 
@@ -607,10 +616,12 @@ def _write_gemini_review_settings(home_root: Path) -> tuple[Path, dict[str, Any]
         auth_bridge = {
             "selected_type": oauth_auth.get("selectedType"),
             "copied_files": _copy_default_gemini_oauth_support_files(home_root),
-            "source": str((Path.home() / ".gemini").resolve()),
+            "source": "default_user_home",
         }
     settings_path = home_root / ".gemini" / "settings.json"
     _write_json_file(settings_path, settings_payload)
+    settings_path.parent.chmod(0o700)
+    settings_path.chmod(0o600)
     return settings_path, settings_payload, auth_bridge
 
 
@@ -777,6 +788,7 @@ def _resolve_gemini_review_profile(
     out_dir: Path,
     backend_tool_modes: dict[str, str],
     explicit_gemini_cli_home: Optional[str],
+    home_stack: contextlib.ExitStack,
 ) -> tuple[Optional[str], Optional[dict[str, Any]]]:
     if plan.backend != "gemini":
         return None, None
@@ -789,7 +801,7 @@ def _resolve_gemini_review_profile(
         profile.update(
             {
                 "source": "explicit",
-                "home": explicit_gemini_cli_home,
+                "home": "[user-supplied Gemini home]",
             }
         )
         return explicit_gemini_cli_home, profile
@@ -798,14 +810,16 @@ def _resolve_gemini_review_profile(
         profile["source"] = "default"
         return None, profile
 
-    home_root = out_dir / "runtime" / "gemini_cli_home" / f"agent_{plan.index + 1}"
+    # Never honor TMPDIR here: it may point inside a project or its artifacts.
+    # Register cleanup before copying authentication, including setup failures.
+    home_root = Path(home_stack.enter_context(tempfile.TemporaryDirectory(prefix="nullius-gemini-", dir="/tmp"))).resolve()
+    home_root.chmod(0o700)
     settings_path, settings_payload, auth_bridge = _write_gemini_review_settings(home_root)
     profile.update(
         {
             "source": "auto_isolated_review",
-            "home": str(home_root),
-            "settings_path": str(settings_path),
-            "settings_payload": settings_payload,
+            "home": "[managed temporary Gemini home]",
+            "settings_payload": {"mcp": {"allowed": []}, "mcpServers": {}},
         }
     )
     if auth_bridge is not None:
@@ -814,24 +828,16 @@ def _resolve_gemini_review_profile(
 
 
 def _run_with_timeout(cmd: list[str], *, timeout_secs: int) -> dict[str, Any]:
-    if timeout_secs <= 0:
-        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
-        return {
-            "timed_out": False,
-            "exit_code": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr": proc.stderr,
-        }
-
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
+    with _PROCESS_LOCK:
+        if _STOP_REQUESTED.is_set():
+            raise RuntimeError("Review execution interrupted")
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, start_new_session=True,
+        )
+        _ACTIVE_PROCESSES.add(proc)
     try:
-        stdout, stderr = proc.communicate(timeout=timeout_secs)
+        stdout, stderr = proc.communicate(timeout=timeout_secs if timeout_secs > 0 else None)
         return {
             "timed_out": False,
             "exit_code": proc.returncode,
@@ -848,6 +854,14 @@ def _run_with_timeout(cmd: list[str], *, timeout_secs: int) -> dict[str, Any]:
             "stdout": stdout,
             "stderr": stderr,
         }
+    except BaseException:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        raise
+    finally:
+        with _PROCESS_LOCK:
+            _ACTIVE_PROCESSES.discard(proc)
 
 
 def _run_one(
@@ -888,7 +902,7 @@ def _run_one(
         "index": plan.index,
         "backend": plan.backend,
         "model": plan.requested_model,
-        "cmd": cmd,
+        "cmd": ["[Gemini home]" if gemini_cli_home and part == gemini_cli_home else part for part in cmd],
     }
     if trace_phase is not None:
         start_event["phase"] = trace_phase
@@ -908,6 +922,13 @@ def _run_one(
 
     try:
         proc = _run_with_timeout(cmd, timeout_secs=timeout_secs)
+        if gemini_cli_home:
+            for stream in ("stdout", "stderr"):
+                proc[stream] = proc[stream].replace(gemini_cli_home, "[Gemini home]")
+            if out_path.is_file():
+                output_text = out_path.read_text(encoding="utf-8")
+                if gemini_cli_home in output_text:
+                    out_path.write_text(output_text.replace(gemini_cli_home, "[Gemini home]"), encoding="utf-8")
         result = {
             "index": plan.index,
             "backend": plan.backend,
@@ -2277,6 +2298,30 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Own temporary authentication until every worker has stopped."""
+    old_handlers: dict[int, Any] = {}
+    _STOP_REQUESTED.clear()
+
+    def stop(signum: int, _frame: Any) -> None:
+        _STOP_REQUESTED.set()
+        with _PROCESS_LOCK:
+            for proc in tuple(_ACTIVE_PROCESSES):
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(proc.pid, signal.SIGKILL)
+        raise SystemExit(128 + signum)
+
+    try:
+        if threading.current_thread() is threading.main_thread():
+            for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+                old_handlers[signum] = signal.signal(signum, stop)
+        with contextlib.ExitStack() as home_stack:
+            return _main(home_stack)
+    finally:
+        for signum, handler in old_handlers.items():
+            signal.signal(signum, handler)
+
+
+def _main(home_stack: contextlib.ExitStack) -> int:
     args = _parse_args()
 
     out_dir = args.out_dir.expanduser().resolve()
@@ -2568,6 +2613,7 @@ def main() -> int:
             out_dir=out_dir,
             backend_tool_modes=backend_tool_modes,
             explicit_gemini_cli_home=explicit_gemini_cli_home,
+            home_stack=home_stack,
         )
         run_specs.append(
             (
@@ -2869,6 +2915,7 @@ def main() -> int:
                         out_dir=out_dir,
                         backend_tool_modes=backend_tool_modes,
                         explicit_gemini_cli_home=explicit_gemini_cli_home,
+                        home_stack=home_stack,
                     )
                     _append_jsonl(
                         trace_path,

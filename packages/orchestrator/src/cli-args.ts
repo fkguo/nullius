@@ -3,7 +3,7 @@ import { isNulliusPublicCommand } from './cli-command-inventory.js';
 
 export type ParsedCliArgs =
   | { command: 'help'; projectRoot: string | null; topic: string | null }
-  | { command: 'init' | 'export'; projectRoot: string | null; passthrough: string[] }
+  | { command: 'init' | 'export' | 'runtime'; projectRoot: string | null; passthrough: string[] }
   | {
     command: 'run';
     projectRoot: string | null;
@@ -1108,6 +1108,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   }
 
   switch (command) {
+    case 'runtime':
+      return { command: 'runtime', projectRoot, passthrough: rest };
     case 'init':
       return { command: 'init', projectRoot, passthrough: rest };
     case 'run':

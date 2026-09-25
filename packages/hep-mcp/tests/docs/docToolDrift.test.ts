@@ -334,6 +334,7 @@ describe('Docs tool drift guard', () => {
     expect(FRONT_DOOR_AUTHORITY_SURFACE_IDS).toEqual([
       'nullius_cli',
       'orchestrator_mcp_tools_spec',
+      'project_mcp',
       'idea_mcp',
     ]);
 
@@ -351,6 +352,11 @@ describe('Docs tool drift guard', () => {
       classification: 'canonical_public',
       surface_kind: 'mcp_tool_inventory',
       exact_inventory_source: 'packages/idea-mcp/src/tool-registry.ts',
+    });
+    expect(getFrontDoorAuthoritySurface('project_mcp')).toMatchObject({
+      classification: 'canonical_public',
+      owner: '@nullius/project-mcp',
+      exact_inventory_source: 'packages/project-mcp/src/registry.ts',
     });
   });
 
@@ -374,6 +380,12 @@ describe('Docs tool drift guard', () => {
       classification: getFrontDoorAuthoritySurface('idea_mcp').classification,
       owner: getFrontDoorAuthoritySurface('idea_mcp').owner,
       relPath: getFrontDoorAuthoritySurface('idea_mcp').exact_inventory_source,
+    });
+    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.project_mcp).toMatchObject({
+      surface: 'project_mcp',
+      classification: getFrontDoorAuthoritySurface('project_mcp').classification,
+      owner: getFrontDoorAuthoritySurface('project_mcp').owner,
+      relPath: getFrontDoorAuthoritySurface('project_mcp').exact_inventory_source,
     });
 
     expect(() => getFrontDoorAuthoritySurface(['hep', 'nullius', 'internal', 'parser'].join('_'))).toThrow(

@@ -59,6 +59,17 @@ Note: host-side sampling and orchestration now own writing/model decisions. This
 | `NULLIUS_RUN_MCP_CREDENTIALS_JSON` | JSON string map | `{}` | Explicit MCP credential name/value declarations; values are not copied from the ambient environment | orchestrator |
 | `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` | JSON string array | `[]` | Credential names required by the configured MCP server; missing or empty declared values fail before spawn | orchestrator |
 
+### Project MCP and personal plugin
+
+| Key | Type | Default | Description | Read by |
+|-----|------|---------|-------------|---------|
+| `NULLIUS_RUNTIME_CONFIG` | absolute path | XDG config home or `$HOME/.config/nullius/runtime.json` | Private `servers.<name>.env` configuration; keep outside distributed payloads | nullius runtime |
+| `NULLIUS_PROJECT_ROOT` | absolute path | required for project/idea; optional for HEP | Existing external project; runtime launcher uses it as cwd and project-mcp binds its directory identity | project-mcp, nullius runtime |
+| `NULLIUS_WORKSPACE_ROOT` | absolute path | current runtime discovery | Explicit built checkout override for copied skill helpers, otherwise source ancestor or `nullius runtime path`; launcher sets its actual installation | research-team helpers, nullius runtime |
+| `IDEA_MCP_DATA_DIR` | absolute path | required for plugin idea server | Explicit external idea store, separate from the development checkout | idea-mcp, personal plugin launcher |
+
+`project-mcp` rejects a nonempty `NULLIUS_CONTROL_DIR`; control state must remain at the bound project's `.nullius`. Runtime launchers retain the user's local environment, with per-server private configuration taking precedence. Missing default configuration uses the host environment; explicit missing or invalid configuration fails closed. They are separate from the orchestrator's sanitized provider-subprocess path below and add no OS sandbox or credentials.
+
 ### MCP Subprocess Environment Allowlist
 
 MCP subprocess launchers use an isolated temporary `HOME`, an explicit working directory, and a strict ambient baseline. Only these ambient variables are propagated by the orchestrator stdio launch path:

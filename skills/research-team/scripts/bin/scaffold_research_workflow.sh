@@ -66,7 +66,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+REPO_ROOT="$(python3 "${SCRIPT_DIR}/../lib/literature_workflow_plan.py")"
 ASSETS_DIR="${SKILL_ROOT}/assets"
 PROJECT_CONTRACTS_SRC="${REPO_ROOT}/packages/project-contracts/src"
 

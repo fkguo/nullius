@@ -30,7 +30,8 @@
     "ref": "main",
     "subpath": "skills/research-harness",
     "include": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/**"
     ],
     "exclude": [
       "**/tests/**",
