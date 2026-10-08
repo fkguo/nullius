@@ -312,6 +312,72 @@ def test_stow_refuses_names_that_are_not_utf8(tmp_path, monkeypatch):
     assert stat.S_IMODE((run / "fine.bin").stat().st_mode) & 0o200
 
 
+def test_materialize_without_clone_support_places_an_independent_read_only_copy(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(rs, "clone_file", lambda a, b: False)
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    data = blob(THRESHOLD, 68)
+    (run / "out.bin").write_bytes(data)
+    sha = stow_json(run, repo, monkeypatch, capsys)["stowed"][0]["sha256"]
+    (run / "out.bin").unlink()
+    capsys.readouterr()
+    assert run_main(["materialize", str(run), "--json"], repo, monkeypatch) == rs.EXIT_OK
+    assert [r["method"] for r in json.loads(capsys.readouterr().out)["restored"]] == ["copy"]
+    obj = rs.store_path(store_of(repo), sha)
+    placed = run / "out.bin"
+    assert placed.read_bytes() == data and not os.path.samestat(placed.stat(), obj.stat())
+    assert stat.S_IMODE(placed.stat().st_mode) & 0o222 == 0
+
+
+def test_stow_rehashes_the_source_on_the_existing_object_branch(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    runs = repo / "artifacts" / "runs"
+    original = blob(THRESHOLD, 69)
+    for name in ("a", "b"):
+        (runs / name).mkdir()
+        (runs / name / "out.bin").write_bytes(original)
+    stow_json(runs / "a", repo, monkeypatch, capsys)
+
+    def writer_then_no_clone(src, dst):  # an open writer changes run b between hashing and recording
+        target = runs / "b" / "out.bin"
+        os.chmod(target, 0o644)
+        target.write_bytes(blob(THRESHOLD, 70))
+        return False
+
+    monkeypatch.setattr(rs, "clone_file", writer_then_no_clone)
+    assert run_main(["stow", str(runs / "b")], repo, monkeypatch) == rs.EXIT_ERROR
+    assert not (runs / "b" / rs.MANIFEST_NAME).exists(), "nothing recorded for bytes that are not in place"
+
+
+@pytest.mark.parametrize("command", ["verify", "check", "stow", "materialize"])
+def test_symlinks_at_or_above_recorded_paths_are_never_trusted(tmp_path, monkeypatch, capsys, command):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "a.bin").write_bytes(blob(THRESHOLD, 71))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    (run / "a.bin").unlink()
+    os.symlink(tmp_path / "nowhere", run / "a.bin")  # dangling symlink at a recorded path
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    os.symlink(outside, run / "link")  # a symlinked ancestor of a recorded path
+    manifest = json.loads((run / rs.MANIFEST_NAME).read_text())
+    manifest["entries"].append({"path": "link/escape.bin", "size": THRESHOLD, "sha256": manifest["entries"][0]["sha256"]})
+    (run / rs.MANIFEST_NAME).write_text(json.dumps(manifest))
+    capsys.readouterr()
+    argv = {"verify": ["verify", str(run), "--json"], "check": ["check", "--strict", "--json"],
+            "stow": ["stow", str(run)], "materialize": ["materialize", str(run), "--json"]}[command]
+    assert run_main(argv, repo, monkeypatch) == rs.EXIT_FINDINGS
+    out = capsys.readouterr().out
+    if command == "verify":
+        assert {e["path"]: e["status"] for e in json.loads(out)["entries"]} == {
+            "a.bin": "mismatch", "link/escape.bin": "unsafe_path"}
+    if command == "check":
+        assert len(json.loads(out)["stowed_damaged"]) == 2
+    assert list(outside.iterdir()) == [], "nothing is created outside the run directory"
+
+
 def test_materialize_never_overwrites_an_occupied_path(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
@@ -327,7 +393,7 @@ def test_materialize_never_overwrites_an_occupied_path(tmp_path, monkeypatch, ca
     assert run_main(["materialize", str(run), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
     doc = json.loads(capsys.readouterr().out)
     assert {p["path"]: p["status"] for p in doc["unavailable"]} == {
-        "a.bin": "occupied_by_dangling_symlink", "b.bin": "occupied_by_different_bytes"}
+        "a.bin": "occupied_by_symlink", "b.bin": "occupied_by_different_bytes"}
     assert (run / "b.bin").read_bytes() == b"other bytes"
 
 
@@ -432,7 +498,7 @@ def test_materialize_in_linked_worktree(tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert run_main(["materialize", str(wt_run), "--json"], wt, monkeypatch) == rs.EXIT_OK
     [restored] = json.loads(capsys.readouterr().out)["restored"]
-    assert restored["method"] in ("clone", "link", "symlink")
+    assert restored["method"] in ("clone", "copy")
     assert (wt_run / "out.bin").read_bytes() == data
     capsys.readouterr()
     assert run_main(["verify", str(wt_run), "--json"], wt, monkeypatch) == rs.EXIT_OK
@@ -785,6 +851,23 @@ def _interrupted_closeout(tmp_path, monkeypatch, fail_at):
     return root, verdict, big
 
 
+@pytest.mark.parametrize("damage", ["removed", "corrupted"])
+def test_closeout_resume_needs_an_intact_inventory_before_deleting_more(tmp_path, monkeypatch, damage):
+    root, verdict, _ = _interrupted_closeout(tmp_path, monkeypatch, "remove_path")
+    entry = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())["pruned"][0]
+    record = root / entry["inventory_file"]
+    os.chmod(record, 0o644)
+    if damage == "removed":
+        record.unlink()
+    else:
+        record.write_text("{}")
+    held = root / rs.QUARANTINE_DIR / "0"
+    survivors = sorted(p.name for p in held.rglob("*"))
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    assert sorted(p.name for p in held.rglob("*")) == survivors, "the quarantined remainder is kept"
+
+
 def test_closeout_resume_after_partial_deletion_keeps_the_complete_inventory(tmp_path, monkeypatch):
     root, verdict, _ = _interrupted_closeout(tmp_path, monkeypatch, "remove_path")
     first = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())["pruned"][0]
@@ -826,14 +909,20 @@ def test_closeout_never_removes_an_original_rewritten_during_compression(tmp_pat
     assert (root / "evidence" / "observations.json").read_bytes() == b"result written while compressing"
 
 
-def test_stow_refuses_unbalanced_managed_block_markers(tmp_path, monkeypatch):
+@pytest.mark.parametrize("layout", ["begin_only", "end_before_begin", "two_blocks"])
+def test_stow_refuses_malformed_managed_block_markers_before_changing_anything(tmp_path, monkeypatch, layout):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
     run.mkdir()
     (run / "big.bin").write_bytes(blob(THRESHOLD, 66))
-    (run / ".gitignore").write_text(f"user-rule-1\n{rs.GITIGNORE_BEGIN}\nuser-rule-2\n")
+    b, e = rs.GITIGNORE_BEGIN, rs.GITIGNORE_END
+    text = {"begin_only": f"user-rule-1\n{b}\nuser-rule-2\n",
+            "end_before_begin": f"{e}\nuser-rule-1\n{b}\nuser-rule-2\n",
+            "two_blocks": f"{b}\n{e}\nuser-rule-1\n{b}\n{e}\n"}[layout]
+    (run / ".gitignore").write_text(text)
     assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_ERROR
-    assert "user-rule-2" in (run / ".gitignore").read_text()
+    assert (run / ".gitignore").read_text() == text
+    assert stat.S_IMODE((run / "big.bin").stat().st_mode) & 0o200 and not store_of(repo).exists()
 
 
 def test_verify_never_opens_a_special_file_at_a_recorded_path(tmp_path, monkeypatch, capsys):

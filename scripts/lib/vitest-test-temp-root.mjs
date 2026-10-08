@@ -24,6 +24,24 @@ const PARENT_README = 'Per-run temporary roots of the nullius test suites '
   + '(scripts/lib/vitest-test-temp-root.mjs). A passing run removes its root; a failing run keeps it, '
   + 'and roots unchanged for 7 days are removed by a later run. NULLIUS_KEEP_TEST_TMP=1 keeps every root.\n';
 
+/** Create (or accept) the per-user parent only as a real directory owned by
+ *  this user with mode 0700; a planted symlink or someone else's directory
+ *  in a shared /tmp is refused rather than used. */
+export function ensurePrivateParent(parent) {
+  try {
+    fs.mkdirSync(parent, { mode: 0o700 });
+  } catch (error) {
+    if (error?.code !== 'EEXIST') throw error;
+  }
+  const stat = fs.lstatSync(parent);
+  const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+  if (!stat.isDirectory() || stat.isSymbolicLink() || (uid !== null && stat.uid !== uid)) {
+    throw new Error(`[test-temp-root] ${parent} is not a directory owned by this user; refusing to use it`);
+  }
+  if ((stat.mode & 0o777) !== 0o700) fs.chmodSync(parent, 0o700);
+  return parent;
+}
+
 export function testRunsParent(baseTmp = os.tmpdir()) {
   const uid = typeof process.getuid === 'function' ? String(process.getuid()) : 'user';
   return path.join(baseTmp, `${TEST_RUNS_PARENT_PREFIX}-${uid}`);
@@ -155,8 +173,7 @@ export function runPassed(project) {
 }
 
 export default function setup(project) {
-  const parent = testRunsParent();
-  fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+  const parent = ensurePrivateParent(testRunsParent());
   try {
     fs.writeFileSync(path.join(parent, 'README.txt'), PARENT_README, { flag: 'wx' });
   } catch {

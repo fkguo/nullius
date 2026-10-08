@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import setup, {
   RETENTION_DAYS,
+  ensurePrivateParent,
   removeTree,
   runPassed,
   sweepStaleRoots,
@@ -115,6 +116,20 @@ test('keep mode sweeps nothing, not even old finished roots', t => {
   const teardown = setup(fakeProject({ files: [{ result: { state: 'pass' } }] }));
   teardown();
   assert.equal(fs.existsSync(old), true);
+});
+
+test('the per-user parent must be a private directory of this user', t => {
+  const base = scratch(t);
+  const planted = path.join(base, 'elsewhere');
+  fs.mkdirSync(planted);
+  const parent = testRunsParent(base);
+  fs.symlinkSync(planted, parent);  // a planted symlink is refused, never followed
+  assert.throws(() => ensurePrivateParent(parent), /not a directory owned by this user/);
+  fs.unlinkSync(parent);
+  fs.mkdirSync(parent, { mode: 0o777 });
+  fs.chmodSync(parent, 0o777);
+  ensurePrivateParent(parent);  // an existing permissive directory of ours is tightened
+  assert.equal(fs.statSync(parent).mode & 0o777, 0o700);
 });
 
 test('removeTree restores write permission on read-only directories', t => {

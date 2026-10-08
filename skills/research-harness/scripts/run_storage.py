@@ -16,9 +16,10 @@ Size policy (project repositories)
   "stowed" after the run finishes: placed once, by sha256, into a content
   store shared by every worktree of the repository (default
   ``<git common dir>/nullius/store``; never checked out, untouched by
-  ``git clean`` and ``git worktree remove``). The run directory keeps the
-  same file as a hard link (same bytes, no extra space, readable in place),
-  made read-only; a tracked ``bulk_manifest.json`` records path, size and
+  ``git clean`` and ``git worktree remove``) as an independent file (a
+  copy-on-write clone where the file system supports it, otherwise a
+  verified copy). The run directory keeps its file, made read-only and
+  readable in place; a tracked ``bulk_manifest.json`` records path, size and
   sha256, and a managed block in the run directory's ``.gitignore`` lists
   exactly those paths. The code-origin snapshot of later runs therefore
   carries the hashes of the bulk inputs, while the bulk bytes stay out of
@@ -26,7 +27,7 @@ Size policy (project repositories)
 
   Optional ``.nullius/storage_policy.json``:
     {"schema": "storage_policy_v1", "bulk_threshold_bytes": 5242880,
-     "run_roots": ["artifacts/runs"], "store_root": "/abs/or/relative/path"}
+     "run_roots": ["artifacts/runs"], "store_root": "/absolute/path"}
 
 Subcommands
   check             report bulk files under the run roots (``--staged``: in
@@ -64,8 +65,15 @@ Exit codes: 0 clean; 1 findings (strict-check violations, verification
 problems, a worktree that must be kept); 2 usage or environment error.
 POSIX (macOS/Linux) only. Nothing here deletes data except ``closeout
 --apply`` (only the paths it is told to prune, after recording their
-digest) and ``sparse-exclude-bulk`` (removes tracked, unmodified files from
-a worktree's checkout; ``git sparse-checkout disable`` restores them).
+per-file inventory) and ``sparse-exclude-bulk`` (removes tracked, unmodified
+files from a worktree's checkout; ``git sparse-checkout disable`` restores
+them).
+
+Operating assumptions: one user's own files (not an adversarial setting),
+and nothing still writing into a tree that is being stowed or closed out.
+Hashes are re-checked immediately before each irreversible step, but a
+process that keeps a file open can still write after the last check; run
+``stow`` and ``closeout`` only after the producing processes have stopped.
 """
 from __future__ import annotations
 
@@ -610,8 +618,10 @@ def manifests_under(repo: Repo) -> "dict[str, tuple[Path, dict]]":
             if MANIFEST_NAME in filenames:
                 run_dir = Path(dirpath)
                 doc = load_manifest(run_dir)
+                run_rel = run_dir.relative_to(repo.toplevel).as_posix()  # walked inside the checkout
                 for entry in doc["entries"]:
-                    found[repo.rel(run_dir / entry["path"])] = (run_dir, entry)
+                    # Lexical path: a symlinked ancestor must not move the key elsewhere.
+                    found[repo.git_form(posixpath.join(run_rel, entry["path"]))] = (run_dir, entry)
     return found
 
 
@@ -629,12 +639,34 @@ def gitignore_escape(rel: str) -> str:
     return "/" + stripped + "\\ " * (len(escaped) - len(stripped))
 
 
+def check_ignore_markers(run_dir: Path) -> None:
+    """The managed block must be absent or exactly one BEGIN ... END pair in
+    that order; anything else would make the rewrite drop user rules."""
+    path = run_dir / ".gitignore"
+    if not path.exists():
+        return
+    inside, blocks = False, 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line == GITIGNORE_BEGIN:
+            if inside:
+                break
+            inside, blocks = True, blocks + 1
+        elif line == GITIGNORE_END:
+            if not inside:
+                inside = None
+                break
+            inside = False
+    else:
+        if not inside and blocks <= 1:
+            return
+    raise StorageError(f"{path}: the managed block markers are not one BEGIN...END pair (edited by hand?); "
+                       "repair them before stowing so no user rule is lost")
+
+
 def update_ignore_block(run_dir: Path, rel_paths: "list[str]") -> None:
+    check_ignore_markers(run_dir)
     path = run_dir / ".gitignore"
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    if lines.count(GITIGNORE_BEGIN) != lines.count(GITIGNORE_END) or lines.count(GITIGNORE_BEGIN) > 1:
-        raise StorageError(f"{path}: the managed block markers are unbalanced (edited by hand?); "
-                           "repair them before stowing so no user rule is lost")
     kept: "list[str]" = []
     inside = False
     for line in lines:
@@ -870,6 +902,7 @@ def cmd_stow(args) -> int:
     tracked = repo.tracked([repo.rel(run_dir)])
     manifest = load_manifest(run_dir) or {"schema": MANIFEST_SCHEMA, "entries": []}
     entries = {e["path"]: e for e in manifest["entries"]}
+    check_ignore_markers(run_dir)  # before anything is changed
 
     # 1. Every entry already recorded must still hold its recorded bytes,
     #    whatever its current size: a recorded result is never re-recorded.
@@ -877,7 +910,7 @@ def cmd_stow(args) -> int:
     restore = []
     for rel_run, entry in sorted(entries.items()):
         status = entry_status(run_dir, store, entry)["status"]
-        if status in ("mismatch", "missing", "store_mismatch"):
+        if status in ("mismatch", "missing", "store_mismatch", "unsafe_path"):
             conflicts.append((rel_run, status))
         elif status == "ok_in_place_only":
             restore.append(rel_run)  # good bytes in place, store copy lost: store again
@@ -937,6 +970,8 @@ def cmd_stow(args) -> int:
             raise StorageError(f"{full} changed while being stowed")
         if method == "existing":
             method = share_store_blocks(full, obj, sha)
+        if sha256_file(full) != sha:  # every branch: what is recorded is what is in place
+            raise StorageError(f"{full} changed while being stowed; stow it after the run has finished writing")
         size = full.lstat().st_size
         if rel_run not in entries:
             entries[rel_run] = {"path": rel_run, "size": size, "sha256": sha, "stowed_utc": utc_now()}
@@ -965,22 +1000,38 @@ def cmd_stow(args) -> int:
 
 # ---------------------------------------------------------- verify / materialize
 
-ENTRY_STATUSES = ("ok", "ok_in_place_only", "in_store_only", "mismatch", "store_mismatch", "missing")
+ENTRY_STATUSES = ("ok", "ok_in_place_only", "in_store_only", "mismatch", "store_mismatch", "missing", "unsafe_path")
 GOOD_ENTRY_STATUSES = ("ok", "in_store_only")
+
+
+def entry_path_is_safe(run_dir: Path, rel: str) -> bool:
+    """A recorded path may not leave the run directory through a symlinked
+    ancestor (its final component is never followed here)."""
+    real_run = Path(os.path.realpath(run_dir))
+    parent = Path(os.path.realpath((run_dir / rel).parent))
+    return parent == real_run or is_under(parent, real_run)
 
 
 def entry_status(run_dir: Path, store: Path, entry: dict) -> dict:
     """ok               in place with the recorded bytes, valid store copy
     ok_in_place_only    in place with the recorded bytes, store copy absent or damaged
     in_store_only       absent in place, valid store copy (`materialize` restores it)
-    mismatch            in place with different bytes
+    mismatch            something else occupies the path (other bytes, a symlink, a special file)
     store_mismatch      absent in place, store object damaged
-    missing             absent in place and in the store"""
+    missing             absent in place and in the store
+    unsafe_path         the recorded path leads out of the run directory"""
     target = run_dir / entry["path"]
     status = {"path": entry["path"], "size": entry["size"], "sha256": entry["sha256"]}
+    if not entry_path_is_safe(run_dir, entry["path"]):
+        status["status"] = "unsafe_path"
+        return status
     store_ok = verify_store_object(store_path(store, entry["sha256"]), entry["sha256"])
-    if target.exists():
-        if not stat.S_ISREG(os.stat(target).st_mode):  # a FIFO or device would block or mislead
+    try:
+        lst = target.lstat()
+    except FileNotFoundError:
+        lst = None
+    if lst is not None:
+        if not stat.S_ISREG(lst.st_mode):  # a symlink (dangling or not), FIFO, or device is not the record
             status.update(status="mismatch", actual_sha256=None)
             return status
         actual = sha256_file(target)
@@ -1029,11 +1080,14 @@ def cmd_materialize(args) -> int:
     done, problems = [], []
     for entry in manifest["entries"]:
         target = run_dir / entry["path"]
+        if not entry_path_is_safe(run_dir, entry["path"]):
+            problems.append({"path": entry["path"], "status": "unsafe_path"})
+            continue
         if target.exists() or target.is_symlink():
             # Something occupies the path: fine only if it already holds the
             # recorded bytes; never overwritten.
-            if target.is_symlink() and not target.exists():
-                problems.append({"path": entry["path"], "status": "occupied_by_dangling_symlink"})
+            if target.is_symlink():
+                problems.append({"path": entry["path"], "status": "occupied_by_symlink"})
             elif not target.is_file():
                 problems.append({"path": entry["path"], "status": "occupied_by_non_file"})
             elif sha256_file(target) != entry["sha256"]:
@@ -1561,6 +1615,7 @@ def cmd_report(args) -> int:
             "Read-only: nothing was changed.",
             "Duplicate bytes are an upper bound: copy-on-write clones share blocks but look like separate files.",
             "Categories can overlap (a stale root may contain duplicates or regenerable directories).",
+            "Stale temporary roots are judged by age alone; check that nothing still uses them before removing.",
             "The compression figure extrapolates a zlib ratio measured on the first 4 MiB of each sampled file.",
         ],
     }
@@ -1570,7 +1625,8 @@ def cmd_report(args) -> int:
         "regenerable_directories": "regenerable directories (dependency trees, caches)",
         "history_copies_contained_in_reference": "separate git object stores already contained in --repo",
         "bundles_contained_in_reference": "git bundles already contained in --repo",
-        "stale_temporary_roots": f"temporary roots older than {args.older_than_days} days",
+        "stale_temporary_roots": f"temporary roots unchanged for {args.older_than_days} days "
+                                 "(age only: whether a process still uses them is not checked)",
         "compression_estimate": "rough saving from compressing large files",
     }
     for key, label in labels.items():
@@ -1833,7 +1889,11 @@ def apply_closeout(root: Path, manifest: dict, manifest_path: Path) -> "list[str
         held_present = held.exists() or held.is_symlink()
         target_present = target.exists() or target.is_symlink()
         if entry.get("tree_digest"):
-            # Already inventoried: only deletion remains (possibly half done).
+            # Already inventoried: only deletion remains (possibly half done),
+            # and only while the recorded inventory is intact.
+            if not verify_store_object(root / entry["inventory_file"], entry["tree_digest"]):
+                raise StorageError(f"the inventory record of {entry['path']} is missing or damaged; the quarantined "
+                                   f"remainder in {held} was kept")
             if target_present:
                 raise StorageError(f"{target} reappeared after it was recorded and moved aside; inspect before resuming")
             if held_present:
@@ -1930,6 +1990,7 @@ def cmd_closeout(args) -> int:
                  f"{human(sum(c['size'] for c in manifest['compressed']))} before compression")
     for skip in manifest.get("compression_skipped", []):
         lines.append(f"    not compressed: {skip['path']} ({skip['reason']})")
+    lines.append("  precondition: nothing writes into this tree any more (the producing processes have stopped)")
     if not args.apply:
         lines.append("  plan only; rerun with --apply to execute")
         emit({**manifest, "applied": False}, args.json, lines)
