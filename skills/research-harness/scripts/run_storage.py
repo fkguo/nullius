@@ -225,10 +225,14 @@ def emit(result: dict, as_json: bool, lines: "list[str]") -> None:
 
 # ---------------------------------------------------------------------- git
 
-def git(args: "list[str]", cwd: Path, check: bool = True, input_bytes: "bytes | None" = None) -> subprocess.CompletedProcess:
+def git(args: "list[str]", cwd: Path, check: bool = True, input_bytes: "bytes | None" = None,
+        literal_pathspecs: bool = True) -> subprocess.CompletedProcess:
     # Never fetch: a partial clone would otherwise download missing objects
     # (network, credentials, and new packs written into a copy being read).
+    # File names are passed as literal pathspecs (a name like ":(exclude)x" is just a name).
     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", LC_ALL="C", GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
+    if literal_pathspecs:  # check-ignore rejects this mode; it refuses magic-looking names instead
+        env["GIT_LITERAL_PATHSPECS"] = "1"
     proc = subprocess.run(
         ["git", "-c", "core.quotepath=off", "-c", "core.fsmonitor=false", "-c", "protocol.allow=never", *args],
         cwd=str(cwd), input=input_bytes, capture_output=True, env=env,
@@ -986,7 +990,7 @@ def cmd_stow(args) -> int:
     for entry in manifest["entries"]:
         target = run_dir / entry["path"]
         if git(["check-ignore", "-q", "--", os.path.relpath(target, repo.toplevel)], repo.toplevel,
-               check=False).returncode != 0:
+               check=False, literal_pathspecs=False).returncode != 0:
             not_ignored.append(entry["path"])
     if not_ignored:
         print(f"run-storage: the ignore block does not cover {not_ignored}; a negation rule elsewhere "
@@ -1195,6 +1199,24 @@ def hidden_tracked_changes(path: Path) -> "list[str]":
     return sorted(changed)
 
 
+def reflog_only_commits(path: Path) -> "list[str]":
+    """Commits in this worktree's own HEAD reflog that no shared ref reaches.
+    The HEAD reflog lives in the worktree's private git directory, so
+    removing the worktree leaves such commits unreferenced (collectable)."""
+    out = git(["reflog", "show", "--format=%H", "HEAD"], path, check=False)
+    if out.returncode != 0:
+        return []
+    remembered = set(out.stdout.decode().split())
+    if not remembered:
+        return []
+    shared = git(["rev-list", "--exclude=refs/worktree/*", "--exclude=refs/bisect/*", "--exclude=refs/rewritten/*",
+                  "--branches", "--tags", "--remotes", "--glob=refs/*", "--exclude=HEAD"], path, check=False)
+    if shared.returncode != 0:
+        return sorted(remembered)  # cannot tell: count every remembered commit as at risk
+    reachable = set(shared.stdout.decode().split())
+    return sorted(remembered - reachable)
+
+
 def worktree_private_refs(path: Path, base: str) -> "list[str]":
     """Per-worktree refs (refs/worktree/*, refs/bisect/*, refs/rewritten/*)
     pointing at commits the base branch does not contain."""
@@ -1255,6 +1277,11 @@ def check_one_worktree(path: Path, base: str, main_root: "Path | None", store: P
     gitlinks = [item for item in git_z(["ls-files", "-z", "--stage"], path) if item.startswith("160000 ")]
     if (path / ".gitmodules").exists() or gitlinks:
         report["reasons"].append("contains submodules; their own commits and changes are not assessed here")
+    reflog_only = reflog_only_commits(path)
+    report["reflog_only_commits"] = reflog_only
+    if reflog_only:
+        report["reasons"].append(f"{len(reflog_only)} commit(s) are remembered only by this worktree's HEAD reflog "
+                                 "(unreferenced once it is removed)")
     private_refs = worktree_private_refs(path, base)
     report["worktree_private_refs"] = private_refs
     if private_refs:
@@ -1663,6 +1690,10 @@ RESERVED_NAMES = (CLOSEOUT_MANIFEST_NAME, QUARANTINE_DIR, PRUNED_INVENTORY_DIR)
 HEX = frozenset("0123456789abcdef")
 
 
+def is_sha256_hex(value) -> bool:
+    return isinstance(value, str) and len(value) == 64 and set(value) <= HEX
+
+
 def is_content_store_object(full: Path) -> bool:
     """<...>/sha256/<2 hex>/<64 hex>: a content-addressed object whose name
     must keep naming its bytes."""
@@ -1860,24 +1891,39 @@ def validate_resumed_plan(root: Path, verdict: Path, manifest: dict) -> None:
     for rel, record in manifest["kept_files"].items():
         ok = isinstance(rel, str) and rel and normalize_prune(rel) == rel and isinstance(record, dict)
         if ok and record.get("type") == "file":
-            ok = (isinstance(record.get("sha256"), str) and len(record["sha256"]) == 64
-                  and isinstance(record.get("size"), int) and not isinstance(record.get("size"), bool))
+            ok = (is_sha256_hex(record.get("sha256")) and isinstance(record.get("size"), int)
+                  and not isinstance(record.get("size"), bool) and record["size"] >= 0)
         elif ok:
             ok = record.get("type") == "symlink" and isinstance(record.get("target"), str)
         if not ok:
             raise StorageError(f"the recorded kept file {rel!r} is malformed; inspect before resuming")
     for entry in manifest["pruned"]:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str) \
-                or check_prune_target(root, entry["path"], verdict_rel) != entry["path"]:
+                or check_prune_target(root, entry["path"], verdict_rel) != entry["path"] \
+                or (entry.get("removed") and not entry.get("tree_digest")):
             raise StorageError(f"the recorded prune entry {entry!r} is not a valid path inside {root}")
         digest = entry.get("tree_digest")
         if digest is not None and (not isinstance(digest, str) or len(digest) != 64
                                    or entry.get("inventory_file") != f"{PRUNED_INVENTORY_DIR}/{digest}.json"):
             raise StorageError(f"the recorded prune entry {entry['path']!r} has an invalid inventory reference")
+    if manifest.get("state") != "applying":
+        raise StorageError(f"the recorded closeout is in state {manifest.get('state')!r}, not an interrupted apply")
+    for entry in manifest["pruned"]:
+        if entry.get("removed") and not (is_sha256_hex(entry.get("tree_digest"))
+                                         and verify_store_object(root / entry["inventory_file"], entry["tree_digest"])):
+            raise StorageError(f"the inventory record of the already removed {entry['path']!r} is missing or "
+                               "damaged; inspect before resuming")
     for entry in manifest["compressed"]:
         rel = entry.get("path") if isinstance(entry, dict) else None
         if not isinstance(rel, str) or normalize_prune(rel) != rel or entry.get("method") not in ("zstd", "xz"):
             raise StorageError(f"the recorded compression entry {entry!r} is malformed")
+        if entry.get("done"):
+            suffix = ".zst" if entry["method"] == "zstd" else ".xz"
+            out = root / (rel + suffix)
+            if entry.get("compressed_path") != rel + suffix or out.is_symlink() or not out.is_file() \
+                    or decompressed_sha(out, entry["method"]) != entry.get("sha256"):
+                raise StorageError(f"the compressed form of the already processed {rel!r} is missing or damaged; "
+                                   "inspect before resuming")
         kept = manifest["kept_files"].get(rel)
         if not isinstance(kept, dict) or kept.get("type") != "file" or kept.get("sha256") != entry.get("sha256"):
             raise StorageError(f"the recorded compression entry {rel!r} does not match a recorded kept file")

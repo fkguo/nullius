@@ -723,6 +723,35 @@ def test_worktree_check_all_survives_an_unreadable_file(tmp_path, monkeypatch, c
         os.chmod(a / "x.log", 0o644)
 
 
+def test_worktree_check_treats_pathspec_magic_names_literally(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    (repo / ":(exclude)valuable").write_text("v1\n")
+    sh("git", "add", "--", ":(literal):(exclude)valuable", cwd=repo)
+    sh("git", "commit", "-q", "-m", "odd name", cwd=repo)
+    wt = _worktree(repo, tmp_path, "lane")
+    (wt / ":(exclude)valuable").write_text("hidden edit\n")
+    subprocess.run(["git", "update-index", "--assume-unchanged", "-z", "--stdin"], cwd=wt,
+                   input=b":(exclude)valuable\0", check=True)
+    capsys.readouterr()
+    assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    assert _verdicts(capsys)["lane"]["tracked_changes"] == [":(exclude)valuable"]
+
+
+def test_worktree_check_keeps_commits_only_the_worktree_reflog_remembers(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    wt = tmp_path / "detached"
+    sh("git", "worktree", "add", "-q", "--detach", str(wt), "main", cwd=repo)
+    (wt / "work.txt").write_text("committed, then reset away\n")
+    sh("git", "add", "-A", cwd=wt)
+    sh("git", "commit", "-q", "-m", "only in the reflog", cwd=wt)
+    lost = sh("git", "rev-parse", "HEAD", cwd=wt).stdout.strip()
+    sh("git", "reset", "-q", "--hard", "main", cwd=wt)  # clean tree, HEAD contained in main
+    capsys.readouterr()
+    assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    v = _verdicts(capsys)["detached"]
+    assert v["verdict"] == "keep" and v["reflog_only_commits"] == [lost]
+
+
 def test_worktree_check_all_survives_a_broken_worktree(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     good = _worktree(repo, tmp_path, "good")
@@ -933,6 +962,42 @@ def test_closeout_resume_needs_an_intact_inventory_before_deleting_more(tmp_path
     assert sorted(p.name for p in held.rglob("*")) == survivors, "the quarantined remainder is kept"
 
 
+@pytest.mark.parametrize("damage", ["removed_entry_inventory", "done_compressed_output"])
+def test_closeout_resume_reverifies_already_completed_steps(tmp_path, monkeypatch, damage):
+    root, verdict, big = _closeout_tree(tmp_path)
+    (root / "evidence" / "second.json").write_bytes(blob(2 * 1024 * 1024, 92))
+    verdict.write_text("PASS\n")
+    monkeypatch.setattr(rs.shutil, "which", lambda name: None)
+    real = rs.compress_to_new_file
+    calls = {"n": 0}
+
+    def second_fails(*a, **k):  # the first compression and the prune complete, the second is interrupted
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise rs.StorageError("simulated interruption")
+        return real(*a, **k)
+
+    monkeypatch.setattr(rs, "compress_to_new_file", second_fails)
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "isolated-copy", "--apply"],
+                    tmp_path, monkeypatch) == rs.EXIT_ERROR
+    manifest = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())
+    done = [c for c in manifest["compressed"] if c.get("done")]
+    assert manifest["pruned"][0]["removed"] and len(done) == 1
+    if damage == "removed_entry_inventory":
+        record = root / manifest["pruned"][0]["inventory_file"]
+        os.chmod(record, 0o644)
+        record.unlink()
+    else:
+        out = root / done[0]["compressed_path"]
+        os.chmod(out, 0o644)
+        out.write_bytes(b"damaged")
+    pending = [c for c in manifest["compressed"] if not c.get("done")][0]
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    assert (root / pending["path"]).exists(), "nothing further is changed"
+    assert json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())["state"] == "applying"
+
+
 def test_closeout_resume_after_partial_deletion_keeps_the_complete_inventory(tmp_path, monkeypatch):
     root, verdict, _ = _interrupted_closeout(tmp_path, monkeypatch, "remove_path")
     first = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())["pruned"][0]
@@ -1107,7 +1172,8 @@ def test_closeout_keeps_content_store_objects_byte_exact(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("broken", ["not json", "no_verdict", "verdict_not_dict", "kept_record_not_dict",
-                                    "kept_record_without_hash"])
+                                    "kept_record_without_hash", "kept_hash_not_hex", "kept_negative_size",
+                                    "kept_path_not_normalized", "kept_symlink_without_target", "state_planned"])
 def test_closeout_refuses_a_broken_recorded_manifest_cleanly(tmp_path, monkeypatch, broken):
     root, verdict, _ = _closeout_tree(tmp_path)
     verdict.write_text("PASS\n")
@@ -1125,8 +1191,18 @@ def test_closeout_refuses_a_broken_recorded_manifest_cleanly(tmp_path, monkeypat
             doc["verdict"] = []
         elif broken == "kept_record_not_dict":
             doc["kept_files"]["evidence/small.txt"] = []
-        else:
+        elif broken == "kept_record_without_hash":
             doc["kept_files"]["evidence/small.txt"].pop("sha256")
+        elif broken == "kept_hash_not_hex":
+            doc["kept_files"]["evidence/small.txt"]["sha256"] = "z" * 64
+        elif broken == "kept_negative_size":
+            doc["kept_files"]["evidence/small.txt"]["size"] = -1
+        elif broken == "kept_path_not_normalized":
+            doc["kept_files"]["evidence//small.txt"] = doc["kept_files"].pop("evidence/small.txt")
+        elif broken == "kept_symlink_without_target":
+            doc["kept_files"]["evidence/small.txt"] = {"type": "symlink"}
+        else:
+            doc["state"] = "planned"
         text = json.dumps(doc)
     (root / rs.CLOSEOUT_MANIFEST_NAME).write_text(text)
     assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,

@@ -96,6 +96,23 @@ test('sweep removes only old, finished roots created by this module', t => {
   for (const dir of [recentInside, live, foreign]) assert.equal(fs.existsSync(dir), true, dir);
 });
 
+test('a root that cannot be fully inspected is never judged old', t => {
+  const parent = scratch(t);
+  const root = path.join(parent, 'orches-999999999-UnReAd');
+  const locked = path.join(root, 'locked');
+  fs.mkdirSync(locked, { recursive: true });
+  fs.writeFileSync(path.join(locked, 'recent.txt'), 'modified just now');
+  age(locked, RETENTION_DAYS + 1);
+  age(root, RETENTION_DAYS + 1);
+  fs.chmodSync(locked, 0o000);
+  try {
+    assert.deepEqual(sweepStaleRoots(parent, { isAlive: () => false }), []);
+    assert.equal(fs.existsSync(root), true);
+  } finally {
+    fs.chmodSync(locked, 0o700);  // before the scratch directory is removed
+  }
+});
+
 test('a root of a live process (this one included) is never swept', t => {
   const parent = scratch(t);
   const own = path.join(parent, `orches-${process.pid}-StUvWx`);

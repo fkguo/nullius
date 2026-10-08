@@ -102,7 +102,9 @@ export function removeTree(root) {
   }
 }
 
-/** Newest modification time anywhere in a tree (the tree itself included). */
+/** Newest modification time anywhere in a tree (the tree itself included).
+ *  Anything that cannot be read counts as just modified (Infinity), so a
+ *  tree that cannot be fully inspected is never judged old. */
 export function newestMtime(root) {
   let newest = 0;
   const stack = [root];
@@ -111,16 +113,17 @@ export function newestMtime(root) {
     let stat;
     try {
       stat = fs.lstatSync(current);
-    } catch {
-      continue;
+    } catch (error) {
+      if (error?.code === 'ENOENT' && current !== root) continue;  // vanished meanwhile
+      return Infinity;
     }
     newest = Math.max(newest, stat.mtimeMs);
     if (!stat.isDirectory()) continue;
-    let entries = [];
+    let entries;
     try {
       entries = fs.readdirSync(current);
     } catch {
-      continue;
+      return Infinity;
     }
     for (const entry of entries) stack.push(path.join(current, entry));
   }
