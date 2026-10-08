@@ -1109,8 +1109,11 @@ def cmd_materialize(args) -> int:
         if args.dry_run:
             done.append({"path": entry["path"], "method": "planned"})
             continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        done.append({"path": entry["path"], "method": place_from_store(dest, target, entry["sha256"])})
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            done.append({"path": entry["path"], "method": place_from_store(dest, target, entry["sha256"])})
+        except OSError as exc:  # e.g. an ancestor became a file: report it and restore the rest
+            problems.append({"path": entry["path"], "status": f"not_placed ({exc.strerror or exc})"})
     lines = [f"run-storage materialize {repo.rel(run_dir)}: {len(done)} restored, {len(problems)} unavailable"]
     lines += [f"  {d['method']:>8}  {d['path']}" for d in done]
     lines += [f"  {p['status']}  {p['path']} (left untouched)" for p in problems]
@@ -1798,9 +1801,10 @@ def check_prune_target(root: Path, rel: str, verdict_rel: "str | None") -> str:
     verdict. Used for the plan and again for every resumed entry."""
     rel = normalize_prune(rel)
     target = root / rel
-    parent = Path(os.path.realpath(target.parent))
-    if not (parent == root or is_under(parent, root)):
-        raise StorageError(f"prune path {rel!r} does not lie inside {root}")
+    # Every ancestor must be a real directory: a symlinked ancestor, even one
+    # pointing elsewhere inside the tree, would delete a path recorded as kept.
+    if Path(os.path.realpath(target.parent)) != target.parent:
+        raise StorageError(f"prune path {rel!r} passes through a symbolic link; name the real path instead")
     if (target.exists() or target.is_symlink()) and not target.is_symlink():
         real = Path(os.path.realpath(target))
         if real == root or not is_under(real, root):
@@ -2167,7 +2171,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(func=cmd_install_hook)
 
-    p = sub.add_parser("stow", help="move a finished run's bulk outputs into the content store")
+    p = sub.add_parser("stow", help="store a finished run's bulk outputs (independent copy; the file stays in place, read-only)")
     common(p)
     p.add_argument("run_dir")
     p.add_argument("--threshold", type=int, default=None)

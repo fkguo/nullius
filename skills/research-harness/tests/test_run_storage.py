@@ -517,6 +517,23 @@ def test_verify_reports_an_ancestor_replaced_by_a_file_and_continues(tmp_path, m
         "ok.bin": "ok", "sub/out.bin": "mismatch"}
 
 
+def test_materialize_reports_a_broken_entry_and_restores_the_rest(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    (run / "a").mkdir(parents=True)
+    (run / "a" / "out.bin").write_bytes(blob(THRESHOLD, 79))
+    (run / "z.bin").write_bytes(blob(THRESHOLD, 80))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    shutil.rmtree(run / "a")
+    (run / "a").write_text("now a file")  # sorts before z.bin
+    (run / "z.bin").unlink()
+    capsys.readouterr()
+    assert run_main(["materialize", str(run), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    doc = json.loads(capsys.readouterr().out)
+    assert [d["path"] for d in doc["restored"]] == ["z.bin"] and (run / "z.bin").exists()
+    assert [p["path"] for p in doc["unavailable"]] == ["a/out.bin"]
+
+
 def test_materialize_in_linked_worktree(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
@@ -725,16 +742,17 @@ def test_worktree_check_all_survives_an_unreadable_file(tmp_path, monkeypatch, c
 
 def test_worktree_check_treats_pathspec_magic_names_literally(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
-    (repo / ":(exclude)valuable").write_text("v1\n")
-    sh("git", "add", "--", ":(literal):(exclude)valuable", cwd=repo)
+    (repo / ":(glob)a").write_text("v1\n")  # read as magic, this names the file "a", not itself
+    (repo / "a").write_text("plain\n")
+    sh("git", "add", "--", ":(literal):(glob)a", "a", cwd=repo)
     sh("git", "commit", "-q", "-m", "odd name", cwd=repo)
     wt = _worktree(repo, tmp_path, "lane")
-    (wt / ":(exclude)valuable").write_text("hidden edit\n")
+    (wt / ":(glob)a").write_text("hidden edit\n")
     subprocess.run(["git", "update-index", "--assume-unchanged", "-z", "--stdin"], cwd=wt,
-                   input=b":(exclude)valuable\0", check=True)
+                   input=b":(glob)a\0", check=True)
     capsys.readouterr()
     assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
-    assert _verdicts(capsys)["lane"]["tracked_changes"] == [":(exclude)valuable"]
+    assert _verdicts(capsys)["lane"]["tracked_changes"] == [":(glob)a"]
 
 
 def test_worktree_check_keeps_commits_only_the_worktree_reflog_remembers(tmp_path, monkeypatch, capsys):
@@ -887,11 +905,13 @@ def _closeout_tree(tmp_path) -> "tuple[Path, Path, bytes]":
 
 
 @pytest.mark.parametrize("bad", [".", "./", "", "../outside", "evidence/..", rs.CLOSEOUT_MANIFEST_NAME, "evidence",
-                                 "linkdir/keepme-link"])
+                                 "linkdir/keepme-link", "inner/observations.json", "inner/verdict.json"])
 def test_closeout_refuses_unsafe_prune_paths(tmp_path, monkeypatch, bad):
     root, verdict, _ = _closeout_tree(tmp_path)
-    if bad == "evidence":  # a prune path that contains the verdict
+    if bad in ("evidence", "inner/verdict.json"):  # prune paths that contain or reach the verdict
         verdict = root / "evidence" / "verdict.json"
+    if bad.startswith("inner/"):  # a symlinked ancestor pointing elsewhere inside the tree
+        os.symlink(root / "evidence", root / "inner")
     if bad.startswith("linkdir/"):  # a path that leaves the tree through a symlinked directory
         outside = tmp_path / "outside"
         outside.mkdir()

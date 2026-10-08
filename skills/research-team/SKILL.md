@@ -307,8 +307,8 @@ contract:
 - **Keep lane checkouts light, and close them after the merge.** A worktree
   re-checks out every tracked file, so in a project whose history holds bulk
   run outputs a lane starts with `research-harness`'s
-  `run_storage.py sparse-exclude-bulk` and materializes only the stowed
-  outputs it reads. After the coordinator merges a lane, it runs
+  `run_storage.py sparse-exclude-bulk` and materializes only the run
+  directories it reads. After the coordinator merges a lane, it runs
   `run_storage.py worktree-check <lane path>` before removing it:
   `git worktree remove` silently deletes ignored files, so a lane is removed
   only when the check reports nothing that exists solely in that checkout.
