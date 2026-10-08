@@ -788,6 +788,9 @@ def test_worktree_check_keeps_commits_only_the_worktree_reflog_remembers(tmp_pat
     assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
     v = _verdicts(capsys)["detached"]
     assert v["verdict"] == "keep" and v["reflog_only_commits"] == [lost]
+    # a worktree-private ref does not count as a shared ref that would keep the commit alive
+    sh("git", "update-ref", "refs/worktree/saved", lost, cwd=wt)
+    assert rs.reflog_only_commits(wt) == [lost]
 
 
 @pytest.mark.parametrize("damage", ["corrupt", "unreadable"])

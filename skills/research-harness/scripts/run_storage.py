@@ -231,7 +231,7 @@ def git(args: "list[str]", cwd: Path, check: bool = True, input_bytes: "bytes | 
     # (network, credentials, and new packs written into a copy being read).
     # File names are passed as literal pathspecs (a name like ":(exclude)x" is just a name).
     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", LC_ALL="C", GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
-    if literal_pathspecs:  # check-ignore rejects this mode; it refuses magic-looking names instead
+    if literal_pathspecs:  # check-ignore dies in this mode (it takes plain path names anyway)
         env["GIT_LITERAL_PATHSPECS"] = "1"
     proc = subprocess.run(
         ["git", "-c", "core.quotepath=off", "-c", "core.fsmonitor=false", "-c", "protocol.allow=never", *args],
@@ -1236,8 +1236,10 @@ def reflog_only_commits(path: Path) -> "list[str]":
         remembered = {line.split()[0] for line in listing if line.endswith(" commit")}  # gone already: nothing to lose
     if not remembered:
         return []
+    # --exclude applies to the next ref selector only, so the exclusions sit
+    # directly before the one --glob that covers every shared ref.
     shared = git(["rev-list", "--exclude=refs/worktree/*", "--exclude=refs/bisect/*", "--exclude=refs/rewritten/*",
-                  "--branches", "--tags", "--remotes", "--glob=refs/*", "--exclude=HEAD"], path, check=False)
+                  "--glob=refs/*"], path, check=False)
     if shared.returncode != 0:
         return sorted(remembered)  # cannot tell: count every remembered commit as at risk
     reachable = set(shared.stdout.decode().split())

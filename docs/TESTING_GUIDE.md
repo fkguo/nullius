@@ -60,7 +60,7 @@ pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 pnpm --filter @nullius/orchestrator exec vitest run tests/run-manifest.test.ts tests/agent-runner.test.ts tests/agent-runner-manifest.test.ts tests/agent-runner-ops-b8-regression.test.ts tests/tool-execution-policy.test.ts tests/tool-dispatch-boundary.test.ts tests/mcp-client-process.test.ts tests/workflow-runtime.test.ts
 ```
 
-每次 vitest 运行把 `TMPDIR` 指向一个专属临时根 `<系统临时目录>/ntest-<uid>/<标签>-<进程号>-XXXXXX/`（标签取包目录名中的字母数字与 `._`，截取前 6 个字符）（`ntest-<uid>` 必须是本用户所有、权限 0700 的真实目录，被预先放置的符号链接或他人目录会被拒绝）（名字刻意短：测试工具会在 `TMPDIR` 下建本地套接字，macOS 上套接字路径超过约 104 字节就无法建立）：全部通过即删除；失败或中断则保留供检查（空目录也保留），其中 7 天无任何改动且创建它的进程已结束的，由之后的运行清除；设 `NULLIUS_KEEP_TEST_TMP=1` 时一律保留。各包 `vitest.config.ts` 的 `globalSetup` 接入 `scripts/lib/vitest-test-temp-root.mjs`；`scripts/tests/vitest-test-temp-root.test.mjs` 锁定接线，并用真实的 vitest 3 与 4 各跑一次通过与失败。
+每次 vitest 运行把 `TMPDIR` 指向一个专属临时根 `<系统临时目录>/ntest-<uid>/<标签>-<进程号>-XXXXXX/`（标签取包目录名中的字母数字与 `._`，截取前 6 个字符；为空时用 `tests`）（`ntest-<uid>` 必须是本用户所有、权限 0700 的真实目录，被预先放置的符号链接或他人目录会被拒绝）（名字刻意短：测试工具会在 `TMPDIR` 下建本地套接字，macOS 上套接字路径超过约 104 字节就无法建立）：全部通过即删除；失败或中断则保留供检查（空目录也保留），其中 7 天无任何改动且创建它的进程已结束的，由之后的运行清除；设 `NULLIUS_KEEP_TEST_TMP=1` 时一律保留。各包 `vitest.config.ts` 的 `globalSetup` 接入 `scripts/lib/vitest-test-temp-root.mjs`；`scripts/tests/vitest-test-temp-root.test.mjs` 锁定接线，并用真实的 vitest 3 与 4 各跑一次通过与失败。
 
 #### 执行恢复与第三方 runner 契约
 
