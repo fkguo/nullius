@@ -378,6 +378,27 @@ def test_symlinks_at_or_above_recorded_paths_are_never_trusted(tmp_path, monkeyp
     assert list(outside.iterdir()) == [], "nothing is created outside the run directory"
 
 
+def test_stow_refuses_a_recorded_path_that_escapes_through_a_symlinked_ancestor(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "a.bin").write_bytes(blob(THRESHOLD, 74))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "escape.bin").write_bytes(blob(THRESHOLD, 75))
+    os.chmod(outside / "escape.bin", 0o644)
+    os.symlink(outside, run / "link")
+    manifest = json.loads((run / rs.MANIFEST_NAME).read_text())
+    manifest["entries"].append({"path": "link/escape.bin", "size": THRESHOLD,
+                                "sha256": rs.sha256_file(outside / "escape.bin")})
+    (run / rs.MANIFEST_NAME).write_text(json.dumps(manifest))
+    (run / "new.bin").write_bytes(blob(THRESHOLD, 76))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_FINDINGS
+    assert stat.S_IMODE((outside / "escape.bin").stat().st_mode) == 0o644, "nothing outside is touched"
+    assert stat.S_IMODE((run / "new.bin").stat().st_mode) & 0o200, "nothing is changed at all"
+
+
 def test_materialize_never_overwrites_an_occupied_path(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
@@ -723,6 +744,21 @@ def test_sparse_exclude_bulk_in_linked_worktree(tmp_path, monkeypatch, capsys):
     assert (wt / "artifacts/runs/legacy/huge.bin").exists()
 
 
+def test_sparse_exclude_bulk_refuses_a_hidden_edit_of_a_bulk_file(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "legacy"
+    run.mkdir()
+    (run / "huge.bin").write_bytes(blob(THRESHOLD * 2, 72))
+    sh("git", "add", "-A", cwd=repo)
+    sh("git", "commit", "-q", "-m", "legacy bulk", cwd=repo)
+    wt = _worktree(repo, tmp_path, "lane")
+    edited = blob(THRESHOLD * 2, 73)
+    (wt / "artifacts/runs/legacy/huge.bin").write_bytes(edited)
+    sh("git", "update-index", "--assume-unchanged", "artifacts/runs/legacy/huge.bin", cwd=wt)
+    assert run_main(["sparse-exclude-bulk"], wt, monkeypatch) == rs.EXIT_ERROR
+    assert (wt / "artifacts/runs/legacy/huge.bin").read_bytes() == edited
+
+
 # ----------------------------------------------------------------- report
 
 def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
@@ -824,6 +860,17 @@ def test_closeout_refuses_unsafe_prune_paths(tmp_path, monkeypatch, bad):
     assert not (root / rs.CLOSEOUT_MANIFEST_NAME).exists()
     if bad.startswith("linkdir/"):
         assert (tmp_path / "outside" / "keepme-link").is_symlink()
+
+
+def test_closeout_prunes_exactly_the_named_path_including_whitespace(tmp_path, monkeypatch):
+    root, verdict, _ = _closeout_tree(tmp_path)
+    verdict.write_text("PASS\n")
+    for name in ("cache", " cache"):
+        (root / name).mkdir()
+        (root / name / "f").write_text(name)
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", " cache", "--no-compress",
+                     "--apply"], tmp_path, monkeypatch) == rs.EXIT_OK
+    assert not (root / " cache").exists() and (root / "cache" / "f").read_text() == "cache"
 
 
 def test_closeout_prune_caches_never_removes_the_verdict(tmp_path, monkeypatch):
@@ -1044,11 +1091,29 @@ def test_closeout_keeps_content_store_objects_byte_exact(tmp_path, monkeypatch):
     assert rs.verify_store_object(obj, obj.name)
 
 
-@pytest.mark.parametrize("broken", ["not json", "{\"schema\": \"storage_closeout_v1\"}"])
+@pytest.mark.parametrize("broken", ["not json", "no_verdict", "verdict_not_dict", "kept_record_not_dict",
+                                    "kept_record_without_hash"])
 def test_closeout_refuses_a_broken_recorded_manifest_cleanly(tmp_path, monkeypatch, broken):
     root, verdict, _ = _closeout_tree(tmp_path)
     verdict.write_text("PASS\n")
-    (root / rs.CLOSEOUT_MANIFEST_NAME).write_text(broken)
+    good = {"schema": rs.CLOSEOUT_SCHEMA, "state": "applying",
+            "verdict": {"path": str(verdict), "sha256": rs.sha256_file(verdict)},
+            "kept_files": {"evidence/small.txt": {"type": "file", "size": 11, "sha256": "a" * 64}},
+            "pruned": [{"path": "isolated-copy"}], "compressed": []}
+    if broken == "not json":
+        text = "not json"
+    else:
+        doc = json.loads(json.dumps(good))
+        if broken == "no_verdict":
+            doc.pop("verdict")
+        elif broken == "verdict_not_dict":
+            doc["verdict"] = []
+        elif broken == "kept_record_not_dict":
+            doc["kept_files"]["evidence/small.txt"] = []
+        else:
+            doc["kept_files"]["evidence/small.txt"].pop("sha256")
+        text = json.dumps(doc)
+    (root / rs.CLOSEOUT_MANIFEST_NAME).write_text(text)
     assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
                     monkeypatch) == rs.EXIT_ERROR
     assert (root / "isolated-copy").exists()

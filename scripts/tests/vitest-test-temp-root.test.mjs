@@ -130,6 +130,12 @@ test('the per-user parent must be a private directory of this user', t => {
   fs.chmodSync(parent, 0o777);
   ensurePrivateParent(parent);  // an existing permissive directory of ours is tightened
   assert.equal(fs.statSync(parent).mode & 0o777, 0o700);
+  const real = fs.lstatSync;
+  t.mock.method(fs, 'lstatSync', target => {  // the same directory, owned by someone else
+    const stat = real(target);
+    return target === parent ? Object.assign(Object.create(Object.getPrototypeOf(stat)), stat, { uid: stat.uid + 1 }) : stat;
+  });
+  assert.throws(() => ensurePrivateParent(parent), /not a directory owned by this user/);
 });
 
 test('removeTree restores write permission on read-only directories', t => {

@@ -35,8 +35,9 @@ Subcommands
                     only with ``--strict``.
   install-hook      install a pre-commit hook running ``check --staged``
                     (never overwrites a foreign hook).
-  stow              move a finished run's bulk outputs into the store
-                    (hard link in place + manifest + ignore block).
+  stow              place a finished run's bulk outputs in the store (an
+                    independent clone or verified copy; the run's file stays
+                    in place, read-only) + manifest + ignore block.
   verify            check every manifest entry against its sha256, in place
                     or in the store.
   materialize       recreate missing manifest entries in place from the
@@ -1383,6 +1384,7 @@ def cmd_sparse_exclude_bulk(args) -> int:
         return EXIT_OK
     bulk_paths = {r["path"] for r in bulk}
     modified = set(git_z(["diff", "--name-only", "-z", "HEAD", "--", *repo.run_roots], repo.toplevel)) & bulk_paths
+    modified |= set(hidden_tracked_changes(repo.toplevel)) & bulk_paths  # edits git status does not show
     if modified:
         raise StorageError(f"{len(modified)} bulk file(s) have local modifications; commit or restore them first")
     patterns = ["/*", *[sparse_pattern(r["path"]) for r in bulk]]
@@ -1724,7 +1726,8 @@ def compress_to_new_file(src: Path, out: Path, sha: str, method: str) -> int:
 
 
 def normalize_prune(rel: str) -> str:
-    rel = posixpath.normpath(rel.strip())
+    # Only lexical normalization; whitespace is part of a file name.
+    rel = posixpath.normpath(rel) if rel else rel
     if rel in ("", ".") or rel.startswith("/") or rel == ".." or rel.startswith("../"):
         raise StorageError(f"--prune {rel!r}: must name a path strictly inside the closed-out directory")
     if rel.split("/")[0] in RESERVED_NAMES:
@@ -1851,6 +1854,15 @@ def validate_resumed_plan(root: Path, verdict: Path, manifest: dict) -> None:
     if not isinstance(manifest.get("kept_files"), dict) or not isinstance(manifest.get("pruned"), list) \
             or not isinstance(manifest.get("compressed"), list):
         raise StorageError("the recorded closeout plan is malformed")
+    for rel, record in manifest["kept_files"].items():
+        ok = isinstance(rel, str) and rel and normalize_prune(rel) == rel and isinstance(record, dict)
+        if ok and record.get("type") == "file":
+            ok = (isinstance(record.get("sha256"), str) and len(record["sha256"]) == 64
+                  and isinstance(record.get("size"), int) and not isinstance(record.get("size"), bool))
+        elif ok:
+            ok = record.get("type") == "symlink" and isinstance(record.get("target"), str)
+        if not ok:
+            raise StorageError(f"the recorded kept file {rel!r} is malformed; inspect before resuming")
     for entry in manifest["pruned"]:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str) \
                 or check_prune_target(root, entry["path"], verdict_rel) != entry["path"]:
