@@ -10,5 +10,7 @@ export default defineConfig({
     // visible while removing the cold-runner flaps — same calibration as
     // packages/orchestrator.
     testTimeout: 20_000,
+    // One temporary root per run, removed when the run passes.
+    globalSetup: ['../../scripts/lib/vitest-test-temp-root.mjs'],
   },
 });

@@ -9,5 +9,7 @@ export default defineConfig({
     // flips tests red under ambient machine load with no assertion ever
     // failing. 20s keeps hangs visible while removing the load-induced flaps.
     testTimeout: 20_000,
+    // One temporary root per run, removed when the run passes.
+    globalSetup: ['../../scripts/lib/vitest-test-temp-root.mjs'],
   },
 });

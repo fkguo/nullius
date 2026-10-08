@@ -10,5 +10,7 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
     },
     testTimeout: 30000,
+    // One temporary root per run, removed when the run passes.
+    globalSetup: ['../../scripts/lib/vitest-test-temp-root.mjs'],
   },
 });
