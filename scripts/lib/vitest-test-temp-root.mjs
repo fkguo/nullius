@@ -9,8 +9,10 @@
 // socket path longer than about 104 bytes (macOS) cannot be bound. At teardown
 // the root is removed only when the run is known to have passed; a failing,
 // interrupted, or unreadable run keeps it for inspection, even when empty.
-// Kept roots whose newest entry is older than the retention window are swept
-// when a later run starts. NULLIUS_KEEP_TEST_TMP=1 keeps the root regardless.
+// Kept roots whose newest entry is older than the retention window, and whose
+// creating process is no longer alive, are swept when a later run starts.
+// NULLIUS_KEEP_TEST_TMP=1 keeps every root: the run's own and, since no sweep
+// runs in that mode, every earlier one.
 //
 // Cleanup problems never fail a test run: they are reported on stderr.
 import fs from 'node:fs';
@@ -119,8 +121,7 @@ export function sweepStaleRoots(parent, { now = Date.now(), retentionDays = RETE
   for (const entry of entries) {
     const match = entry.isDirectory() ? ROOT_NAME_PATTERN.exec(entry.name) : null;
     if (!match) continue;
-    const pid = Number(match[1]);
-    if (pid !== process.pid && isAlive(pid)) continue;
+    if (isAlive(Number(match[1]))) continue;
     const full = path.join(parent, entry.name);
     if (now - newestMtime(full) > retentionDays * DAY_MS && removeTree(full)) removed.push(full);
   }
@@ -161,7 +162,7 @@ export default function setup(project) {
   } catch {
     // already present
   }
-  sweepStaleRoots(parent);
+  if (process.env.NULLIUS_KEEP_TEST_TMP !== '1') sweepStaleRoots(parent);
 
   const label = path.basename(project?.config?.root ?? process.cwd()).replace(/[^A-Za-z0-9._]/g, '').slice(0, 6) || 'tests';
   const root = fs.mkdtempSync(path.join(parent, `${label}-${process.pid}-`));

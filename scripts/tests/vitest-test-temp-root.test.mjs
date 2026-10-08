@@ -95,6 +95,28 @@ test('sweep removes only old, finished roots created by this module', t => {
   for (const dir of [recentInside, live, foreign]) assert.equal(fs.existsSync(dir), true, dir);
 });
 
+test('a root of a live process (this one included) is never swept', t => {
+  const parent = scratch(t);
+  const own = path.join(parent, `orches-${process.pid}-StUvWx`);
+  fs.mkdirSync(own);
+  age(own, RETENTION_DAYS + 1);
+  assert.deepEqual(sweepStaleRoots(parent), []);
+  assert.equal(fs.existsSync(own), true);
+});
+
+test('keep mode sweeps nothing, not even old finished roots', t => {
+  const base = scratch(t);
+  withEnv(t, { TMPDIR: base, TMP: undefined, TEMP: undefined, NULLIUS_KEEP_TEST_TMP: '1' });
+  const parent = testRunsParent(base);
+  fs.mkdirSync(parent, { recursive: true });
+  const old = path.join(parent, 'orches-999999999-YzAbCd');
+  fs.mkdirSync(old);
+  age(old, RETENTION_DAYS + 30);
+  const teardown = setup(fakeProject({ files: [{ result: { state: 'pass' } }] }));
+  teardown();
+  assert.equal(fs.existsSync(old), true);
+});
+
 test('removeTree restores write permission on read-only directories', t => {
   const parent = scratch(t);
   const tree = path.join(parent, 'tree');
