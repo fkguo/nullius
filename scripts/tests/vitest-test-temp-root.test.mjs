@@ -113,6 +113,26 @@ test('a root that cannot be fully inspected is never judged old', t => {
   }
 });
 
+test('a child that vanishes during inspection keeps the root', t => {
+  const parent = scratch(t);
+  const root = path.join(parent, 'orches-999999999-VaNiSh');
+  fs.mkdirSync(path.join(root, 'sub'), { recursive: true });
+  age(path.join(root, 'sub'), RETENTION_DAYS + 1);
+  age(root, RETENTION_DAYS + 1);
+  const real = fs.lstatSync;
+  t.mock.method(fs, 'lstatSync', target => {
+    if (target === path.join(root, 'sub')) {
+      const error = new Error('gone');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    return real(target);
+  });
+  assert.deepEqual(sweepStaleRoots(parent, { isAlive: () => false }), []);
+  t.mock.restoreAll();
+  assert.equal(fs.existsSync(root), true);
+});
+
 test('a root of a live process (this one included) is never swept', t => {
   const parent = scratch(t);
   const own = path.join(parent, `orches-${process.pid}-StUvWx`);

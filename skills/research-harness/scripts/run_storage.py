@@ -1087,38 +1087,43 @@ def cmd_materialize(args) -> int:
         raise StorageError(f"no {MANIFEST_NAME} in {run_dir}")
     done, problems = [], []
     for entry in manifest["entries"]:
-        target = run_dir / entry["path"]
-        if not entry_path_is_safe(run_dir, entry["path"]):
-            problems.append({"path": entry["path"], "status": "unsafe_path"})
-            continue
-        if target.exists() or target.is_symlink():
-            # Something occupies the path: fine only if it already holds the
-            # recorded bytes; never overwritten.
-            if target.is_symlink():
-                problems.append({"path": entry["path"], "status": "occupied_by_symlink"})
-            elif not target.is_file():
-                problems.append({"path": entry["path"], "status": "occupied_by_non_file"})
-            elif sha256_file(target) != entry["sha256"]:
-                problems.append({"path": entry["path"], "status": "occupied_by_different_bytes"})
-            continue
-        dest = store_path(store, entry["sha256"])
-        if not verify_store_object(dest, entry["sha256"]):
-            exists = dest.exists() or dest.is_symlink()
-            problems.append({"path": entry["path"], "status": "store_mismatch" if exists else "missing"})
-            continue
-        if args.dry_run:
-            done.append({"path": entry["path"], "method": "planned"})
-            continue
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            done.append({"path": entry["path"], "method": place_from_store(dest, target, entry["sha256"])})
-        except OSError as exc:  # e.g. an ancestor became a file: report it and restore the rest
+            materialize_entry(run_dir, store, entry, args.dry_run, done, problems)
+        except OSError as exc:  # e.g. an unreadable file or an ancestor that became a file
             problems.append({"path": entry["path"], "status": f"not_placed ({exc.strerror or exc})"})
     lines = [f"run-storage materialize {repo.rel(run_dir)}: {len(done)} restored, {len(problems)} unavailable"]
     lines += [f"  {d['method']:>8}  {d['path']}" for d in done]
     lines += [f"  {p['status']}  {p['path']} (left untouched)" for p in problems]
     emit({"restored": done, "unavailable": problems, "store": str(store)}, args.json, lines)
     return EXIT_FINDINGS if problems else EXIT_OK
+
+
+def materialize_entry(run_dir: Path, store: Path, entry: dict, dry_run: bool, done: list, problems: list) -> None:
+    """Restore one manifest entry from the store, or record why not."""
+    target = run_dir / entry["path"]
+    if not entry_path_is_safe(run_dir, entry["path"]):
+        problems.append({"path": entry["path"], "status": "unsafe_path"})
+        return
+    if target.exists() or target.is_symlink():
+        # Something occupies the path: fine only if it already holds the
+        # recorded bytes; never overwritten.
+        if target.is_symlink():
+            problems.append({"path": entry["path"], "status": "occupied_by_symlink"})
+        elif not target.is_file():
+            problems.append({"path": entry["path"], "status": "occupied_by_non_file"})
+        elif sha256_file(target) != entry["sha256"]:
+            problems.append({"path": entry["path"], "status": "occupied_by_different_bytes"})
+        return
+    dest = store_path(store, entry["sha256"])
+    if not verify_store_object(dest, entry["sha256"]):
+        exists = dest.exists() or dest.is_symlink()
+        problems.append({"path": entry["path"], "status": "store_mismatch" if exists else "missing"})
+        return
+    if dry_run:
+        done.append({"path": entry["path"], "method": "planned"})
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    done.append({"path": entry["path"], "method": place_from_store(dest, target, entry["sha256"])})
 
 
 # ------------------------------------------------------------ worktrees
@@ -1206,10 +1211,29 @@ def reflog_only_commits(path: Path) -> "list[str]":
     """Commits in this worktree's own HEAD reflog that no shared ref reaches.
     The HEAD reflog lives in the worktree's private git directory, so
     removing the worktree leaves such commits unreferenced (collectable)."""
-    out = git(["reflog", "show", "--format=%H", "HEAD"], path, check=False)
-    if out.returncode != 0:
-        return []
-    remembered = set(out.stdout.decode().split())
+    # Read the log file itself: `git reflog` falls back to printing HEAD alone,
+    # with success, when the log is missing, corrupt, or unreadable.
+    log = Path(git_text(["rev-parse", "--git-path", "logs/HEAD"], path))
+    if not log.is_absolute():
+        log = path / log
+    if not (log.exists() or log.is_symlink()):
+        return []  # no reflog: nothing is remembered only there
+    try:
+        data = log.read_bytes()
+    except OSError as exc:
+        raise StorageError(f"cannot read this worktree's HEAD reflog ({exc}); its commits cannot be assessed")
+    remembered: "set[str]" = set()
+    for line in data.decode("utf-8", "replace").splitlines():
+        if not line.strip():
+            continue
+        parts = line.split(" ", 2)
+        if len(parts) < 3 or not all(len(x) in (40, 64) and set(x) <= HEX for x in parts[:2]):
+            raise StorageError("this worktree's HEAD reflog is not readable as a reflog; its commits cannot be assessed")
+        remembered.update(x for x in parts[:2] if set(x) != {"0"})
+    if remembered:
+        listing = git(["cat-file", "--batch-check=%(objectname) %(objecttype)"], path,
+                      input_bytes=("\n".join(sorted(remembered)) + "\n").encode()).stdout.decode().splitlines()
+        remembered = {line.split()[0] for line in listing if line.endswith(" commit")}  # gone already: nothing to lose
     if not remembered:
         return []
     shared = git(["rev-list", "--exclude=refs/worktree/*", "--exclude=refs/bisect/*", "--exclude=refs/rewritten/*",
@@ -1931,9 +1955,9 @@ def validate_resumed_plan(root: Path, verdict: Path, manifest: dict) -> None:
         kept = manifest["kept_files"].get(rel)
         if not isinstance(kept, dict) or kept.get("type") != "file" or kept.get("sha256") != entry.get("sha256"):
             raise StorageError(f"the recorded compression entry {rel!r} does not match a recorded kept file")
-        real_parent = Path(os.path.realpath((root / rel).parent))
-        if not (real_parent == root or is_under(real_parent, root)):
-            raise StorageError(f"the recorded compression entry {rel!r} does not lie inside {root}")
+        if Path(os.path.realpath((root / rel).parent)) != (root / rel).parent:
+            raise StorageError(f"the recorded compression entry {rel!r} passes through a symbolic link or leaves "
+                               f"{root}; inspect before resuming")
 
 
 def write_inventory_record(inventories: Path, data: bytes, digest: str) -> None:
@@ -2006,6 +2030,8 @@ def apply_closeout(root: Path, manifest: dict, manifest_path: Path) -> "list[str
         if entry.get("done"):
             continue
         src = root / entry["path"]
+        if Path(os.path.realpath(src.parent)) != src.parent:
+            raise StorageError(f"{entry['path']} now passes through a symbolic link; it was not compressed")
         suffix = ".zst" if entry["method"] == "zstd" else ".xz"
         out = src.with_name(src.name + suffix)
         src_present = src.exists() or src.is_symlink()

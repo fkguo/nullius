@@ -113,9 +113,8 @@ export function newestMtime(root) {
     let stat;
     try {
       stat = fs.lstatSync(current);
-    } catch (error) {
-      if (error?.code === 'ENOENT' && current !== root) continue;  // vanished meanwhile
-      return Infinity;
+    } catch {
+      return Infinity;  // vanished or unreadable meanwhile: something is still happening here
     }
     newest = Math.max(newest, stat.mtimeMs);
     if (!stat.isDirectory()) continue;

@@ -534,6 +534,26 @@ def test_materialize_reports_a_broken_entry_and_restores_the_rest(tmp_path, monk
     assert [p["path"] for p in doc["unavailable"]] == ["a/out.bin"]
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads unreadable files")
+def test_materialize_continues_past_an_unreadable_occupied_entry(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "a.bin").write_bytes(blob(THRESHOLD, 81))
+    (run / "z.bin").write_bytes(blob(THRESHOLD, 82))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    os.chmod(run / "a.bin", 0)
+    (run / "z.bin").unlink()
+    try:
+        capsys.readouterr()
+        assert run_main(["materialize", str(run), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+        doc = json.loads(capsys.readouterr().out)
+        assert [d["path"] for d in doc["restored"]] == ["z.bin"]
+        assert [p["path"] for p in doc["unavailable"]] == ["a.bin"]
+    finally:
+        os.chmod(run / "a.bin", 0o444)
+
+
 def test_materialize_in_linked_worktree(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
@@ -768,6 +788,26 @@ def test_worktree_check_keeps_commits_only_the_worktree_reflog_remembers(tmp_pat
     assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
     v = _verdicts(capsys)["detached"]
     assert v["verdict"] == "keep" and v["reflog_only_commits"] == [lost]
+
+
+@pytest.mark.parametrize("damage", ["corrupt", "unreadable"])
+def test_worktree_check_keeps_a_worktree_whose_reflog_cannot_be_read(tmp_path, monkeypatch, capsys, damage):
+    if damage == "unreadable" and os.geteuid() == 0:
+        pytest.skip("root reads unreadable files")
+    repo = make_repo(tmp_path)
+    wt = _worktree(repo, tmp_path, "lane")
+    log = Path(sh("git", "rev-parse", "--git-path", "logs/HEAD", cwd=wt).stdout.strip())
+    log = log if log.is_absolute() else wt / log
+    if damage == "corrupt":
+        log.write_text("not a reflog line\n")
+    else:
+        os.chmod(log, 0)
+    try:
+        capsys.readouterr()
+        assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+        assert _verdicts(capsys)["lane"]["verdict"] == "keep"
+    finally:
+        os.chmod(log, 0o644)
 
 
 def test_worktree_check_all_survives_a_broken_worktree(tmp_path, monkeypatch, capsys):
@@ -1102,6 +1142,32 @@ def test_tree_digest_compare_refuses_a_damaged_inventory(tmp_path, monkeypatch, 
     (tree / "g").write_text("changed")  # a different tree, so the damaged object is not simply rewritten
     assert run_main(["tree-digest", str(tree), "--store", str(store), "--compare", digest], tmp_path,
                     monkeypatch) == rs.EXIT_ERROR
+
+
+def test_closeout_resume_refuses_a_compression_path_that_became_a_symlink(tmp_path, monkeypatch):
+    root, verdict, big = _closeout_tree(tmp_path)
+    (root / "a").mkdir()
+    (root / "a" / "copy.json").write_bytes(big)
+    verdict = root / "evidence" / "copy.json"  # the verdict has the same bytes and name under another directory
+    verdict.write_bytes(big)
+    monkeypatch.setattr(rs.shutil, "which", lambda name: None)
+    real = rs.compress_to_new_file
+    calls = {"n": 0}
+
+    def first_fails(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise rs.StorageError("simulated interruption")
+        return real(*a, **k)
+
+    monkeypatch.setattr(rs, "compress_to_new_file", first_fails)
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    shutil.rmtree(root / "a")
+    os.symlink(root / "evidence", root / "a")  # a/copy.json now resolves to the verdict
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    assert verdict.read_bytes() == big
 
 
 @pytest.mark.parametrize("tamper", ["escaping_prune", "escaping_compress", "inventory_mismatch"])
