@@ -418,6 +418,10 @@ def test_closeout_plans_then_applies_with_manifest(tmp_path, monkeypatch, capsys
     (root / "evidence" / "small.txt").write_text("kept as is\n")
     verdict = root / "verdict.json"
     assert run_main(["closeout", str(root), "--verdict", str(verdict)], tmp_path, monkeypatch) == rs.EXIT_ERROR
+    verdict.write_text("")  # an empty verdict file is not a recorded verdict
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "isolated-copy", "--apply"],
+                    tmp_path, monkeypatch) == rs.EXIT_ERROR
+    assert (root / "isolated-copy").exists() and not (root / rs.CLOSEOUT_MANIFEST_NAME).exists()
     verdict.write_text('{"verdict": "PASS"}\n')
     assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "isolated-copy"],
                     tmp_path, monkeypatch) == rs.EXIT_OK
