@@ -632,6 +632,9 @@ def gitignore_escape(rel: str) -> str:
 def update_ignore_block(run_dir: Path, rel_paths: "list[str]") -> None:
     path = run_dir / ".gitignore"
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    if lines.count(GITIGNORE_BEGIN) != lines.count(GITIGNORE_END) or lines.count(GITIGNORE_BEGIN) > 1:
+        raise StorageError(f"{path}: the managed block markers are unbalanced (edited by hand?); "
+                           "repair them before stowing so no user rule is lost")
     kept: "list[str]" = []
     inside = False
     for line in lines:
@@ -977,6 +980,9 @@ def entry_status(run_dir: Path, store: Path, entry: dict) -> dict:
     status = {"path": entry["path"], "size": entry["size"], "sha256": entry["sha256"]}
     store_ok = verify_store_object(store_path(store, entry["sha256"]), entry["sha256"])
     if target.exists():
+        if not stat.S_ISREG(os.stat(target).st_mode):  # a FIFO or device would block or mislead
+            status.update(status="mismatch", actual_sha256=None)
+            return status
         actual = sha256_file(target)
         if actual != entry["sha256"]:
             status.update(status="mismatch", actual_sha256=actual)
@@ -1976,9 +1982,15 @@ def cmd_tree_digest(args) -> int:
         if store is None:
             raise StorageError("--compare needs --store (the earlier inventory is read from it)")
         other = store_path(store, args.compare)
-        if not other.exists():
-            raise StorageError(f"no stored inventory for digest {args.compare}")
-        diff = diff_inventories(json.loads(other.read_text(encoding="utf-8")), inventory)
+        if not verify_store_object(other, args.compare):
+            raise StorageError(f"no intact stored inventory for digest {args.compare}")
+        try:
+            earlier = json.loads(other.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise StorageError(f"the stored object {args.compare} is not an inventory ({exc})")
+        if not isinstance(earlier, dict):
+            raise StorageError(f"the stored object {args.compare} is not an inventory")
+        diff = diff_inventories(earlier, inventory)
         result["compare"] = {"digest": args.compare, "equal": args.compare == digest, **diff}
         if args.compare == digest:
             lines.append("identical to the compared tree")

@@ -137,8 +137,11 @@ test('setup gives a fresh short root; teardown removes it only after a pass', t 
     const teardown = setup(project);
     const root = os.tmpdir();
     assert.ok(root.startsWith(testRunsParent(base) + path.sep), root);
-    // Unix-domain sockets under TMPDIR must stay bindable (about 104 bytes on macOS).
-    assert.ok(root.length - base.length <= 32, `root suffix too long: ${root}`);
+    // Unix-domain sockets under TMPDIR must stay bindable (about 104 bytes on macOS): the
+    // suffix is exactly /ntest-<uid>/<label<=6>-<pid>-XXXXXX (22 fixed characters at most), nothing longer.
+    const uidDigits = String(process.getuid?.() ?? 'user').length;
+    assert.ok(root.length - base.length <= 22 + uidDigits + String(process.pid).length, `root suffix too long: ${root}`);
+    assert.equal(fs.statSync(testRunsParent(base)).mode & 0o777, 0o700, 'per-user parent is private');
     if (leaveFile) fs.writeFileSync(path.join(root, 'leftover'), 'x');
     teardown();
     assert.equal(process.env.TMPDIR, base, 'teardown restores the previous TMPDIR');

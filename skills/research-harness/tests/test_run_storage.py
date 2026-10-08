@@ -693,6 +693,7 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     sh("git", "update-ref", "refs/heads/kept-here", loose, cwd=dangling)
     sh("git", "fetch", "-q", str(dangling), "refs/heads/kept-here:refs/heads/tmp-ref", cwd=repo)
     sh("git", "update-ref", "-d", "refs/heads/tmp-ref", cwd=repo)  # object stays, now unreachable
+    sh("git", "bundle", "create", str(scratch / "dangling.bundle"), "kept-here", cwd=dangling)
     staged = scratch / "staged-only"  # a blob held only by the copy's index
     sh("git", "clone", "-q", str(repo), str(staged), cwd=tmp_path)
     (staged / "s.txt").write_text("staged, never committed\n")
@@ -714,7 +715,7 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     assert doc["summary_bytes"]["duplicate_content"] == len(dup)
     assert doc["summary_bytes"]["regenerable_directories"] == 1000, "overlapping roots are counted once"
     bundles = {Path(b["path"]).name: b["contained_in_reference"] for b in doc["bundles"]}
-    assert bundles == {"contained.bundle": True, "extra.bundle": False}
+    assert bundles == {"contained.bundle": True, "extra.bundle": False, "dangling.bundle": False}
     stores = {Path(g["path"]).name: g["contained_in_reference"] for g in doc["git_object_stores"]}
     assert stores == {"copy-of-history.git": False, "same-history.git": True, "tag-only-history.git": False,
                       "dangling-history.git": False, ".git": False}
@@ -805,6 +806,63 @@ def test_closeout_resume_never_removes_bytes_written_after_the_plan(tmp_path, mo
     assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
                     monkeypatch) == rs.EXIT_ERROR
     assert src.read_bytes() == b"new result written after the plan"
+
+
+def test_closeout_never_removes_an_original_rewritten_during_compression(tmp_path, monkeypatch):
+    root, verdict, big = _closeout_tree(tmp_path)
+    verdict.write_text("PASS\n")
+    monkeypatch.setattr(rs.shutil, "which", lambda name: None)
+    real = rs.compress_to_new_file
+
+    def compress_then_write(src, out, sha, method):
+        size = real(src, out, sha, method)
+        os.chmod(src, 0o644)
+        src.write_bytes(b"result written while compressing")  # a producer that did not stop
+        return size
+
+    monkeypatch.setattr(rs, "compress_to_new_file", compress_then_write)
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    assert (root / "evidence" / "observations.json").read_bytes() == b"result written while compressing"
+
+
+def test_stow_refuses_unbalanced_managed_block_markers(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "big.bin").write_bytes(blob(THRESHOLD, 66))
+    (run / ".gitignore").write_text(f"user-rule-1\n{rs.GITIGNORE_BEGIN}\nuser-rule-2\n")
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_ERROR
+    assert "user-rule-2" in (run / ".gitignore").read_text()
+
+
+def test_verify_never_opens_a_special_file_at_a_recorded_path(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "out.bin").write_bytes(blob(THRESHOLD, 67))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    (run / "out.bin").unlink()
+    os.mkfifo(run / "out.bin")
+    capsys.readouterr()
+    assert run_main(["verify", str(run), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    assert [e["status"] for e in json.loads(capsys.readouterr().out)["entries"]] == ["mismatch"]
+
+
+def test_tree_digest_compare_refuses_a_damaged_inventory(tmp_path, monkeypatch, capsys):
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "f").write_text("x")
+    store = tmp_path / "store"
+    capsys.readouterr()
+    assert run_main(["tree-digest", str(tree), "--store", str(store), "--json"], tmp_path, monkeypatch) == rs.EXIT_OK
+    digest = json.loads(capsys.readouterr().out)["digest"]
+    obj = rs.store_path(store, digest)
+    os.chmod(obj, 0o644)
+    obj.write_text("not json")
+    (tree / "g").write_text("changed")  # a different tree, so the damaged object is not simply rewritten
+    assert run_main(["tree-digest", str(tree), "--store", str(store), "--compare", digest], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
 
 
 @pytest.mark.parametrize("tamper", ["escaping_prune", "escaping_compress", "inventory_mismatch"])
