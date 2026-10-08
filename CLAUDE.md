@@ -85,3 +85,11 @@
 - 本仓的本地 maintainer 材料可以存在于 gitignored 目录或仓外备份，但不要把它们重新纳入公开 Git 跟踪。
 - 若某项工作需要更细粒度的 lane plan、formal review packet、closeout tracker 或 branch/worktree queue，请在本地维护，不要把这些材料重新当作 public product docs。
 - 从 public repo 移除的开发过程文件，默认迁到 `~/.nullius-dev/`，优先按 `trackers/`、`plans/`、`reviews/`、`prompts/`、`closeouts/`、`archives/` 分区维护。
+- 开发过程暂存与验收运行的存储纪律（工具：`skills/research-harness/scripts/run_storage.py`）：
+  - 要保留的证据不得放在 `/tmp` 或 `$TMPDIR`；验收运行若用临时根，判词落盘后把要保留的部分转入 `~/.nullius-dev/` 并删除临时根，不留两份。
+  - 隔离副本用 `git clone --shared --no-checkout` 或 `git worktree add --detach`，依赖目录用写时复制（APFS `cp -c -R`，Linux `cp --reflink=auto`）；不用 `--no-hardlinks` 全量克隆加整棵复制依赖目录。
+  - 被观测的文件按内容哈希只存一份（`run_storage.py store-put` 到整个任务共用的存储目录，各用例、各次重试只记哈希）；前后对比用 `run_storage.py tree-digest --store`（相同只存一份清单，`--compare` 只在不同时列差异），不做逐次的全量清单。
+  - 新一次重试只引用上一次的结果（路径 + 哈希），不整目录复制上一次。
+  - 判词落盘后必须收尾：`run_storage.py closeout <dir> --verdict <file> --prune <可再生成路径> --apply`（先写全树哈希清单，再删可再生成大件、压缩剩余大文件）。
+  - 单个任务目录超过 2 GB 时，先跑 `run_storage.py report <dir>` 看可回收字节并收尾，再继续。
+  - 测试临时文件由每次 vitest 运行的临时根管理（通过即删，失败保留 7 天；`NULLIUS_KEEP_TEST_TMP=1` 一律保留）；测试不得把临时目录建在这个根之外。

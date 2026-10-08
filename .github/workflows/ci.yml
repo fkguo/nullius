@@ -197,6 +197,9 @@ jobs:
       - name: Python tests (launch authorization gate behavior)
         run: python -m pytest skills/research-harness/tests/test_launch_authorization_gate.py -q
 
+      - name: Python tests (run storage: bulk outputs, worktrees, closeout)
+        run: python -m pytest skills/research-harness/tests/test_run_storage.py -q
+
       - name: Python tests (delegation-budget gate behavior)
         run: python -m pytest skills/research-team/tests/test_delegation_budget_gate.py -q
 

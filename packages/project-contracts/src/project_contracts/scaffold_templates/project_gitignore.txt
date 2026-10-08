@@ -23,7 +23,12 @@ artifacts/cache/
 .nullius/ledger.jsonl
 .nullius/backups/
 
-# Run evidence roots (artifacts/runs/, artifacts/runs/, provider run records) and
+# Run evidence roots (artifacts/runs/, provider run records) and
 # reference source snapshots are deliberately NOT listed here: whether to
 # track them is a project decision — declare it explicitly (and record it
 # with `nullius decision record`) rather than inheriting a default either way.
+#
+# Bulk run outputs (5 MiB or more by default) are the exception that needs no
+# rule here: research-harness `run_storage.py stow <run_dir>` writes a managed
+# block into that run directory's own .gitignore listing exactly the stowed
+# files, and records their hashes in the tracked bulk_manifest.json.
