@@ -2,23 +2,46 @@
 // every package's vitest config).
 //
 // Before any worker starts, TMPDIR/TMP/TEMP are pointed at one fresh
-// directory <original tmpdir>/nullius-test-runs/<package>-<utc>-<pid>-XXXXXX,
-// so every os.tmpdir() call in tests (and in child processes they spawn)
-// lands inside it. At teardown the root is removed only when the run is
-// known to have passed; a failing, interrupted, or unreadable run keeps it
-// for inspection. Kept roots older than the retention window are swept when
-// a later run starts. NULLIUS_KEEP_TEST_TMP=1 keeps the root regardless.
+// directory <original tmpdir>/ntest-<uid>/<package[:6]>-<pid>-XXXXXX (per
+// user, so a shared /tmp never mixes owners), so every os.tmpdir() call in
+// tests (and in child processes they spawn) lands inside it. The names are
+// deliberately short: tools create Unix-domain sockets under TMPDIR, and a
+// socket path longer than about 104 bytes (macOS) cannot be bound. At teardown
+// the root is removed only when the run is known to have passed; a failing,
+// interrupted, or unreadable run keeps it for inspection, even when empty.
+// Kept roots whose newest entry is older than the retention window are swept
+// when a later run starts. NULLIUS_KEEP_TEST_TMP=1 keeps the root regardless.
 //
 // Cleanup problems never fail a test run: they are reported on stderr.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const TEST_RUNS_PARENT_NAME = 'nullius-test-runs';
+export const TEST_RUNS_PARENT_PREFIX = 'ntest';
+const PARENT_README = 'Per-run temporary roots of the nullius test suites '
+  + '(scripts/lib/vitest-test-temp-root.mjs). A passing run removes its root; a failing run keeps it, '
+  + 'and roots unchanged for 7 days are removed by a later run. NULLIUS_KEEP_TEST_TMP=1 keeps every root.\n';
+
+export function testRunsParent(baseTmp = os.tmpdir()) {
+  const uid = typeof process.getuid === 'function' ? String(process.getuid()) : 'user';
+  return path.join(baseTmp, `${TEST_RUNS_PARENT_PREFIX}-${uid}`);
+}
 export const RETENTION_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
-// Only directories this module created are ever swept.
-const ROOT_NAME_PATTERN = /^[A-Za-z0-9._-]+-\d{8}T\d{6}Z-\d+-[A-Za-z0-9]{6}$/;
+// Only directories this module created are ever swept; the pid of the run
+// that created a root is part of its name.
+const ROOT_NAME_PATTERN = /^[A-Za-z0-9._]{1,6}-(\d+)-[A-Za-z0-9]{6}$/;
+
+/** True when a process with this pid exists (a live watch session keeps its
+ *  root however long it idles; a reused pid only delays the sweep). */
+export function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
+}
 
 function warn(message) {
   process.stderr.write(`[test-temp-root] ${message}\n`);
@@ -58,9 +81,34 @@ export function removeTree(root) {
   }
 }
 
-/** Delete kept run roots under `parent` whose modification time is older
- *  than the retention window. Returns the removed paths. */
-export function sweepStaleRoots(parent, { now = Date.now(), retentionDays = RETENTION_DAYS } = {}) {
+/** Newest modification time anywhere in a tree (the tree itself included). */
+export function newestMtime(root) {
+  let newest = 0;
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch {
+      continue;
+    }
+    newest = Math.max(newest, stat.mtimeMs);
+    if (!stat.isDirectory()) continue;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current);
+    } catch {
+      continue;
+    }
+    for (const entry of entries) stack.push(path.join(current, entry));
+  }
+  return newest;
+}
+
+/** Delete kept run roots under `parent` in which nothing has been modified
+ *  for longer than the retention window. Returns the removed paths. */
+export function sweepStaleRoots(parent, { now = Date.now(), retentionDays = RETENTION_DAYS, isAlive = processAlive } = {}) {
   const removed = [];
   let entries;
   try {
@@ -69,15 +117,12 @@ export function sweepStaleRoots(parent, { now = Date.now(), retentionDays = RETE
     return removed;
   }
   for (const entry of entries) {
-    if (!entry.isDirectory() || !ROOT_NAME_PATTERN.test(entry.name)) continue;
+    const match = entry.isDirectory() ? ROOT_NAME_PATTERN.exec(entry.name) : null;
+    if (!match) continue;
+    const pid = Number(match[1]);
+    if (pid !== process.pid && isAlive(pid)) continue;
     const full = path.join(parent, entry.name);
-    let stat;
-    try {
-      stat = fs.lstatSync(full);
-    } catch {
-      continue;
-    }
-    if (now - stat.mtimeMs > retentionDays * DAY_MS && removeTree(full)) removed.push(full);
+    if (now - newestMtime(full) > retentionDays * DAY_MS && removeTree(full)) removed.push(full);
   }
   return removed;
 }
@@ -108,18 +153,18 @@ export function runPassed(project) {
   }
 }
 
-function utcStamp(date = new Date()) {
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-}
-
 export default function setup(project) {
-  const originalTmp = os.tmpdir();
-  const parent = path.join(originalTmp, TEST_RUNS_PARENT_NAME);
-  fs.mkdirSync(parent, { recursive: true });
+  const parent = testRunsParent();
+  fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+  try {
+    fs.writeFileSync(path.join(parent, 'README.txt'), PARENT_README, { flag: 'wx' });
+  } catch {
+    // already present
+  }
   sweepStaleRoots(parent);
 
-  const label = path.basename(project?.config?.root ?? process.cwd()).replace(/[^A-Za-z0-9._-]/g, '-') || 'tests';
-  const root = fs.mkdtempSync(path.join(parent, `${label}-${utcStamp()}-${process.pid}-`));
+  const label = path.basename(project?.config?.root ?? process.cwd()).replace(/[^A-Za-z0-9._]/g, '').slice(0, 6) || 'tests';
+  const root = fs.mkdtempSync(path.join(parent, `${label}-${process.pid}-`));
   const previous = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
   process.env.TMPDIR = root;
   process.env.TMP = root;
@@ -135,17 +180,7 @@ export default function setup(project) {
       return;
     }
     if (!runPassed(project)) {
-      let empty = false;
-      try {
-        empty = fs.readdirSync(root).length === 0;
-      } catch {
-        empty = false;
-      }
-      if (empty) {
-        removeTree(root);
-        return;
-      }
-      warn(`run did not pass; kept ${root} (swept after ${RETENTION_DAYS} days)`);
+      warn(`run did not pass; kept ${root} (swept after ${RETENTION_DAYS} days without changes)`);
       return;
     }
     removeTree(root);

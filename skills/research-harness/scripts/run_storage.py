@@ -75,6 +75,8 @@ import hashlib
 import json
 import lzma
 import os
+import posixpath
+import secrets
 import shlex
 import shutil
 import stat
@@ -82,6 +84,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 import zlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -252,7 +255,14 @@ class Repo:
         git_dir = git_text(["rev-parse", "--git-dir"], self.toplevel)
         self.git_dir = (self.toplevel / git_dir).resolve() if not os.path.isabs(git_dir) else Path(git_dir).resolve()
         self.is_linked_worktree = self.git_dir != self.common_dir
+        # With core.precomposeUnicode (set by `git init` on macOS) git names
+        # files in composed (NFC) form whatever form the file system returns.
+        self.precompose = git(["config", "--bool", "core.precomposeunicode"], self.toplevel,
+                              check=False).stdout.decode().strip() == "true"
         self.policy = load_policy(self.toplevel)
+
+    def git_form(self, rel: str) -> str:
+        return unicodedata.normalize("NFC", rel) if self.precompose else rel
 
     @property
     def threshold(self) -> int:
@@ -267,12 +277,20 @@ class Repo:
             return Path(override).expanduser().resolve()
         configured = self.policy.get("store_root")
         if configured:
-            p = Path(configured).expanduser()
-            return (p if p.is_absolute() else self.toplevel / p).resolve()
+            return Path(configured).expanduser().resolve()
         return self.common_dir.joinpath(*STORE_SUBPATH)
 
     def rel(self, path: Path) -> str:
-        return path.resolve().relative_to(self.toplevel).as_posix()
+        """Repository-relative path; the final component is never followed,
+        so a symlink inside the checkout keeps its own path."""
+        path = Path(path)
+        parent = Path(os.path.realpath(path.parent))
+        try:
+            rel = (parent / path.name).relative_to(self.toplevel).as_posix()
+        except ValueError:
+            raise StorageError(f"{path} resolves outside the repository {self.toplevel} "
+                               "(a symlinked directory?); git does not track content behind symlinks")
+        return self.git_form(rel)
 
     def tracked(self, pathspecs: "list[str]") -> "set[str]":
         return set(git_z(["ls-files", "-z", "--", *pathspecs], self.toplevel)) if pathspecs else set()
@@ -312,9 +330,12 @@ def load_policy(toplevel: Path) -> dict:
             raise StorageError(f"{POLICY_REL}: run_roots must be a non-empty list of relative paths")
         policy["run_roots"] = [r.strip("/") for r in roots]
     if doc.get("store_root") is not None:
-        if not isinstance(doc["store_root"], str) or not doc["store_root"]:
-            raise StorageError(f"{POLICY_REL}: store_root must be a non-empty string")
-        policy["store_root"] = doc["store_root"]
+        root = doc["store_root"]
+        if not isinstance(root, str) or not Path(root).expanduser().is_absolute():
+            # A relative store would resolve inside each checkout, so removing a
+            # worktree could delete the very store that was meant to outlive it.
+            raise StorageError(f"{POLICY_REL}: store_root must be an absolute path (or start with ~)")
+        policy["store_root"] = root
     return policy
 
 
@@ -328,74 +349,211 @@ def resolve_threshold(repo: "Repo | None", override: "int | None") -> int:
 
 # ------------------------------------------------------------ content store
 
+LINK_ERRNOS = (errno.EXDEV, errno.EPERM, errno.EMLINK, errno.ENOTSUP, errno.EACCES)
+
+
 def store_path(store: Path, sha: str) -> Path:
     return store / "sha256" / sha[:2] / sha
 
 
-def store_put(path: Path, store: Path, prefer_link: bool = True) -> "tuple[str, Path, str]":
+def verify_store_object(obj: Path, sha: str) -> bool:
+    """A store object counts only when it is a regular file (never a symlink)
+    whose full sha256 equals the hash it is filed under."""
+    try:
+        st = obj.lstat()
+    except OSError:
+        return False
+    if not stat.S_ISREG(st.st_mode):
+        return False
+    try:
+        return sha256_file(obj) == sha
+    except OSError:
+        return False
+
+
+def clone_file(src: Path, dst: Path) -> bool:
+    """Copy-on-write clone of ``src`` at the new path ``dst``: an independent
+    file that shares data blocks until either side is modified. True only
+    when the file system really cloned (APFS clonefile, Linux FICLONE)."""
+    if sys.platform == "darwin":
+        try:
+            import ctypes
+            import ctypes.util
+            libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+            fn = libc.clonefile
+            fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint32]
+            fn.restype = ctypes.c_int
+            return fn(os.fsencode(str(src)), os.fsencode(str(dst)), 0) == 0
+        except (OSError, AttributeError):
+            return False
+    if sys.platform.startswith("linux"):
+        import fcntl
+        ficlone = 0x40049409
+        try:
+            with open(src, "rb") as s_fh, open(dst, "xb") as d_fh:
+                fcntl.ioctl(d_fh.fileno(), ficlone, s_fh.fileno())
+            return True
+        except OSError:
+            try:
+                os.unlink(dst)
+            except OSError:
+                pass
+            return False
+    return False
+
+
+def incoming_path(directory: Path) -> Path:
+    return directory / f".incoming-{os.getpid()}-{secrets.token_hex(8)}"
+
+
+def fsync_file(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def copy_file_durably(src: Path, dst: Path) -> None:
+    with open(src, "rb") as s_fh, open(dst, "xb") as d_fh:
+        shutil.copyfileobj(s_fh, d_fh, CHUNK)
+        d_fh.flush()
+        os.fsync(d_fh.fileno())
+
+
+def set_aside_damaged(obj: Path) -> Path:
+    """Move a store object whose bytes do not match its name out of the way.
+    Nothing is deleted: the damaged bytes stay next to it for inspection."""
+    aside = obj.with_name(f"{obj.name}.damaged-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-"
+                          f"{secrets.token_hex(4)}")
+    os.rename(obj, aside)
+    print(f"run-storage: store object {obj} did not match its hash; moved to {aside.name}", file=sys.stderr)
+    return aside
+
+
+def publish(tmp: Path, dest: Path, sha: str) -> bool:
+    """Create ``dest`` from the verified ``tmp`` without ever replacing an
+    existing name. Returns False when an equal object was already there."""
+    try:
+        os.link(tmp, dest)
+    except FileExistsError:
+        if verify_store_object(dest, sha):
+            return False
+        set_aside_damaged(dest)
+        os.link(tmp, dest)
+    fsync_dir(dest.parent)
+    return True
+
+
+def store_put(path: Path, store: Path, allow_link: bool = True) -> "tuple[str, Path, str]":
     """Place ``path``'s bytes into ``store`` under their sha256.
 
-    With ``prefer_link`` the store entry is a hard link to ``path`` (same
-    inode, no extra space) and both names become read-only; across file
-    systems, or with ``prefer_link=False``, a verified copy is written.
-    Returns (sha256, store entry, method) with method in
-    {"existing", "link", "copy"}.
+    Preference order: a copy-on-write clone (independent file, no extra
+    blocks); with ``allow_link``, a hard link on the same file system (no
+    extra space, but ONE inode shared with ``path`` — both names are made
+    read-only); otherwise a durable byte copy. An existing object is trusted
+    only after its full hash is verified; a damaged one is set aside (never
+    deleted) and replaced. The source is hashed before and after, so a file
+    still being written is refused. Returns (sha256, object, method) with
+    method in {"existing", "clone", "link", "copy"}.
     """
     path = Path(path)
     st = path.lstat()
     if not stat.S_ISREG(st.st_mode):
         raise StorageError(f"not a regular file: {path}")
-    if prefer_link:
-        os.chmod(path, stat.S_IMODE(st.st_mode) & ~0o222)
     sha = sha256_file(path)
     dest = store_path(store, sha)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.exists():
-        if dest.stat().st_size != st.st_size:
-            raise StorageError(f"store entry {dest} has the wrong size; the store is damaged")
-        return sha, dest, "existing"
-    if prefer_link:
-        try:
-            os.link(path, dest)
-            if sha256_file(dest) != sha:
-                os.unlink(dest)
-                raise StorageError(f"{path} changed while being stored; stow it after the run has finished")
-            fsync_dir(dest.parent)
-            return sha, dest, "link"
-        except FileExistsError:
+    if dest.exists() or dest.is_symlink():
+        if verify_store_object(dest, sha):
             return sha, dest, "existing"
-        except OSError as exc:
-            if exc.errno not in (errno.EXDEV, errno.EPERM, errno.EMLINK, errno.ENOTSUP):
-                raise
-    fd, tmp = tempfile.mkstemp(prefix=f".{sha}.", suffix=".tmp", dir=dest.parent)
+        set_aside_damaged(dest)
+    tmp = incoming_path(dest.parent)
+    same_device = os.stat(dest.parent).st_dev == st.st_dev
+    method = None
     try:
-        h = hashlib.sha256()
-        with os.fdopen(fd, "wb") as out, open(path, "rb") as src:
-            for block in iter(lambda: src.read(CHUNK), b""):
-                h.update(block)
-                out.write(block)
-            out.flush()
-            os.fsync(out.fileno())
-        if h.hexdigest() != sha:
-            raise StorageError(f"{path} changed while being stored; stow it after the run has finished")
-        os.chmod(tmp, 0o444)
-        os.replace(tmp, dest)
-    except BaseException:
+        if same_device and clone_file(path, tmp):
+            method = "clone"
+        elif same_device and allow_link:
+            try:
+                os.link(path, tmp)
+                method = "link"
+            except OSError as exc:
+                if exc.errno not in LINK_ERRNOS:
+                    raise
+        if method is None:
+            copy_file_durably(path, tmp)
+            method = "copy"
+        if sha256_file(tmp) != sha or (method != "link" and sha256_file(path) != sha):
+            raise StorageError(f"{path} changed while being stored; stow it after the run has finished writing")
+        if method == "link":
+            os.chmod(tmp, stat.S_IMODE(st.st_mode) & ~0o222)
+        else:
+            os.chmod(tmp, 0o444)
+            fsync_file(tmp)
+        if not publish(tmp, dest, sha):
+            method = "existing"
+    finally:
         try:
             os.unlink(tmp)
-        except OSError:
+        except FileNotFoundError:
             pass
-        raise
-    fsync_dir(dest.parent)
-    return sha, dest, "copy"
+    return sha, dest, method
 
 
 def store_put_bytes(data: bytes, store: Path) -> "tuple[str, Path]":
     sha = hashlib.sha256(data).hexdigest()
     dest = store_path(store, sha)
-    if not dest.exists():
-        write_atomic(dest, data, mode=0o444)
+    if (dest.exists() or dest.is_symlink()) and verify_store_object(dest, sha):
+        return sha, dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = incoming_path(dest.parent)
+    try:
+        with open(tmp, "xb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, 0o444)
+        if dest.exists() or dest.is_symlink():
+            set_aside_damaged(dest)
+        publish(tmp, dest, sha)
+    finally:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
     return sha, dest
+
+
+def place_from_store(obj: Path, target: Path, sha: str) -> str:
+    """Create ``target`` (absent) with the bytes of the verified store object:
+    clone, else hard link, else symlink. Returns the method."""
+    tmp = incoming_path(target.parent)
+    try:
+        if clone_file(obj, tmp):
+            method = "clone"
+            os.chmod(tmp, 0o444)
+        else:
+            try:
+                os.link(obj, tmp)
+                method = "link"
+            except OSError as exc:
+                if exc.errno not in LINK_ERRNOS:
+                    raise
+                method = "symlink"
+        if method == "symlink":
+            os.symlink(obj, target)  # never replaces an existing name
+        else:
+            if sha256_file(tmp) != sha:
+                raise StorageError(f"placing {target} from the store produced different bytes")
+            os.link(tmp, target)  # never replaces an existing name
+        fsync_dir(target.parent)
+    finally:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+    return method
 
 
 # ------------------------------------------------------------ tree digests
@@ -462,20 +620,20 @@ def load_manifest(run_dir: Path) -> "dict | None":
     return doc
 
 
-def manifests_under(repo: Repo) -> "dict[str, dict]":
-    """Map repository-relative path -> manifest entry for every bulk manifest
-    under the run roots."""
+def manifests_under(repo: Repo) -> "dict[str, tuple[Path, dict]]":
+    """Map repository-relative path -> (run directory, manifest entry) for
+    every bulk manifest under the run roots."""
     found: dict = {}
     for root in repo.run_roots:
         base = repo.toplevel / root
-        if not base.is_dir():
+        if not base.is_dir() or base.is_symlink():
             continue
         for dirpath, dirnames, filenames in os.walk(base, followlinks=False):
             if MANIFEST_NAME in filenames:
                 run_dir = Path(dirpath)
                 doc = load_manifest(run_dir)
                 for entry in doc["entries"]:
-                    found[repo.rel(run_dir / entry["path"])] = entry
+                    found[repo.rel(run_dir / entry["path"])] = (run_dir, entry)
     return found
 
 
@@ -542,13 +700,23 @@ def staged_bulk(repo: Repo, threshold: int) -> "list[dict]":
 
 
 def working_tree_bulk(repo: Repo, threshold: int) -> "dict[str, list[dict]]":
-    roots = [r for r in repo.run_roots if (repo.toplevel / r).exists()]
-    classes: "dict[str, list[dict]]" = {"tracked": [], "untracked": [], "ignored_stowed": [], "ignored_unstowed": []}
+    roots = [r for r in repo.run_roots if (repo.toplevel / r).is_dir() and not (repo.toplevel / r).is_symlink()]
+    classes: "dict[str, list[dict]]" = {"tracked": [], "untracked": [], "ignored_unstowed": [],
+                                        "stowed": [], "stowed_damaged": []}
     if not roots:
         return classes
     tracked = repo.tracked(roots)
     untracked = repo.untracked(roots)
     stowed = manifests_under(repo)
+    store = repo.store()
+    # Every recorded entry is checked by full hash, whatever its current size:
+    # a stowed output that changed, shrank, vanished, or lost its store copy
+    # is not "stowed" any more.
+    for rel, (run_dir, entry) in sorted(stowed.items()):
+        status = entry_status(run_dir, store, entry)
+        record = {"path": rel, "size": entry["size"], "status": status["status"]}
+        good = status["status"] in ("ok", "in_store_only")
+        classes["stowed" if good else "stowed_damaged"].append(record)
     for root in roots:
         for dirpath, dirnames, filenames in os.walk(repo.toplevel / root, followlinks=False):
             for name in filenames:
@@ -562,8 +730,8 @@ def working_tree_bulk(repo: Repo, threshold: int) -> "dict[str, list[dict]]":
                     classes["tracked"].append(record)
                 elif rel in untracked:
                     classes["untracked"].append(record)
-                elif rel in stowed and stowed[rel]["size"] == st.st_size:
-                    classes["ignored_stowed"].append(record)
+                elif rel in stowed:
+                    continue  # classified above by hash
                 else:
                     classes["ignored_unstowed"].append(record)
     for records in classes.values():
@@ -595,10 +763,11 @@ def cmd_check(args) -> int:
         "tracked": "already in git history (every checkout and the object store hold a copy)",
         "untracked": "untracked and not ignored (a plain `git add` would commit them)",
         "ignored_unstowed": "ignored but not stowed (lost if this checkout is removed)",
-        "ignored_stowed": "stowed (in the content store, hash recorded)",
+        "stowed_damaged": "recorded in a bulk manifest but changed, missing, or without a valid store copy",
+        "stowed": "stowed (bytes match the manifest; valid copy in the content store)",
     }
     lines = [f"run-storage: bulk files (>= {human(threshold)}) under {', '.join(repo.run_roots)}:"]
-    for key in ("untracked", "ignored_unstowed", "tracked", "ignored_stowed"):
+    for key in ("stowed_damaged", "untracked", "ignored_unstowed", "tracked", "stowed"):
         records = classes[key]
         lines.append(f"  {len(records):5d} files {human(sum(r['size'] for r in records)):>12}  {labels[key]}")
         for r in records[: args.limit]:
@@ -606,7 +775,7 @@ def cmd_check(args) -> int:
         if len(records) > args.limit:
             lines.append(f"        ... {len(records) - args.limit} more")
     emit(result, args.json, lines)
-    violations = classes["untracked"] or classes["ignored_unstowed"]
+    violations = classes["untracked"] or classes["ignored_unstowed"] or classes["stowed_damaged"]
     return EXIT_FINDINGS if (violations and args.strict) else EXIT_OK
 
 
@@ -657,10 +826,64 @@ def resolve_run_dir(repo: Repo, run_dir: str) -> Path:
     if path.is_symlink() or not path.is_dir():
         raise StorageError(f"run directory must be a real directory: {path}")
     path = path.resolve()
+    if not is_under(path, repo.toplevel):
+        raise StorageError(f"{path} resolves outside the repository {repo.toplevel} (a symlinked run root?)")
     if not any(is_under(path, repo.toplevel / root) for root in repo.run_roots):
         raise StorageError(f"{path} is not under a run root ({', '.join(repo.run_roots)}); "
                            f"add its root to {POLICY_REL} if it should follow the bulk policy")
     return path
+
+
+def expressible_problem(rel: str) -> "str | None":
+    """Why a path cannot be recorded in the manifest and ignore block, if so."""
+    try:
+        rel.encode("utf-8")
+    except UnicodeEncodeError:
+        return "not valid UTF-8"
+    try:
+        gitignore_escape(rel)
+    except StorageError:
+        return "contains a line break"
+    return None
+
+
+def make_read_only(path: Path) -> None:
+    st = path.lstat()
+    if stat.S_ISREG(st.st_mode):
+        os.chmod(path, stat.S_IMODE(st.st_mode) & ~0o222)
+
+
+def share_store_blocks(full: Path, obj: Path, sha: str) -> str:
+    """Replace a run file whose bytes equal a verified store object with a
+    clone (or hard link) of that object, so identical outputs of different
+    runs occupy their blocks once. Keeps the file untouched when neither is
+    possible."""
+    st, ost = full.lstat(), obj.lstat()
+    if (st.st_ino, st.st_dev) == (ost.st_ino, ost.st_dev):
+        return "existing"
+    tmp = incoming_path(full.parent)
+    try:
+        if clone_file(obj, tmp):
+            os.chmod(tmp, 0o444)
+            method = "existing-shared-clone"
+        else:
+            try:
+                os.link(obj, tmp)
+                method = "existing-shared-link"
+            except OSError as exc:
+                if exc.errno not in LINK_ERRNOS:
+                    raise
+                return "existing-separate-copy-kept"
+        if sha256_file(tmp) != sha or sha256_file(full) != sha:
+            raise StorageError(f"{full} changed while being stowed")
+        os.replace(tmp, full)
+        fsync_dir(full.parent)
+        return method
+    finally:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
 
 
 def cmd_stow(args) -> int:
@@ -671,13 +894,25 @@ def cmd_stow(args) -> int:
     tracked = repo.tracked([repo.rel(run_dir)])
     manifest = load_manifest(run_dir) or {"schema": MANIFEST_SCHEMA, "entries": []}
     entries = {e["path"]: e for e in manifest["entries"]}
-    candidates = []
-    legacy = []
+
+    # 1. Every entry already recorded must still hold its recorded bytes,
+    #    whatever its current size: a recorded result is never re-recorded.
+    conflicts = []
+    restore = []
+    for rel_run, entry in sorted(entries.items()):
+        status = entry_status(run_dir, store, entry)["status"]
+        if status in ("mismatch", "missing", "store_mismatch"):
+            conflicts.append((rel_run, status))
+        elif status == "ok_in_place_only":
+            restore.append(rel_run)  # good bytes in place, store copy lost: store again
+
+    # 2. New bulk candidates.
+    candidates, legacy, unexpressible = [], [], []
     for dirpath, dirnames, filenames in os.walk(run_dir, followlinks=False):
         for name in sorted(filenames):
             full = Path(dirpath) / name
-            rel_run = full.relative_to(run_dir).as_posix()
-            if rel_run in (MANIFEST_NAME, ".gitignore") or name == CLOSEOUT_MANIFEST_NAME:
+            rel_run = repo.git_form(full.relative_to(run_dir).as_posix())
+            if rel_run in (MANIFEST_NAME, ".gitignore") or name == CLOSEOUT_MANIFEST_NAME or rel_run in entries:
                 continue
             st = full.lstat()
             if not stat.S_ISREG(st.st_mode) or st.st_size < threshold:
@@ -685,61 +920,56 @@ def cmd_stow(args) -> int:
             if repo.rel(full) in tracked:
                 legacy.append({"path": rel_run, "size": st.st_size})
                 continue
-            candidates.append((rel_run, full, st))
-    plan, conflicts = [], []
-    for rel_run, full, st in candidates:
-        known = entries.get(rel_run)
-        if known:
-            same_inode = False
-            dest = store_path(store, known["sha256"])
-            if dest.exists():
-                dst = dest.stat()
-                same_inode = (dst.st_ino, dst.st_dev) == (st.st_ino, st.st_dev)
-            if same_inode or (known["size"] == st.st_size and sha256_file(full) == known["sha256"]):
-                if dest.exists():
-                    continue
-            else:
-                conflicts.append(rel_run)
+            problem = expressible_problem(rel_run)
+            if problem:
+                unexpressible.append((rel_run, problem))
                 continue
-        plan.append((rel_run, full, st))
+            candidates.append((rel_run, full))
     if conflicts:
-        print("run-storage: these outputs differ from the hashes already recorded in "
-              f"{MANIFEST_NAME}; a changed result belongs in a new run:", file=sys.stderr)
-        for rel_run in conflicts:
-            print(f"  {rel_run}", file=sys.stderr)
+        print("run-storage: recorded outputs are changed or unavailable (nothing was changed). A changed "
+              "result belongs in a new run; `missing`/`store_mismatch` entries need the store copy restored "
+              "first (see `verify`):", file=sys.stderr)
+        for rel_run, status in conflicts:
+            print(f"  {status:>14}  {rel_run}", file=sys.stderr)
         return EXIT_FINDINGS
-    total = sum(st.st_size for _, _, st in plan)
-    lines = [f"run-storage: {len(plan)} bulk file(s), {human(total)}, from {repo.rel(run_dir)} into {store}"]
+    if unexpressible:
+        print("run-storage: these file names cannot be recorded in a manifest or ignore rule; rename them "
+              "and stow again (nothing was changed):", file=sys.stderr)
+        for rel_run, problem in unexpressible:
+            print(f"  {problem}: {rel_run!r}", file=sys.stderr)
+        return EXIT_ERROR
+    plan = [(rel_run, run_dir / rel_run) for rel_run in restore] + candidates
+    sizes = {rel_run: full.lstat().st_size for rel_run, full in plan}
+    lines = [f"run-storage: {len(plan)} bulk file(s), {human(sum(sizes.values()))}, from {repo.rel(run_dir)} "
+             f"into {store}"]
     if legacy:
         lines.append(f"  {len(legacy)} bulk file(s) are already tracked in git and stay as they are "
                      "(history is never rewritten here)")
     if args.dry_run:
-        lines += [f"  would stow {human(st.st_size):>12}  {rel_run}" for rel_run, _, st in plan]
-        emit({"dry_run": True, "planned": [{"path": r, "size": st.st_size} for r, _, st in plan],
+        lines += [f"  would stow {human(sizes[r]):>12}  {r}" for r, _ in plan]
+        emit({"dry_run": True, "planned": [{"path": r, "size": sizes[r]} for r, _ in plan],
               "already_tracked": legacy, "store": str(store)}, args.json, lines)
         return EXIT_OK
+
+    # 3. Store, then record. The manifest is written after every store step
+    #    succeeded, so a failure leaves no entry without a stored copy.
     stowed = []
-    for rel_run, full, st in plan:
-        sha, dest, method = store_put(full, store, prefer_link=True)
+    for rel_run, full in plan:
+        make_read_only(full)
+        sha, obj, method = store_put(full, store, allow_link=True)
+        if rel_run in entries and entries[rel_run]["sha256"] != sha:
+            raise StorageError(f"{full} changed while being stowed")
         if method == "existing":
-            dst = dest.stat()
-            if (dst.st_ino, dst.st_dev) != (full.stat().st_ino, full.stat().st_dev):
-                # Identical bytes were stored before (another run produced the
-                # same output): share that inode instead of keeping two copies.
-                try:
-                    tmp = full.with_name(f".{full.name}.stow-link")
-                    os.link(dest, tmp)
-                    os.replace(tmp, full)
-                    method = "link-existing"
-                except OSError:
-                    method = "existing-copy-kept"
-        entries[rel_run] = {"path": rel_run, "size": st.st_size, "sha256": sha, "stowed_utc": utc_now()}
-        stowed.append({"path": rel_run, "size": st.st_size, "sha256": sha, "method": method})
-        lines.append(f"  stowed {human(st.st_size):>12}  {rel_run}  ({method})")
+            method = share_store_blocks(full, obj, sha)
+        size = full.lstat().st_size
+        if rel_run not in entries:
+            entries[rel_run] = {"path": rel_run, "size": size, "sha256": sha, "stowed_utc": utc_now()}
+        stowed.append({"path": rel_run, "size": size, "sha256": sha, "method": method})
+        lines.append(f"  stowed {human(size):>12}  {rel_run}  ({method})")
     manifest["entries"] = sorted(entries.values(), key=lambda e: e["path"])
     manifest["threshold_bytes"] = threshold
-    write_json_atomic(run_dir / MANIFEST_NAME, manifest)
     update_ignore_block(run_dir, [e["path"] for e in manifest["entries"]])
+    write_json_atomic(run_dir / MANIFEST_NAME, manifest)
     not_ignored = []
     for entry in manifest["entries"]:
         target = run_dir / entry["path"]
@@ -759,18 +989,32 @@ def cmd_stow(args) -> int:
 
 # ---------------------------------------------------------- verify / materialize
 
+ENTRY_STATUSES = ("ok", "ok_in_place_only", "in_store_only", "mismatch", "store_mismatch", "missing")
+GOOD_ENTRY_STATUSES = ("ok", "in_store_only")
+
+
 def entry_status(run_dir: Path, store: Path, entry: dict) -> dict:
+    """ok               in place with the recorded bytes, valid store copy
+    ok_in_place_only    in place with the recorded bytes, store copy absent or damaged
+    in_store_only       absent in place, valid store copy (`materialize` restores it)
+    mismatch            in place with different bytes
+    store_mismatch      absent in place, store object damaged
+    missing             absent in place and in the store"""
     target = run_dir / entry["path"]
     status = {"path": entry["path"], "size": entry["size"], "sha256": entry["sha256"]}
+    store_ok = verify_store_object(store_path(store, entry["sha256"]), entry["sha256"])
     if target.exists():
         actual = sha256_file(target)
-        status["status"] = "ok" if actual == entry["sha256"] else "mismatch"
         if actual != entry["sha256"]:
-            status["actual_sha256"] = actual
+            status.update(status="mismatch", actual_sha256=actual)
+        else:
+            status["status"] = "ok" if store_ok else "ok_in_place_only"
         return status
-    dest = store_path(store, entry["sha256"])
-    if dest.exists():
-        status["status"] = "in_store_only" if sha256_file(dest) == entry["sha256"] else "store_mismatch"
+    obj = store_path(store, entry["sha256"])
+    if store_ok:
+        status["status"] = "in_store_only"
+    elif obj.exists() or obj.is_symlink():
+        status["status"] = "store_mismatch"
     else:
         status["status"] = "missing"
     return status
@@ -784,12 +1028,14 @@ def cmd_verify(args) -> int:
     if manifest is None:
         raise StorageError(f"no {MANIFEST_NAME} in {run_dir}")
     statuses = [entry_status(run_dir, store, e) for e in manifest["entries"]]
-    bad = [s for s in statuses if s["status"] not in ("ok", "in_store_only")]
+    bad = [s for s in statuses if s["status"] not in GOOD_ENTRY_STATUSES]
     lines = [f"run-storage verify {repo.rel(run_dir)}: {len(statuses)} entr(y/ies)"]
     for s in statuses:
         lines.append(f"  {s['status']:>14}  {s['path']}")
     if any(s["status"] == "in_store_only" for s in statuses):
         lines.append("  in_store_only entries are intact in the store; `materialize` makes them readable in place")
+    if any(s["status"] == "ok_in_place_only" for s in statuses):
+        lines.append("  ok_in_place_only entries lost their store copy; `stow` stores them again")
     emit({"run_dir": str(run_dir), "store": str(store), "entries": statuses}, args.json, lines)
     return EXIT_FINDINGS if bad else EXIT_OK
 
@@ -807,20 +1053,15 @@ def cmd_materialize(args) -> int:
         if target.exists() or target.is_symlink():
             continue
         dest = store_path(store, entry["sha256"])
-        if not dest.exists() or sha256_file(dest) != entry["sha256"]:
-            problems.append({"path": entry["path"], "status": "missing" if not dest.exists() else "store_mismatch"})
+        if not verify_store_object(dest, entry["sha256"]):
+            exists = dest.exists() or dest.is_symlink()
+            problems.append({"path": entry["path"], "status": "store_mismatch" if exists else "missing"})
             continue
         if args.dry_run:
             done.append({"path": entry["path"], "method": "planned"})
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            os.link(dest, target)
-            method = "link"
-        except OSError:
-            os.symlink(dest, target)
-            method = "symlink"
-        done.append({"path": entry["path"], "method": method})
+        done.append({"path": entry["path"], "method": place_from_store(dest, target, entry["sha256"])})
     lines = [f"run-storage materialize {repo.rel(run_dir)}: {len(done)} restored, {len(problems)} unavailable"]
     lines += [f"  {d['method']:>8}  {d['path']}" for d in done]
     lines += [f"  {p['status']:>8}  {p['path']}" for p in problems]
@@ -851,6 +1092,40 @@ def default_base(repo: Repo) -> str:
     raise StorageError("no main/master branch found; pass --base <ref>")
 
 
+def hidden_tracked_changes(path: Path) -> "list[str]":
+    """Tracked files flagged assume-unchanged (lowercase tag in `ls-files -v`)
+    or skip-worktree (tag S) whose bytes on disk differ from the index."""
+    flagged = []
+    for item in git_z(["ls-files", "-v", "-z"], path):
+        tag, rel = item[:1], item[2:]
+        if (tag.islower() or tag == "S") and (path / rel).is_file():
+            flagged.append(rel)
+    if not flagged:
+        return []
+    index = {}
+    for item in git_z(["ls-files", "-s", "-z", "--", *flagged], path):
+        meta, _, rel = item.partition("\t")
+        index[rel] = meta.split()[1]
+    hashed = git(["hash-object", "--stdin-paths"], path,
+                 input_bytes=("\n".join(flagged) + "\n").encode("utf-8", "surrogateescape")).stdout.decode().split()
+    return [rel for rel, sha in zip(flagged, hashed) if index.get(rel) != sha]
+
+
+def worktree_private_refs(path: Path, base: str) -> "list[str]":
+    """Per-worktree refs (refs/worktree/*, refs/bisect/*, refs/rewritten/*)
+    pointing at commits the base branch does not contain."""
+    out = git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/", "refs/bisect/",
+               "refs/rewritten/"], path, check=False)
+    held = []
+    for line in out.stdout.decode().splitlines():
+        name, _, sha = line.partition(" ")
+        peeled = git(["rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}"], path, check=False)
+        commit = peeled.stdout.decode().strip() if peeled.returncode == 0 else None
+        if commit is None or git(["merge-base", "--is-ancestor", commit, base], path, check=False).returncode != 0:
+            held.append(name)
+    return held
+
+
 def check_one_worktree(path: Path, base: str, main_root: "Path | None", store: Path) -> dict:
     report: dict = {"worktree": str(path), "reasons": []}
     if not path.is_dir():
@@ -862,11 +1137,19 @@ def check_one_worktree(path: Path, base: str, main_root: "Path | None", store: P
     if not wt.is_linked_worktree:
         report.update(verdict="keep", reasons=["this is the main checkout, not a linked worktree"])
         return report
-    head = git_text(["rev-parse", "HEAD"], path)
+    store_usable = not is_under(store, path)
+    if not store_usable:
+        report["reasons"].append(f"the content store {store} lies inside this worktree; removing the worktree "
+                                 "would delete it")
+    head_proc = git(["rev-parse", "--verify", "--quiet", "HEAD"], path, check=False)
+    head = head_proc.stdout.decode().strip() if head_proc.returncode == 0 else None
     branch = git(["symbolic-ref", "-q", "--short", "HEAD"], path, check=False).stdout.decode().strip() or None
-    merged = git(["merge-base", "--is-ancestor", head, base], path, check=False).returncode == 0
+    merged = head is not None and git(["merge-base", "--is-ancestor", head, base], path,
+                                      check=False).returncode == 0
     report.update(head=head, branch=branch, base=base, merged=merged)
-    if not merged:
+    if head is None:
+        report["reasons"].append("HEAD has no commit")
+    elif not merged:
         report["reasons"].append(f"HEAD {head[:12]} is not contained in {base}")
     status = git_z(["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignore-submodules=none"], path)
     changed, untracked = [], []
@@ -879,8 +1162,20 @@ def check_one_worktree(path: Path, base: str, main_root: "Path | None", store: P
         if code[0] in "RC":
             skip_next = True
         (untracked if code == "??" else changed).append(rel)
+    # `git status` hides edits to files flagged assume-unchanged or
+    # skip-worktree; `git worktree remove` would discard them silently.
+    hidden = hidden_tracked_changes(path)
+    changed += [rel for rel in hidden if rel not in changed]
     report["tracked_changes"] = changed
     report["untracked"] = untracked
+    gitlinks = [item for item in git_z(["ls-files", "-z", "--stage"], path) if item.startswith("160000 ")]
+    if (path / ".gitmodules").exists() or gitlinks:
+        report["reasons"].append("contains submodules; their own commits and changes are not assessed here")
+    private_refs = worktree_private_refs(path, base)
+    report["worktree_private_refs"] = private_refs
+    if private_refs:
+        report["reasons"].append(f"{len(private_refs)} worktree-private ref(s) hold commits not in {base} "
+                                 "(lost with the worktree)")
     if changed:
         report["reasons"].append(f"{len(changed)} tracked change(s) not committed")
     if untracked:
@@ -903,7 +1198,8 @@ def check_one_worktree(path: Path, base: str, main_root: "Path | None", store: P
             continue
         if stat.S_ISLNK(st.st_mode):
             target = Path(os.path.realpath(full))
-            if is_under(target, store):
+            if (store_usable and is_under(target, store) and target.parent.parent.name == "sha256"
+                    and verify_store_object(target, target.name)):
                 classes["in_store"].append(record)
                 continue
             classes["unique"].append({**record, "symlink_target": os.readlink(full)})
@@ -912,13 +1208,20 @@ def check_one_worktree(path: Path, base: str, main_root: "Path | None", store: P
             classes["unique"].append(record)
             continue
         sha = sha256_file(full)
-        if store_path(store, sha).exists():
+        if store_usable and verify_store_object(store_path(store, sha), sha):
             classes["in_store"].append(record)
             continue
         twin = main_root / rel if main_root else None
-        if twin is not None and twin.is_file() and twin.stat().st_size == st.st_size and sha256_file(twin) == sha:
-            classes["same_in_main_checkout"].append(record)
-            continue
+        if twin is not None:
+            try:
+                tst = twin.lstat()
+            except OSError:
+                tst = None
+            # Only a regular file that lives outside this worktree survives its removal.
+            if (tst is not None and stat.S_ISREG(tst.st_mode) and tst.st_size == st.st_size
+                    and not is_under(twin, path) and sha256_file(twin) == sha):
+                classes["same_in_main_checkout"].append(record)
+                continue
         classes["unique"].append(record)
     report["ignored"] = {k: v for k, v in classes.items()}
     if classes["unique"]:
@@ -950,7 +1253,12 @@ def cmd_worktree_check(args) -> int:
         targets = [Path(args.worktree).resolve()]
     else:
         raise StorageError("name a worktree path or pass --all")
-    reports = [check_one_worktree(t, base, main_root, store) for t in targets]
+    reports = []
+    for t in targets:
+        try:
+            reports.append(check_one_worktree(t, base, main_root, store))
+        except StorageError as exc:
+            reports.append({"worktree": str(t), "verdict": "keep", "reasons": [f"could not be checked: {exc}"]})
     lines = []
     for r in reports:
         lines.append(f"{r['verdict']:>14}  {r['worktree']}  ({human(r.get('bytes_on_disk', 0))} on disk)")
@@ -1040,16 +1348,44 @@ def is_git_store(path: Path) -> bool:
     return (path / "objects").is_dir() and (path / "refs").is_dir() and (path / "HEAD").is_file()
 
 
-def tips_contained(repo_root: Path, shas: "list[str]") -> bool:
+def missing_objects(reference: Path, shas: "list[str]") -> "set[str]":
     if not shas:
+        return set()
+    out = git(["cat-file", "--batch-check=%(objectname) %(objecttype)"], reference,
+              input_bytes=("\n".join(shas) + "\n").encode()).stdout.decode().splitlines()
+    return {line.split()[0] for line in out if line.endswith(" missing")}
+
+
+def tips_contained(reference: Path, tips: "list[str]") -> bool:
+    """Every tip object exists in ``reference`` and peels to a commit that a
+    ref of ``reference`` contains (so garbage collection keeps it). A tip
+    that does not peel to a commit is never counted as contained."""
+    if not tips or missing_objects(reference, tips):
         return False
-    for sha in shas:
-        if git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root, check=False).returncode != 0:
+    for sha in tips:
+        peeled = git(["rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}"], reference, check=False)
+        if peeled.returncode != 0:
             return False
-        out = git(["for-each-ref", "--contains", sha, "--count=1", "--format=%(refname)"], repo_root, check=False)
-        if out.returncode != 0 or not out.stdout.strip():
+        commit = peeled.stdout.decode().strip()
+        refs = git(["for-each-ref", "--contains", commit, "--count=1", "--format=%(refname)"], reference, check=False)
+        if refs.returncode != 0 or not refs.stdout.strip():
             return False
     return True
+
+
+def store_contained(reference: Path, git_dir: Path) -> "bool | None":
+    """True when every object reachable in the separate object store (all
+    refs, annotated tags, and reflogs) exists in ``reference`` and every ref
+    tip is contained there; None when the store cannot be read."""
+    refs = git(["--git-dir", str(git_dir), "for-each-ref", "--format=%(objectname)"], reference, check=False)
+    objects = git(["--git-dir", str(git_dir), "rev-list", "--objects", "--all", "--reflog"], reference, check=False)
+    if refs.returncode != 0 or objects.returncode != 0:
+        return None
+    tips = sorted(set(refs.stdout.decode().split()))
+    reachable = sorted({line.split()[0] for line in objects.stdout.decode().splitlines() if line.strip()} | set(tips))
+    if missing_objects(reference, reachable):
+        return False
+    return tips_contained(reference, tips)
 
 
 def sample_ratio(path: Path, sample_bytes: int = 4 * CHUNK) -> float:
@@ -1066,10 +1402,12 @@ def hash_prefix(path: Path, n: int = CHUNK) -> str:
 
 
 def cmd_report(args) -> int:
-    roots = [Path(r).expanduser().resolve() for r in args.roots]
+    roots = sorted({Path(r).expanduser().resolve() for r in args.roots})
     for r in roots:
         if not r.exists():
             raise StorageError(f"no such path: {r}")
+    roots = [r for r in roots if not any(r != q and is_under(r, q) for q in roots)]  # overlapping roots once
+    seen_dirs: set = set()
     reference = Path(args.repo).expanduser().resolve() if args.repo else None
     regenerable, git_stores, bundles = [], [], []
     files: "dict[int, list[tuple[Path, int, int]]]" = {}
@@ -1079,6 +1417,14 @@ def cmd_report(args) -> int:
             here = Path(dirpath)
             for name in list(dirnames):
                 full = here / name
+                try:
+                    dst = full.lstat()
+                except OSError:
+                    continue
+                if (dst.st_dev, dst.st_ino) in seen_dirs:
+                    dirnames.remove(name)
+                    continue
+                seen_dirs.add((dst.st_dev, dst.st_ino))
                 if name in REGENERABLE_DIR_NAMES:
                     size, count, _ = dir_size(full)
                     regenerable.append({"path": str(full), "bytes": size, "files": count})
@@ -1088,14 +1434,7 @@ def cmd_report(args) -> int:
                     record = {"path": str(full), "bytes": size, "kind": "git object store"}
                     if reference is not None and full.resolve() != (reference / ".git").resolve() \
                             and full.resolve() != reference:
-                        refs = git(["--git-dir", str(full), "for-each-ref", "--format=%(objectname) %(objecttype)"],
-                                   root, check=False)
-                        if refs.returncode == 0:
-                            tips = [line.split()[0] for line in refs.stdout.decode().splitlines()
-                                    if line.endswith(" commit")]
-                            record["contained_in_reference"] = tips_contained(reference, tips)
-                        else:
-                            record["contained_in_reference"] = None
+                        record["contained_in_reference"] = store_contained(reference, full)
                     git_stores.append(record)
                     dirnames.remove(name)
             for name in filenames:
@@ -1215,95 +1554,136 @@ def cmd_report(args) -> int:
 
 # ---------------------------------------------------------------- closeout
 
-def compress_file(path: Path, sha: str) -> dict:
-    zstd = shutil.which("zstd")
-    if zstd:
-        out = path.with_name(path.name + ".zst")
-        proc = subprocess.run([zstd, "-q", "-T0", "-10", "-o", str(out), str(path)], capture_output=True)
-        if proc.returncode != 0:
-            raise StorageError(f"zstd failed on {path}: {proc.stderr.decode(errors='replace').strip()}")
-        h = hashlib.sha256()
-        with subprocess.Popen([zstd, "-q", "-d", "-c", str(out)], stdout=subprocess.PIPE,
+QUARANTINE_DIR = ".storage-closeout-quarantine"
+PRUNED_INVENTORY_DIR = "storage_closeout_pruned"
+RESERVED_NAMES = (CLOSEOUT_MANIFEST_NAME, QUARANTINE_DIR, PRUNED_INVENTORY_DIR)
+
+
+def compression_method() -> "tuple[str, str]":
+    return ("zstd", ".zst") if shutil.which("zstd") else ("xz", ".xz")
+
+
+def decompressed_sha(path: Path, method: str) -> "str | None":
+    h = hashlib.sha256()
+    if method == "zstd":
+        zstd = shutil.which("zstd")
+        if not zstd:
+            raise StorageError("zstd is required to read back a zstd-compressed file")
+        with subprocess.Popen([zstd, "-q", "-d", "-c", str(path)], stdout=subprocess.PIPE,
                               stderr=subprocess.DEVNULL) as proc:
             for block in iter(lambda: proc.stdout.read(CHUNK), b""):
                 h.update(block)
-        restored = h.hexdigest() if proc.returncode == 0 else None
-        method = "zstd"
-    else:
-        out = path.with_name(path.name + ".xz")
-        with open(path, "rb") as src, lzma.open(out, "wb", preset=6) as dst:
-            shutil.copyfileobj(src, dst, CHUNK)
-        h = hashlib.sha256()
-        with lzma.open(out, "rb") as fh:
+        return h.hexdigest() if proc.returncode == 0 else None
+    try:
+        with lzma.open(path, "rb") as fh:
             for block in iter(lambda: fh.read(CHUNK), b""):
                 h.update(block)
-        restored = h.hexdigest()
-        method = "xz"
-    if restored != sha:
-        out.unlink(missing_ok=True)
-        raise StorageError(f"compressed copy of {path} does not decompress to the original bytes; kept the original")
-    st = path.stat()
-    os.utime(out, (st.st_atime, st.st_mtime))
-    os.chmod(out, stat.S_IMODE(st.st_mode))
-    path.unlink()
-    return {"compressed_path": out.name, "method": method, "compressed_size": out.stat().st_size}
+    except (OSError, lzma.LZMAError):
+        return None
+    return h.hexdigest()
 
 
-def cmd_closeout(args) -> int:
-    root = Path(args.dir).expanduser().resolve()
-    if not root.is_dir():
-        raise StorageError(f"not a directory: {root}")
-    verdict = Path(args.verdict).expanduser().resolve()
-    if not verdict.is_file() or verdict.stat().st_size == 0:
-        raise StorageError(f"verdict file missing or empty: {verdict}; closeout runs only after a verdict is recorded")
-    manifest_path = root / CLOSEOUT_MANIFEST_NAME
-    if manifest_path.exists():
-        raise StorageError(f"{manifest_path} already exists; this tree was closed out before")
-    prune: "list[str]" = []
-    for rel in args.prune:
-        rel = rel.strip("/")
+def compress_to_new_file(src: Path, out: Path, sha: str, method: str) -> int:
+    """Write the compressed form of ``src`` at the new name ``out``: built in a
+    temporary sibling, fsynced, verified to decompress to ``sha``, then
+    published without ever replacing an existing name. Returns its size."""
+    tmp = incoming_path(src.parent)
+    try:
+        if method == "zstd":
+            zstd = shutil.which("zstd")
+            if not zstd:
+                raise StorageError("zstd is required for this closeout plan but is no longer on PATH")
+            proc = subprocess.run([zstd, "-q", "-T0", "-10", "-o", str(tmp), str(src)], capture_output=True)
+            if proc.returncode != 0:
+                raise StorageError(f"zstd failed on {src}: {proc.stderr.decode(errors='replace').strip()}")
+        else:
+            with open(src, "rb") as s_fh, open(tmp, "xb") as raw, lzma.open(raw, "wb", preset=6) as d_fh:
+                shutil.copyfileobj(s_fh, d_fh, CHUNK)
+        fsync_file(tmp)
+        if decompressed_sha(tmp, method) != sha:
+            raise StorageError(f"the compressed copy of {src} does not decompress to its recorded bytes; "
+                               "the original was kept")
+        st = src.stat()
+        os.chmod(tmp, stat.S_IMODE(st.st_mode))
+        os.utime(tmp, (st.st_atime, st.st_mtime))
+        os.link(tmp, out)  # raises if the name appeared meanwhile; never replaces
+        fsync_dir(out.parent)
+        return out.stat().st_size
+    finally:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+
+
+def normalize_prune(rel: str) -> str:
+    rel = posixpath.normpath(rel.strip())
+    if rel in ("", ".") or rel.startswith("/") or rel == ".." or rel.startswith("../"):
+        raise StorageError(f"--prune {rel!r}: must name a path strictly inside the closed-out directory")
+    if rel.split("/")[0] in RESERVED_NAMES:
+        raise StorageError(f"--prune {rel!r}: closeout records cannot be pruned")
+    return rel
+
+
+def pruned_inventory(target: Path) -> dict:
+    st = target.lstat()
+    if stat.S_ISLNK(st.st_mode):
+        return {".": {"type": "symlink", "target": os.readlink(target)}}
+    if stat.S_ISREG(st.st_mode):
+        return {".": {"type": "file", "mode": stat.S_IMODE(st.st_mode), "size": st.st_size,
+                      "sha256": sha256_file(target)}}
+    return tree_inventory(target)
+
+
+def remove_path(target: Path) -> None:
+    if target.is_symlink() or not target.is_dir():
+        target.unlink()
+    else:
+        shutil.rmtree(target)
+
+
+def plan_closeout(root: Path, verdict: Path, args) -> dict:
+    prune = [normalize_prune(rel) for rel in args.prune]
+    verdict_rel = None
+    if is_under(verdict, root):
+        verdict_rel = Path(os.path.realpath(verdict)).relative_to(root).as_posix()
+    for rel in prune:
         target = root / rel
-        if not rel or ".." in rel.split("/") or not (target.exists() or target.is_symlink()):
-            raise StorageError(f"--prune {rel!r}: must name an existing path inside {root}")
-        if not target.is_symlink() and not is_under(target, root):
-            raise StorageError(f"--prune {rel!r} resolves outside {root}")
-        prune.append(rel)
+        if not (target.exists() or target.is_symlink()):
+            raise StorageError(f"--prune {rel!r}: no such path inside {root}")
+        if not target.is_symlink():
+            real = Path(os.path.realpath(target))
+            if real == root or not is_under(real, root):
+                raise StorageError(f"--prune {rel!r} does not resolve to a path strictly inside {root}")
+        if verdict_rel is not None and (verdict_rel == rel or verdict_rel.startswith(rel + "/")):
+            raise StorageError(f"--prune {rel!r} contains the verdict file; the verdict must survive the closeout")
     if args.prune_caches:
         for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
             for name in list(dirnames):
                 if name in REGENERABLE_DIR_NAMES:
-                    rel = (Path(dirpath) / name).relative_to(root).as_posix()
-                    if not any(rel == p or rel.startswith(p + "/") for p in prune):
-                        prune.append(rel)
+                    prune.append((Path(dirpath) / name).relative_to(root).as_posix())
                     dirnames.remove(name)
     prune = sorted(set(prune))
     prune = [p for p in prune if not any(p != q and p.startswith(q + "/") for q in prune)]
-    pruned_set = set(prune)
 
     def inside_pruned(rel: str) -> bool:
-        return any(rel == p or rel.startswith(p + "/") for p in pruned_set)
+        return any(rel == p or rel.startswith(p + "/") for p in prune)
 
-    pruned_records = []
-    for rel in prune:
-        target = root / rel
-        if target.is_symlink() or target.is_file():
-            st = target.lstat()
-            inv = {rel: {"type": "symlink", "target": os.readlink(target)}} if target.is_symlink() else \
-                {rel: {"type": "file", "size": st.st_size, "sha256": sha256_file(target)}}
-            pruned_records.append({"path": rel, "files": 1, "bytes": st.st_size, "tree_digest": tree_digest(inv)})
-        else:
-            inv = tree_inventory(target)
-            size = sum(v.get("size", 0) for v in inv.values())
-            files_n = sum(1 for v in inv.values() if v["type"] == "file")
-            pruned_records.append({"path": rel, "files": files_n, "bytes": size, "tree_digest": tree_digest(inv)})
-    kept_inventory = {}
-    compress_plan = []
+    method, suffix = compression_method()
+    kept: dict = {}
+    compress, skipped = [], []
+    git_stores: "list[str]" = []  # files inside a git object store are kept byte-exact
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
         here = Path(dirpath)
         rel_dir = here.relative_to(root).as_posix()
         if rel_dir != "." and inside_pruned(rel_dir):
             dirnames[:] = []
             continue
+        if rel_dir == ".":
+            dirnames[:] = [d for d in dirnames if d not in RESERVED_NAMES]
+        if here.name == ".git" or is_git_store(here):
+            git_stores.append(rel_dir)
+        in_git_store = any(g == "." or rel_dir == g or rel_dir.startswith(g + "/") for g in git_stores)
         for name in sorted(filenames):
             full = here / name
             rel = full.relative_to(root).as_posix()
@@ -1311,47 +1691,141 @@ def cmd_closeout(args) -> int:
                 continue
             st = full.lstat()
             if stat.S_ISLNK(st.st_mode):
-                kept_inventory[rel] = {"type": "symlink", "target": os.readlink(full)}
+                kept[rel] = {"type": "symlink", "target": os.readlink(full)}
                 continue
             if not stat.S_ISREG(st.st_mode):
                 continue
             sha = sha256_file(full)
-            kept_inventory[rel] = {"type": "file", "size": st.st_size, "sha256": sha, "mode": stat.S_IMODE(st.st_mode)}
-            if (not args.no_compress and st.st_size >= args.compress_min_size
-                    and full.suffix.lower() not in ALREADY_COMPRESSED_SUFFIXES
-                    and st.st_nlink == 1 and full.resolve() != verdict):
-                compress_plan.append((rel, sha, st.st_size))
-    pruned_bytes = sum(r["bytes"] for r in pruned_records)
-    lines = [f"run-storage closeout {root}",
-             f"  verdict: {verdict}",
-             f"  remove {len(pruned_records)} regenerable path(s), {human(pruned_bytes)}"]
-    lines += [f"    {human(r['bytes']):>12}  {r['path']}" for r in pruned_records]
-    lines.append(f"  compress {len(compress_plan)} file(s), {human(sum(s for _, _, s in compress_plan))} before compression")
-    manifest = {
+            kept[rel] = {"type": "file", "size": st.st_size, "sha256": sha, "mode": stat.S_IMODE(st.st_mode)}
+            if (args.no_compress or st.st_size < args.compress_min_size or rel == verdict_rel or in_git_store
+                    or full.suffix.lower() in ALREADY_COMPRESSED_SUFFIXES):
+                continue
+            if st.st_nlink > 1:
+                skipped.append({"path": rel, "reason": "hard-linked elsewhere; compressing would not free space"})
+                continue
+            out = full.with_name(name + suffix)
+            if out.exists() or out.is_symlink():
+                skipped.append({"path": rel, "reason": f"{name + suffix} already exists"})
+                continue
+            compress.append({"path": rel, "sha256": sha, "size": st.st_size, "method": method})
+    prune_plan = []
+    for rel in prune:
+        target = root / rel
+        size, count, _ = dir_size(target) if (target.is_dir() and not target.is_symlink()) else \
+            (target.lstat().st_size, 1, 0.0)
+        prune_plan.append({"path": rel, "planned_bytes": size, "planned_files": count})
+    return {
         "schema": CLOSEOUT_SCHEMA, "created_utc": utc_now(), "state": "planned",
         "verdict": {"path": str(verdict), "sha256": sha256_file(verdict)},
-        "kept_files": kept_inventory, "pruned": pruned_records, "compressed": [],
+        "kept_files": kept, "pruned": prune_plan, "compressed": compress, "compression_skipped": skipped,
     }
+
+
+def apply_closeout(root: Path, manifest: dict, manifest_path: Path) -> "list[str]":
+    manifest["state"] = "applying"
+    write_json_atomic(manifest_path, manifest)
+    lines = []
+    quarantine = root / QUARANTINE_DIR
+    inventories = root / PRUNED_INVENTORY_DIR
+    for index, entry in enumerate(manifest["pruned"]):
+        if entry.get("removed"):
+            continue
+        target = root / entry["path"]
+        held = quarantine / str(index)
+        if target.exists() or target.is_symlink():
+            if held.exists() or held.is_symlink():
+                raise StorageError(f"both {target} and its quarantined copy {held} exist; inspect before resuming")
+            quarantine.mkdir(exist_ok=True)
+            os.rename(target, held)  # producers writing by the old path no longer reach it
+            fsync_dir(quarantine)
+        elif not (held.exists() or held.is_symlink()):
+            raise StorageError(f"{target} vanished before it was recorded; inspect before resuming")
+        inventory = pruned_inventory(held)
+        data = canonical_json(inventory)
+        digest = hashlib.sha256(data).hexdigest()
+        inventories.mkdir(exist_ok=True)
+        record = inventories / f"{digest}.json"
+        if not record.exists():
+            write_atomic(record, data, mode=0o444)
+        if tree_digest(pruned_inventory(held)) != digest:
+            raise StorageError(f"{entry['path']} changed while being recorded; it was left in {held}")
+        entry.update(files=sum(1 for v in inventory.values() if v["type"] == "file"),
+                     bytes=sum(v.get("size", 0) for v in inventory.values()),
+                     tree_digest=digest, inventory_file=f"{PRUNED_INVENTORY_DIR}/{digest}.json")
+        write_json_atomic(manifest_path, manifest)
+        remove_path(held)
+        entry["removed"] = True
+        write_json_atomic(manifest_path, manifest)
+        lines.append(f"    removed {human(entry['bytes']):>12}  {entry['path']}  (inventory {digest[:12]})")
+    try:
+        quarantine.rmdir()
+    except OSError:
+        pass
+    for entry in manifest["compressed"]:
+        if entry.get("done"):
+            continue
+        src = root / entry["path"]
+        suffix = ".zst" if entry["method"] == "zstd" else ".xz"
+        out = src.with_name(src.name + suffix)
+        if not (out.exists() or out.is_symlink()):
+            if sha256_file(src) != entry["sha256"]:
+                raise StorageError(f"{src} changed after it was recorded; it was not compressed")
+            entry["compressed_size"] = compress_to_new_file(src, out, entry["sha256"], entry["method"])
+        elif decompressed_sha(out, entry["method"]) != entry["sha256"]:
+            raise StorageError(f"{out} exists and is not the compressed form of {src}; inspect before resuming")
+        else:
+            entry["compressed_size"] = out.stat().st_size
+        entry["compressed_path"] = entry["path"] + suffix
+        write_json_atomic(manifest_path, manifest)  # the mapping is durable before the original goes
+        if src.exists():
+            src.unlink()
+            fsync_dir(src.parent)
+        entry["done"] = True
+        write_json_atomic(manifest_path, manifest)
+    manifest.update(state="applied", applied_utc=utc_now())
+    write_json_atomic(manifest_path, manifest)
+    return lines
+
+
+def cmd_closeout(args) -> int:
+    root = Path(os.path.realpath(Path(args.dir).expanduser()))
+    if not root.is_dir():
+        raise StorageError(f"not a directory: {root}")
+    verdict = Path(os.path.realpath(Path(args.verdict).expanduser()))
+    if not verdict.is_file() or verdict.stat().st_size == 0:
+        raise StorageError(f"verdict file missing or empty: {verdict}; closeout runs only after a verdict is recorded")
+    manifest_path = root / CLOSEOUT_MANIFEST_NAME
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("schema") != CLOSEOUT_SCHEMA:
+            raise StorageError(f"{manifest_path} is not a closeout manifest")
+        if manifest.get("state") == "applied":
+            raise StorageError(f"{manifest_path} records a completed closeout; a tree is closed out once")
+        if manifest["verdict"]["sha256"] != sha256_file(verdict):
+            raise StorageError("the verdict file differs from the one this interrupted closeout recorded")
+        if args.prune or args.prune_caches:
+            raise StorageError("an interrupted closeout resumes its recorded plan; do not pass new --prune options")
+        resumed = True
+    else:
+        manifest = plan_closeout(root, verdict, args)
+        resumed = False
+    pruned_bytes = sum(r.get("bytes", r.get("planned_bytes", 0)) for r in manifest["pruned"])
+    lines = [f"run-storage closeout {root}" + (" (resuming the recorded plan)" if resumed else ""),
+             f"  verdict: {verdict}",
+             f"  remove {len(manifest['pruned'])} regenerable path(s), {human(pruned_bytes)}"]
+    lines += [f"    {human(r.get('bytes', r.get('planned_bytes', 0))):>12}  {r['path']}" for r in manifest["pruned"]]
+    lines.append(f"  compress {len(manifest['compressed'])} file(s), "
+                 f"{human(sum(c['size'] for c in manifest['compressed']))} before compression")
+    for skip in manifest.get("compression_skipped", []):
+        lines.append(f"    not compressed: {skip['path']} ({skip['reason']})")
     if not args.apply:
         lines.append("  plan only; rerun with --apply to execute")
         emit({**manifest, "applied": False}, args.json, lines)
         return EXIT_OK
-    write_json_atomic(manifest_path, manifest)
-    for rec in pruned_records:
-        target = root / rec["path"]
-        if target.is_symlink() or target.is_file():
-            target.unlink()
-        else:
-            shutil.rmtree(target)
-    compressed = []
-    for rel, sha, size in compress_plan:
-        info = compress_file(root / rel, sha)
-        compressed.append({"path": rel, "sha256": sha, "size": size, **info})
-    manifest.update(state="applied", applied_utc=utc_now(), compressed=compressed)
-    write_json_atomic(manifest_path, manifest)
-    saved = sum(c["size"] - c["compressed_size"] for c in compressed)
-    lines.append(f"  applied: removed {human(pruned_bytes)}, compression saved {human(saved)}; "
-                 f"manifest {manifest_path} (sha256 {sha256_file(manifest_path)})")
+    lines += apply_closeout(root, manifest, manifest_path)
+    saved = sum(c["size"] - c.get("compressed_size", c["size"]) for c in manifest["compressed"])
+    lines.append(f"  applied: removed {human(sum(r.get('bytes', 0) for r in manifest['pruned']))}, compression saved "
+                 f"{human(saved)}; manifest {manifest_path} (sha256 {sha256_file(manifest_path)})")
     emit({**manifest, "applied": True}, args.json, lines)
     return EXIT_OK
 
@@ -1372,7 +1846,7 @@ def cmd_store_put(args) -> int:
     for f in args.files:
         path = Path(f).expanduser()
         store = store_for_path(path, args.store)
-        sha, dest, method = store_put(path, store, prefer_link=not args.copy)
+        sha, dest, method = store_put(path, store, allow_link=args.link)
         results.append({"path": str(path), "sha256": sha, "store_entry": str(dest), "method": method})
     emit({"stored": results}, args.json, [f"{r['sha256']}  {r['store_entry']}  ({r['method']})" for r in results])
     return EXIT_OK
@@ -1500,7 +1974,9 @@ def build_parser() -> argparse.ArgumentParser:
     common(p, project=False, limit=False)
     p.add_argument("files", nargs="+")
     p.add_argument("--store", default=None)
-    p.add_argument("--copy", action="store_true", help="store a copy instead of a read-only hard link")
+    p.add_argument("--link", action="store_true",
+                   help="allow a hard link when the file system cannot clone (shares the inode with the "
+                        "source and makes it read-only; default: clone or copy, source untouched)")
     p.set_defaults(func=cmd_store_put)
 
     p = sub.add_parser("tree-digest", help="one digest for a whole tree")

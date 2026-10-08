@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,9 +11,11 @@ import setup, {
   removeTree,
   runPassed,
   sweepStaleRoots,
+  testRunsParent,
 } from '../lib/vitest-test-temp-root.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const modulePath = path.join(repoRoot, 'scripts', 'lib', 'vitest-test-temp-root.mjs');
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function scratch(t) {
@@ -35,6 +38,26 @@ function fakeProject({ files, failedTests = 0, failedPaths = [], errors = [] }, 
   };
 }
 
+function withEnv(t, values) {
+  const saved = {};
+  for (const key of Object.keys(values)) saved[key] = process.env[key];
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+
+function age(target, days) {
+  const past = new Date(Date.now() - days * DAY_MS);
+  fs.utimesSync(target, past, past);
+}
+
 test('runPassed is true only for a positively clean run', () => {
   assert.equal(runPassed(fakeProject({ files: [{ result: { state: 'pass' } }] })), true);
   assert.equal(runPassed(fakeProject({ files: [{ result: { state: 'pass' } }, { mode: 'skip' }] })), true);
@@ -42,31 +65,34 @@ test('runPassed is true only for a positively clean run', () => {
   assert.equal(runPassed(fakeProject({ files: [{ result: { state: 'pass' } }], failedTests: 1 })), false);
   assert.equal(runPassed(fakeProject({ files: [{ result: { state: 'pass' } }], failedPaths: ['a'] })), false);
   assert.equal(runPassed(fakeProject({ files: [{ result: { state: 'pass' } }], errors: [new Error('x')] })), false);
-  // interrupted run: a file that never finished
-  assert.equal(runPassed(fakeProject({ files: [{ result: { state: 'run' } }] })), false);
+  assert.equal(runPassed(fakeProject({ files: [{ result: { state: 'run' } }] })), false, 'interrupted');
   assert.equal(runPassed(fakeProject({ files: [] })), false);
-  // unknown API shape: never treated as a pass
-  assert.equal(runPassed({ vitest: {} }), false);
+  assert.equal(runPassed({ vitest: {} }), false, 'unknown API shape is never a pass');
   assert.equal(runPassed(undefined), false);
 });
 
-test('sweepStaleRoots removes only old directories with the module naming pattern', t => {
+test('sweep removes only old, finished roots created by this module', t => {
   const parent = scratch(t);
-  const now = Date.now();
-  const old = path.join(parent, 'orchestrator-20260101T000000Z-123-AbCdEf');
-  const fresh = path.join(parent, 'orchestrator-20261001T000000Z-124-GhIjKl');
+  const dead = 999_999_999;
+  const old = path.join(parent, `orches-${dead}-AbCdEf`);
+  const recentInside = path.join(parent, `orches-${dead}-GhIjKl`);
+  const live = path.join(parent, `orches-${process.ppid}-MnOpQr`);
   const foreign = path.join(parent, 'someone-elses-dir');
-  for (const dir of [old, fresh, foreign]) fs.mkdirSync(dir);
+  for (const dir of [old, recentInside, live, foreign]) fs.mkdirSync(dir);
   fs.writeFileSync(path.join(old, 'evidence.txt'), 'x');
-  const oldTime = new Date(now - (RETENTION_DAYS + 1) * DAY_MS);
-  fs.utimesSync(old, oldTime, oldTime);
-  fs.utimesSync(foreign, oldTime, oldTime);
+  age(path.join(old, 'evidence.txt'), RETENTION_DAYS + 1);
+  age(old, RETENTION_DAYS + 1);
+  // a root whose own mtime is old but which holds a recent file is not stale
+  fs.mkdirSync(path.join(recentInside, 'sub'));
+  fs.writeFileSync(path.join(recentInside, 'sub', 'new.txt'), 'x');
+  age(path.join(recentInside, 'sub'), RETENTION_DAYS + 1);
+  age(recentInside, RETENTION_DAYS + 1);
+  age(live, RETENTION_DAYS + 1);
+  age(foreign, RETENTION_DAYS + 1);
 
-  const removed = sweepStaleRoots(parent, { now });
+  const removed = sweepStaleRoots(parent, { isAlive: pid => pid === process.ppid });
   assert.deepEqual(removed, [old]);
-  assert.equal(fs.existsSync(old), false);
-  assert.equal(fs.existsSync(fresh), true);
-  assert.equal(fs.existsSync(foreign), true);
+  for (const dir of [recentInside, live, foreign]) assert.equal(fs.existsSync(dir), true, dir);
 });
 
 test('removeTree restores write permission on read-only directories', t => {
@@ -80,38 +106,76 @@ test('removeTree restores write permission on read-only directories', t => {
   assert.equal(fs.existsSync(tree), false);
 });
 
-test('setup points TMPDIR at a fresh root and teardown removes it only after a pass', t => {
-  const parent = scratch(t);
-  const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP, KEEP: process.env.NULLIUS_KEEP_TEST_TMP };
-  t.after(() => {
-    for (const [key, value] of [['TMPDIR', saved.TMPDIR], ['TMP', saved.TMP], ['TEMP', saved.TEMP], ['NULLIUS_KEEP_TEST_TMP', saved.KEEP]]) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-  });
-  delete process.env.NULLIUS_KEEP_TEST_TMP;
+test('setup gives a fresh short root; teardown removes it only after a pass', t => {
+  const base = scratch(t);
+  withEnv(t, { TMPDIR: base, TMP: undefined, TEMP: undefined, NULLIUS_KEEP_TEST_TMP: undefined });
 
-  const runOnce = project => {
-    process.env.TMPDIR = parent;
+  const runOnce = (project, leaveFile = true) => {
+    process.env.TMPDIR = base;
     const teardown = setup(project);
     const root = os.tmpdir();
-    assert.ok(root.startsWith(path.join(parent, 'nullius-test-runs') + path.sep), root);
-    fs.writeFileSync(path.join(root, 'leftover'), 'x');
+    assert.ok(root.startsWith(testRunsParent(base) + path.sep), root);
+    // Unix-domain sockets under TMPDIR must stay bindable (about 104 bytes on macOS).
+    assert.ok(root.length - base.length <= 32, `root suffix too long: ${root}`);
+    if (leaveFile) fs.writeFileSync(path.join(root, 'leftover'), 'x');
     teardown();
-    assert.equal(process.env.TMPDIR, parent, 'teardown restores the previous TMPDIR');
+    assert.equal(process.env.TMPDIR, base, 'teardown restores the previous TMPDIR');
     return root;
   };
 
-  const passed = runOnce(fakeProject({ files: [{ result: { state: 'pass' } }] }));
-  assert.equal(fs.existsSync(passed), false, 'passing run root is removed');
-
-  const failed = runOnce(fakeProject({ files: [{ result: { state: 'fail' } }], failedTests: 1 }));
-  assert.equal(fs.existsSync(failed), true, 'failing run root is kept');
-
+  assert.equal(fs.existsSync(runOnce(fakeProject({ files: [{ result: { state: 'pass' } }] }))), false);
+  const failed = fakeProject({ files: [{ result: { state: 'fail' } }], failedTests: 1 });
+  assert.equal(fs.existsSync(runOnce(failed)), true, 'failing run root is kept');
+  assert.equal(fs.existsSync(runOnce(failed, false)), true, 'an empty failing run root is kept too');
   process.env.NULLIUS_KEEP_TEST_TMP = '1';
-  const kept = runOnce(fakeProject({ files: [{ result: { state: 'pass' } }] }));
-  assert.equal(fs.existsSync(kept), true, 'explicit keep flag keeps a passing run root');
+  assert.equal(fs.existsSync(runOnce(fakeProject({ files: [{ result: { state: 'pass' } }] }))), true);
 });
+
+// Real vitest runs (both majors used in this repository) through the module.
+const VITEST_HOSTS = [
+  ['vitest 3', path.join(repoRoot, 'packages', 'orchestrator', 'node_modules', 'vitest', 'vitest.mjs')],
+  ['vitest 4', path.join(repoRoot, 'packages', 'shared', 'node_modules', 'vitest', 'vitest.mjs')],
+];
+
+function runVitest(t, bin, body) {
+  const base = scratch(t);
+  const project = path.join(base, 'proj');
+  const tmp = path.join(base, 'tmp');
+  fs.mkdirSync(project);
+  fs.mkdirSync(tmp);
+  fs.writeFileSync(path.join(project, 'vitest.config.mjs'),
+    `export default { test: { globals: true, include: ['*.test.mjs'], globalSetup: [${JSON.stringify(modulePath)}] } };\n`);
+  fs.writeFileSync(path.join(project, 'probe.test.mjs'), `import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+test('probe', () => {
+  fs.writeFileSync(path.join(os.tmpdir(), 'probe-root.txt'), os.tmpdir());
+  ${body}
+});
+`);
+  const env = { ...process.env, TMPDIR: tmp, TMP: tmp, TEMP: tmp };
+  delete env.NULLIUS_KEEP_TEST_TMP;
+  const result = spawnSync(process.execPath, [bin, 'run', '--root', project], { env, encoding: 'utf-8' });
+  const parent = testRunsParent(tmp);
+  const roots = fs.existsSync(parent) ? fs.readdirSync(parent).filter(name => name !== 'README.txt') : [];
+  return { result, parent, roots };
+}
+
+for (const [label, bin] of VITEST_HOSTS) {
+  test(`${label}: a passing run removes its root`, { skip: !fs.existsSync(bin) && `${bin} not installed` }, t => {
+    const { result, roots } = runVitest(t, bin, 'expect(1).toBe(1);');
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.deepEqual(roots, []);
+  });
+  test(`${label}: a failing run keeps its root`, { skip: !fs.existsSync(bin) && `${bin} not installed` }, t => {
+    const { result, parent, roots } = runVitest(t, bin, 'expect(1).toBe(2);');
+    assert.notEqual(result.status, 0);
+    assert.equal(roots.length, 1);
+    const recorded = fs.readFileSync(path.join(parent, roots[0], 'probe-root.txt'), 'utf-8');
+    assert.equal(fs.realpathSync(recorded), fs.realpathSync(path.join(parent, roots[0])),
+      'tests saw the per-run root as their temporary directory');
+  });
+}
 
 test('every package whose tests run under vitest wires the per-run temporary root', () => {
   const packagesDir = path.join(repoRoot, 'packages');

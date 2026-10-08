@@ -73,6 +73,18 @@ def store_of(repo: Path) -> Path:
     return repo / ".git" / "nullius" / "store"
 
 
+def stow_json(run_dir, cwd, monkeypatch, capsys) -> dict:
+    capsys.readouterr()
+    assert run_main(["stow", str(run_dir), "--json"], cwd, monkeypatch) == rs.EXIT_OK
+    return json.loads(capsys.readouterr().out)
+
+
+def overwrite_in_place(path: Path, data: bytes) -> None:
+    os.chmod(path, 0o644)
+    with open(path, "r+b") as fh:
+        fh.write(data)
+
+
 # ------------------------------------------------------------------ check
 
 def test_check_staged_warns_and_strict_blocks(tmp_path, monkeypatch, capsys):
@@ -110,47 +122,73 @@ def test_check_working_tree_classifies_bulk(tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert run_main(["check", "--json"], repo, monkeypatch) == rs.EXIT_OK
     doc = json.loads(capsys.readouterr().out)
-    paths = {k: [r["path"] for r in doc[k]] for k in ("tracked", "untracked", "ignored_stowed", "ignored_unstowed")}
+    paths = {k: [r["path"] for r in doc[k]] for k in ("tracked", "untracked", "stowed", "stowed_damaged",
+                                                      "ignored_unstowed")}
     assert paths == {
         "tracked": ["artifacts/runs/legacy/tracked.dat"],
         "untracked": ["artifacts/runs/new/untracked.dat"],
-        "ignored_stowed": ["artifacts/runs/stowed/out.dat"],
+        "stowed": ["artifacts/runs/stowed/out.dat"],
+        "stowed_damaged": [],
         "ignored_unstowed": ["artifacts/runs/ignored/lost.dat"],
     }
     assert run_main(["check", "--strict"], repo, monkeypatch) == rs.EXIT_FINDINGS
 
 
-def test_policy_file_is_validated(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("damage", ["rewrite_by_rename", "shrink_below_threshold", "store_object_lost"])
+def test_check_strict_flags_stowed_outputs_that_no_longer_match(tmp_path, monkeypatch, capsys, damage):
     repo = make_repo(tmp_path)
-    (repo / ".nullius" / "storage_policy.json").write_text(json.dumps({"schema": "other"}))
-    assert run_main(["check"], repo, monkeypatch) == rs.EXIT_ERROR
-    (repo / ".nullius" / "storage_policy.json").write_text(
-        json.dumps({"schema": rs.POLICY_SCHEMA, "bulk_threshold_bytes": 0}))
-    assert run_main(["check"], repo, monkeypatch) == rs.EXIT_ERROR
-    (repo / ".nullius" / "storage_policy.json").write_text(
-        json.dumps({"schema": rs.POLICY_SCHEMA, "run_roots": ["../outside"]}))
-    assert run_main(["check"], repo, monkeypatch) == rs.EXIT_ERROR
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "a.bin").write_bytes(blob(THRESHOLD, 5))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    sha = rs.sha256_file(run / "a.bin")
+    if damage == "rewrite_by_rename":  # read-only bits do not stop a rename over the file
+        (run / ".tmp").write_bytes(blob(THRESHOLD, 6))
+        os.replace(run / ".tmp", run / "a.bin")
+    elif damage == "shrink_below_threshold":
+        (run / "a.bin").unlink()
+        (run / "a.bin").write_bytes(b"small now")
+    else:
+        rs.store_path(store_of(repo), sha).unlink()
+    capsys.readouterr()
+    assert run_main(["check", "--strict", "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    doc = json.loads(capsys.readouterr().out)
+    assert [r["path"] for r in doc["stowed_damaged"]] == ["artifacts/runs/r1/a.bin"] and doc["stowed"] == []
+
+
+def test_policy_file_is_validated(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    policy = repo / ".nullius" / "storage_policy.json"
+    for doc in ({"schema": "other"},
+                {"schema": rs.POLICY_SCHEMA, "bulk_threshold_bytes": 0},
+                {"schema": rs.POLICY_SCHEMA, "run_roots": ["../outside"]},
+                # a relative store would live inside each checkout and die with a removed worktree
+                {"schema": rs.POLICY_SCHEMA, "store_root": ".nullius/store"}):
+        policy.write_text(json.dumps(doc))
+        assert run_main(["check"], repo, monkeypatch) == rs.EXIT_ERROR, doc
 
 
 # ------------------------------------------------------------------- stow
 
-def test_stow_links_into_shared_store_and_keeps_file_readable_in_place(tmp_path, monkeypatch, capsys):
+def test_stow_stores_once_and_keeps_the_file_readable_in_place(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
     (run / "sub").mkdir(parents=True)
     data = blob(THRESHOLD * 3, 5)
     (run / "sub" / "field.bin").write_bytes(data)
     (run / "log.txt").write_text("small log\n")
-    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    [stowed] = stow_json(run, repo, monkeypatch, capsys)["stowed"]
     target = run / "sub" / "field.bin"
-    sha = rs.sha256_file(target)
-    entry = rs.store_path(store_of(repo), sha)
-    assert entry.exists() and os.path.samestat(entry.stat(), target.stat()), "same inode, no extra bytes"
-    assert target.read_bytes() == data, "original bytes readable in place"
+    obj = rs.store_path(store_of(repo), stowed["sha256"])
+    assert stowed["method"] in ("clone", "link", "copy")
+    assert rs.verify_store_object(obj, stowed["sha256"]) and target.read_bytes() == data
     assert stat.S_IMODE(target.stat().st_mode) & 0o222 == 0, "stowed output is read-only"
+    if stowed["method"] == "clone":
+        assert not os.path.samestat(obj.stat(), target.stat()), "a clone is an independent file"
     manifest = json.loads((run / rs.MANIFEST_NAME).read_text())
     assert manifest["schema"] == rs.MANIFEST_SCHEMA
-    assert [(e["path"], e["size"], e["sha256"]) for e in manifest["entries"]] == [("sub/field.bin", len(data), sha)]
+    assert [(e["path"], e["size"], e["sha256"]) for e in manifest["entries"]] == \
+        [("sub/field.bin", len(data), stowed["sha256"])]
     assert sh("git", "check-ignore", "-q", "artifacts/runs/r1/sub/field.bin", cwd=repo, check=False).returncode == 0
     assert sh("git", "check-ignore", "-q", "artifacts/runs/r1/log.txt", cwd=repo, check=False).returncode == 1
     sh("git", "add", "-A", cwd=repo)
@@ -158,27 +196,63 @@ def test_stow_links_into_shared_store_and_keeps_file_readable_in_place(tmp_path,
     assert "artifacts/runs/r1/sub/field.bin" not in staged
     assert {"artifacts/runs/r1/bulk_manifest.json", "artifacts/runs/r1/.gitignore",
             "artifacts/runs/r1/log.txt"} <= set(staged)
-    # second stow is a no-op
-    capsys.readouterr()
-    assert run_main(["stow", str(run), "--json"], repo, monkeypatch) == rs.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["stowed"] == []
+    assert stow_json(run, repo, monkeypatch, capsys)["stowed"] == [], "second stow is a no-op"
 
 
-def test_stow_shares_identical_outputs_and_refuses_changed_results(tmp_path, monkeypatch, capsys):
+def test_identical_outputs_share_one_store_object(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     runs = repo / "artifacts" / "runs"
     for name in ("a", "b"):
         (runs / name).mkdir()
         (runs / name / "out.bin").write_bytes(blob(THRESHOLD * 2, 9))
-        assert run_main(["stow", f"artifacts/runs/{name}"], repo, monkeypatch) == rs.EXIT_OK
-    assert os.path.samestat((runs / "a" / "out.bin").stat(), (runs / "b" / "out.bin").stat())
-    entries = list((store_of(repo) / "sha256").rglob("*"))
-    assert len([e for e in entries if e.is_file()]) == 1
-    # a changed result under a recorded path is refused, never silently re-recorded
-    target = runs / "a" / "out.bin"
-    target.unlink()
-    target.write_bytes(blob(THRESHOLD * 2, 10))
-    assert run_main(["stow", "artifacts/runs/a"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    stow_json(runs / "a", repo, monkeypatch, capsys)
+    [second] = stow_json(runs / "b", repo, monkeypatch, capsys)["stowed"]
+    assert second["method"].startswith("existing")
+    objects = [e for e in (store_of(repo) / "sha256").rglob("*") if e.is_file()]
+    assert len(objects) == 1
+    for name in ("a", "b"):
+        assert run_main(["verify", str(runs / name)], repo, monkeypatch) == rs.EXIT_OK
+
+
+def test_in_place_edit_is_refused_and_never_spreads_to_other_runs(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    runs = repo / "artifacts" / "runs"
+    original = blob(THRESHOLD * 2, 12)
+    for name in ("a", "b"):
+        (runs / name).mkdir()
+        (runs / name / "out.bin").write_bytes(original)
+    stow_json(runs / "a", repo, monkeypatch, capsys)
+    overwrite_in_place(runs / "a" / "out.bin", b"CORRUPT")  # deliberate edit of a stowed output
+    capsys.readouterr()
+    assert run_main(["stow", str(runs / "a")], repo, monkeypatch) == rs.EXIT_FINDINGS, "changed result refused"
+    # Run b holds the original bytes; stowing it must never replace them with damaged ones,
+    # whether or not the edit above reached the store (it does when the store shares an inode).
+    stow_json(runs / "b", repo, monkeypatch, capsys)
+    assert (runs / "b" / "out.bin").read_bytes() == original
+    sha = rs.hashlib.sha256(original).hexdigest()
+    assert rs.verify_store_object(rs.store_path(store_of(repo), sha), sha)
+    assert run_main(["verify", str(runs / "b")], repo, monkeypatch) == rs.EXIT_OK
+
+
+def test_a_damaged_store_object_is_set_aside_not_trusted(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    runs = repo / "artifacts" / "runs"
+    original = blob(THRESHOLD * 2, 13)
+    (runs / "a").mkdir()
+    (runs / "a" / "out.bin").write_bytes(original)
+    sha = stow_json(runs / "a", repo, monkeypatch, capsys)["stowed"][0]["sha256"]
+    obj = rs.store_path(store_of(repo), sha)
+    forged = obj.with_name("forged")
+    forged.write_bytes(blob(len(original), 14))  # same size, different bytes, under the right name
+    os.replace(forged, obj)
+    assert run_main(["verify", str(runs / "a")], repo, monkeypatch) == rs.EXIT_FINDINGS  # ok_in_place_only
+    (runs / "b").mkdir()
+    (runs / "b" / "out.bin").write_bytes(original)
+    stow_json(runs / "b", repo, monkeypatch, capsys)
+    assert (runs / "b" / "out.bin").read_bytes() == original
+    assert rs.verify_store_object(obj, sha)
+    assert [p.name for p in obj.parent.iterdir() if ".damaged-" in p.name], "damaged bytes kept for inspection"
+    assert run_main(["verify", str(runs / "a")], repo, monkeypatch) == rs.EXIT_OK
 
 
 def test_stow_leaves_tracked_bulk_alone_and_refuses_outside_run_roots(tmp_path, monkeypatch, capsys):
@@ -188,31 +262,67 @@ def test_stow_leaves_tracked_bulk_alone_and_refuses_outside_run_roots(tmp_path, 
     (run / "tracked.bin").write_bytes(blob(THRESHOLD, 11))
     sh("git", "add", "-A", cwd=repo)
     sh("git", "commit", "-q", "-m", "legacy", cwd=repo)
-    capsys.readouterr()
-    assert run_main(["stow", str(run), "--json"], repo, monkeypatch) == rs.EXIT_OK
-    doc = json.loads(capsys.readouterr().out)
+    doc = stow_json(run, repo, monkeypatch, capsys)
     assert doc["stowed"] == [] and [r["path"] for r in doc["already_tracked"]] == ["tracked.bin"]
-    assert not (run / rs.MANIFEST_NAME).exists() or json.loads((run / rs.MANIFEST_NAME).read_text())["entries"] == []
     other = repo / "elsewhere"
     other.mkdir()
     assert run_main(["stow", str(other)], repo, monkeypatch) == rs.EXIT_ERROR
+
+
+def test_stow_refuses_unrecordable_names_before_changing_anything(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "fine.bin").write_bytes(blob(THRESHOLD, 15))
+    (run / "line\nbreak.bin").write_bytes(blob(THRESHOLD, 16))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_ERROR
+    assert not (run / rs.MANIFEST_NAME).exists() and not (run / ".gitignore").exists()
+    assert stat.S_IMODE((run / "fine.bin").stat().st_mode) & 0o200, "nothing was made read-only"
+    assert not store_of(repo).exists()
+
+
+def test_symlinked_run_root_is_refused_cleanly(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    outside = tmp_path / "outside-runs"
+    (outside / "r1").mkdir(parents=True)
+    (outside / "r1" / "big.bin").write_bytes(blob(THRESHOLD, 17))
+    shutil.rmtree(repo / "artifacts" / "runs")
+    os.symlink(outside, repo / "artifacts" / "runs")
+    assert run_main(["stow", "artifacts/runs/r1"], repo, monkeypatch) == rs.EXIT_ERROR
+    assert run_main(["check"], repo, monkeypatch) == rs.EXIT_OK
 
 
 def test_ignore_block_escapes_special_names(tmp_path, monkeypatch):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
     run.mkdir()
-    names = ["a[1]*.bin", "#hash.bin", "!bang.bin", "trailing.bin "]
+    names = ["a[1]*.bin", "#hash.bin", "!bang.bin", "trailing.bin ", "back\\slash.bin", "tab\there.bin"]
     for i, name in enumerate(names):
         (run / name).write_bytes(blob(THRESHOLD, 20 + i))
     (run / "a1x.bin").write_bytes(b"small")
     (run / ".gitignore").write_text("# user rule kept\n*.tmp\n")
     assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
     for name in names:
-        assert sh("git", "check-ignore", "-q", f"artifacts/runs/r1/{name}", cwd=repo, check=False).returncode == 0, name
+        rel = f"artifacts/runs/r1/{name}"
+        assert sh("git", "check-ignore", "-q", "--no-index", rel, cwd=repo, check=False).returncode == 0, name
     assert sh("git", "check-ignore", "-q", "artifacts/runs/r1/a1x.bin", cwd=repo, check=False).returncode == 1
     text = (run / ".gitignore").read_text()
     assert text.startswith("# user rule kept\n*.tmp\n") and text.count(rs.GITIGNORE_BEGIN) == 1
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="decomposed file names are a macOS file-system behaviour")
+def test_decomposed_unicode_names_are_recorded_in_git_form(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "é.bin").write_bytes(blob(THRESHOLD, 30))  # NFD on disk
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    assert sh("git", "status", "--porcelain", "--untracked-files=all", cwd=repo).stdout.count(".bin") == 0
+    capsys.readouterr()
+    assert run_main(["check", "--strict", "--json"], repo, monkeypatch) == rs.EXIT_OK
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["stowed_damaged"] == [] and doc["ignored_unstowed"] == []
+    assert [r["path"] for r in doc["stowed"]] == ["artifacts/runs/r1/é.bin"]
 
 
 def test_store_put_copies_across_file_systems(tmp_path, monkeypatch):
@@ -222,7 +332,9 @@ def test_store_put_copies_across_file_systems(tmp_path, monkeypatch):
     def no_link(a, b):
         raise OSError(errno.EXDEV, "cross-device link")
 
-    monkeypatch.setattr(rs.os, "link", no_link)
+    monkeypatch.setattr(rs, "clone_file", lambda a, b: False)
+    real_link = rs.os.link
+    monkeypatch.setattr(rs.os, "link", lambda a, b: no_link(a, b) if Path(a) == src else real_link(a, b))
     sha, dest, method = rs.store_put(src, tmp_path / "store")
     assert method == "copy" and dest.read_bytes() == src.read_bytes()
     assert not os.path.samestat(dest.stat(), src.stat())
@@ -234,7 +346,7 @@ def test_verify_reports_every_state(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
     run.mkdir()
-    for name, seed in (("ok.bin", 40), ("gone.bin", 41), ("lost.bin", 42), ("bad.bin", 43)):
+    for name, seed in (("ok.bin", 40), ("gone.bin", 41), ("lost.bin", 42), ("bad.bin", 43), ("nostore.bin", 44)):
         (run / name).write_bytes(blob(THRESHOLD, seed))
     assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
     capsys.readouterr()
@@ -242,15 +354,15 @@ def test_verify_reports_every_state(tmp_path, monkeypatch, capsys):
     (run / "gone.bin").unlink()
     lost_sha = rs.sha256_file(run / "lost.bin")
     (run / "lost.bin").unlink()
-    store_entry = rs.store_path(store_of(repo), lost_sha)
-    store_entry.unlink()
-    bad = run / "bad.bin"
-    bad.unlink()  # break the link, then write different bytes under the recorded name
-    bad.write_bytes(blob(THRESHOLD, 99))
+    rs.store_path(store_of(repo), lost_sha).unlink()
+    rs.store_path(store_of(repo), rs.sha256_file(run / "nostore.bin")).unlink()
+    (run / "bad.bin").unlink()
+    (run / "bad.bin").write_bytes(blob(THRESHOLD, 99))
     capsys.readouterr()
     assert run_main(["verify", str(run), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
     statuses = {e["path"]: e["status"] for e in json.loads(capsys.readouterr().out)["entries"]}
-    assert statuses == {"ok.bin": "ok", "gone.bin": "in_store_only", "lost.bin": "missing", "bad.bin": "mismatch"}
+    assert statuses == {"ok.bin": "ok", "gone.bin": "in_store_only", "lost.bin": "missing",
+                        "bad.bin": "mismatch", "nostore.bin": "ok_in_place_only"}
 
 
 def test_materialize_in_linked_worktree(tmp_path, monkeypatch, capsys):
@@ -266,11 +378,12 @@ def test_materialize_in_linked_worktree(tmp_path, monkeypatch, capsys):
     sh("git", "worktree", "add", "-q", "-b", "lane", str(wt), cwd=repo)
     wt_run = wt / "artifacts" / "runs" / "r1"
     assert (wt_run / rs.MANIFEST_NAME).exists() and not (wt_run / "out.bin").exists()
-    capsys.readouterr()
     assert run_main(["verify", str(wt_run)], wt, monkeypatch) == rs.EXIT_OK  # intact in the shared store
-    assert run_main(["materialize", str(wt_run)], wt, monkeypatch) == rs.EXIT_OK
+    capsys.readouterr()
+    assert run_main(["materialize", str(wt_run), "--json"], wt, monkeypatch) == rs.EXIT_OK
+    [restored] = json.loads(capsys.readouterr().out)["restored"]
+    assert restored["method"] in ("clone", "link", "symlink")
     assert (wt_run / "out.bin").read_bytes() == data
-    assert os.path.samestat((wt_run / "out.bin").stat(), (run / "out.bin").stat())
     capsys.readouterr()
     assert run_main(["verify", str(wt_run), "--json"], wt, monkeypatch) == rs.EXIT_OK
     assert [e["status"] for e in json.loads(capsys.readouterr().out)["entries"]] == ["ok"]
@@ -278,9 +391,9 @@ def test_materialize_in_linked_worktree(tmp_path, monkeypatch, capsys):
 
 # ------------------------------------------------------------- worktrees
 
-def _worktree(repo: Path, tmp_path: Path, name: str) -> Path:
+def _worktree(repo: Path, tmp_path: Path, name: str, *extra) -> Path:
     wt = tmp_path / name
-    sh("git", "worktree", "add", "-q", "-b", name, str(wt), cwd=repo)
+    sh("git", "worktree", "add", "-q", *extra, "-b", name, str(wt), cwd=repo)
     return wt
 
 
@@ -292,6 +405,7 @@ def _verdicts(capsys) -> dict:
 def test_worktree_check_verdicts(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     (repo / ".gitignore").write_text("node_modules/\n*.out\n")
+    (repo / "notes.md").write_text("v1\n")
     sh("git", "add", "-A", cwd=repo)
     sh("git", "commit", "-q", "-m", "ignore rules", cwd=repo)
 
@@ -319,6 +433,19 @@ def test_worktree_check_verdicts(tmp_path, monkeypatch, capsys):
     dirty = _worktree(repo, tmp_path, "dirty")
     (dirty / "scratch.txt").write_text("untracked\n")
 
+    hidden = _worktree(repo, tmp_path, "hidden")  # edit hidden from `git status`
+    (hidden / "notes.md").write_text("edited\n")
+    sh("git", "update-index", "--assume-unchanged", "notes.md", cwd=hidden)
+
+    private = _worktree(repo, tmp_path, "private")  # commit kept only by a per-worktree ref
+    commit = sh("git", "commit-tree", "-p", "HEAD", "-m", "kept by a private ref",
+                sh("git", "rev-parse", "HEAD^{tree}", cwd=private).stdout.strip(), cwd=private).stdout.strip()
+    sh("git", "update-ref", "refs/worktree/saved", commit, cwd=private)
+
+    twin = _worktree(repo, tmp_path, "twin")  # main's same-path "copy" is a symlink into the worktree
+    (twin / "result.out").write_text("only here\n")
+    os.symlink(twin / "result.out", repo / "result.out")
+
     capsys.readouterr()
     assert run_main(["worktree-check", "--all", "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
     v = _verdicts(capsys)
@@ -329,14 +456,45 @@ def test_worktree_check_verdicts(tmp_path, monkeypatch, capsys):
     assert [r["path"] for r in v["unique"]["ignored"]["unique"]] == ["result.out"]
     assert v["unmerged"]["verdict"] == "keep" and v["unmerged"]["merged"] is False
     assert v["dirty"]["verdict"] == "keep" and v["dirty"]["untracked"] == ["scratch.txt"]
+    assert v["hidden"]["verdict"] == "keep" and v["hidden"]["tracked_changes"] == ["notes.md"]
+    assert v["private"]["verdict"] == "keep" and v["private"]["worktree_private_refs"] == ["refs/worktree/saved"]
+    assert v["twin"]["verdict"] == "keep" and [r["path"] for r in v["twin"]["ignored"]["unique"]] == ["result.out"]
 
-    # the printed removal command really works for a safe worktree, and the
-    # stowed output survives in the shared store after the worktree is gone
     entry = rs.store_path(store_of(repo), rs.sha256_file(run / "big.bin"))
     sh(*v["stowed"]["remove_command"].split(), cwd=repo)
-    assert not stowed.exists() and entry.exists()
-    # nothing was removed by the check itself
-    assert (unique / "result.out").exists() and clean.exists()
+    assert not stowed.exists() and entry.exists(), "the stowed output survives in the shared store"
+    assert (unique / "result.out").exists() and clean.exists(), "the check itself removes nothing"
+
+
+def test_worktree_check_does_not_credit_a_damaged_store_object(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    (repo / ".gitignore").write_text("*.out\n")
+    sh("git", "add", "-A", cwd=repo)
+    sh("git", "commit", "-q", "-m", "ignore", cwd=repo)
+    wt = _worktree(repo, tmp_path, "lane")
+    data = blob(THRESHOLD, 61)
+    (wt / "only-good-copy.out").write_bytes(data)
+    sha = rs.hashlib.sha256(data).hexdigest()
+    obj = rs.store_path(store_of(repo), sha)
+    obj.parent.mkdir(parents=True)
+    obj.write_bytes(blob(THRESHOLD, 62))  # right name, wrong bytes
+    capsys.readouterr()
+    assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    v = _verdicts(capsys)
+    assert v["lane"]["verdict"] == "keep"
+    assert [r["path"] for r in v["lane"]["ignored"]["unique"]] == ["only-good-copy.out"]
+
+
+def test_worktree_check_all_survives_a_broken_worktree(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    good = _worktree(repo, tmp_path, "good")
+    broken = _worktree(repo, tmp_path, "broken")
+    sh("git", "update-ref", "-d", "refs/heads/broken", cwd=repo)  # its HEAD now names a missing branch
+    capsys.readouterr()
+    run_main(["worktree-check", "--all", "--json"], repo, monkeypatch)
+    v = _verdicts(capsys)
+    assert v["good"]["verdict"] == "safe_to_remove"
+    assert v["broken"]["verdict"] == "keep" and good.exists() and broken.exists()
 
 
 # ----------------------------------------------------------------- sparse
@@ -351,10 +509,12 @@ def test_sparse_exclude_bulk_in_linked_worktree(tmp_path, monkeypatch, capsys):
     sh("git", "commit", "-q", "-m", "legacy bulk", cwd=repo)
     assert run_main(["sparse-exclude-bulk"], repo, monkeypatch) == rs.EXIT_ERROR  # main checkout refused
     wt = _worktree(repo, tmp_path, "lane")
+    other = _worktree(repo, tmp_path, "other")
     assert run_main(["sparse-exclude-bulk"], wt, monkeypatch) == rs.EXIT_OK
     assert not (wt / "artifacts/runs/legacy/huge.bin").exists()
     assert (wt / "artifacts/runs/legacy/notes.txt").exists() and (wt / "README.md").exists()
-    assert (run / "huge.bin").exists(), "main checkout keeps its full checkout"
+    assert (run / "huge.bin").exists() and (other / "artifacts/runs/legacy/huge.bin").exists(), \
+        "the main checkout and other worktrees keep their full checkouts"
     assert sh("git", "status", "--porcelain", cwd=wt).stdout == ""
     assert run_main(["sparse-exclude-bulk"], wt, monkeypatch) == rs.EXIT_ERROR  # never overwrites patterns
     sh("git", "sparse-checkout", "disable", cwd=wt)
@@ -382,6 +542,12 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     sh("git", "commit", "-q", "-m", "extra", cwd=other)
     sh("git", "bundle", "create", str(scratch / "extra.bundle"), "HEAD", cwd=other)
     shutil.copytree(other / ".git", scratch / "copy-of-history.git")
+    sh("git", "clone", "-q", "--bare", str(repo), str(scratch / "same-history.git"), cwd=tmp_path)
+    tagged = scratch / "tag-only-history.git"
+    sh("git", "clone", "-q", "--bare", str(repo), str(tagged), cwd=tmp_path)
+    tree = sh("git", "rev-parse", "HEAD^{tree}", cwd=tagged).stdout.strip()
+    extra = sh("git", "commit-tree", "-p", "HEAD", "-m", "only behind an annotated tag", tree, cwd=tagged).stdout.strip()
+    sh("git", "tag", "-a", "-m", "t", "v-only", extra, cwd=tagged)
     temp_parent = tmp_path / "temp"
     old_root = temp_parent / "lane-run-1"
     old_root.mkdir(parents=True)
@@ -391,23 +557,23 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     os.utime(old_root, (past, past))
     (temp_parent / "lane-run-2").mkdir()
     capsys.readouterr()
-    rc = run_main(["report", str(scratch), "--repo", str(repo), "--stale-dir", str(temp_parent),
+    rc = run_main(["report", str(scratch), str(scratch / "a"), "--repo", str(repo), "--stale-dir", str(temp_parent),
                    "--stale-prefix", "lane-", "--json"], tmp_path, monkeypatch)
     assert rc == rs.EXIT_OK
     doc = json.loads(capsys.readouterr().out)
     assert doc["summary_bytes"]["duplicate_content"] == len(dup)
-    assert doc["summary_bytes"]["regenerable_directories"] == 1000
+    assert doc["summary_bytes"]["regenerable_directories"] == 1000, "overlapping roots are counted once"
     bundles = {Path(b["path"]).name: b["contained_in_reference"] for b in doc["bundles"]}
     assert bundles == {"contained.bundle": True, "extra.bundle": False}
     stores = {Path(g["path"]).name: g["contained_in_reference"] for g in doc["git_object_stores"]}
-    assert stores == {"copy-of-history.git": False}
+    assert stores == {"copy-of-history.git": False, "same-history.git": True, "tag-only-history.git": False}
     assert [Path(s["path"]).name for s in doc["stale"]] == ["lane-run-1"]
     assert (scratch / "b" / "copy.bin").exists(), "report never deletes"
 
 
 # --------------------------------------------------------------- closeout
 
-def test_closeout_plans_then_applies_with_manifest(tmp_path, monkeypatch, capsys):
+def _closeout_tree(tmp_path) -> "tuple[Path, Path, bytes]":
     root = tmp_path / "acceptance-run"
     (root / "isolated-copy" / "node_modules" / "dep").mkdir(parents=True)
     (root / "isolated-copy" / "node_modules" / "dep" / "x.js").write_text("x")
@@ -416,34 +582,114 @@ def test_closeout_plans_then_applies_with_manifest(tmp_path, monkeypatch, capsys
     big = blob(2 * 1024 * 1024, 90)
     (root / "evidence" / "observations.json").write_bytes(big)
     (root / "evidence" / "small.txt").write_text("kept as is\n")
-    verdict = root / "verdict.json"
+    return root, root / "verdict.json", big
+
+
+@pytest.mark.parametrize("bad", [".", "./", "", "../outside", "evidence/..", rs.CLOSEOUT_MANIFEST_NAME, "evidence"])
+def test_closeout_refuses_unsafe_prune_paths(tmp_path, monkeypatch, bad):
+    root, verdict, _ = _closeout_tree(tmp_path)
+    if bad == "evidence":  # a prune path that contains the verdict
+        verdict = root / "evidence" / "verdict.json"
+    verdict.write_text('{"verdict": "PASS"}\n')
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", bad, "--apply"],
+                    tmp_path, monkeypatch) == rs.EXIT_ERROR
+    assert (root / "evidence" / "observations.json").exists() and verdict.exists()
+    assert not (root / rs.CLOSEOUT_MANIFEST_NAME).exists()
+
+
+def test_closeout_plans_then_applies_with_manifest(tmp_path, monkeypatch, capsys):
+    root, verdict, big = _closeout_tree(tmp_path)
     assert run_main(["closeout", str(root), "--verdict", str(verdict)], tmp_path, monkeypatch) == rs.EXIT_ERROR
     verdict.write_text("")  # an empty verdict file is not a recorded verdict
     assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "isolated-copy", "--apply"],
                     tmp_path, monkeypatch) == rs.EXIT_ERROR
     assert (root / "isolated-copy").exists() and not (root / rs.CLOSEOUT_MANIFEST_NAME).exists()
     verdict.write_text('{"verdict": "PASS"}\n')
-    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "isolated-copy"],
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "./isolated-copy//"],
                     tmp_path, monkeypatch) == rs.EXIT_OK
     assert (root / "isolated-copy").exists() and not (root / rs.CLOSEOUT_MANIFEST_NAME).exists(), "plan only"
-    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "../outside"],
-                    tmp_path, monkeypatch) == rs.EXIT_ERROR
     capsys.readouterr()
     monkeypatch.setattr(rs.shutil, "which", lambda name: None)  # exercise the stdlib (xz) path
-    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "isolated-copy", "--apply",
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "./isolated-copy//", "--apply",
                      "--json"], tmp_path, monkeypatch) == rs.EXIT_OK
     manifest = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())
     assert manifest["state"] == "applied" and not (root / "isolated-copy").exists()
-    assert [p["path"] for p in manifest["pruned"]] == ["isolated-copy"] and manifest["pruned"][0]["tree_digest"]
+    assert not any(k.startswith("isolated-copy") for k in manifest["kept_files"])
+    [pruned] = manifest["pruned"]
+    assert pruned["path"] == "isolated-copy" and pruned["files"] == 2
+    inventory_bytes = (root / pruned["inventory_file"]).read_bytes()
+    assert rs.hashlib.sha256(inventory_bytes).hexdigest() == pruned["tree_digest"]
+    inventory = json.loads(inventory_bytes)
+    assert inventory["src.txt"]["sha256"] == rs.hashlib.sha256(b"source copy\n").hexdigest()
     original_sha = manifest["kept_files"]["evidence/observations.json"]["sha256"]
     [entry] = manifest["compressed"]
-    assert entry["path"] == "evidence/observations.json" and entry["method"] == "xz"
-    with lzma.open(root / "evidence" / entry["compressed_path"], "rb") as fh:
+    assert entry["path"] == "evidence/observations.json" and entry["method"] == "xz" and entry["done"]
+    with lzma.open(root / entry["compressed_path"], "rb") as fh:
         restored = fh.read()
     assert restored == big and rs.hashlib.sha256(restored).hexdigest() == original_sha
     assert (root / "evidence" / "small.txt").read_text() == "kept as is\n"
+    assert not (root / rs.QUARANTINE_DIR).exists()
     assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"],
                     tmp_path, monkeypatch) == rs.EXIT_ERROR, "a tree is closed out once"
+
+
+def test_closeout_never_overwrites_an_existing_compressed_name(tmp_path, monkeypatch):
+    root = tmp_path / "run"
+    root.mkdir()
+    (root / "data.bin").write_bytes(b"A" * 2 * 1024 * 1024)
+    (root / "data.bin.xz").write_bytes(b"PRECIOUS " * 300)
+    (root / "verdict.txt").write_text("PASS\n")
+    monkeypatch.setattr(rs.shutil, "which", lambda name: None)
+    assert run_main(["closeout", str(root), "--verdict", str(root / "verdict.txt"), "--apply"],
+                    tmp_path, monkeypatch) == rs.EXIT_OK
+    assert (root / "data.bin.xz").read_bytes() == b"PRECIOUS " * 300
+    assert (root / "data.bin").exists()
+    manifest = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())
+    assert manifest["compressed"] == [] and manifest["compression_skipped"][0]["path"] == "data.bin"
+
+
+def test_closeout_keeps_git_object_stores_byte_exact(tmp_path, monkeypatch):
+    root = tmp_path / "run"
+    repo = root / "copy"
+    repo.mkdir(parents=True)
+    sh("git", "init", "-q", cwd=repo)
+    (repo / "big.txt").write_bytes(b"0123456789" * 300_000)
+    sh("git", "add", "-A", cwd=repo)
+    sh("git", "commit", "-q", "-m", "c", cwd=repo)
+    sh("git", "gc", "-q", cwd=repo)
+    (root / "verdict.txt").write_text("PASS\n")
+    assert run_main(["closeout", str(root), "--verdict", str(root / "verdict.txt"), "--compress-min-size", "1",
+                     "--apply"], tmp_path, monkeypatch) == rs.EXIT_OK
+    manifest = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())
+    assert not any("/.git/" in c["path"] for c in manifest["compressed"])
+    assert sh("git", "fsck", "--no-progress", cwd=repo, check=False).returncode == 0
+
+
+def test_closeout_resumes_an_interrupted_apply(tmp_path, monkeypatch, capsys):
+    root, verdict, big = _closeout_tree(tmp_path)
+    verdict.write_text("PASS\n")
+    monkeypatch.setattr(rs.shutil, "which", lambda name: None)
+    calls = {"n": 0}
+    real = rs.compress_to_new_file
+
+    def fail_once(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise rs.StorageError("simulated interruption")
+        return real(*a, **k)
+
+    monkeypatch.setattr(rs, "compress_to_new_file", fail_once)
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "isolated-copy", "--apply"],
+                    tmp_path, monkeypatch) == rs.EXIT_ERROR
+    manifest = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())
+    assert manifest["state"] == "applying" and manifest["pruned"][0]["removed"]
+    assert (root / "evidence" / "observations.json").read_bytes() == big, "the original survives the failure"
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--prune", "other", "--apply"],
+                    tmp_path, monkeypatch) == rs.EXIT_ERROR, "a resume follows the recorded plan only"
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path, monkeypatch) == rs.EXIT_OK
+    manifest = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())
+    assert manifest["state"] == "applied" and manifest["compressed"][0]["done"]
+    assert not (root / "evidence" / "observations.json").exists()
 
 
 @pytest.mark.skipif(shutil.which("zstd") is None, reason="zstd not installed")
@@ -469,7 +715,7 @@ def test_tree_digest_store_and_compare(tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert run_main(["tree-digest", str(tree), "--store", str(store), "--json"], tmp_path, monkeypatch) == rs.EXIT_OK
     first = json.loads(capsys.readouterr().out)["digest"]
-    assert rs.store_path(store, first).exists()
+    assert rs.verify_store_object(rs.store_path(store, first), first)
     assert run_main(["tree-digest", str(tree), "--store", str(store), "--compare", first], tmp_path,
                     monkeypatch) == rs.EXIT_OK
     (tree / "d" / "f.txt").write_text("two\n")
@@ -481,18 +727,21 @@ def test_tree_digest_store_and_compare(tmp_path, monkeypatch, capsys):
     assert cmp["added"] == ["g.txt"] and cmp["changed"] == ["d/f.txt"] and cmp["removed"] == []
 
 
-def test_store_put_stores_once(tmp_path, monkeypatch, capsys):
+def test_store_put_stores_once_and_leaves_the_source_untouched(tmp_path, monkeypatch, capsys):
     a = tmp_path / "a.bin"
     b = tmp_path / "b.bin"
     a.write_bytes(blob(5000, 1))
     b.write_bytes(blob(5000, 1))
+    before = stat.S_IMODE(a.stat().st_mode)
     store = tmp_path / "store"
     capsys.readouterr()
-    assert run_main(["store-put", str(a), str(b), "--store", str(store), "--copy", "--json"], tmp_path,
+    assert run_main(["store-put", str(a), str(b), "--store", str(store), "--json"], tmp_path,
                     monkeypatch) == rs.EXIT_OK
     methods = [r["method"] for r in json.loads(capsys.readouterr().out)["stored"]]
-    assert methods == ["copy", "existing"]
-    assert stat.S_IMODE(a.stat().st_mode) & 0o200, "--copy leaves the source writable"
+    assert methods[0] in ("clone", "copy") and methods[1] == "existing"
+    assert stat.S_IMODE(a.stat().st_mode) == before, "recording a file never changes it"
+    with open(a, "ab") as fh:  # the observed program can keep writing
+        fh.write(b"more")
 
 
 # ------------------------------------------------------------------- hook
@@ -518,13 +767,16 @@ def test_install_hook_warns_blocks_and_respects_foreign_hooks(tmp_path, monkeypa
 
 # ------------------------------------------------------- documentation lock
 
-def test_skill_documents_exactly_the_implemented_subcommands():
+def test_skill_documents_exactly_the_implemented_subcommands_and_statuses():
     parser_choices = set(rs.build_parser()._subparsers._group_actions[0].choices)
     assert parser_choices == set(rs.SUBCOMMANDS)
     text = SKILL_MD.read_text(encoding="utf-8")
     match = re.search(r"^## Run Storage\b.*?(?=^## )", text, flags=re.S | re.M)
     assert match, "SKILL.md must have a '## Run Storage' section"
-    documented = set(re.findall(r"run_storage\.py (\b[a-z][a-z-]+\b)", match.group(0)))
+    section = match.group(0)
+    documented = set(re.findall(r"run_storage\.py (\b[a-z][a-z-]+\b)", section))
     assert documented == set(rs.SUBCOMMANDS), (sorted(documented ^ set(rs.SUBCOMMANDS)))
+    for status in rs.ENTRY_STATUSES:
+        assert f"`{status}`" in section, status
     for phrase in ("bulk_manifest.json", "git worktree remove", "refs/nullius/runs", "5 MiB"):
-        assert phrase in match.group(0), phrase
+        assert phrase in section, phrase
