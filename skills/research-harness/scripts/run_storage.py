@@ -1298,6 +1298,8 @@ def worktree_private_refs(path: Path, base: str) -> "list[str]":
     pointing at commits the base branch does not contain."""
     out = git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/", "refs/bisect/",
                "refs/rewritten/"], path)  # a failure is an error (keep), never "no refs"
+    if out.stderr.strip():  # e.g. "ignoring broken ref": the enumeration is incomplete
+        raise StorageError(f"the worktree-private refs could not all be read ({out.stderr.decode(errors='replace').strip()})")
     held = []
     for line in out.stdout.decode().splitlines():
         name, _, sha = line.partition(" ")
@@ -2041,6 +2043,9 @@ def apply_closeout(root: Path, manifest: dict, manifest_path: Path) -> "list[str
     lines = []
     quarantine = root / QUARANTINE_DIR
     inventories = root / PRUNED_INVENTORY_DIR
+    for own in (quarantine, inventories):  # the closeout's own records are never reached through a link
+        if own.is_symlink() or ((own.exists()) and Path(os.path.realpath(own)) != own):
+            raise StorageError(f"{own} is a symbolic link; inspect before resuming")
     for index, entry in enumerate(manifest["pruned"]):
         if entry.get("removed"):
             continue

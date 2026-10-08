@@ -1207,6 +1207,31 @@ def test_closeout_resume_refuses_a_compression_path_that_became_a_symlink(tmp_pa
     assert verdict.read_bytes() == big
 
 
+def test_apply_refuses_a_compression_path_whose_ancestor_became_a_symlink(tmp_path, monkeypatch):
+    root, verdict, big = _closeout_tree(tmp_path)
+    verdict.write_text("PASS\n")
+    monkeypatch.setattr(rs.shutil, "which", lambda name: None)
+    args = rs.build_parser().parse_args(["closeout", str(root), "--verdict", str(verdict)])
+    manifest = rs.plan_closeout(root, verdict, args)
+    (root / "elsewhere").mkdir()
+    os.rename(root / "evidence", root / "elsewhere" / "evidence")
+    os.symlink(root / "elsewhere" / "evidence", root / "evidence")  # changed after the plan was validated
+    with pytest.raises(rs.StorageError):
+        rs.apply_closeout(root, manifest, root / rs.CLOSEOUT_MANIFEST_NAME)
+    assert (root / "elsewhere" / "evidence" / "observations.json").read_bytes() == big
+
+
+def test_closeout_resume_refuses_a_symlinked_quarantine(tmp_path, monkeypatch):
+    root, verdict, _ = _interrupted_closeout(tmp_path, monkeypatch, "remove_path")
+    elsewhere = tmp_path / "elsewhere"
+    os.rename(root / rs.QUARANTINE_DIR, elsewhere)
+    os.symlink(elsewhere, root / rs.QUARANTINE_DIR)
+    survivors = sorted(p.name for p in elsewhere.rglob("*"))
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    assert sorted(p.name for p in elsewhere.rglob("*")) == survivors
+
+
 @pytest.mark.parametrize("tamper", ["escaping_prune", "escaping_compress", "inventory_mismatch"])
 def test_closeout_resume_revalidates_the_recorded_plan(tmp_path, monkeypatch, tamper):
     root, verdict, _ = _interrupted_closeout(tmp_path, monkeypatch, "remove_path")
