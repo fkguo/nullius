@@ -22,7 +22,8 @@ import path from 'node:path';
 export const TEST_RUNS_PARENT_PREFIX = 'ntest';
 const PARENT_README = 'Per-run temporary roots of the nullius test suites '
   + '(scripts/lib/vitest-test-temp-root.mjs). A passing run removes its root; a failing run keeps it, '
-  + 'and roots unchanged for 7 days are removed by a later run. NULLIUS_KEEP_TEST_TMP=1 keeps every root.\n';
+  + 'and roots unchanged for 7 days whose creating process has exited are removed by a later run. '
+  + 'NULLIUS_KEEP_TEST_TMP=1 keeps every root.\n';
 
 /** Create (or accept) the per-user parent only as a real directory owned by
  *  this user with mode 0700; a planted symlink or someone else's directory

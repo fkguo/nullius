@@ -1031,6 +1031,9 @@ def entry_status(run_dir: Path, store: Path, entry: dict) -> dict:
         lst = target.lstat()
     except FileNotFoundError:
         lst = None
+    except NotADirectoryError:  # an ancestor was replaced by a file: something else occupies the path
+        status.update(status="mismatch", actual_sha256=None)
+        return status
     if lst is not None:
         if not stat.S_ISREG(lst.st_mode):  # a symlink (dangling or not), FIFO, or device is not the record
             status.update(status="mismatch", actual_sha256=None)

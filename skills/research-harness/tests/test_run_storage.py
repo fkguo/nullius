@@ -502,6 +502,21 @@ def test_verify_reports_every_state(tmp_path, monkeypatch, capsys):
                         "bad.bin": "mismatch", "nostore.bin": "ok_in_place_only"}
 
 
+def test_verify_reports_an_ancestor_replaced_by_a_file_and_continues(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    (run / "sub").mkdir(parents=True)
+    (run / "sub" / "out.bin").write_bytes(blob(THRESHOLD, 77))
+    (run / "ok.bin").write_bytes(blob(THRESHOLD, 78))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    shutil.rmtree(run / "sub")
+    (run / "sub").write_text("now a file")
+    capsys.readouterr()
+    assert run_main(["verify", str(run), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    assert {e["path"]: e["status"] for e in json.loads(capsys.readouterr().out)["entries"]} == {
+        "ok.bin": "ok", "sub/out.bin": "mismatch"}
+
+
 def test_materialize_in_linked_worktree(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     run = repo / "artifacts" / "runs" / "r1"
