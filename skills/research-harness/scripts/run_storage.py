@@ -195,6 +195,13 @@ def write_json_atomic(path: Path, obj) -> None:
     write_atomic(path, (json.dumps(obj, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
 
 
+def walk_error(error: OSError) -> None:
+    """os.walk silently skips unreadable directories; every walk a verdict or
+    record rests on stops instead."""
+    raise StorageError(f"cannot read {getattr(error, 'filename', '') or error} ({error.strerror or error}); "
+                       "an incomplete walk cannot support this result")
+
+
 def is_under(child: Path, parent: Path) -> bool:
     try:
         child.resolve().relative_to(parent.resolve())
@@ -476,6 +483,8 @@ def store_put(path: Path, store: Path) -> "tuple[str, Path, str]":
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() or dest.is_symlink():
         if verify_store_object(dest, sha):
+            if sha256_file(path) != sha:
+                raise StorageError(f"{path} changed while being stored; stow it after the run has finished writing")
             return sha, dest, "existing"
         set_aside_damaged(dest)
     tmp = incoming_path(dest.parent)
@@ -555,7 +564,7 @@ def tree_inventory(root: Path, skip: "set[str] | None" = None) -> dict:
     root = Path(root)
     skip = skip or set()
     inventory: dict = {}
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False, onerror=walk_error):
         here = Path(dirpath)
         dirnames.sort()
         for name in sorted(dirnames + filenames):
@@ -619,7 +628,7 @@ def manifests_under(repo: Repo) -> "dict[str, tuple[Path, dict]]":
         base = repo.toplevel / root
         if not base.is_dir() or base.is_symlink():
             continue
-        for dirpath, dirnames, filenames in os.walk(base, followlinks=False):
+        for dirpath, dirnames, filenames in os.walk(base, followlinks=False, onerror=walk_error):
             if MANIFEST_NAME in filenames:
                 run_dir = Path(dirpath)
                 doc = load_manifest(run_dir)
@@ -738,7 +747,7 @@ def working_tree_bulk(repo: Repo, threshold: int) -> "dict[str, list[dict]]":
         good = status["status"] in ("ok", "in_store_only")
         classes["stowed" if good else "stowed_damaged"].append(record)
     for root in roots:
-        for dirpath, dirnames, filenames in os.walk(repo.toplevel / root, followlinks=False):
+        for dirpath, dirnames, filenames in os.walk(repo.toplevel / root, followlinks=False, onerror=walk_error):
             for name in filenames:
                 full = Path(dirpath) / name
                 st = full.lstat()
@@ -820,8 +829,8 @@ def cmd_install_hook(args) -> int:
         f'  python3 "$SCRIPT" check --staged --quiet{strict}',
         "  exit $?",
         "fi",
-        'echo "run-storage check skipped: $SCRIPT not found" >&2',
-        "exit 0",
+        'echo "run-storage check could not run: $SCRIPT or python3 is missing" >&2',
+        f"exit {1 if args.strict else 0}",
         "",
     ])
     if hook.exists() or hook.is_symlink():
@@ -922,7 +931,7 @@ def cmd_stow(args) -> int:
 
     # 2. New bulk candidates.
     candidates, legacy, unexpressible = [], [], []
-    for dirpath, dirnames, filenames in os.walk(run_dir, followlinks=False):
+    for dirpath, dirnames, filenames in os.walk(run_dir, followlinks=False, onerror=walk_error):
         for name in sorted(filenames):
             full = Path(dirpath) / name
             rel_run = repo.git_form(full.relative_to(run_dir).as_posix())
@@ -1213,15 +1222,17 @@ def hidden_tracked_changes(path: Path) -> "list[str]":
 # makes the verdict `keep`: fail closed instead of chasing every git feature.
 KNOWN_PRIVATE_GIT_FILES = frozenset({
     "HEAD", "ORIG_HEAD", "FETCH_HEAD", "COMMIT_EDITMSG", "commondir", "gitdir", "index", "config.worktree",
-    "logs/HEAD", "info/sparse-checkout", "info/exclude",
+    "logs/HEAD", "info/sparse-checkout",
 })
+# The only per-worktree configuration keys this check treats as bookkeeping.
+KNOWN_WORKTREE_CONFIG_KEYS = frozenset({"core.sparsecheckout", "core.sparsecheckoutcone", "index.sparse"})
 KNOWN_PRIVATE_GIT_DIRS = frozenset({"logs", "info"})
 
 
 def unassessed_private_git_state(git_dir: Path) -> "list[str]":
     unknown = []
     try:
-        for dirpath, dirnames, filenames in os.walk(git_dir, followlinks=False, onerror=_raise):
+        for dirpath, dirnames, filenames in os.walk(git_dir, followlinks=False, onerror=walk_error):
             here = Path(dirpath)
             for name in dirnames:
                 rel = (here / name).relative_to(git_dir).as_posix()
@@ -1235,11 +1246,16 @@ def unassessed_private_git_state(git_dir: Path) -> "list[str]":
                     unknown.append(rel)
     except OSError as exc:
         raise StorageError(f"cannot read the worktree's private git directory ({exc})")
+    config = git_dir / "config.worktree"
+    if config.is_file() and not config.is_symlink():
+        listing = git(["config", "--file", str(config), "--null", "--list"], git_dir, check=False)
+        keys = [item.split("\n", 1)[0].lower() for item in listing.stdout.decode("utf-8", "replace").split("\0")
+                if item]
+        if listing.returncode != 0 or any(key not in KNOWN_WORKTREE_CONFIG_KEYS for key in keys):
+            unknown.append("config.worktree (settings beyond sparse checkout)")
     return sorted(unknown)
 
 
-def _raise(error: OSError) -> None:
-    raise error
 
 
 def _shas_in(text: str, source: str, log_format: bool) -> "set[str]":
@@ -1280,16 +1296,19 @@ def reflog_only_commits(path: Path) -> "list[str]":
     if remembered:
         listing = git(["cat-file", "--batch-check=%(objectname) %(objecttype)"], path,
                       input_bytes=("\n".join(sorted(remembered)) + "\n").encode()).stdout.decode().splitlines()
-        remembered = {line.split()[0] for line in listing if line.endswith(" commit")}  # gone already: nothing to lose
+        # Any object type (a fetched annotated tag names a tag object); an object
+        # that is not in this repository any more has nothing left to lose.
+        remembered = {line.split()[0] for line in listing if not line.endswith(" missing")}
     if not remembered:
         return []
     # --exclude applies to the next ref selector only, so the exclusions sit
-    # directly before the one --glob that covers every shared ref.
-    shared = git(["rev-list", "--exclude=refs/worktree/*", "--exclude=refs/bisect/*", "--exclude=refs/rewritten/*",
-                  "--glob=refs/*"], path, check=False)
+    # directly before the one --glob that covers every shared ref; --objects
+    # covers tag, tree and blob objects as well as commits.
+    shared = git(["rev-list", "--objects", "--exclude=refs/worktree/*", "--exclude=refs/bisect/*",
+                  "--exclude=refs/rewritten/*", "--glob=refs/*"], path, check=False)
     if shared.returncode != 0:
-        return sorted(remembered)  # cannot tell: count every remembered commit as at risk
-    reachable = set(shared.stdout.decode().split())
+        return sorted(remembered)  # cannot tell: count every remembered object as at risk
+    reachable = {line.split()[0] for line in shared.stdout.decode().splitlines() if line.strip()}
     return sorted(remembered - reachable)
 
 
@@ -1901,6 +1920,10 @@ def check_prune_target(root: Path, rel: str, verdict_rel: "str | None") -> str:
 
 
 def plan_closeout(root: Path, verdict: Path, args) -> dict:
+    present = [name for name in (QUARANTINE_DIR, PRUNED_INVENTORY_DIR) if (root / name).exists() or (root / name).is_symlink()]
+    if present:
+        raise StorageError(f"{', '.join(present)} already exist(s) in {root} without a closeout manifest; "
+                           "these names are reserved for closeout records — rename them first")
     verdict_rel = verdict_rel_path(root, verdict)
     prune = list(args.prune)
     if args.prune_caches:
@@ -1923,7 +1946,7 @@ def plan_closeout(root: Path, verdict: Path, args) -> dict:
     kept: dict = {}
     compress, skipped = [], []
     git_stores: "list[str]" = []  # files inside a git object store are kept byte-exact
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False, onerror=walk_error):
         here = Path(dirpath)
         rel_dir = here.relative_to(root).as_posix()
         if rel_dir != "." and inside_pruned(rel_dir):

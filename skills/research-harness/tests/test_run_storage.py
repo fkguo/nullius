@@ -813,7 +813,7 @@ def test_worktree_check_keeps_a_worktree_whose_reflog_cannot_be_read(tmp_path, m
         os.chmod(log, 0o644)
 
 
-@pytest.mark.parametrize("state", ["private_ref_reflog", "merge_in_progress", "lock_file"])
+@pytest.mark.parametrize("state", ["private_ref_reflog", "merge_in_progress", "lock_file", "custom_worktree_config"])
 def test_worktree_check_keeps_worktrees_with_unassessed_git_state(tmp_path, monkeypatch, capsys, state):
     repo = make_repo(tmp_path)
     wt = tmp_path / "lane"
@@ -827,12 +827,43 @@ def test_worktree_check_keeps_worktrees_with_unassessed_git_state(tmp_path, monk
         sh("git", "update-ref", "refs/worktree/saved", "main", cwd=wt)
     elif state == "merge_in_progress":
         (git_dir / "MERGE_HEAD").write_text(sh("git", "rev-parse", "HEAD", cwd=wt).stdout)
-    else:
+    elif state == "lock_file":
         (git_dir / "locked").write_text("kept on purpose\n")
+    else:
+        sh("git", "config", "extensions.worktreeConfig", "true", cwd=repo)
+        sh("git", "config", "--worktree", "notes.displayRef", "refs/notes/lane-only", cwd=wt)
     capsys.readouterr()
     assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
     v = _verdicts(capsys)["lane"]
     assert v["verdict"] == "keep" and v["unassessed_git_state"]
+
+
+def test_worktree_check_keeps_an_annotated_tag_held_only_by_fetch_head(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    other = tmp_path / "other"
+    sh("git", "clone", "-q", str(repo), str(other), cwd=tmp_path)
+    (other / "x.txt").write_text("exists only behind the fetched tag\n")
+    sh("git", "add", "-A", cwd=other)
+    sh("git", "commit", "-q", "-m", "tagged only", cwd=other)
+    sh("git", "tag", "-a", "-m", "t", "v-fetched", cwd=other)
+    wt = tmp_path / "lane"
+    sh("git", "worktree", "add", "-q", "--detach", str(wt), "main", cwd=repo)
+    sh("git", "fetch", "-q", str(other), "refs/tags/v-fetched", cwd=wt)  # no destination: only FETCH_HEAD names it
+    capsys.readouterr()
+    assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    v = _verdicts(capsys)["lane"]
+    assert v["verdict"] == "keep" and v["reflog_only_commits"]
+
+
+def test_worktree_private_refs_with_a_broken_ref_are_an_error(tmp_path):
+    repo = make_repo(tmp_path)
+    wt = _worktree(repo, tmp_path, "lane")
+    git_dir = Path(sh("git", "rev-parse", "--git-dir", cwd=wt).stdout.strip())
+    git_dir = git_dir if git_dir.is_absolute() else wt / git_dir
+    (git_dir / "refs" / "worktree").mkdir(parents=True)
+    (git_dir / "refs" / "worktree" / "broken").write_text("not an object id\n")
+    with pytest.raises(rs.StorageError):
+        rs.worktree_private_refs(wt, "main")
 
 
 def test_worktree_check_all_survives_a_broken_worktree(tmp_path, monkeypatch, capsys):
@@ -866,6 +897,8 @@ def test_sparse_exclude_bulk_in_linked_worktree(tmp_path, monkeypatch, capsys):
     assert (run / "huge.bin").exists() and (other / "artifacts/runs/legacy/huge.bin").exists(), \
         "the main checkout and other worktrees keep their full checkouts"
     assert sh("git", "status", "--porcelain", cwd=wt).stdout == ""
+    capsys.readouterr()  # sparse-checkout bookkeeping alone never blocks removal
+    assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_OK
     assert run_main(["sparse-exclude-bulk"], wt, monkeypatch) == rs.EXIT_ERROR  # never overwrites patterns
     sh("git", "sparse-checkout", "disable", cwd=wt)
     assert (wt / "artifacts/runs/legacy/huge.bin").exists()
@@ -1221,15 +1254,16 @@ def test_apply_refuses_a_compression_path_whose_ancestor_became_a_symlink(tmp_pa
     assert (root / "elsewhere" / "evidence" / "observations.json").read_bytes() == big
 
 
-def test_closeout_resume_refuses_a_symlinked_quarantine(tmp_path, monkeypatch):
+@pytest.mark.parametrize("record_dir", [rs.QUARANTINE_DIR, rs.PRUNED_INVENTORY_DIR])
+def test_closeout_resume_refuses_a_symlinked_record_directory(tmp_path, monkeypatch, record_dir):
     root, verdict, _ = _interrupted_closeout(tmp_path, monkeypatch, "remove_path")
     elsewhere = tmp_path / "elsewhere"
-    os.rename(root / rs.QUARANTINE_DIR, elsewhere)
-    os.symlink(elsewhere, root / rs.QUARANTINE_DIR)
-    survivors = sorted(p.name for p in elsewhere.rglob("*"))
+    os.rename(root / record_dir, elsewhere)
+    os.symlink(elsewhere, root / record_dir)
+    survivors = sorted((p.name, p.read_bytes() if p.is_file() else b"") for p in elsewhere.rglob("*"))
     assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
                     monkeypatch) == rs.EXIT_ERROR
-    assert sorted(p.name for p in elsewhere.rglob("*")) == survivors
+    assert sorted((p.name, p.read_bytes() if p.is_file() else b"") for p in elsewhere.rglob("*")) == survivors
 
 
 @pytest.mark.parametrize("tamper", ["escaping_prune", "escaping_compress", "inventory_mismatch"])
@@ -1358,6 +1392,38 @@ def test_closeout_refuses_a_broken_recorded_manifest_cleanly(tmp_path, monkeypat
     assert (root / "isolated-copy").exists()
 
 
+@pytest.mark.parametrize("reserved", [rs.QUARANTINE_DIR, rs.PRUNED_INVENTORY_DIR])
+def test_closeout_refuses_pre_existing_reserved_directories(tmp_path, monkeypatch, reserved):
+    root, verdict, _ = _closeout_tree(tmp_path)
+    verdict.write_text("PASS\n")
+    (root / reserved).mkdir()
+    (root / reserved / "valuable.bin").write_bytes(b"user data that would escape the inventory")
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    assert not (root / rs.CLOSEOUT_MANIFEST_NAME).exists()
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads unreadable directories")
+@pytest.mark.parametrize("command", ["closeout", "tree-digest", "check"])
+def test_walks_that_records_rest_on_stop_at_unreadable_directories(tmp_path, monkeypatch, command):
+    if command == "check":
+        root = make_repo(tmp_path)
+        hidden = root / "artifacts" / "runs" / "r1" / "sealed"
+    else:
+        root, verdict, _ = _closeout_tree(tmp_path)
+        verdict.write_text("PASS\n")
+        hidden = root / "evidence" / "sealed"
+    hidden.mkdir(parents=True)
+    (hidden / "big.bin").write_bytes(blob(2 * 1024 * 1024, 93))
+    os.chmod(hidden, 0)
+    try:
+        argv = {"closeout": ["closeout", str(root), "--verdict", str(root / "verdict.json"), "--apply"],
+                "tree-digest": ["tree-digest", str(root)], "check": ["check", "--strict"]}[command]
+        assert run_main(argv, root if command == "check" else tmp_path, monkeypatch) == rs.EXIT_ERROR
+    finally:
+        os.chmod(hidden, 0o755)
+
+
 def test_closeout_keeps_git_object_stores_byte_exact(tmp_path, monkeypatch):
     root = tmp_path / "run"
     repo = root / "copy"
@@ -1449,6 +1515,17 @@ def test_store_put_stores_once_and_leaves_the_source_untouched(tmp_path, monkeyp
                     monkeypatch) == rs.EXIT_OK
     methods = [r["method"] for r in json.loads(capsys.readouterr().out)["stored"]]
     assert methods[0] in ("clone", "copy") and methods[1] == "existing"
+    real = rs.verify_store_object
+
+    def verify_then_writer(obj, sha):  # the observed file changes while the existing object is verified
+        ok = real(obj, sha)
+        with open(b, "ab") as fh:
+            fh.write(b"late")
+        return ok
+
+    monkeypatch.setattr(rs, "verify_store_object", verify_then_writer)
+    with pytest.raises(rs.StorageError):
+        rs.store_put(b, store)
     assert stat.S_IMODE(a.stat().st_mode) == before, "recording a file never changes it"
     with open(a, "ab") as fh:  # the observed program can keep writing
         fh.write(b"more")
@@ -1470,6 +1547,11 @@ def test_install_hook_warns_blocks_and_respects_foreign_hooks(tmp_path, monkeypa
     sh("git", "add", "-A", cwd=repo)
     assert sh("git", "commit", "-q", "-m", "blocked", cwd=repo, check=False).returncode != 0
     hook = repo / ".git" / "hooks" / "pre-commit"
+    text = hook.read_text()  # a strict hook whose helper is gone refuses as well
+    hook.write_text(text.replace(str(_MOD.resolve()), str(tmp_path / "moved-away.py")))
+    (run / "big3.dat").write_bytes(blob(THRESHOLD, 102))
+    sh("git", "add", "-A", cwd=repo)
+    assert sh("git", "commit", "-q", "-m", "blocked too", cwd=repo, check=False).returncode != 0
     hook.write_text("#!/bin/sh\nexit 0\n")
     assert run_main(["install-hook"], repo, monkeypatch) == rs.EXIT_ERROR
     assert hook.read_text() == "#!/bin/sh\nexit 0\n"
