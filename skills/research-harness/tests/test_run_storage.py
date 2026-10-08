@@ -156,6 +156,46 @@ def test_check_strict_flags_stowed_outputs_that_no_longer_match(tmp_path, monkey
     assert [r["path"] for r in doc["stowed_damaged"]] == ["artifacts/runs/r1/a.bin"] and doc["stowed"] == []
 
 
+@pytest.mark.parametrize("defect", ["duplicate_path", "hash_not_hex", "size_bool", "size_negative", "path_not_normal"])
+@pytest.mark.parametrize("command", ["check", "verify", "stow", "materialize"])
+def test_malformed_manifests_are_refused_by_every_reader(tmp_path, monkeypatch, defect, command):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "a.bin").write_bytes(blob(THRESHOLD, 83))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    manifest = json.loads((run / rs.MANIFEST_NAME).read_text())
+    entry = manifest["entries"][0]
+    if defect == "duplicate_path":  # a damaged first record followed by a valid one
+        manifest["entries"] = [{**entry, "sha256": "f" * 64}, entry]
+    elif defect == "hash_not_hex":
+        entry["sha256"] = "z" * 64
+    elif defect == "size_bool":
+        entry["size"] = True
+    elif defect == "size_negative":
+        entry["size"] = -1
+    else:
+        entry["path"] = "./a.bin"
+    (run / rs.MANIFEST_NAME).write_text(json.dumps(manifest))
+    argv = {"check": ["check", "--strict"], "verify": ["verify", str(run)], "stow": ["stow", str(run)],
+            "materialize": ["materialize", str(run)]}[command]
+    assert run_main(argv, repo, monkeypatch) == rs.EXIT_ERROR
+
+
+def test_verify_compares_the_recorded_size_too(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "a.bin").write_bytes(blob(THRESHOLD, 84))
+    assert run_main(["stow", str(run)], repo, monkeypatch) == rs.EXIT_OK
+    manifest = json.loads((run / rs.MANIFEST_NAME).read_text())
+    manifest["entries"][0]["size"] += 1  # inconsistent record, right hash
+    (run / rs.MANIFEST_NAME).write_text(json.dumps(manifest))
+    capsys.readouterr()
+    assert run_main(["verify", str(run), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    assert [e["status"] for e in json.loads(capsys.readouterr().out)["entries"]] == ["mismatch"]
+
+
 def test_policy_file_is_validated(tmp_path, monkeypatch):
     repo = make_repo(tmp_path)
     policy = repo / ".nullius" / "storage_policy.json"
@@ -813,7 +853,8 @@ def test_worktree_check_keeps_a_worktree_whose_reflog_cannot_be_read(tmp_path, m
         os.chmod(log, 0o644)
 
 
-@pytest.mark.parametrize("state", ["private_ref_reflog", "merge_in_progress", "lock_file", "custom_worktree_config"])
+@pytest.mark.parametrize("state", ["private_ref_reflog", "merge_in_progress", "lock_file", "custom_worktree_config",
+                                   "custom_sparse_patterns"])
 def test_worktree_check_keeps_worktrees_with_unassessed_git_state(tmp_path, monkeypatch, capsys, state):
     repo = make_repo(tmp_path)
     wt = tmp_path / "lane"
@@ -829,9 +870,12 @@ def test_worktree_check_keeps_worktrees_with_unassessed_git_state(tmp_path, monk
         (git_dir / "MERGE_HEAD").write_text(sh("git", "rev-parse", "HEAD", cwd=wt).stdout)
     elif state == "lock_file":
         (git_dir / "locked").write_text("kept on purpose\n")
-    else:
+    elif state == "custom_worktree_config":
         sh("git", "config", "extensions.worktreeConfig", "true", cwd=repo)
         sh("git", "config", "--worktree", "notes.displayRef", "refs/notes/lane-only", cwd=wt)
+    else:  # user-authored sparse patterns are configuration only this worktree holds
+        subprocess.run(["git", "sparse-checkout", "set", "--no-cone", "--stdin"], cwd=wt, check=True,
+                       input=b"/*\n!/README.md\n")
     capsys.readouterr()
     assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
     v = _verdicts(capsys)["lane"]
@@ -961,6 +1005,9 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     sh("git", "worktree", "add", "-q", "-b", "side", str(tmp_path / "linked-wt"), cwd=linked)
     (tmp_path / "linked-wt" / "s.txt").write_text("staged in the linked worktree only\n")
     sh("git", "add", "s.txt", cwd=tmp_path / "linked-wt")
+    fetched = scratch / "fetch-head-only"  # a commit named only by the copy's FETCH_HEAD
+    sh("git", "clone", "-q", str(repo), str(fetched), cwd=tmp_path)
+    sh("git", "fetch", "-q", str(other), "HEAD", cwd=fetched)
     staged = scratch / "staged-only"  # a blob held only by the copy's index
     sh("git", "clone", "-q", str(repo), str(staged), cwd=tmp_path)
     (staged / "s.txt").write_text("staged, never committed\n")
@@ -995,7 +1042,7 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
         else:
             stores[name] = g["contained_in_reference"]
     assert stores == {"copy-of-history.git": False, "same-history.git": True, "tag-only-history.git": False,
-                      "dangling-history.git": False, ".git": [False, None], "dropped-tag-history.git": False}
+                      "dangling-history.git": False, ".git": [False, None, None], "dropped-tag-history.git": False}
     assert [Path(s["path"]).name for s in doc["stale"]] == ["lane-run-1"]
     assert (scratch / "b" / "copy.bin").exists(), "report never deletes"
 
@@ -1390,6 +1437,20 @@ def test_closeout_refuses_a_broken_recorded_manifest_cleanly(tmp_path, monkeypat
     assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
                     monkeypatch) == rs.EXIT_ERROR
     assert (root / "isolated-copy").exists()
+
+
+@pytest.mark.parametrize("dangling", [True, False])
+def test_closeout_never_writes_through_a_symlinked_manifest_name(tmp_path, monkeypatch, dangling):
+    root, verdict, _ = _closeout_tree(tmp_path)
+    verdict.write_text("PASS\n")
+    target = tmp_path / "elsewhere.json"
+    if not dangling:
+        target.write_text("someone else's file\n")
+    os.symlink(target, root / rs.CLOSEOUT_MANIFEST_NAME)
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    assert (root / rs.CLOSEOUT_MANIFEST_NAME).is_symlink()
+    assert (not target.exists()) if dangling else target.read_text() == "someone else's file\n"
 
 
 @pytest.mark.parametrize("reserved", [rs.QUARANTINE_DIR, rs.PRUNED_INVENTORY_DIR])

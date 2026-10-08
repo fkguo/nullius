@@ -108,6 +108,7 @@ CLOSEOUT_SCHEMA = "storage_closeout_v1"
 GITIGNORE_BEGIN = "# >>> bulk outputs kept outside git history (run_storage.py stow) >>>"
 GITIGNORE_END = "# <<< bulk outputs kept outside git history <<<"
 HOOK_MARKER = "# run_storage.py pre-commit check"
+SPARSE_MARKER = "# run_storage.py sparse-exclude-bulk"
 STORE_SUBPATH = ("nullius", "store")
 
 # Directories whose content is rebuilt by a tool from recorded inputs.
@@ -611,12 +612,16 @@ def load_manifest(run_dir: Path) -> "dict | None":
         raise StorageError(f"{path}: unreadable ({exc})")
     if not isinstance(doc, dict) or doc.get("schema") != MANIFEST_SCHEMA or not isinstance(doc.get("entries"), list):
         raise StorageError(f"{path}: expected schema '{MANIFEST_SCHEMA}' with an entries list")
+    seen: "set[str]" = set()
     for entry in doc["entries"]:
-        if (not isinstance(entry, dict) or not isinstance(entry.get("path"), str)
-                or not isinstance(entry.get("sha256"), str) or len(entry["sha256"]) != 64
-                or not isinstance(entry.get("size"), int)
-                or entry["path"].startswith("/") or ".." in entry["path"].split("/")):
+        rel = entry.get("path") if isinstance(entry, dict) else None
+        if (not isinstance(rel, str) or not rel or posixpath.normpath(rel) != rel or rel.startswith("/")
+                or ".." in rel.split("/") or not is_sha256_hex(entry.get("sha256"))
+                or not isinstance(entry.get("size"), int) or isinstance(entry.get("size"), bool) or entry["size"] < 0):
             raise StorageError(f"{path}: malformed entry {entry!r}")
+        if rel in seen:
+            raise StorageError(f"{path}: the path {rel!r} is recorded more than once")
+        seen.add(rel)
     return doc
 
 
@@ -1052,7 +1057,7 @@ def entry_status(run_dir: Path, store: Path, entry: dict) -> dict:
             status.update(status="mismatch", actual_sha256=None)
             return status
         actual = sha256_file(target)
-        if actual != entry["sha256"]:
+        if actual != entry["sha256"] or lst.st_size != entry["size"]:
             status.update(status="mismatch", actual_sha256=actual)
         else:
             status["status"] = "ok" if store_ok else "ok_in_place_only"
@@ -1225,7 +1230,9 @@ KNOWN_PRIVATE_GIT_FILES = frozenset({
     "logs/HEAD", "info/sparse-checkout",
 })
 # The only per-worktree configuration keys this check treats as bookkeeping.
-KNOWN_WORKTREE_CONFIG_KEYS = frozenset({"core.sparsecheckout", "core.sparsecheckoutcone", "index.sparse"})
+# Per-worktree configuration this check treats as bookkeeping: exactly what
+# `sparse-exclude-bulk` (non-cone sparse checkout) and its undo write.
+KNOWN_WORKTREE_CONFIG = {"core.sparsecheckout": {"true", "false"}, "core.sparsecheckoutcone": {"false"}}
 KNOWN_PRIVATE_GIT_DIRS = frozenset({"logs", "info"})
 
 
@@ -1249,10 +1256,20 @@ def unassessed_private_git_state(git_dir: Path) -> "list[str]":
     config = git_dir / "config.worktree"
     if config.is_file() and not config.is_symlink():
         listing = git(["config", "--file", str(config), "--null", "--list"], git_dir, check=False)
-        keys = [item.split("\n", 1)[0].lower() for item in listing.stdout.decode("utf-8", "replace").split("\0")
-                if item]
-        if listing.returncode != 0 or any(key not in KNOWN_WORKTREE_CONFIG_KEYS for key in keys):
-            unknown.append("config.worktree (settings beyond sparse checkout)")
+        pairs = [item.split("\n", 1) for item in listing.stdout.decode("utf-8", "replace").split("\0") if item]
+        if listing.returncode != 0 or any(len(pair) != 2 or pair[1].lower() not in
+                                          KNOWN_WORKTREE_CONFIG.get(pair[0].lower(), set()) for pair in pairs):
+            unknown.append("config.worktree (settings beyond this tool's sparse checkout)")
+    sparse = git_dir / "info" / "sparse-checkout"
+    if sparse.is_file() and not sparse.is_symlink():
+        try:
+            lines = sparse.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError) as exc:
+            raise StorageError(f"cannot read the worktree's sparse-checkout patterns ({exc})")
+        # Only the tool's own form (marker, include everything, exclude named files) is understood;
+        # user-authored patterns would be lost with the worktree.
+        if lines[:2] != [SPARSE_MARKER, "/*"] or not all(line.startswith("!/") for line in lines[2:]):
+            unknown.append("info/sparse-checkout (patterns not written by sparse-exclude-bulk)")
     return sorted(unknown)
 
 
@@ -1519,7 +1536,7 @@ def cmd_sparse_exclude_bulk(args) -> int:
     modified |= set(hidden_tracked_changes(repo.toplevel)) & bulk_paths  # edits git status does not show
     if modified:
         raise StorageError(f"{len(modified)} bulk file(s) have local modifications; commit or restore them first")
-    patterns = ["/*", *[sparse_pattern(r["path"]) for r in bulk]]
+    patterns = [SPARSE_MARKER, "/*", *[sparse_pattern(r["path"]) for r in bulk]]
     lines = [f"run-storage: {len(bulk)} tracked bulk file(s), {human(total)}, left out of this checkout "
              f"({repo.toplevel})"]
     if args.dry_run:
@@ -1607,12 +1624,18 @@ def store_contained(durable: DurableObjects, git_dir: Path) -> "bool | None":
     try:
         if linked.is_dir() and any(linked.iterdir()):
             return None  # linked worktrees keep their own indexes, refs and logs: not assessed
+        # Pseudo-refs (FETCH_HEAD, ORIG_HEAD, MERGE_HEAD, ...) and in-progress operations can be
+        # the only reference to objects; rev-list --all does not follow them.
+        if any((entry.name.endswith("_HEAD") or entry.name in ("AUTO_MERGE", "sequencer", "rebase-merge",
+                                                                  "rebase-apply", "BISECT_LOG"))
+               for entry in git_dir.iterdir()):
+            return None
     except OSError:
         return None
     objects = git(["--git-dir", str(git_dir), "rev-list", "--objects", "--all", "--reflog", "--indexed-objects",
                    "--missing=allow-promisor"], durable.reference, check=False)
     refs = git(["--git-dir", str(git_dir), "for-each-ref", "--format=%(objectname)"], durable.reference, check=False)
-    if objects.returncode != 0 or refs.returncode != 0:
+    if objects.returncode != 0 or refs.returncode != 0 or objects.stderr.strip() or refs.stderr.strip():
         return None
     reachable = {line.split()[0] for line in objects.stdout.decode().splitlines() if line.strip()}
     reachable |= set(refs.stdout.decode().split())
@@ -1927,7 +1950,7 @@ def plan_closeout(root: Path, verdict: Path, args) -> dict:
     verdict_rel = verdict_rel_path(root, verdict)
     prune = list(args.prune)
     if args.prune_caches:
-        for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        for dirpath, dirnames, filenames in os.walk(root, followlinks=False, onerror=walk_error):
             for name in list(dirnames):
                 if name in REGENERABLE_DIR_NAMES:
                     prune.append((Path(dirpath) / name).relative_to(root).as_posix())
@@ -2156,6 +2179,8 @@ def cmd_closeout(args) -> int:
     if not verdict.is_file() or verdict.stat().st_size == 0:
         raise StorageError(f"verdict file missing or empty: {verdict}; closeout runs only after a verdict is recorded")
     manifest_path = root / CLOSEOUT_MANIFEST_NAME
+    if manifest_path.is_symlink() or (manifest_path.exists() and not manifest_path.is_file()):
+        raise StorageError(f"{manifest_path} is a symbolic link or not a regular file; inspect it first")
     if manifest_path.exists():
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
