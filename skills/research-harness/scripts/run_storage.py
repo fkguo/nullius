@@ -824,8 +824,8 @@ def cmd_install_hook(args) -> int:
         "exit 0",
         "",
     ])
-    if hook.exists():
-        current = hook.read_text(encoding="utf-8", errors="replace")
+    if hook.exists() or hook.is_symlink():
+        current = "" if hook.is_symlink() or not hook.is_file() else hook.read_text(encoding="utf-8", errors="replace")
         if HOOK_MARKER not in current:
             print(f"run-storage: {hook} already exists and was not installed by this tool; not overwriting.\n"
                   f"Add this line to it instead:\n  python3 {shlex.quote(str(script))} check --staged --quiet{strict}",
@@ -1207,29 +1207,76 @@ def hidden_tracked_changes(path: Path) -> "list[str]":
     return sorted(changed)
 
 
-def reflog_only_commits(path: Path) -> "list[str]":
-    """Commits in this worktree's own HEAD reflog that no shared ref reaches.
-    The HEAD reflog lives in the worktree's private git directory, so
-    removing the worktree leaves such commits unreferenced (collectable)."""
-    # Read the log file itself: `git reflog` falls back to printing HEAD alone,
-    # with success, when the log is missing, corrupt, or unreadable.
-    log = Path(git_text(["rev-parse", "--git-path", "logs/HEAD"], path))
-    if not log.is_absolute():
-        log = path / log
-    if not (log.exists() or log.is_symlink()):
-        return []  # no reflog: nothing is remembered only there
+# The only per-worktree git state whose meaning worktree-check fully assesses.
+# Anything else in the worktree's private git directory (its own refs or ref
+# logs, an in-progress merge/rebase/bisect, a lock, submodule stores, ...)
+# makes the verdict `keep`: fail closed instead of chasing every git feature.
+KNOWN_PRIVATE_GIT_FILES = frozenset({
+    "HEAD", "ORIG_HEAD", "FETCH_HEAD", "COMMIT_EDITMSG", "commondir", "gitdir", "index", "config.worktree",
+    "logs/HEAD", "info/sparse-checkout", "info/exclude",
+})
+KNOWN_PRIVATE_GIT_DIRS = frozenset({"logs", "info"})
+
+
+def unassessed_private_git_state(git_dir: Path) -> "list[str]":
+    unknown = []
     try:
-        data = log.read_bytes()
+        for dirpath, dirnames, filenames in os.walk(git_dir, followlinks=False, onerror=_raise):
+            here = Path(dirpath)
+            for name in dirnames:
+                rel = (here / name).relative_to(git_dir).as_posix()
+                if rel not in KNOWN_PRIVATE_GIT_DIRS or (here / name).is_symlink():
+                    unknown.append(rel + "/")
+            dirnames[:] = [d for d in dirnames if (here / d).relative_to(git_dir).as_posix() in KNOWN_PRIVATE_GIT_DIRS
+                           and not (here / d).is_symlink()]
+            for name in filenames:
+                rel = (here / name).relative_to(git_dir).as_posix()
+                if rel not in KNOWN_PRIVATE_GIT_FILES or (here / name).is_symlink():
+                    unknown.append(rel)
     except OSError as exc:
-        raise StorageError(f"cannot read this worktree's HEAD reflog ({exc}); its commits cannot be assessed")
-    remembered: "set[str]" = set()
-    for line in data.decode("utf-8", "replace").splitlines():
+        raise StorageError(f"cannot read the worktree's private git directory ({exc})")
+    return sorted(unknown)
+
+
+def _raise(error: OSError) -> None:
+    raise error
+
+
+def _shas_in(text: str, source: str, log_format: bool) -> "set[str]":
+    found: "set[str]" = set()
+    for line in text.splitlines():
         if not line.strip():
             continue
-        parts = line.split(" ", 2)
-        if len(parts) < 3 or not all(len(x) in (40, 64) and set(x) <= HEX for x in parts[:2]):
-            raise StorageError("this worktree's HEAD reflog is not readable as a reflog; its commits cannot be assessed")
-        remembered.update(x for x in parts[:2] if set(x) != {"0"})
+        fields = line.split(" ", 2) if log_format else [line.split()[0]]
+        if log_format and len(fields) < 3:
+            raise StorageError(f"this worktree's {source} is not readable; its commits cannot be assessed")
+        for sha in fields[:2]:
+            if not (len(sha) in (40, 64) and set(sha) <= HEX):
+                raise StorageError(f"this worktree's {source} is not readable; its commits cannot be assessed")
+            if set(sha) != {"0"}:
+                found.add(sha)
+    return found
+
+
+def reflog_only_commits(path: Path) -> "list[str]":
+    """Commits remembered only by this worktree's private records (its HEAD
+    reflog, ORIG_HEAD, FETCH_HEAD) that no shared ref reaches. Those records
+    live in the worktree's private git directory, so removing the worktree
+    leaves such commits unreferenced (collectable)."""
+    git_dir = Path(git_text(["rev-parse", "--git-dir"], path))
+    git_dir = git_dir if git_dir.is_absolute() else path / git_dir
+    remembered: "set[str]" = set()
+    # Read the files themselves: `git reflog` falls back to printing HEAD alone,
+    # with success, when the log is missing, corrupt, or unreadable.
+    for rel, log_format in (("logs/HEAD", True), ("ORIG_HEAD", False), ("FETCH_HEAD", False)):
+        record = git_dir / rel
+        if not (record.exists() or record.is_symlink()):
+            continue
+        try:
+            data = record.read_bytes()
+        except OSError as exc:
+            raise StorageError(f"cannot read this worktree's {rel} ({exc}); its commits cannot be assessed")
+        remembered |= _shas_in(data.decode("utf-8", "replace"), rel, log_format)
     if remembered:
         listing = git(["cat-file", "--batch-check=%(objectname) %(objecttype)"], path,
                       input_bytes=("\n".join(sorted(remembered)) + "\n").encode()).stdout.decode().splitlines()
@@ -1250,7 +1297,7 @@ def worktree_private_refs(path: Path, base: str) -> "list[str]":
     """Per-worktree refs (refs/worktree/*, refs/bisect/*, refs/rewritten/*)
     pointing at commits the base branch does not contain."""
     out = git(["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/", "refs/bisect/",
-               "refs/rewritten/"], path, check=False)
+               "refs/rewritten/"], path)  # a failure is an error (keep), never "no refs"
     held = []
     for line in out.stdout.decode().splitlines():
         name, _, sha = line.partition(" ")
@@ -1306,11 +1353,16 @@ def check_one_worktree(path: Path, base: str, main_root: "Path | None", store: P
     gitlinks = [item for item in git_z(["ls-files", "-z", "--stage"], path) if item.startswith("160000 ")]
     if (path / ".gitmodules").exists() or gitlinks:
         report["reasons"].append("contains submodules; their own commits and changes are not assessed here")
+    unknown_state = unassessed_private_git_state(wt.git_dir)
+    report["unassessed_git_state"] = unknown_state
+    if unknown_state:
+        report["reasons"].append("per-worktree git state that this check does not assess: "
+                                 + ", ".join(unknown_state[:5]) + (" ..." if len(unknown_state) > 5 else ""))
     reflog_only = reflog_only_commits(path)
     report["reflog_only_commits"] = reflog_only
     if reflog_only:
-        report["reasons"].append(f"{len(reflog_only)} commit(s) are remembered only by this worktree's HEAD reflog "
-                                 "(unreferenced once it is removed)")
+        report["reasons"].append(f"{len(reflog_only)} commit(s) are remembered only by this worktree's own records "
+                                 "(HEAD reflog, ORIG_HEAD, FETCH_HEAD; unreferenced once it is removed)")
     private_refs = worktree_private_refs(path, base)
     report["worktree_private_refs"] = private_refs
     if private_refs:
@@ -1530,6 +1582,12 @@ def store_contained(durable: DurableObjects, git_dir: Path) -> "bool | None":
     refs, annotated tags, reflogs, and index entries) is durably reachable in
     the reference repository; None when the store cannot be read. Objects a
     partial clone never held are not fetched (and are not the copy's to lose)."""
+    linked = git_dir / "worktrees"
+    try:
+        if linked.is_dir() and any(linked.iterdir()):
+            return None  # linked worktrees keep their own indexes, refs and logs: not assessed
+    except OSError:
+        return None
     objects = git(["--git-dir", str(git_dir), "rev-list", "--objects", "--all", "--reflog", "--indexed-objects",
                    "--missing=allow-promisor"], durable.reference, check=False)
     refs = git(["--git-dir", str(git_dir), "for-each-ref", "--format=%(objectname)"], durable.reference, check=False)

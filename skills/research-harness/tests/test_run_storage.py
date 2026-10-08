@@ -813,6 +813,28 @@ def test_worktree_check_keeps_a_worktree_whose_reflog_cannot_be_read(tmp_path, m
         os.chmod(log, 0o644)
 
 
+@pytest.mark.parametrize("state", ["private_ref_reflog", "merge_in_progress", "lock_file"])
+def test_worktree_check_keeps_worktrees_with_unassessed_git_state(tmp_path, monkeypatch, capsys, state):
+    repo = make_repo(tmp_path)
+    wt = tmp_path / "lane"
+    sh("git", "worktree", "add", "-q", "--detach", str(wt), "main", cwd=repo)
+    git_dir = Path(sh("git", "rev-parse", "--git-dir", cwd=wt).stdout.strip())
+    git_dir = git_dir if git_dir.is_absolute() else wt / git_dir
+    if state == "private_ref_reflog":  # the unique commit survives only in the private ref's own log
+        tree = sh("git", "rev-parse", "HEAD^{tree}", cwd=wt).stdout.strip()
+        unique = sh("git", "commit-tree", "-p", "HEAD", "-m", "unique", tree, cwd=wt).stdout.strip()
+        sh("git", "update-ref", "--create-reflog", "refs/worktree/saved", unique, cwd=wt)
+        sh("git", "update-ref", "refs/worktree/saved", "main", cwd=wt)
+    elif state == "merge_in_progress":
+        (git_dir / "MERGE_HEAD").write_text(sh("git", "rev-parse", "HEAD", cwd=wt).stdout)
+    else:
+        (git_dir / "locked").write_text("kept on purpose\n")
+    capsys.readouterr()
+    assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
+    v = _verdicts(capsys)["lane"]
+    assert v["verdict"] == "keep" and v["unassessed_git_state"]
+
+
 def test_worktree_check_all_survives_a_broken_worktree(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path)
     good = _worktree(repo, tmp_path, "good")
@@ -901,6 +923,11 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     sh("git", "fetch", "-q", str(dangling), "refs/heads/kept-here:refs/heads/tmp-ref", cwd=repo)
     sh("git", "update-ref", "-d", "refs/heads/tmp-ref", cwd=repo)  # object stays, now unreachable
     sh("git", "bundle", "create", str(scratch / "dangling.bundle"), "kept-here", cwd=dangling)
+    linked = scratch / "with-linked-worktree"  # a staged blob held only by a linked worktree's own index
+    sh("git", "clone", "-q", str(repo), str(linked), cwd=tmp_path)
+    sh("git", "worktree", "add", "-q", "-b", "side", str(tmp_path / "linked-wt"), cwd=linked)
+    (tmp_path / "linked-wt" / "s.txt").write_text("staged in the linked worktree only\n")
+    sh("git", "add", "s.txt", cwd=tmp_path / "linked-wt")
     staged = scratch / "staged-only"  # a blob held only by the copy's index
     sh("git", "clone", "-q", str(repo), str(staged), cwd=tmp_path)
     (staged / "s.txt").write_text("staged, never committed\n")
@@ -926,9 +953,16 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     assert doc["summary_bytes"]["regenerable_directories"] == 1000, "overlapping roots are counted once"
     bundles = {Path(b["path"]).name: b["contained_in_reference"] for b in doc["bundles"]}
     assert bundles == {"contained.bundle": True, "extra.bundle": False, "dangling.bundle": False}
-    stores = {Path(g["path"]).name: g["contained_in_reference"] for g in doc["git_object_stores"]}
+    stores: dict = {}
+    for g in doc["git_object_stores"]:
+        name = Path(g["path"]).name
+        if name in stores:  # several plain checkouts are all named .git
+            stores[name] = sorted([*([stores[name]] if not isinstance(stores[name], list) else stores[name]),
+                                   g["contained_in_reference"]], key=str)
+        else:
+            stores[name] = g["contained_in_reference"]
     assert stores == {"copy-of-history.git": False, "same-history.git": True, "tag-only-history.git": False,
-                      "dangling-history.git": False, ".git": False, "dropped-tag-history.git": False}
+                      "dangling-history.git": False, ".git": [False, None], "dropped-tag-history.git": False}
     assert [Path(s["path"]).name for s in doc["stale"]] == ["lane-run-1"]
     assert (scratch / "b" / "copy.bin").exists(), "report never deletes"
 
@@ -1414,6 +1448,10 @@ def test_install_hook_warns_blocks_and_respects_foreign_hooks(tmp_path, monkeypa
     hook.write_text("#!/bin/sh\nexit 0\n")
     assert run_main(["install-hook"], repo, monkeypatch) == rs.EXIT_ERROR
     assert hook.read_text() == "#!/bin/sh\nexit 0\n"
+    hook.unlink()
+    os.symlink(tmp_path / "shared-hooks-not-mounted" / "pre-commit", hook)  # a foreign, currently dangling hook
+    assert run_main(["install-hook"], repo, monkeypatch) == rs.EXIT_ERROR
+    assert hook.is_symlink()
 
 
 # ------------------------------------------------------- documentation lock
