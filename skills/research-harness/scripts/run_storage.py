@@ -867,6 +867,11 @@ def resolve_run_dir(repo: Repo, run_dir: str) -> Path:
     if not any(is_under(path, repo.toplevel / root) for root in repo.run_roots):
         raise StorageError(f"{path} is not under a run root ({', '.join(repo.run_roots)}); "
                            f"add its root to {POLICY_REL} if it should follow the bulk policy")
+    if Repo(path).toplevel != repo.toplevel:
+        raise StorageError(f"{path} belongs to a nested repository (a submodule?), not to {repo.toplevel}")
+    for dirpath, dirnames, filenames in os.walk(path, followlinks=False, onerror=walk_error):
+        if ".git" in dirnames or ".git" in filenames:
+            raise StorageError(f"{dirpath} holds a nested repository; its files follow that repository's rules")
     return path
 
 

@@ -458,6 +458,17 @@ def test_materialize_never_overwrites_an_occupied_path(tmp_path, monkeypatch, ca
     assert (run / "b.bin").read_bytes() == b"other bytes"
 
 
+def test_stow_refuses_a_run_directory_holding_a_nested_repository(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "r1"
+    nested = run / "dep"
+    nested.mkdir(parents=True)
+    sh("git", "init", "-q", cwd=nested)
+    (nested / "big.bin").write_bytes(blob(THRESHOLD, 85))
+    assert run_main(["stow", str(run), "--project-root", str(repo)], repo, monkeypatch) == rs.EXIT_ERROR
+    assert stat.S_IMODE((nested / "big.bin").stat().st_mode) & 0o200 and not (run / rs.MANIFEST_NAME).exists()
+
+
 def test_symlinked_run_root_is_refused_cleanly(tmp_path, monkeypatch):
     repo = make_repo(tmp_path)
     outside = tmp_path / "outside-runs"
@@ -854,7 +865,7 @@ def test_worktree_check_keeps_a_worktree_whose_reflog_cannot_be_read(tmp_path, m
 
 
 @pytest.mark.parametrize("state", ["private_ref_reflog", "merge_in_progress", "lock_file", "custom_worktree_config",
-                                   "custom_sparse_patterns"])
+                                   "custom_sparse_patterns", "private_info_exclude"])
 def test_worktree_check_keeps_worktrees_with_unassessed_git_state(tmp_path, monkeypatch, capsys, state):
     repo = make_repo(tmp_path)
     wt = tmp_path / "lane"
@@ -873,6 +884,9 @@ def test_worktree_check_keeps_worktrees_with_unassessed_git_state(tmp_path, monk
     elif state == "custom_worktree_config":
         sh("git", "config", "extensions.worktreeConfig", "true", cwd=repo)
         sh("git", "config", "--worktree", "notes.displayRef", "refs/notes/lane-only", cwd=wt)
+    elif state == "private_info_exclude":  # user ignore rules kept only in this worktree's git directory
+        (git_dir / "info").mkdir(exist_ok=True)
+        (git_dir / "info" / "exclude").write_text("lane-scratch/\n")
     else:  # user-authored sparse patterns are configuration only this worktree holds
         subprocess.run(["git", "sparse-checkout", "set", "--no-cone", "--stdin"], cwd=wt, check=True,
                        input=b"/*\n!/README.md\n")
@@ -1465,9 +1479,9 @@ def test_closeout_refuses_pre_existing_reserved_directories(tmp_path, monkeypatc
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root reads unreadable directories")
-@pytest.mark.parametrize("command", ["closeout", "tree-digest", "check"])
+@pytest.mark.parametrize("command", ["closeout", "tree-digest", "check", "stow"])
 def test_walks_that_records_rest_on_stop_at_unreadable_directories(tmp_path, monkeypatch, command):
-    if command == "check":
+    if command in ("check", "stow"):
         root = make_repo(tmp_path)
         hidden = root / "artifacts" / "runs" / "r1" / "sealed"
     else:
@@ -1479,8 +1493,9 @@ def test_walks_that_records_rest_on_stop_at_unreadable_directories(tmp_path, mon
     os.chmod(hidden, 0)
     try:
         argv = {"closeout": ["closeout", str(root), "--verdict", str(root / "verdict.json"), "--apply"],
-                "tree-digest": ["tree-digest", str(root)], "check": ["check", "--strict"]}[command]
-        assert run_main(argv, root if command == "check" else tmp_path, monkeypatch) == rs.EXIT_ERROR
+                "tree-digest": ["tree-digest", str(root)], "check": ["check", "--strict"],
+                "stow": ["stow", "artifacts/runs/r1"]}[command]
+        assert run_main(argv, root if command in ("check", "stow") else tmp_path, monkeypatch) == rs.EXIT_ERROR
     finally:
         os.chmod(hidden, 0o755)
 
