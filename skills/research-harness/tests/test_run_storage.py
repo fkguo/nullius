@@ -765,6 +765,9 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     (staged / "s.txt").write_text("staged, never committed\n")
     sh("git", "add", "s.txt", cwd=staged)
     (staged / "s.txt").unlink()
+    sh("git", "tag", "-a", "-m", "dropped later", "v-dropped", "main", cwd=repo)
+    sh("git", "clone", "-q", "--bare", str(repo), str(scratch / "dropped-tag-history.git"), cwd=tmp_path)
+    sh("git", "tag", "-d", "v-dropped", cwd=repo)  # tag object stays in the reference, unreachable
     temp_parent = tmp_path / "temp"
     old_root = temp_parent / "lane-run-1"
     old_root.mkdir(parents=True)
@@ -784,7 +787,7 @@ def test_report_counts_reclaimable_bytes(tmp_path, monkeypatch, capsys):
     assert bundles == {"contained.bundle": True, "extra.bundle": False, "dangling.bundle": False}
     stores = {Path(g["path"]).name: g["contained_in_reference"] for g in doc["git_object_stores"]}
     assert stores == {"copy-of-history.git": False, "same-history.git": True, "tag-only-history.git": False,
-                      "dangling-history.git": False, ".git": False}
+                      "dangling-history.git": False, ".git": False, "dropped-tag-history.git": False}
     assert [Path(s["path"]).name for s in doc["stale"]] == ["lane-run-1"]
     assert (scratch / "b" / "copy.bin").exists(), "report never deletes"
 
@@ -1029,6 +1032,26 @@ def test_closeout_never_overwrites_an_existing_compressed_name(tmp_path, monkeyp
     assert (root / "data.bin").exists()
     manifest = json.loads((root / rs.CLOSEOUT_MANIFEST_NAME).read_text())
     assert manifest["compressed"] == [] and manifest["compression_skipped"][0]["path"] == "data.bin"
+
+
+def test_closeout_keeps_content_store_objects_byte_exact(tmp_path, monkeypatch):
+    root = tmp_path / "run"
+    data = b"0123456789" * 300_000
+    _, obj = rs.store_put_bytes(data, root / "store")
+    (root / "verdict.txt").write_text("PASS\n")
+    assert run_main(["closeout", str(root), "--verdict", str(root / "verdict.txt"), "--apply"],
+                    tmp_path, monkeypatch) == rs.EXIT_OK
+    assert rs.verify_store_object(obj, obj.name)
+
+
+@pytest.mark.parametrize("broken", ["not json", "{\"schema\": \"storage_closeout_v1\"}"])
+def test_closeout_refuses_a_broken_recorded_manifest_cleanly(tmp_path, monkeypatch, broken):
+    root, verdict, _ = _closeout_tree(tmp_path)
+    verdict.write_text("PASS\n")
+    (root / rs.CLOSEOUT_MANIFEST_NAME).write_text(broken)
+    assert run_main(["closeout", str(root), "--verdict", str(verdict), "--apply"], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+    assert (root / "isolated-copy").exists()
 
 
 def test_closeout_keeps_git_object_stores_byte_exact(tmp_path, monkeypatch):

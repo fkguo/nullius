@@ -1655,6 +1655,17 @@ PRUNED_INVENTORY_DIR = "storage_closeout_pruned"
 RESERVED_NAMES = (CLOSEOUT_MANIFEST_NAME, QUARANTINE_DIR, PRUNED_INVENTORY_DIR)
 
 
+HEX = frozenset("0123456789abcdef")
+
+
+def is_content_store_object(full: Path) -> bool:
+    """<...>/sha256/<2 hex>/<64 hex>: a content-addressed object whose name
+    must keep naming its bytes."""
+    name, shard = full.name, full.parent.name
+    return (len(name) == 64 and set(name) <= HEX and len(shard) == 2 and set(shard) <= HEX
+            and name.startswith(shard) and full.parent.parent.name == "sha256")
+
+
 def compression_method() -> "tuple[str, str]":
     return ("zstd", ".zst") if shutil.which("zstd") else ("xz", ".xz")
 
@@ -1810,7 +1821,7 @@ def plan_closeout(root: Path, verdict: Path, args) -> dict:
             sha = sha256_file(full)
             kept[rel] = {"type": "file", "size": st.st_size, "sha256": sha, "mode": stat.S_IMODE(st.st_mode)}
             if (args.no_compress or st.st_size < args.compress_min_size or rel == verdict_rel or in_git_store
-                    or full.suffix.lower() in ALREADY_COMPRESSED_SUFFIXES):
+                    or is_content_store_object(full) or full.suffix.lower() in ALREADY_COMPRESSED_SUFFIXES):
                 continue
             if st.st_nlink > 1:
                 skipped.append({"path": rel, "reason": "hard-linked elsewhere; compressing would not free space"})
@@ -1853,7 +1864,7 @@ def validate_resumed_plan(root: Path, verdict: Path, manifest: dict) -> None:
         if not isinstance(rel, str) or normalize_prune(rel) != rel or entry.get("method") not in ("zstd", "xz"):
             raise StorageError(f"the recorded compression entry {entry!r} is malformed")
         kept = manifest["kept_files"].get(rel)
-        if not kept or kept.get("type") != "file" or kept.get("sha256") != entry.get("sha256"):
+        if not isinstance(kept, dict) or kept.get("type") != "file" or kept.get("sha256") != entry.get("sha256"):
             raise StorageError(f"the recorded compression entry {rel!r} does not match a recorded kept file")
         real_parent = Path(os.path.realpath((root / rel).parent))
         if not (real_parent == root or is_under(real_parent, root)):
@@ -1967,8 +1978,12 @@ def cmd_closeout(args) -> int:
         raise StorageError(f"verdict file missing or empty: {verdict}; closeout runs only after a verdict is recorded")
     manifest_path = root / CLOSEOUT_MANIFEST_NAME
     if manifest_path.exists():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        if manifest.get("schema") != CLOSEOUT_SCHEMA:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise StorageError(f"{manifest_path} is not readable JSON ({exc}); inspect before resuming")
+        if not isinstance(manifest, dict) or manifest.get("schema") != CLOSEOUT_SCHEMA \
+                or not isinstance(manifest.get("verdict"), dict) or not isinstance(manifest["verdict"].get("sha256"), str):
             raise StorageError(f"{manifest_path} is not a closeout manifest")
         if manifest.get("state") == "applied":
             raise StorageError(f"{manifest_path} records a completed closeout; a tree is closed out once")
@@ -1998,7 +2013,8 @@ def cmd_closeout(args) -> int:
     lines += apply_closeout(root, manifest, manifest_path)
     saved = sum(c["size"] - c.get("compressed_size", c["size"]) for c in manifest["compressed"])
     lines.append(f"  applied: removed {human(sum(r.get('bytes', 0) for r in manifest['pruned']))}, compression saved "
-                 f"{human(saved)}; manifest {manifest_path} (sha256 {sha256_file(manifest_path)})")
+                 f"{human(saved)} (less where a file shared blocks with a copy-on-write clone); "
+                 f"manifest {manifest_path} (sha256 {sha256_file(manifest_path)})")
     emit({**manifest, "applied": True}, args.json, lines)
     return EXIT_OK
 
