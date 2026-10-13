@@ -47,6 +47,7 @@ Verification runs on events, not on reminders: each moment below is the trigger,
 | A headline result converged, or you need to know which results and runs currently count | `nullius result set-current` to register; `nullius current` to read the whole answer — current results, producing code revision, manuscript pointer, notebook staleness, run validity — as prose |
 | `nullius status --json` reports the notebook's current-state block missing or OUT OF SYNC (it is machine-maintained; never edit between its markers) | `nullius notebook sync` — insert or refresh the block; ledger-writing commands normally refresh it themselves |
 | `nullius status --json` reports the run index in project_index.md missing or OUT OF SYNC (machine-maintained per-family map of every run directory; never edit between its markers) | `nullius index sync` — insert or refresh the block; ledger-writing commands normally refresh it themselves |
+| A run finished writing reproducible outputs, or you are about to commit run outputs | `research-harness` Run Storage — `run_storage.py stow <run_dir>` keeps bulk outputs out of git history behind a tracked hash manifest; `run_storage.py inventory` reports counts and duplicate objects; `run_storage.py check --staged --strict` enforces classifications and aggregate limits; origin capture enforces the same policy before snapshots |
 
 ## Verification granularity and severity
 

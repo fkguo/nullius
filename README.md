@@ -297,3 +297,5 @@ For front-door drift, start with:
 ## License
 
 MIT
+
+Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](docs/RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.

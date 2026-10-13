@@ -119,3 +119,5 @@ This is a local build and validation result, not an installed marketplace releas
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md)
 - [`docs/TESTING_GUIDE.md`](./TESTING_GUIDE.md)
 - [`docs/TOOL_CATEGORIES.md`](./TOOL_CATEGORIES.md)
+
+Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.

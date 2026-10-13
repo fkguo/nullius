@@ -162,8 +162,8 @@ export type ExistingStampGrade =
  *  - different_tree: the tracked code itself changed — the honest
  *    response is a fresh run id, never a silent rebind.
  *
- *  The probe is read-only apart from a git stat-cache refresh
- *  (pin:false — no ref is created). */
+ *  The identity probe refreshes the git stat cache and may create
+ *  dangling snapshot objects (pin:false — no ref is created). */
 export function gradeExistingStamp(
   projectRoot: string,
   runId: string,

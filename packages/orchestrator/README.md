@@ -76,3 +76,5 @@ pnpm -C packages/orchestrator test tests/nullius-cli.test.ts   # front-door drif
 - Root [README.md](../../README.md) — full surface policy, layer model, and external project lifecycle smoke path
 - [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) — control plane internals
 - [meta/docs/orchestrator-mcp-tools-spec.md](../../meta/docs/orchestrator-mcp-tools-spec.md) — `orch_*` tool inventory (fail-closed drift-locked)
+
+Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](../../docs/RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.

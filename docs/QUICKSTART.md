@@ -191,3 +191,5 @@ nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-
 - 若返回 `invalidParams` 且提示缺少 `run_id`：先执行 `hep_project_create` + `hep_run_create`。
 - 若 citation verifier 失败：重新执行 `hep_run_build_citation_mapping` 后重试。
 - 若 token gate overflow：按返回的 overflow artifact 和 `next_actions` 收敛上下文规模，不要绕过门控。
+
+Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.

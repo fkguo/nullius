@@ -575,3 +575,5 @@ nullius workflow-plan \
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md)
 - [`docs/TOOL_CATEGORIES.md`](./TOOL_CATEGORIES.md)
 - [`docs/URI_REGISTRY.md`](./URI_REGISTRY.md)
+
+Research storage fixtures cover semantic classifications, aggregate admission, bundle content detection, duplicate index objects, zero-write inspection and byte-exact restoration. Run `python3 -m pytest skills/research-harness/tests/test_run_storage.py` and `pnpm -C packages/orchestrator test tests/run-origin-foreign-paths.test.ts tests/validity-ledger.test.ts tests/traceability-stage3.test.ts`. See [Research output storage](RUN_STORAGE.md).

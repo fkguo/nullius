@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { RunOriginV1 } from '@nullius/shared';
 import { mintUlid } from '@nullius/shared';
+import { installedRuntimeRoot } from './cli-runtime.js';
 
 /** Capture the origin stamp for a run: the exact code state of the project
  *  repository at stamp time, graded on the honest binding-quality ladder.
@@ -297,6 +298,19 @@ export function captureRunOrigin(
       dirty: { tracked_modified: 0, untracked_count: 0 },
       no_repo_reason: 'repository has no commit yet (unborn HEAD)',
     } as RunOriginV1;
+  }
+
+  // Refuse new bulk/local/backup bytes before stash creates even dangling
+  // objects. Existing committed history stays readable and is never rewritten.
+  const storageScript = path.join(installedRuntimeRoot(), 'skills/research-harness/scripts/run_storage.py');
+  try {
+    execFileSync('python3', [storageScript, 'check', '--snapshot', '--strict', '--json', '--project-root', projectRoot],
+      { encoding: 'utf8', timeout: 30_000, maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string };
+    throw new Error(`RUN_STORAGE_ADMISSION_FAILED: classify or stow outputs before origin capture; `
+      + `run python3 ${storageScript} check --snapshot --strict --project-root ${projectRoot}. `
+      + `${failure.stdout || failure.stderr || String(error)}`);
   }
 
   // Snapshot FIRST, then derive the tracked-modification count from the

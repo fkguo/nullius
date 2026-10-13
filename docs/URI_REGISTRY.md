@@ -60,3 +60,5 @@ The current emitted/resolved URI schemes covered by this registry are `hep://`, 
 - `packages/idea-engine/src/service/*.ts`
 
 When another document needs to describe URI truth at a cross-package level, it should point back to this registry instead of creating a second authority list.
+
+[Research output storage](RUN_STORAGE.md) uses project-relative paths and SHA-256 manifests; the shared local content store is not a new URI namespace and is not transferred by Git clone or push. Ref inventory does not grant authority to rewrite host refs or recovery history.

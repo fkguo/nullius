@@ -297,3 +297,5 @@ pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 ## License
 
 MIT
+
+研究输出保存、按用途分类、只读清单、提交检查及运行来源快照前的自动拦截见[研究输出存储](RUN_STORAGE.md)。存储命令不会删除数据、改写历史或清空恢复记录。

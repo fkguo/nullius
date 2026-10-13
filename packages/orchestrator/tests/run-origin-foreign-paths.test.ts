@@ -138,3 +138,50 @@ describe('control-plane paths under .nullius/ are machine bookkeeping, never cod
     expect(origin.dirty.untracked_sample).toEqual(['stray_analysis.py']);
   });
 });
+
+describe('run-origin storage admission', () => {
+  function policy(extra: Record<string, unknown> = {}): void {
+    fs.mkdirSync(path.join(projectRoot, '.nullius'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, '.nullius/storage_policy.json'), JSON.stringify({
+      schema: 'storage_policy_v1', bulk_threshold_bytes: 64, ...extra,
+    }));
+  }
+
+  it('refuses dirty output before writing snapshots, refs or refreshing the index', () => {
+    initRepoWithCommit();
+    const run = path.join(projectRoot, 'artifacts/runs/prior');
+    fs.mkdirSync(run, { recursive: true });
+    const output = path.join(run, 'output.txt');
+    fs.writeFileSync(output, 'small');
+    policy();
+    git('add', '-A'); git('commit', '-q', '-m', 'input state');
+    fs.writeFileSync(output, 'x'.repeat(128));
+    const indexBefore = fs.readFileSync(path.join(projectRoot, '.git/index'));
+    const objectsBefore = execFileSync('git', ['-C', projectRoot, 'count-objects', '-v'], { encoding: 'utf8' });
+    expect(() => captureRunOrigin(projectRoot, 'next')).toThrow('RUN_STORAGE_ADMISSION_FAILED');
+    expect(fs.readFileSync(path.join(projectRoot, '.git/index'))).toEqual(indexBefore);
+    expect(execFileSync('git', ['-C', projectRoot, 'count-objects', '-v'], { encoding: 'utf8' })).toBe(objectsBefore);
+    expect(execFileSync('git', ['-C', projectRoot, 'for-each-ref', 'refs/nullius'], { encoding: 'utf8' })).toBe('');
+  });
+
+  it('keeps unchanged historical bulk readable and captures explicitly declared unique inputs', () => {
+    initRepoWithCommit();
+    const run = path.join(projectRoot, 'artifacts/runs/prior');
+    fs.mkdirSync(run, { recursive: true });
+    fs.writeFileSync(path.join(run, 'old-output.txt'), 'x'.repeat(128));
+    policy({ path_rules: [{ path: 'artifacts/runs/prior/input.json', disposition: 'git', reason: 'unique frozen input' }] });
+    git('add', '-A'); git('commit', '-q', '-m', 'historical bytes');
+    fs.writeFileSync(path.join(run, 'input.json'), 'y'.repeat(128));
+    git('add', 'artifacts/runs/prior/input.json');
+    const stamp = captureRunOrigin(projectRoot, 'next');
+    expect(stamp.binding_quality).toBe('exact_tracked_snapshot');
+    expect(stamp.snapshot_commit).toBeTruthy();
+  });
+
+  it('blocks a backup bundle added outside the run roots', () => {
+    initRepoWithCommit();
+    git('bundle', 'create', 'archive.data', 'HEAD');
+    git('add', 'archive.data');
+    expect(() => captureRunOrigin(projectRoot, 'next')).toThrow('git_backup_archive');
+  });
+});

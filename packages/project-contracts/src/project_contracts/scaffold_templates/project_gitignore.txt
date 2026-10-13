@@ -27,3 +27,14 @@ artifacts/cache/
 # reference source snapshots are deliberately NOT listed here: whether to
 # track them is a project decision — declare it explicitly (and record it
 # with `nullius decision record`) rather than inheriting a default either way.
+#
+# Bulk run outputs (5 MiB or more by default) are the exception that needs no
+# rule here: research-harness `run_storage.py stow <run_dir>` writes a managed
+# block into that run directory's own .gitignore listing exactly the stowed
+# files, and records their hashes in the tracked bulk_manifest.json.
+
+# For small reproducible outputs, declare store paths in .nullius/storage_policy.json.
+# Classify unique inputs/results as git, and disposable logs/caches as local,
+# with reasons. Local rules do not add ignore rules or delete files.
+# Origin snapshots enforce admission; ordinary commits need the project's
+# own run_storage.py check --staged --strict hook. Existing files are not migrated.
