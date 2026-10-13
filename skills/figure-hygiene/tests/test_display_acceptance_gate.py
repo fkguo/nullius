@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+from html import escape
 import importlib.util
 import json
 import os
@@ -19,6 +20,8 @@ import subprocess
 import sys
 import symtable
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GATE = REPO_ROOT / "skills" / "figure-hygiene" / "scripts" / "bin" / "check_display_acceptance.py"
@@ -81,12 +84,53 @@ def _bundle(tmp_path: Path) -> dict:
             "path": "figs/review/overview_all_components.pdf",
             "archived": True,
         },
+        "final_display": _semantic_bundle(tmp_path),
     }
+
+
+def _semantic_bundle(tmp_path: Path) -> dict:
+    """Raw observations and final HTML, independently written fixture inputs."""
+    source = tmp_path / "quantities.json"
+    source.write_text(json.dumps({"quantities": [
+        {"id": "quantity_a", "identity": {"object": "sample a", "conditions": "fixed",
+         "reference": "origin", "definition": "elapsed interval"}, "role": "result",
+         "raw": {"value": "1234", "unit": "ms"}},
+        {"id": "quantity_b", "identity": {"object": "sample b", "conditions": "fixed",
+         "reference": "origin", "definition": "elapsed interval"}, "role": "result",
+         "raw": {"value": "2345", "unit": "ms"}}
+    ]}), encoding="utf-8")
+    final = tmp_path / "figs" / "summary.html"
+    final.parent.mkdir(parents=True, exist_ok=True)
+    # Values below are explicit expected observations, not calculated by the gate.
+    final.write_text(_html_cells([
+        {"id": "a", "label": "Interval A", "value": "1.23", "unit": "s"},
+        {"id": "b", "label": "Interval B", "value": "2.35", "unit": "s"}
+    ]), encoding="utf-8")
+    digest = _sha256(final)
+    return {
+        "purpose": "compare two measured intervals", "source": {"path": "quantities.json", "sha256": _sha256(source)},
+        "selection": ["quantity_a", "quantity_b"],
+        "cells": [{"id": cid, "quantity": qid, "unit": "s",
+                   "transform": {"kind": "identity", "definition": "convert the source unit"}}
+                  for cid, qid in [("a", "quantity_a"), ("b", "quantity_b")]],
+        "surfaces": [{"path": "figs/summary.html", "sha256": digest, "format": "html", "language": "en",
+                      "labels": {"a": "Interval A", "b": "Interval B"}, "unit_labels": {"s": "s"},
+                      "review": {"sha256": digest, "readability": True, "semantics": True}}],
+    }
+
+
+def _html_cells(cells: list[dict]) -> str:
+    return '<table data-results>' + ''.join(
+        '<tr><td data-display-id="' + escape(cell["id"], quote=True) + '">' + ''.join(
+            '<span data-field="' + key + '">' + escape(cell[key]) + '</span>'
+            for key in ["label", "value", "unit"]
+        ) + '</td></tr>' for cell in cells
+    ) + '</table>'
 
 
 def _write_manifest(tmp_path: Path, display_acceptance) -> Path:
     manifest = {
-        "figure": "figs/scan_summary.pdf",
+        "figure": "figs/summary.html",
         "data": ["data/scan_results.csv"],
         "script": "figs/src/scan_summary.py",
         "command": "python3 figs/src/scan_summary.py",
@@ -799,3 +843,432 @@ def test_failing_payload_satisfies_schema_and_explains_itself(tmp_path: Path) ->
     _, payload = _run(manifest)
     assert payload["result"] != "pass"
     _assert_payload_matches_schema(payload)
+
+
+# These controls change the actual source/rendered cells and re-pin them. Thus
+# any refusal below must come from semantics, not merely stale evidence hashes.
+def _change_source(tmp_path: Path, block: dict, change) -> None:
+    source = tmp_path / block["final_display"]["source"]["path"]
+    record = json.loads(source.read_text(encoding="utf-8"))
+    change(record)
+    source.write_text(json.dumps(record), encoding="utf-8")
+    block["final_display"]["source"]["sha256"] = _sha256(source)
+
+
+def _change_html(tmp_path: Path, block: dict, before: str, after: str, index: int = 0) -> None:
+    surface = block["final_display"]["surfaces"][index]
+    path = tmp_path / surface["path"]
+    text = path.read_text(encoding="utf-8")
+    assert before in text
+    path.write_text(text.replace(before, after), encoding="utf-8")
+    surface["sha256"] = surface["review"]["sha256"] = _sha256(path)
+
+
+def _semantic_result(tmp_path: Path, block: dict, expected_kind: str | None) -> None:
+    code, payload = _run(_write_manifest(tmp_path, block))
+    if expected_kind is None:
+        assert code == 0, payload
+        assert payload["result"] == "pass"
+    else:
+        assert code == 1, payload
+        assert payload["result"] == "verdict_mismatch"
+        assert expected_kind in _kinds(payload), payload
+    _assert_payload_matches_schema(payload)
+
+
+def test_final_semantics_is_required_not_evidence_only(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    del block["final_display"]
+    _semantic_result(tmp_path, block, "semantics-malformed")
+
+
+def test_main_display_cannot_be_omitted_from_checked_surfaces(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
+    record = json.loads(manifest.read_text())
+    record["figure"] = "figs/uninspected.pdf"
+    manifest.write_text(json.dumps(record))
+    code, payload = _run(manifest)
+    assert code == 1
+    assert "main-surface-not-covered" in _kinds(payload)
+
+
+@pytest.mark.parametrize("before,after", [
+    ('>1.23<', '>1234<'),  # final value in milliseconds, still labelled seconds
+    ('>s<', '>ms<'),       # late unit edit without changing the seconds values
+    ('>1.23<', '>1.24<'),  # exceeds the printed rounding interval
+])
+def test_final_value_unit_corruption_refused_after_repin(tmp_path: Path, before: str, after: str) -> None:
+    block = _bundle(tmp_path)
+    _change_html(tmp_path, block, before, after)
+    _semantic_result(tmp_path, block, "value-unit-mismatch")
+
+
+def test_known_wrong_unit_cannot_be_whitelisted_as_translation(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_html(tmp_path, block, '>s<', '>ms<')
+    block["final_display"]["surfaces"][0]["unit_labels"] = {"s": "ms"}
+    _semantic_result(tmp_path, block, "value-unit-mismatch")
+
+
+def test_late_source_override_must_carry_units(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    # Replacement was already converted to seconds but retained the old ms unit.
+    _change_source(tmp_path, block, lambda s: s["quantities"][0]["raw"].update(value="1.234"))
+    _semantic_result(tmp_path, block, "value-unit-mismatch")
+
+
+def test_source_override_value_unit_pair_accepted(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s["quantities"][0]["raw"].update(value="1.234", unit="s"))
+    _semantic_result(tmp_path, block, None)
+
+
+def test_rounding_intervals_do_not_demand_raw_precision(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_html(tmp_path, block, '>1.23<', '>1.2<')
+    _change_html(tmp_path, block, '>2.35<', '>2.3<')
+    _semantic_result(tmp_path, block, None)
+
+
+def test_affine_forward_map_and_rounding(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["final_display"]["cells"][0]["transform"] = {
+        "kind": "affine", "definition": "double the canonical interval and shift by one second",
+        "scale": "2", "offset": "1"}
+    _change_html(tmp_path, block, '>1.23<', '>3.47<')
+    _semantic_result(tmp_path, block, None)
+
+
+def test_noninvertible_map_uses_defined_forward_image(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s["quantities"][0]["raw"].update(value="-1234"))
+    block["final_display"]["cells"][0]["transform"] = {
+        "kind": "absolute", "definition": "magnitude of the signed interval"}
+    _semantic_result(tmp_path, block, None)
+
+
+def _add_dual(tmp_path: Path, block: dict) -> None:
+    final = block["final_display"]
+    final["cells"].append({"id": "a_milli", "quantity": "quantity_a", "unit": "ms",
+                          "transform": {"kind": "identity", "definition": "native unit representation"}})
+    surface = final["surfaces"][0]
+    surface["labels"]["a_milli"] = "Interval A in source units"
+    surface["unit_labels"]["ms"] = "ms"
+    cell_html = _html_cells([{"id": "a_milli", "label": "Interval A in source units", "value": "1234", "unit": "ms"}])
+    _change_html(tmp_path, block, '</table>', cell_html.removeprefix('<table data-results>'))
+
+
+def test_unintended_reversible_duplicate_representation_refused(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _add_dual(tmp_path, block)
+    _semantic_result(tmp_path, block, "duplicate-representation")
+
+
+def test_declared_useful_dual_representation_accepted(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _add_dual(tmp_path, block)
+    block["final_display"]["dual_representations"] = [
+        {"cells": ["a", "a_milli"], "purpose": "compare the reported value with a source-unit instrument reading"}]
+    _semantic_result(tmp_path, block, None)
+
+
+def test_alias_quantity_ids_do_not_evade_identity_dedup(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    def change(source):
+        source["quantities"][1]["identity"] = source["quantities"][0]["identity"].copy()
+        source["quantities"][1]["raw"]["value"] = "1234"
+    _change_source(tmp_path, block, change)
+    _change_html(tmp_path, block, '>2.35<', '>1.23<')
+    _semantic_result(tmp_path, block, "duplicate-representation")
+
+
+@pytest.mark.parametrize("context", ["reference", "parameter", "model", "basis", "definition"])
+def test_equal_values_with_different_identity_are_not_deduped(tmp_path: Path, context: str) -> None:
+    block = _bundle(tmp_path)
+    def change(source):
+        source["quantities"][1]["identity"] = source["quantities"][0]["identity"].copy()
+        source["quantities"][1]["identity"][context] = "different context"
+        source["quantities"][1]["raw"]["value"] = "1234"
+    _change_source(tmp_path, block, change)
+    _change_html(tmp_path, block, '>2.35<', '>1.23<')
+    _semantic_result(tmp_path, block, None)
+
+
+def test_diagnostic_requires_reader_purpose_even_if_verified(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s["quantities"][0].update(role="diagnostic"))
+    _semantic_result(tmp_path, block, "diagnostic-in-display")
+
+
+def test_diagnostic_is_allowed_when_it_is_the_readers_subject(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s["quantities"][0].update(role="diagnostic"))
+    block["final_display"]["diagnostic_purposes"] = {"quantity_a": "study the instrument settling interval"}
+    _semantic_result(tmp_path, block, None)
+
+
+def test_intermediate_cannot_enter_limited_reader_selection(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s["quantities"].append({
+        "id": "internal", "identity": {"object": "instrument", "conditions": "fixed", "reference": "start",
+                                       "definition": "iteration count"}, "role": "intermediate",
+        "raw": {"value": "7", "unit": "1"}}))
+    block["final_display"]["cells"].append({"id": "internal", "quantity": "internal", "unit": "1",
+                                          "transform": {"kind": "identity", "definition": "raw count"}})
+    _semantic_result(tmp_path, block, "display-selection-mismatch")
+
+
+def _vector_bundle(tmp_path: Path) -> dict:
+    block = _bundle(tmp_path)
+    def change(source):
+        quantity = source["quantities"][0]
+        del quantity["raw"]
+        quantity.update(component_definition="ordered signed coordinates", normalization="unnormalized",
+                        components=[{"id": "first", "definition": "first coordinate", "raw": {"value": "-2", "unit": "m"}},
+                                    {"id": "second", "definition": "second coordinate", "raw": {"value": "3", "unit": "m"}}])
+    _change_source(tmp_path, block, change)
+    block["final_display"]["cells"] = [
+        {"id": "first", "quantity": "quantity_a", "component": "first", "unit": "m",
+         "transform": {"kind": "identity", "definition": "signed coordinate"}},
+        {"id": "second", "quantity": "quantity_a", "component": "second", "unit": "m",
+         "transform": {"kind": "identity", "definition": "signed coordinate"}},
+        block["final_display"]["cells"][1]]
+    surface = block["final_display"]["surfaces"][0]
+    surface["labels"] = {"first": "First coordinate", "second": "Second coordinate", "b": "Interval B"}
+    surface["unit_labels"] = {"s": "s", "m": "m"}
+    path = tmp_path / surface["path"]
+    path.write_text(_html_cells([
+        {"id": "first", "label": "First coordinate", "value": "-2.0", "unit": "m"},
+        {"id": "second", "label": "Second coordinate", "value": "3.0", "unit": "m"},
+        {"id": "b", "label": "Interval B", "value": "2.35", "unit": "s"}]), encoding="utf-8")
+    surface["sha256"] = surface["review"]["sha256"] = _sha256(path)
+    return block
+
+
+def test_signed_vector_needs_no_probability_normalization(tmp_path: Path) -> None:
+    block = _vector_bundle(tmp_path)
+    _semantic_result(tmp_path, block, None)
+
+
+@pytest.mark.parametrize("missing", ["component_definition", "normalization"])
+def test_vector_requires_complete_definition(tmp_path: Path, missing: str) -> None:
+    block = _vector_bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s["quantities"][0].pop(missing))
+    _semantic_result(tmp_path, block, "component-identity-missing")
+
+
+def test_vector_leaf_without_identity_is_refused(tmp_path: Path) -> None:
+    block = _vector_bundle(tmp_path)
+    del block["final_display"]["cells"][0]["component"]
+    _semantic_result(tmp_path, block, "component-identity-missing")
+
+
+def test_final_component_order_corruption_is_refused(tmp_path: Path) -> None:
+    block = _vector_bundle(tmp_path)
+    _change_html(tmp_path, block, 'data-display-id="first"', 'data-display-id="swap"')
+    _change_html(tmp_path, block, 'data-display-id="second"', 'data-display-id="first"')
+    _change_html(tmp_path, block, 'data-display-id="swap"', 'data-display-id="second"')
+    _semantic_result(tmp_path, block, "final-cell-order-mismatch")
+
+
+def test_inventory_component_order_is_not_only_final_file_order(tmp_path: Path) -> None:
+    block = _vector_bundle(tmp_path)
+    block["final_display"]["cells"][:2] = reversed(block["final_display"]["cells"][:2])
+    _semantic_result(tmp_path, block, "component-order-mismatch")
+
+
+def _add_vector_dual(tmp_path: Path, block: dict, order: list[str]) -> None:
+    final = block["final_display"]
+    # The expected cells are explicit source-coordinate observations in cm.
+    extra = {"first": ("First coordinate in cm", "-200.0"),
+             "second": ("Second coordinate in cm", "300.0")}
+    final["cells"][0]["representation"] = final["cells"][1]["representation"] = "native"
+    surface = final["surfaces"][0]
+    added = []
+    for component in order:
+        cid = component + "_cm"
+        final["cells"].append({"id": cid, "quantity": "quantity_a", "component": component,
+                               "representation": "centimetres", "unit": "cm",
+                               "transform": {"kind": "identity", "definition": "coordinates in centimetres"}})
+        label, value = extra[component]
+        surface["labels"][cid] = label
+        added.append({"id": cid, "label": label, "value": value, "unit": "cm"})
+    surface["unit_labels"]["cm"] = "cm"
+    final["dual_representations"] = [
+        {"cells": [component, component + "_cm"], "purpose": "compare coordinate unit systems"}
+        for component in ["first", "second"]]
+    _change_html(tmp_path, block, '</table>', _html_cells(added).removeprefix('<table data-results>'))
+
+
+def test_each_vector_representation_needs_declared_component_order(tmp_path: Path) -> None:
+    block = _vector_bundle(tmp_path)
+    _add_vector_dual(tmp_path, block, ["second", "first"])
+    _semantic_result(tmp_path, block, "component-order-mismatch")
+
+
+def test_component_major_dual_table_is_valid(tmp_path: Path) -> None:
+    block = _vector_bundle(tmp_path)
+    _add_vector_dual(tmp_path, block, ["first", "second"])
+    final = block["final_display"]
+    final["cells"] = [final["cells"][i] for i in [0, 3, 1, 4, 2]]
+    surface = final["surfaces"][0]
+    path = tmp_path / surface["path"]
+    path.write_text(_html_cells([
+        {"id": "first", "label": "First coordinate", "value": "-2.0", "unit": "m"},
+        {"id": "first_cm", "label": "First coordinate in cm", "value": "-200.0", "unit": "cm"},
+        {"id": "second", "label": "Second coordinate", "value": "3.0", "unit": "m"},
+        {"id": "second_cm", "label": "Second coordinate in cm", "value": "300.0", "unit": "cm"},
+        {"id": "b", "label": "Interval B", "value": "2.35", "unit": "s"}]), encoding="utf-8")
+    surface["sha256"] = surface["review"]["sha256"] = _sha256(path)
+    _semantic_result(tmp_path, block, None)
+
+
+def _add_translation(tmp_path: Path, block: dict) -> None:
+    surface = json.loads(json.dumps(block["final_display"]["surfaces"][0]))
+    surface.update(path="figs/summary-zh.html", language="zh", labels={"a": "间隔甲", "b": "间隔乙"}, unit_labels={"s": "秒"})
+    path = tmp_path / surface["path"]
+    path.write_text(_html_cells([
+        {"id": "a", "label": "间隔甲", "value": "1.23", "unit": "秒"},
+        {"id": "b", "label": "间隔乙", "value": "2.35", "unit": "秒"}]), encoding="utf-8")
+    surface["sha256"] = surface["review"]["sha256"] = _sha256(path)
+    block["final_display"]["surfaces"].append(surface)
+
+
+def test_equivalent_multilingual_final_output_is_accepted(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _add_translation(tmp_path, block)
+    _semantic_result(tmp_path, block, None)
+
+
+def test_wrong_translated_value_refused_even_if_other_language_correct(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _add_translation(tmp_path, block)
+    _change_html(tmp_path, block, '>1.23<', '>1234<', index=1)
+    _semantic_result(tmp_path, block, "value-unit-mismatch")
+
+
+@pytest.mark.parametrize("status,visible", [("failed", "failed"), ("missing", "missing"), ("not_applicable", "not_applicable")])
+def test_distinct_unavailable_statuses_preserved(tmp_path: Path, status: str, visible: str) -> None:
+    block = _bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s["quantities"][0]["raw"].update(value=None, status=status))
+    _change_html(tmp_path, block, '>1.23<', f'>{visible}<')
+    _semantic_result(tmp_path, block, None)
+
+
+def test_failure_cannot_be_relabelled_as_missing(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s["quantities"][0]["raw"].update(value=None, status="failed"))
+    _change_html(tmp_path, block, '>1.23<', '>missing<')
+    _semantic_result(tmp_path, block, "status-mismatch")
+
+
+def test_partial_status_translation_cannot_collapse_distinctions(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    def change(source):
+        source["quantities"][0]["raw"].update(value=None, status="failed")
+        source["quantities"][1]["raw"].update(value=None, status="missing")
+    _change_source(tmp_path, block, change)
+    _change_html(tmp_path, block, '>1.23<', '>missing<')
+    _change_html(tmp_path, block, '>2.35<', '>missing<')
+    block["final_display"]["surfaces"][0]["status_labels"] = {"failed": "missing"}
+    _semantic_result(tmp_path, block, "status-mismatch")
+
+
+def test_known_status_words_cannot_be_swapped_as_translation(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    def change(source):
+        source["quantities"][0]["raw"].update(value=None, status="failed")
+        source["quantities"][1]["raw"].update(value=None, status="missing")
+    _change_source(tmp_path, block, change)
+    _change_html(tmp_path, block, '>1.23<', '>missing<')
+    _change_html(tmp_path, block, '>2.35<', '>failed<')
+    block["final_display"]["surfaces"][0]["status_labels"] = {"failed": "missing", "missing": "failed"}
+    _semantic_result(tmp_path, block, "status-mismatch")
+
+
+def test_static_adapter_rejects_unmapped_table_cell(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_html(tmp_path, block, '</table>', '<tr><td>7</td></tr></table>')
+    _semantic_result(tmp_path, block, "cell-identity-missing")
+
+
+def test_final_label_corruption_refused(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_html(tmp_path, block, '>Interval A<', '>Interval B<')
+    _semantic_result(tmp_path, block, "cell-label-mismatch")
+
+
+def test_render_review_must_follow_final_bytes(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["final_display"]["surfaces"][0]["review"]["sha256"] = "0" * 64
+    _semantic_result(tmp_path, block, "rendered-review-missing")
+
+
+def test_small_table_serves_as_own_inspection_surface(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["overview_figure"] = {"path": "figs/summary.html", "archived": True}
+    _semantic_result(tmp_path, block, None)
+
+
+@pytest.mark.parametrize("slot", ["source", "surface", "extraction"])
+def test_final_input_slots_cannot_be_clobbered_by_gate_output(tmp_path: Path, slot: str) -> None:
+    block = _bundle(tmp_path)
+    final = block["final_display"]
+    if slot == "source":
+        path = tmp_path / final["source"]["path"]
+    elif slot == "surface":
+        path = tmp_path / final["surfaces"][0]["path"]
+    else:
+        path = tmp_path / "missing-extraction.json"
+        final["surfaces"][0].update(format="extracted", extraction={"path": path.name, "sha256": "0" * 64})
+    before = path.read_bytes() if path.exists() else None
+    manifest = _write_manifest(tmp_path, block)
+    proc = subprocess.run([sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(path)],
+                          capture_output=True, text=True, check=False)
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert "out-json-protected-input" in _kinds(payload)
+    assert (path.read_bytes() if path.exists() else None) == before
+
+
+@pytest.mark.parametrize("absent_or_malformed", [None, []])
+def test_primary_surface_protected_even_without_valid_acceptance_block(tmp_path: Path, absent_or_malformed) -> None:
+    _bundle(tmp_path)
+    manifest = _write_manifest(tmp_path, absent_or_malformed)
+    primary = tmp_path / "figs" / "summary.html"
+    before = primary.read_bytes()
+    proc = subprocess.run([sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(primary)],
+                          capture_output=True, text=True, check=False)
+    assert proc.returncode == 2
+    assert "out-json-protected-input" in _kinds(json.loads(proc.stdout))
+    assert primary.read_bytes() == before
+
+
+def test_reviewed_extracted_surface_has_semantic_checks(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    surface = block["final_display"]["surfaces"][0]
+    extraction = tmp_path / "final-cells.json"
+    extraction.write_text(json.dumps({"surface_sha256": surface["sha256"], "cells": [
+        {"id": "a", "label": "Interval A", "value": "1.23", "unit": "s"},
+        {"id": "b", "label": "Interval B", "value": "2.35", "unit": "s"}]}), encoding="utf-8")
+    surface.update(format="extracted", extraction={"path": extraction.name, "sha256": _sha256(extraction)})
+    _semantic_result(tmp_path, block, None)
+    record = json.loads(extraction.read_text())
+    record["cells"][0]["value"] = "1234"
+    extraction.write_text(json.dumps(record), encoding="utf-8")
+    surface["extraction"]["sha256"] = _sha256(extraction)
+    _semantic_result(tmp_path, block, "value-unit-mismatch")
+
+
+def test_builtin_units_cannot_be_redefined_to_mask_error(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    _change_source(tmp_path, block, lambda s: s.update(units={"ms": {"dimension": "time", "scale": "1", "offset": "0"}}))
+    _semantic_result(tmp_path, block, "unit-invalid")
+
+
+def test_semantic_json_also_rejects_duplicate_keys(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    source = tmp_path / block["final_display"]["source"]["path"]
+    source.write_text('{"quantities": [], "quantities": []}', encoding="utf-8")
+    block["final_display"]["source"]["sha256"] = _sha256(source)
+    _semantic_result(tmp_path, block, "semantics-unreadable")

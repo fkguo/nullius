@@ -4,7 +4,7 @@
   "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Correctness and legibility checklist for data/results figures: data fidelity, label economy, CVD-safe colour threading, chart choice by data shape, render-then-verify QA, and figure-reproduction provenance.",
+  "summary": "Scientific results figures and tables, including HTML and multilingual output: final value-unit semantics, quantity/component identity, reader selection, data fidelity, legibility and reproducibility.",
   "platforms": [
     "claude_code",
     "codex",

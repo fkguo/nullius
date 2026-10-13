@@ -41,6 +41,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const GATE_FILE = 'skills/figure-hygiene/scripts/bin/check_display_acceptance.py';
+const SEMANTICS_FILE = 'skills/figure-hygiene/scripts/bin/display_semantics.py';
 const SCHEMA_FILE = 'meta/schemas/display_gate_result_v1.schema.json';
 const INPUT_SCHEMA_FILE = 'meta/schemas/quantity_verdict_v1.schema.json';
 const SKILL_FILE = 'skills/figure-hygiene/SKILL.md';
@@ -109,6 +110,20 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['same-directory temporary output', 'tempfile.mkstemp'],
   ['atomic output replacement', 'os.replace'],
   ['machine-only verdict rule', 'callers must not self-assess'],
+  ['final semantics call in the same gate', 'findings.extend(_semantics_module().check('],
+  ['source/final/extraction input protection', 'protected.extend(_semantics_module().input_paths('],
+]);
+
+requireAll(SEMANTICS_FILE, read(SEMANTICS_FILE), [
+  ['reading final visible HTML', '_Cells().finish(path.read_text(encoding="utf-8"))'],
+  ['final value-unit refusal', '"value-unit-mismatch"'],
+  ['component identity refusal', '"component-identity-missing"'],
+  ['component order refusal', '"component-order-mismatch"'],
+  ['reversible duplicate refusal', '"duplicate-representation"'],
+  ['reader selection refusal', '"display-selection-mismatch"'],
+  ['diagnostic purpose refusal', '"diagnostic-in-display"'],
+  ['display-token rounding interval', 'printed.as_tuple().exponent / 2'],
+  ['noninvertible forward mapping', 'abs(canonical) if kind == "absolute"'],
 ]);
 
 // 2. Schema authority: enums must match the script exactly.
@@ -187,6 +202,8 @@ requireAll(SKILL_FILE, read(SKILL_FILE), [
   ['recursive duplicate-key contract', 'rejects duplicate keys recursively'],
   ['fail-closed default', 'fail-closed'],
   ['new-display-new-observable discipline', 'A new display is a new observable.'],
+  ['final-display reference routing', 'references/display-semantics.md'],
+  ['final-display contract', '`final_display`'],
 ]);
 
 // 4. Tests: the negative controls must keep asserting failure, not merely
@@ -218,6 +235,27 @@ function requireInTestBody(name, label, needles) {
     }
   }
 }
+
+requireInTestBody('test_final_value_unit_corruption_refused_after_repin', 'final value/unit behavior', [
+  '_change_html(tmp_path, block, before, after)',
+  '_semantic_result(tmp_path, block, "value-unit-mismatch")',
+]);
+requireInTestBody('test_unintended_reversible_duplicate_representation_refused', 'representation behavior', [
+  '_semantic_result(tmp_path, block, "duplicate-representation")',
+]);
+requireInTestBody('test_declared_useful_dual_representation_accepted', 'intentional representation positive control', [
+  '_semantic_result(tmp_path, block, None)',
+]);
+requireInTestBody('test_final_component_order_corruption_is_refused', 'component order behavior', [
+  '_change_html(tmp_path, block,',
+  '_semantic_result(tmp_path, block, "final-cell-order-mismatch")',
+]);
+requireInTestBody('test_intermediate_cannot_enter_limited_reader_selection', 'reader selection behavior', [
+  '_semantic_result(tmp_path, block, "display-selection-mismatch")',
+]);
+requireInTestBody('test_equivalent_multilingual_final_output_is_accepted', 'translation positive control', [
+  '_semantic_result(tmp_path, block, None)',
+]);
 
 requireInTestBody('test_full_bundle_passes', 'positive control', [
   'assert code == 0',

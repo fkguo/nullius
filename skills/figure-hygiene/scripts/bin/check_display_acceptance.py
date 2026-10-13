@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Display-acceptance gate: refuse the display surface until every plotted
-quantity is bound to a verification verdict and an all-component overview
-figure is archived.
+"""Display-acceptance gate: check verification coverage and final cell semantics.
 
 Why this gate exists: an agent naturally builds acceptance checks only for the
 conclusions it has declared, so output components that were never declared are
@@ -17,7 +15,14 @@ The gate reads the figure's provenance manifest and judges its
   exists, hashes to the recorded SHA-256 digest, explicitly covers that
   quantity, and records an accepted outcome;
 - a human-review overview figure spanning all output components must be
-  declared as archived and present on disk.
+  declared as archived and present on disk (a small final table can itself
+  serve as the inspection surface);
+- final_display must trace source values/units and quantity identities into
+  the final rendered cells, including transformations, reader selection,
+  components, deliberate duplicate representations and each language.
+
+Semantic automation supplements, rather than replaces, actual inspection of
+the rendered display and the source scientific verification.
 
 The verdict is computed here and only here; callers must not self-assess.
 Fail-closed: missing or unverifiable evidence is a failure, never a pass.
@@ -30,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -71,12 +77,23 @@ VERDICT_SCHEMA_ID = "quantity_verdict_v1"
 VERDICT_SCHEMA_VERSION = 1
 VERDICT_VALUES = frozenset({"pass", "fail"})
 
-_BLOCK_FIELDS = frozenset({"plotted_quantities", "verdict_bindings", "overview_figure"})
+_BLOCK_FIELDS = frozenset({"plotted_quantities", "verdict_bindings", "overview_figure", "final_display"})
 _BINDING_FIELDS = frozenset({"quantity", "verdict_path", "verdict_sha256"})
 _OVERVIEW_FIELDS = frozenset({"path", "archived", "sha256"})
 _VERDICT_FIELDS = frozenset({"schema_id", "schema_version", "quantities", "verdict"})
 
 _SHA256 = re.compile(r"(?:sha256:)?([0-9a-fA-F]{64})\Z", re.IGNORECASE)
+
+
+def _semantics_module():
+    # Load the adjacent shipped helper equally from a CLI or an import-by-path
+    # consumer, without modifying the host's global Python module search path.
+    spec = importlib.util.spec_from_file_location(
+        "display_semantics", Path(__file__).with_name("display_semantics.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class DuplicateJsonKeyError(ValueError):
@@ -184,11 +201,13 @@ def _protected_input_paths(manifest_path: Path) -> tuple[list[Path], bool]:
         return protected, False
     if not isinstance(manifest, dict):
         return protected, False
+    base_dir = manifest_path.resolve().parent
+    main_surface = manifest.get("figure")
+    if isinstance(main_surface, str) and main_surface.strip():
+        protected.append(_resolve(base_dir, main_surface.strip()))
     block = manifest.get("display_acceptance")
     if not isinstance(block, dict):
         return protected, True
-
-    base_dir = manifest_path.resolve().parent
     bindings = block.get("verdict_bindings")
     if isinstance(bindings, list):
         for binding in bindings:
@@ -202,6 +221,12 @@ def _protected_input_paths(manifest_path: Path) -> tuple[list[Path], bool]:
         value = overview.get("path")
         if isinstance(value, str) and value.strip():
             protected.append(_resolve(base_dir, value.strip()))
+    try:
+        protected.extend(_semantics_module().input_paths(
+            block.get("final_display"), lambda value: _resolve(base_dir, value)
+        ))
+    except (OSError, ImportError):
+        return protected, False
     return protected, True
 
 
@@ -441,9 +466,8 @@ def _check_overview(overview: Any, base_dir: Path, findings: list[dict[str, Any]
             _finding(
                 "overview-undeclared",
                 RESULT_MISSING_OVERVIEW_FIGURE,
-                "display_acceptance.overview_figure is missing: a human-review overview figure "
-                "spanning all output components must be generated and archived before the figure "
-                "enters any display surface",
+                "display_acceptance.overview_figure is missing: archive an all-component "
+                "human-review overview or the complete small final table before display",
             )
         )
         return None
@@ -654,6 +678,23 @@ def check_manifest(manifest_path: Path) -> dict[str, Any]:
                         )
                     )
 
+            try:
+                findings.extend(_semantics_module().check(
+                    block.get("final_display"), plotted, base_dir, _read_json_document, _sha256_file
+                ))
+            except (OSError, ImportError) as exc:
+                findings.append(_finding("semantics-unavailable", RESULT_VERDICT_MISMATCH, str(exc)))
+            main_surface = manifest.get("figure")
+            if main_surface is not None:
+                final = block.get("final_display")
+                surfaces = final.get("surfaces") if isinstance(final, dict) else None
+                covered_paths = [s["path"] for s in surfaces
+                                 if isinstance(s, dict) and isinstance(s.get("path"), str)] if isinstance(surfaces, list) else []
+                if (not isinstance(main_surface, str) or not main_surface.strip()
+                    or not any(_resolve(base_dir, main_surface).resolve() == _resolve(base_dir, path).resolve()
+                               for path in covered_paths)):
+                    findings.append(_finding("main-surface-not-covered", RESULT_VERDICT_MISMATCH,
+                                             "the manifest's figure must be one of the final checked surfaces"))
             overview_path = _check_overview(block.get("overview_figure"), base_dir, findings)
 
     categories = {f["category"] for f in findings}
@@ -722,7 +763,7 @@ def main(argv: list[str] | None = None) -> int:
                 manifest_path,
                 "out-json-protected-input",
                 "--out-json must not alias, contain, or be contained by the manifest, "
-                "a bound verdict artifact, or the overview input",
+                "a bound verdict artifact, the overview, source, final surface, or extraction input",
             )
             print(json.dumps(failure, ensure_ascii=False, indent=2, sort_keys=True))
             return 2
