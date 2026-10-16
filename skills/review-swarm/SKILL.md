@@ -32,7 +32,7 @@ Use `review-swarm` consistently in documentation and automation references.
 
 Install runner skills for any backends you plan to use:
 - `opencode-cli-runner` (for OpenCode backend)
-- `native-cli-runner` (for `claude/...` models)
+- `claude-cli-runner` (for `claude/...` models)
 - `codex-cli-runner` (for `codex/...` models)
 - `gemini-cli-runner` (for `gemini/...` models)
 - `kimi-cli-runner` (for `kimi/...` models)
@@ -1054,7 +1054,7 @@ All backends now receive the system prompt by default. However, the delivery mec
 
 | Runner | Delivery | True system role? |
 |--------|----------|-------------------|
-| native-cli-runner | `--system-prompt` native arg | Yes |
+| claude-cli-runner | `--system-prompt` native arg | Yes |
 | codex-cli-runner | Merged into stdin (`=== System Instructions ===` + `=== Task ===`) | No — prepended to user message |
 | gemini-cli-runner | Concatenated into stdin (`system + \n\n + prompt`) | No — prepended to stdin |
 | opencode-cli-runner | Concatenated into stdin (same as gemini) | No — prepended to stdin |

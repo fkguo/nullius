@@ -153,10 +153,10 @@ requireAll(SWARM_SKILL_FILE, read(SWARM_SKILL_FILE), [
 ]);
 
 // Complete-output capture is shared by independently installed runner/swarm skills.
-const claudeText = read('skills/native-cli-runner/scripts/complete_assistant_text.py');
+const claudeText = read('skills/claude-cli-runner/scripts/complete_assistant_text.py');
 const swarmText = read('skills/review-swarm/scripts/bin/complete_assistant_text.py');
 if (claudeText !== swarmText) errors.push('complete assistant text collectors differ');
-requireAll('skills/native-cli-runner/SKILL.md', read('skills/native-cli-runner/SKILL.md'), [
+requireAll('skills/claude-cli-runner/SKILL.md', read('skills/claude-cli-runner/SKILL.md'), [
   ['ordered complete output', '`OUT` contains the complete assistant'],
   ['unidentified real increments', 'identical text deltas are retained as separate observed increments'],
 ]);

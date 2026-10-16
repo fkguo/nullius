@@ -191,7 +191,7 @@ Offline testing helper:
 Prereqs for `--run-models`:
 - `claude` and `gemini` CLIs available in `PATH`
 - Runner skills installed under your agent skills home (e.g. `~/.claude`, `~/.codex`, `~/.config/opencode`, `~/.kimi-code`):
-  - `native-cli-runner`
+  - `claude-cli-runner`
   - `gemini-cli-runner`
 
 ### 8) Distill discussion logic (mind maps → playbook)

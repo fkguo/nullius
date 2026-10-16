@@ -1,4 +1,4 @@
-"""Deterministic-failure classification tests for the native-cli-runner.
+"""Deterministic-failure classification tests for the claude-cli-runner.
 
 `run_claude.sh` retries with exponential backoff on TRANSIENT failures, but a
 deterministic failure (usage error, unbound variable, invalid API key, region
@@ -32,7 +32,7 @@ RUNNER = SKILL_DIR / "scripts" / "run_claude.sh"
 # All five runner scripts that must carry a byte-identical copy of
 # classify_deterministic_failure (comment header included).
 RUNNER_SCRIPTS = {
-    "native-cli-runner": SKILLS_ROOT / "native-cli-runner" / "scripts" / "run_claude.sh",
+    "claude-cli-runner": SKILLS_ROOT / "claude-cli-runner" / "scripts" / "run_claude.sh",
     "codex-cli-runner": SKILLS_ROOT / "codex-cli-runner" / "scripts" / "run_codex.sh",
     "gemini-cli-runner": SKILLS_ROOT / "gemini-cli-runner" / "scripts" / "run_gemini.sh",
     "opencode-cli-runner": SKILLS_ROOT / "opencode-cli-runner" / "scripts" / "run_opencode.sh",
@@ -222,7 +222,7 @@ def test_classifier_is_byte_identical_across_all_five_runners() -> None:
     The deterministic-failure classifier is intentionally DUPLICATED (verbatim,
     comment header included) in:
 
-      skills/native-cli-runner/scripts/run_claude.sh
+      skills/claude-cli-runner/scripts/run_claude.sh
       skills/codex-cli-runner/scripts/run_codex.sh
       skills/gemini-cli-runner/scripts/run_gemini.sh
       skills/opencode-cli-runner/scripts/run_opencode.sh
@@ -240,7 +240,7 @@ def test_classifier_is_byte_identical_across_all_five_runners() -> None:
 
     blocks = {name: _extract_classifier_block(script) for name, script in RUNNER_SCRIPTS.items()}
 
-    reference_name = "native-cli-runner"
+    reference_name = "claude-cli-runner"
     reference = blocks[reference_name]
 
     # Guard the extraction itself: a degenerate match must not pass silently.

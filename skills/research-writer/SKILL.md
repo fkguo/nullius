@@ -99,7 +99,7 @@ Outputs are written under `paper/drafts/<run-id>/`:
 - If the evidence gate fails: `draft_<section>_unsafe.tex` + `evidence_gate_report_<section>.md`
 
 Advanced flags (optional; see `--help` for full surface):
-- Backends: `--writer-backend` / `--auditor-backend` pick the model FAMILY for each role from `{claude, gemini, codex, opencode, kimi}` (defaults: writer `claude`, auditor `gemini`). The auditor is an independent pass — prefer a family OTHER than the writer's for genuine cross-family independence. Each backend auto-resolves its runner skill: `<family>-cli-runner`, except the claude family, whose runner skill is `native-cli-runner`.
+- Backends: `--writer-backend` / `--auditor-backend` pick the model FAMILY for each role from `{claude, gemini, codex, opencode, kimi}` (defaults: writer `claude`, auditor `gemini`). The auditor is an independent pass — prefer a family OTHER than the writer's for genuine cross-family independence. Each backend auto-resolves its `<family>-cli-runner`.
 - Models: `--writer-model` (default: `opus`), `--auditor-model` (default: empty → the backend CLI's own configured default model, so it tracks the latest you've set rather than pinning a version)
 - Runner scripts: `--writer-runner` / `--auditor-runner` override the resolved runner path for either role; `--claude-runner` / `--gemini-runner` remain as family-specific overrides. Defaults are auto-detected under your agent skills home, e.g. `~/.claude` / `~/.codex` / `~/.config/opencode` / `~/.kimi-code`.
 - Evidence gate: `--evidence-scan=all|macros` (default `all`); if `macros`, set one or more `--evidence-macro` (e.g. `revadd`)

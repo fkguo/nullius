@@ -120,31 +120,15 @@ def _skill_root() -> Path:
 # optional with sane defaults, so a single generic dispatch covers every family.
 BACKEND_FAMILIES: tuple[str, ...] = ("claude", "gemini", "codex", "opencode", "kimi")
 
-# Runner skill directory per backend family. Runner skills are named
-# `<family>-cli-runner`, except the claude family, whose skill is
-# `native-cli-runner` because skill names may not contain the vendor's
-# reserved word.
-RUNNER_SKILL_DIRS: dict[str, str] = {
-    "claude": "native-cli-runner",
-    "gemini": "gemini-cli-runner",
-    "codex": "codex-cli-runner",
-    "opencode": "opencode-cli-runner",
-    "kimi": "kimi-cli-runner",
-}
-
 
 def _resolve_family_runner(family: str) -> Path | None:
     """
-    Resolve `<runner skill>/scripts/run_<family>.sh` (see RUNNER_SKILL_DIRS) under
-    the sibling skills root where this skill is installed (host-neutral: derived
-    from this script's own location, no single host hardcoded). Returns None if
-    the family is unknown or the runner is absent.
+    Resolve `<family>-cli-runner/scripts/run_<family>.sh` under the sibling skills
+    root where this skill is installed (host-neutral: derived from this script's own
+    location, no single host hardcoded). Returns None if the runner is absent.
     """
-    skill_dir = RUNNER_SKILL_DIRS.get(family)
-    if skill_dir is None:
-        return None
     base = _skill_root().parent
-    runner = base / skill_dir / "scripts" / f"run_{family}.sh"
+    runner = base / f"{family}-cli-runner" / "scripts" / f"run_{family}.sh"
     return runner if runner.is_file() else None
 
 
@@ -437,7 +421,7 @@ def _run_family_runner(
     stage: str,
 ) -> int:
     """
-    Invoke any `<runner skill>/scripts/run_<family>.sh` with the uniform four
+    Invoke any `<family>-cli-runner/scripts/run_<family>.sh` with the uniform four
     core flags shared by every family (claude/gemini/codex/opencode/kimi). Each
     runner's extra flags (codex --sandbox/--skip-git-repo-check,
     opencode/kimi --tool-mode/--workspace-dir, gemini --tool-mode) are optional and

@@ -10,7 +10,7 @@ Three consumers read it today, each with its own self-contained parser (delibera
 - `skills/derivation-verify/scripts/run_multi_backend.py` (`--agents-file`)
 - `skills/idea-pairwise-match/scripts/run_panel.py` (`--roster`)
 
-The five CLI runner skills (`native-cli-runner`, `codex-cli-runner`, `gemini-cli-runner`, `opencode-cli-runner`, `kimi-cli-runner`) do NOT read this file. They keep accepting explicit arguments only; the agents file is resolved by the orchestrating scripts above, which then pass explicit model strings down.
+The five CLI runner skills (`claude-cli-runner`, `codex-cli-runner`, `gemini-cli-runner`, `opencode-cli-runner`, `kimi-cli-runner`) do NOT read this file. They keep accepting explicit arguments only; the agents file is resolved by the orchestrating scripts above, which then pass explicit model strings down.
 
 ## Discovery Order
 
@@ -79,7 +79,7 @@ Runner labels:
 | `opencode` | The opencode CLI (via `opencode-cli-runner`). Model strings carry their own `provider/model` prefix. | `opencode` |
 | `kimi` | The Kimi Code CLI (via `kimi-cli-runner`). The executable is the current `kimi` binary; the skill directory name `kimi-cli-runner` is historical. | `kimi` |
 | `gemini` | The gemini CLI (via `gemini-cli-runner`). | `gemini` |
-| `claude-cli` | The claude CLI (via `native-cli-runner`, the claude family's runner skill; skill names may not contain `claude`), for machines where the claude family is exercised through the CLI rather than natively. | `claude` |
+| `claude-cli` | The claude CLI (via `claude-cli-runner`), for machines where the claude family is exercised through the CLI rather than natively. | `claude` |
 
 Policy fields:
 

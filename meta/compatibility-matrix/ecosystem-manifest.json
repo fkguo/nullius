@@ -22,6 +22,13 @@
       "version": "0.1.0",
       "source_path": "skills/claim-grounding/SKILL.md"
     },
+    "claude-cli-runner": {
+      "type": "skill-pack",
+      "repo": "nullius/skills-market",
+      "channel": "beta",
+      "version": "0.1.0",
+      "source_path": "skills/claude-cli-runner/SKILL.md"
+    },
     "codex-cli-runner": {
       "type": "skill-pack",
       "repo": "nullius/skills-market",
@@ -189,13 +196,6 @@
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/markdown-hygiene/SKILL.md"
-    },
-    "native-cli-runner": {
-      "type": "skill-pack",
-      "repo": "nullius/skills-market",
-      "channel": "beta",
-      "version": "0.1.0",
-      "source_path": "skills/native-cli-runner/SKILL.md"
     },
     "numerical-reliability-gate": {
       "type": "skill-pack",

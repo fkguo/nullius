@@ -23,10 +23,8 @@ import pytest
 
 
 SKILLS = Path(__file__).resolve().parents[2]
-PROCESS_BUDGETS = {name: SKILLS / f"{skill}/scripts/process_budget.py"
-                   for name, skill in (("claude", "native-cli-runner"),
-                                       ("kimi", "kimi-cli-runner"),
-                                       ("opencode", "opencode-cli-runner"))}
+PROCESS_BUDGETS = {name: SKILLS / f"{name}-cli-runner/scripts/process_budget.py"
+                   for name in ("claude", "kimi", "opencode")}
 RUN_GEMINI = SKILLS / "gemini-cli-runner/scripts/run_gemini.sh"
 RUN_MULTI_TASK = SKILLS / "review-swarm/scripts/bin/run_multi_task.py"
 SMOKE = SKILLS / "review-swarm/scripts/bin/smoke_run_multi_task_real.py"

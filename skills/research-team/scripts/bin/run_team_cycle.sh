@@ -1869,7 +1869,7 @@ elif [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "claude" ]]; then
   if [[ -z "${MEMBER_A_RUNNER_PATH}" && -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
     MEMBER_A_RUNNER="${LOCAL_CLAUDE_RUNNER}"
   else
-    MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-${SKILLS_DIR}/native-cli-runner/scripts/run_claude.sh}"
+    MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh}"
   fi
 else
   MEMBER_A_RUNNER="${MEMBER_A_RUNNER_PATH:-}"
@@ -1879,7 +1879,7 @@ if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" ]]; then
   if [[ -z "${MEMBER_B_RUNNER_PATH}" && -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
     MEMBER_B_RUNNER="${LOCAL_CLAUDE_RUNNER}"
   else
-    MEMBER_B_RUNNER="${MEMBER_B_RUNNER_PATH:-${SKILLS_DIR}/native-cli-runner/scripts/run_claude.sh}"
+    MEMBER_B_RUNNER="${MEMBER_B_RUNNER_PATH:-${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh}"
   fi
 elif [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" ]]; then
   if [[ -z "${MEMBER_B_RUNNER_PATH}" && -f "${LOCAL_CODEX_RUNNER}" ]]; then
@@ -2232,7 +2232,7 @@ if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" && -z "${MEMBER_B_RUNNER_PA
   if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
     MEMBER_B_RUNNER="${LOCAL_CLAUDE_RUNNER}"
   else
-    MEMBER_B_RUNNER="${SKILLS_DIR}/native-cli-runner/scripts/run_claude.sh"
+    MEMBER_B_RUNNER="${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh"
   fi
   if [[ ! -f "${MEMBER_B_RUNNER}" ]]; then
     echo "ERROR: Member B claude runner not found: ${MEMBER_B_RUNNER}" >&2
@@ -2501,7 +2501,7 @@ if [[ -n "${sidecar_lines}" ]]; then
       elif [[ -f "${LOCAL_CLAUDE_RUNNER}" ]]; then
         member_c_runner="${LOCAL_CLAUDE_RUNNER}"
       else
-        member_c_runner="${SKILLS_DIR}/native-cli-runner/scripts/run_claude.sh"
+        member_c_runner="${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh"
       fi
       member_c_base_args=(
         --system-prompt-file "${sc_system}"
