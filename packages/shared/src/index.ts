@@ -172,3 +172,6 @@ export {
 } from './integrity-receipt.js';
 
 export { canonicalProjectPath, assertExternalProjectRoot, respellUnderDirectory } from './project-root.js';
+
+// Entry-point guard that sees through symlinked start paths (bin links, symlinked checkouts).
+export { isMainModule } from './entry-guard.js';
