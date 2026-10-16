@@ -291,7 +291,7 @@ def test_refinement_far_past_the_target_warns_without_failing(tmp_path):
     assert crm.check(_matrix(zero)) == ([], [])
 
 
-def test_rounding_allowance_cannot_reverse_the_verdict():
+def test_understated_total_cannot_reverse_the_verdict():
     # A reported total a hair below its rule (inside the rounding allowance) must not let a
     # total that truly exceeds the target pass: the stop rule uses the recomputed value.
     big = 1_000_000_000_000
@@ -311,8 +311,7 @@ def test_large_integers_keep_their_exact_ordering():
         total_error={"rule": "linear_sum", "value": 2**53 + 1},
     )
     assert _refused(_matrix(row))
-    # A total reported as 2**53 (within the rounding allowance of the exact sum) still fails,
-    # because the exact sum of the estimates governs.
+    # A total reported as 2**53 understates the exact sum by one unit; it is refused exactly.
     understated = dict(row, total_error={"rule": "linear_sum", "value": 2**53})
     assert _refused(_matrix(understated))
 
@@ -491,6 +490,18 @@ def test_summary_counts_are_required_and_must_match_rows(mutate):
 def test_unjudgeable_input_exits_2(tmp_path, raw):
     proc = _run(tmp_path, None, raw=raw)
     assert proc.returncode == 2, proc.stdout + proc.stderr
+
+
+@pytest.mark.parametrize(
+    "literal",
+    ["1e999999999999999999999", "9" * 5000, "0." + "1" * 500],
+)
+def test_extreme_numeric_literals_are_refused_not_crashed(tmp_path, literal):
+    raw = json.dumps(_matrix(_row())).replace('"estimate": 0.001', '"estimate": ' + literal)
+    proc = _run(tmp_path, None, "--json", raw=raw)
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "Traceback" not in proc.stderr
+    assert json.loads(proc.stdout)["result"] == "invalid_input"
 
 
 def test_json_output_reports_findings(tmp_path):

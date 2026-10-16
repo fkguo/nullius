@@ -27,6 +27,7 @@ unambiguous JSON object, or is not a version-1 matrix.
 from __future__ import annotations
 
 import argparse
+import decimal
 import json
 import sys
 from decimal import Decimal
@@ -79,6 +80,35 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return out
 
 
+# A numeric literal longer than this is refused before it is converted: every value the
+# checker accepts (magnitude 1e-300..1e300) fits in far fewer characters, and refusing early
+# keeps an extreme exponent or digit count from crashing the conversion.
+_MAX_NUMBER_CHARS = 400
+
+
+def _parse_int(lexeme: str) -> int:
+    if len(lexeme) > _MAX_NUMBER_CHARS:
+        raise InputError(f"numeric literal of {len(lexeme)} characters exceeds the {_MAX_NUMBER_CHARS}-character limit")
+    return int(lexeme)
+
+
+def _parse_float(lexeme: str) -> Decimal:
+    if len(lexeme) > _MAX_NUMBER_CHARS:
+        raise InputError(f"numeric literal of {len(lexeme)} characters exceeds the {_MAX_NUMBER_CHARS}-character limit")
+    try:
+        return Decimal(lexeme)
+    except decimal.InvalidOperation as exc:
+        raise InputError(f"numeric literal {lexeme[:40]!r} cannot be represented") from exc
+
+
+def _show(value: Fraction) -> str:
+    """Six significant digits of an exact rational, rounded up, for diagnostics."""
+    with decimal.localcontext() as ctx:
+        ctx.prec = 6
+        ctx.rounding = decimal.ROUND_CEILING
+        return f"{Decimal(value.numerator) / Decimal(value.denominator):.6g}"
+
+
 def load_matrix(path: Path) -> dict[str, Any]:
     try:
         text = path.read_text(encoding="utf-8")
@@ -87,9 +117,12 @@ def load_matrix(path: Path) -> dict[str, Any]:
     try:
         # Non-integer numbers are read as exact decimals, so sums of the values written in the
         # file are exact (no binary rounding).
-        data = json.loads(text, object_pairs_hook=_unique_object, parse_constant=_reject_constant, parse_float=Decimal)
+        data = json.loads(text, object_pairs_hook=_unique_object, parse_constant=_reject_constant,
+                          parse_float=_parse_float, parse_int=_parse_int)
     except json.JSONDecodeError as exc:
         raise InputError(f"{path} is not valid JSON: {exc}") from exc
+    except (ValueError, OverflowError, decimal.InvalidOperation) as exc:
+        raise InputError(f"{path} holds a number that cannot be read: {exc}") from exc
     if not isinstance(data, dict):
         raise InputError("the matrix file must hold one JSON object")
     keys = list(data)
@@ -348,11 +381,11 @@ def check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, st
         if reliable and total > _q(accuracy["value"]):
             dominant = next(entry for entry in budget if entry["dominant"])
             findings.append(_finding(row_id, "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY",
-                                     f"total error {total} exceeds the required accuracy {accuracy['value']}; the row is `unconverged`, "
+                                     f"total error {_show(total)} exceeds the required accuracy {accuracy['value']}; the row is `unconverged`, "
                                      f"and the next refinement goes to the dominant source ({dominant['source']})"))
         elif 0 < total * OVER_REFINEMENT_FACTOR < _q(accuracy["value"]):
             warnings.append(_finding(row_id, "REFINED_PAST_REQUIRED_ACCURACY",
-                                     f"total error {total} is more than {OVER_REFINEMENT_FACTOR:g} times below the "
+                                     f"total error {_show(total)} is more than {OVER_REFINEMENT_FACTOR:g} times below the "
                                      f"required accuracy {accuracy['value']}: refinement went past what the result needed"))
 
     rows = len(data["matrix"])
