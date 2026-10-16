@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { formatReport, scanContent, scanRepository, sensitiveFileName } from '../check-portable-paths-anti-drift.mjs';
 
 const homePath = user => ['', 'Users', user, 'project'].join('/');
@@ -139,7 +139,7 @@ function commandTree(t) {
 }
 
 function runCommand(entry, cwd, nodeArgs = []) {
-  const result = spawnSync('node', [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
+  const result = spawnSync(process.execPath, [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
@@ -168,4 +168,12 @@ test('the command still checks when it is started through a symlinked path', t =
     assert.equal(throughDirectory.status, 1, `${nodeArgs.join(' ')}: ${throughDirectory.stdout}${throughDirectory.stderr}`);
     assert.match(throughDirectory.stderr, /"notes\.md":1 \[machine-home-path\]/);
   }
+});
+
+test('importing the module neither runs the check nor fails when argv[1] names no file', t => {
+  const tree = commandTree(t);
+  const code = `await import(${JSON.stringify(pathToFileURL(tree.script).href)})`;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code, 'no-such-file'], { cwd: tree.root, encoding: 'utf-8' });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(result.stdout + result.stderr, '');
 });

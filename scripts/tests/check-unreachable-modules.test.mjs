@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ENFORCED_PACKAGES, runCheck, scanPackage } from '../check-unreachable-modules.mjs';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -213,14 +213,14 @@ test('negative control: an orphan planted in a copy of each enforced package fai
   }
 });
 
-// The compiler entry the script itself would borrow: the first workspace package that resolves it.
+// The compiler package the script itself would borrow: the first workspace package that resolves it.
 function resolveCompiler() {
   const packagesDir = path.join(repoRoot, 'packages');
   for (const name of fs.readdirSync(packagesDir).sort()) {
     const manifest = path.join(packagesDir, name, 'package.json');
     if (!fs.existsSync(manifest)) continue;
     try {
-      return createRequire(manifest).resolve('typescript');
+      return path.dirname(createRequire(manifest).resolve('typescript/package.json'));
     } catch {
       // try the next package
     }
@@ -237,20 +237,17 @@ function commandTree(t) {
   fs.mkdirSync(path.join(ws.base, 'scripts'));
   const script = path.join(ws.base, 'scripts', 'check-unreachable-modules.mjs');
   fs.copyFileSync(scriptPath, script);
-  const compilerEntry = resolveCompiler();
+  const compilerDir = resolveCompiler();
   ws.write('packages/compiler-host/package.json', '{}\n');
   fs.mkdirSync(path.join(ws.base, 'packages', 'compiler-host', 'node_modules'), { recursive: true });
-  fs.symlinkSync(
-    path.dirname(path.dirname(compilerEntry)),
-    path.join(ws.base, 'packages', 'compiler-host', 'node_modules', 'typescript'),
-  );
+  fs.symlinkSync(compilerDir, path.join(ws.base, 'packages', 'compiler-host', 'node_modules', 'typescript'));
   const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-unreachable-modules-link-'));
   t.after(() => fs.rmSync(linkDir, { recursive: true, force: true }));
   return { ...ws, script, linkDir };
 }
 
 function runCommand(entry, cwd, nodeArgs = []) {
-  const result = spawnSync('node', [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
+  const result = spawnSync(process.execPath, [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
@@ -282,4 +279,12 @@ test('the command still checks when it is started through a symlinked path', t =
     assert.equal(throughDirectory.status, 1, `${nodeArgs.join(' ')}: ${throughDirectory.stdout}${throughDirectory.stderr}`);
     assert.match(throughDirectory.stderr, missingPackageLine);
   }
+});
+
+test('importing the module neither runs the check nor fails when argv[1] names no file', t => {
+  const tree = commandTree(t);
+  const code = `await import(${JSON.stringify(pathToFileURL(tree.script).href)})`;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code, 'no-such-file'], { cwd: tree.base, encoding: 'utf-8' });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(result.stdout + result.stderr, '');
 });
