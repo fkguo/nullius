@@ -183,16 +183,27 @@ def test_crlf_prose_outside_json_matches_a_quote_written_with_plain_newlines():
     prose = 'Working notes, line one: operands 17 and 25.\r\nWorking notes, line two: exact sum.\r\n'
     raw = prose + json.dumps(verdict(MULTILINE_STEPS))
     quote = 'Working notes, line one: operands 17 and 25.\nWorking notes, line two: exact sum.'
-    def run(model, system, prompt, tag):
-        if 'compare' in tag:
-            report = assessed_comparison({'majority_answer': '42', 'majority_size': 2, 'majority_indices': [0, 1],
-                'adjudicated_matches_majority': True}, prompt)
-            for a in report['independence_assessments']:
-                for e in a['evidence'].values(): e['source_span'] = quote
-            return json.dumps(report)
-        return raw
+    def runner_with(evidence_quote, risk_quote):
+        def run(model, system, prompt, tag):
+            if 'compare' in tag:
+                report = assessed_comparison({'majority_answer': '42', 'majority_size': 2, 'majority_indices': [0, 1],
+                    'adjudicated_matches_majority': True}, prompt)
+                for a in report['independence_assessments']:
+                    for e in a['evidence'].values(): e['source_span'] = evidence_quote
+                report['method_risk_assessments'] = [{'indices': [0, 1], 'addresses_shared_failure': True, 'methods_distinct': True,
+                    'risk': 'A shared operand-transcription error must be independently diagnosed by each lane.',
+                    'method_analysis': 'Each lane restates the raw operands before summing, so a transcription slip is visible.',
+                    'evidence': [{'index': i, 'source_span': risk_quote,
+                                  'reason': 'The quoted notes show the operands restated from the raw input before the sum.'} for i in (0, 1)]}]
+                return json.dumps(report)
+            return raw
+        return run
     assert quote not in raw
-    assert verify(CLAIM, run)['converged']
+    assert verify(CLAIM, runner_with(quote, quote))['converged']
+    row = verify({**CLAIM, 'requires_method_diversity': True}, runner_with(quote, quote))
+    assert row['converged'] and row['method_risk_satisfied']
+    row = verify({**CLAIM, 'requires_method_diversity': True}, runner_with(quote, quote.replace('line two', 'line  two')))
+    assert not row['converged'] and not row['method_risk_satisfied']
 
 
 def test_navigation_summary_alone_cannot_supply_derivation_quotes():

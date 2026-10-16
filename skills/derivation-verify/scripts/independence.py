@@ -54,6 +54,11 @@ def _same_line_endings(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def occurs_in(span: str, text) -> bool:
+    """Exact quotation with line endings (CRLF, CR, LF) compared as equal; they are not content."""
+    return isinstance(span, str) and isinstance(text, str) and _same_line_endings(span) in _same_line_endings(text)
+
+
 def quoted_in_derivation(span: str, d: dict, closure: str | None = None) -> bool:
     """A span quotes original derivation material when it occurs in the complete context (or the
     given closure built from it) or in the structured derivation as read. When the context is the
@@ -62,13 +67,11 @@ def quoted_in_derivation(span: str, d: dict, closure: str | None = None) -> bool
     Line endings (CRLF, CR, LF) are not content and compare equal.
     valid_derivation_transport requires the structured field to equal the one parsed from that raw
     output before any lane counts."""
-    span = _same_line_endings(span)
     body = derivation_body(d)
-    if span in _same_line_endings(body if closure is None else closure):
+    if occurs_in(span, body if closure is None else closure):
         return True
     structured = d.get("derivation")
-    return (runtime_observed(d) and isinstance(structured, str) and structured != body
-            and span in _same_line_endings(structured))
+    return runtime_observed(d) and isinstance(structured, str) and structured != body and occurs_in(span, structured)
 
 
 AXES = ("input", "execution", "construction", "applicability", "diagnostic")
@@ -108,8 +111,7 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
                 valid = False
                 break
             if axis == "construction" and "construction_body" in derivations[i]:
-                construction = derivations[i]["construction_body"]
-                quoted = isinstance(construction, str) and span in construction
+                quoted = occurs_in(span, derivations[i]["construction_body"])
             else:
                 quoted = quoted_in_derivation(span, derivations[i], source if axis in ("input", "execution") else None)
             if not quoted:

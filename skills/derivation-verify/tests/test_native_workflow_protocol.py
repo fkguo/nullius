@@ -9,6 +9,8 @@ def test_native_script_transport_protocol():
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert '6 Native script host-protocol behavior cases passed' in proc.stdout
 
+    assert '4 line-ending quote cases passed' in proc.stdout
+
     assert '2 original-claim failure-retention behavior cases passed' in proc.stdout
 
     assert '4 body-only scientific-axis and transport-only provenance cases passed' in proc.stdout
