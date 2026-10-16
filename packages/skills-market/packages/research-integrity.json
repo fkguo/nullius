@@ -23,7 +23,8 @@
     "ref": "main",
     "subpath": "skills/research-integrity",
     "include": [
-      "SKILL.md"
+      "SKILL.md",
+      "references/**"
     ],
     "exclude": [
       "**/tests/**",
