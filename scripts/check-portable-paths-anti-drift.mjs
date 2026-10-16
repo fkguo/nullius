@@ -4,7 +4,7 @@
 // files. This bounded guard cannot identify every personal detail in prose.
 // Diagnostics contain locations and rule names, never matched contents.
 import { execFileSync } from 'node:child_process';
-import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
+import { lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -122,7 +122,20 @@ export function formatReport(result) {
     + 'Matched contents are redacted. Public author metadata and repository URLs are not rejected.\n';
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Resolve both sides through symlinks (the module URL is already resolved unless node runs
+// with --preserve-symlinks-main): otherwise a run through a symlinked path would skip the
+// check and exit 0 silently.
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(modulePath);
+  } catch {
+    return path.resolve(process.argv[1]) === modulePath;
+  }
+}
+
+if (isMainModule()) {
   try {
     const result = scanRepository(repoRoot);
     const report = formatReport(result);
