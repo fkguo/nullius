@@ -45,7 +45,10 @@ function parseBudgetValue(
 // input schema does not list the field as required: an omitted value parses
 // (to undefined, or to the caller's .default()). The pipe itself already
 // accepts undefined, so the wrapper does not change what parses. The bounds
-// sit on the returned node, where the schema converter reads them.
+// sit on the returned node, where the schema converter reads them. Zod's
+// .describe() and .meta() return a copy of the node they are called on, and
+// the copy does not carry the bounds; chained after .default() or .optional()
+// they copy only that wrapper, and the bounds survive.
 function withBudgetMetadata<T extends z.ZodType>(parsed: T, metadata: BudgetSchemaMetadata) {
   const schema = parsed.optional();
   Object.defineProperty(schema, '__mcpBudget', {

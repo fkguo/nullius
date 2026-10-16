@@ -141,6 +141,33 @@ describe('MCP inputSchema required keys', () => {
     ]);
   });
 
+  it('follows tuples, enumerated-key records and chained intersections', () => {
+    const item = z.object({ id: z.string(), limit: optionalBudgetInt({ min: 1 }) });
+    const schema = z.object({
+      pair: z.tuple([item, z.string()]),
+      by_kind: z.record(z.enum(['a', 'b']), item),
+      merged: z.object({ x: z.string() }).and(z.object({ y: optionalBudgetInt() })).and(item),
+    });
+    const json = zodToMcpInputSchema(schema);
+
+    expect(findRequiredKeyMismatches(schema, json)).toEqual([]);
+
+    const tampered = structuredClone(json) as Record<string, any>;
+    tampered.properties.pair.prefixItems[0].required.push('limit');
+    tampered.properties.by_kind.required = ['a'];
+    tampered.properties.by_kind.additionalProperties.required.push('limit');
+    tampered.properties.merged.allOf[1].required = ['y'];
+    tampered.properties.merged.allOf[2].required.push('limit');
+
+    expect(findRequiredKeyMismatches(schema, tampered)).toEqual([
+      '$.pair[0]: listed in required but omission parses: limit',
+      '$.by_kind: omission fails to parse but not listed in required: b',
+      '$.by_kind{}: listed in required but omission parses: limit',
+      '$.merged&1: listed in required but omission parses: y',
+      '$.merged&2: listed in required but omission parses: limit',
+    ]);
+  });
+
   it('reports JSON structure it cannot match to the Zod schema', () => {
     const schema = z.object({ options: nested });
 
