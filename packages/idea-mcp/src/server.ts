@@ -2,7 +2,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import { z } from 'zod';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -10,7 +9,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { McpError, invalidParams, verifyHarnessInvocationMarker } from '@nullius/shared';
+import { McpError, invalidParams, isMainModule, verifyHarnessInvocationMarker } from '@nullius/shared';
 import { isStateTouchingIdeaMcp } from './state-touch-classification.js';
 import { IdeaRpcClient } from './rpc-client.js';
 import { zodToMcpInputSchema } from './mcp-input-schema.js';
@@ -227,7 +226,7 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise
   });
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (isMainModule(import.meta.url)) {
   startServer().catch((err) => {
     process.stderr.write(`[idea-mcp] Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
