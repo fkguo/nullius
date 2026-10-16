@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
+import { findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
 import {
@@ -128,5 +129,19 @@ describe('Tool registry contracts (M0)', () => {
     expect(HepDataSearchSchema.parse({ query: 'x' }).max_results).toBeUndefined();
     // Budget-int drops invalid (<=0) values to undefined rather than throwing.
     expect(HepDataSearchSchema.parse({ query: 'x', max_results: -5 }).max_results).toBeUndefined();
+  });
+});
+
+describe('Tool inputSchema required keys', () => {
+  it.each<ToolExposureMode>(['standard', 'full'])('required lists exactly the keys whose omission fails to parse (%s)', mode => {
+    const specs = new Map(getToolSpecs(mode).map(spec => [spec.name, spec]));
+    const defs = getTools(mode);
+    expect(defs.length).toBeGreaterThan(0);
+    const issues = defs.flatMap(def => {
+      const spec = specs.get(def.name);
+      if (!spec) return [`[${def.name}] no tool spec`];
+      return findRequiredKeyMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
   });
 });
