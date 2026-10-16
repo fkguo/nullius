@@ -170,6 +170,78 @@ node /absolute/path/to/nullius/packages/orchestrator/dist/cli.js init --runtime-
 
 Do not invent compatibility commands or fallback entrypoints. Keep lifecycle work on `nullius` and route executor or provider work to the relevant skill/tool layer.
 
+## Closeout
+
+Once producers have stopped, complete [Run Storage](#run-storage) before a
+run-output commit or handoff: classify outputs, stow and verify selected
+files, and commit their manifest/ignore records with the small evidence.
+Run `check --staged --strict` before committing and `inventory` before
+considering local retention. Never stow live output or infer deletion safety
+from age, size or duplicate bytes. This is a storage check, not scientific
+acceptance; the commands below keep their own research requirements.
+
+Before handing off or claiming completion, finish the human-notebook rewrite, result-link check and accepted current full-text review described in **Fold Results Back**, identically in file and engine mode. `nullius notebook sync` refreshes only the automatic table; neither an in-sync table nor a fresh version stamp establishes that the human account was updated. If the task changes no scientific understanding, no notebook rewrite is owed. Record unresolved content gaps in the plan rather than declaring the scientific stage complete.
+
+Run the narrowest applicable closeout command:
+
+```bash
+nullius verify
+nullius final-conclusions
+nullius approve <approval_id>
+nullius decision record "<what was decided>" --by <who>
+nullius decision land
+nullius export --run-id <run_id>
+nullius report-validate
+```
+
+Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path. In projects that do not use the engine's approval flow (declared `execution_mode: file`, or any project where the go-ahead was given in conversation), record that go-ahead with `nullius decision record` at the closeout boundary — it is the engine-visible counterpart of the approval receipt, and open questions recorded with `nullius decision pending` stay counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until resolved. `nullius decision land` is a separate trunk-only fold after branch integration, not a command to run inside an unmerged worktree.
+
+Run `nullius report-validate` only when a main report is being promoted or
+superseded. It fails closed on structural incompleteness, stale current
+pointers, mutated registered reports, broken supersession relations,
+machine-only evidence, and replay mislabeled as independent validation. Its
+pass is structural; scientific sufficiency remains a judgment on the report.
+
+Run the `research-integrity` skill's M1-M7 checklist at the moments
+work becomes durable. These triggers are observable file events — none
+of them requires the engine's approval flow to be active:
+
+- before folding a new number, claim, or result into
+  `research_plan.md#Current Status` or the `research_contract.md`
+  claims table,
+- before checking off a task-board item whose output later work will
+  build on — the item that makes a claim, interface, or result durable,
+  not each sub-step or remediation retry inside it; sub-steps inherit
+  the walk owed at their parent boundary,
+- before a milestone closeout commit,
+- when a `research-team` convergence gate reports the cycle converged,
+- before assembling submission or handoff material,
+- and before invoking `nullius approve` for any A1-A5 gate, in
+  projects that use the engine's approval flow.
+
+M1-M7 is the agent-side discipline that
+catches hallucinated citations, hallucinated measurements, shortcut
+graph claims, bugs-as-insights, methodology fabrication, and frame-lock
+before they reach the durable record. The machine gates and the
+`HARNESS_INVOCATION_REQUIRED` anchor remain authoritative; the
+integrity check is owed to the next agent who reads your work.
+
+Optional closeout retrospective (recommended at milestone or project
+closeout): list the workflow lessons from the finished stretch of work;
+split the generalizable verification philosophy (how results of this
+kind should be verified anywhere) into the toolchain backlog, and keep
+the project-specific instantiation (what was verified here, with which
+tests) in the project repo; and when the project owner had to ask for
+the same type of verification more than once, promote that moment into
+the event → workflow dispatch table as a default trigger instead of
+leaving it a reminder.
+
+All newly generated managed project runs use `artifacts/runs/<run_id>/`; team and draft executor payloads live in `research_team/` beneath that run. Origin stamps bind the parent run. Historical `team/runs/<run_id>/` remains read-only evidence: status, run listing, index links and export retain its original location, stamps, validity rulings and result references. Reads do not migrate or rewrite it, and `init --runtime-only` reconnects without moving evidence. Unreadable historical locations are reported as unavailable without blocking unrelated readable runs. Duplicate IDs are reported as ambiguous; bare-ID reads refuse ambiguity, and new execution cannot reuse any historical ID. Stamping, backfill, staging, execution and resume cannot write historical run payloads. Use a distinct ID under `artifacts/runs/` for new work. The `inventory_run_relocation.py --fixture-root <anonymous-fixture> --source-manifest <hash-manifest>` helper only inventories pinned fixture bytes, references, collisions and unresolved bindings; it has no apply mode. Independent reviewer snapshots omit every run's executor payload and all workspace trees, retain production artifacts, and allow only each member's own declared output prefix. Historical reports/adjudications remain coordinator evidence. `team/LATEST*.md` and `artifacts/LATEST.md` are navigation pointers.
+
+The generic scaffold creates `project_index.md`; the team helper updates only executor-local latest pointers and requires `nullius init` when the root index is missing. Selected-result and derived-block writers share a short path lock, reread their inputs, and make at most three attempts when edits are detected while preserving human bytes, mode and EOL outside their marked region. Arbitrary writers that ignore the lock remain outside its guarantee. Generic run counts do not interpret execution round limits; the Python executor resolver and suffix gate own those settings.
+
+Existing `PROJECT_INDEX_AUTO` blocks are historical, unmaintained observations; the team helper neither parses nor updates them. Current `RUN_INDEX` navigation and curated result/report registries have separate owners. Do not silently rewrite or delete an old block.
+
 ## Long-Running Compute Jobs
 
 Real research compute (fits, scans, integrations, derivations) often runs far longer than one agent turn in an environment where the job can be **killed at any time** — contending processes, OS limits, or a closed session. Treat every long job as kill-prone and make it *survive* kills rather than assuming it finishes. The compute runner (`hep-calc` or any executor) runs the computation itself; this harness owns the job's survival.
@@ -279,13 +351,7 @@ themselves:
 
 Every tracked byte exists once in the object store and once per checkout — the main checkout and every linked agent worktree — and the origin pins (`refs/nullius/runs/<sanitized id>`, `refs/nullius/attempts/<sanitized id>/<n>`) keep every blob of a stamped snapshot alive permanently. A project whose tracked run outputs are large numerical dumps and large text tables therefore pays for the same bytes several times over, and can never reclaim them without rewriting pinned evidence. The policy: source, frozen inputs, essential results and provenance are preserved according to their purpose; **bulk** outputs stay out of git history while remaining readable in place with their original bytes and a tracked hash.
 
-**Without an explicit path rule**, bulk = a file under a run root (default `artifacts/runs`) at or above the size threshold (default **5 MiB**), whatever its format — a large text table costs a checkout as much as a binary dump. Both are configurable in `.nullius/storage_policy.json` (`{"schema": "storage_policy_v1", "bulk_threshold_bytes": ..., "run_roots": [...], "store_root": "/absolute/path"}`; a `store_root`, or a `--store` path, inside any git working tree — this checkout, another worktree, or another repository — or inside a linked worktree's private git directory is refused, because removing that tree, cleaning it, or committing would take the store with it (the default store in this repository's common git directory is the exception); run roots are plain relative paths, none inside another). Commit the policy file whenever it sets anything: each checkout reads its own copy, so an uncommitted policy leaves the other worktrees on the defaults — another store, another threshold. A run root whose path passes through a symbolic link is refused by `stow` and flagged by `check` (its files would be checked at one path and tracked at another). All commands below are `scripts/run_storage.py` in this skill; `--store <path>` overrides the store for `stow`, `verify`, `materialize`, and `check`.
-
-**Classify by purpose before capture or commit.** [Research output storage](https://github.com/fkguo/nullius/blob/main/docs/RUN_STORAGE.md) defines literal `path_rules` with `git` / `store` / `local` dispositions and a required reason: unique inputs and essential results may stay in Git at any size; declared reproducible outputs are selected for stowing even when small; local logs and backups cannot enter new commits or origin snapshots. Longest matching paths win. Each rule supplies a literal project-relative file or directory path, its disposition and its reason in the policy's `path_rules` list. Valid stow metadata is preserved under directory rules; exact rules for a record remain enforced. Nothing is automatically deleted or ignored. Optional `retention_days` on a local rule only requests owner review based on mtime. Unspecified smaller files retain the existing behavior.
-
-`python3 scripts/run_storage.py inventory --json` reports current-index file counts, run groups, duplicate blob identities, filesystem counts under run roots and declared local paths, and ref namespaces without writes. Logical duplication is not disk usage or deletion authority. The inventory does not prove reference coverage or historical/store reachability.
-
-Origin capture calls `python3 scripts/run_storage.py check --snapshot --strict` before any snapshot/index write, using the same policy and requiring Python 3. It refuses new classified store/local bytes, unclassified bulk, Git bundle backup content headers, and changed run-output sets above the configurable admission defaults (64 MiB / 2,000 paths, excluding explicit Git evidence and storage records). It checks staged bytes as well as dirty tracked bytes; clean historical bulk is left readable. Capture never stows still-running outputs. Ordinary Git commits still need the optional project-local `check --staged --strict` hook. Direct Git and host refs are outside this boundary.
+Read [`references/run-storage.md`](references/run-storage.md) when editing `.nullius/storage_policy.json`, declaring `path_rules`, or checking what origin capture admits (the policy file, path-rule, inventory and origin-capture paragraphs, moved there verbatim).
 
 **After a run has finished writing its outputs**, stow them:
 
@@ -297,21 +363,7 @@ git add artifacts/runs/<run_id>/bulk_manifest.json artifacts/runs/<run_id>/.giti
 
 `stow` (which writes nothing for a run without bulk files) reports whether the run's manifest or `.gitignore` is left not committed as it is (`commit_needed` in `--json` output; `null` for a dry run, which writes nothing and predicts nothing). It places each bulk file once, by sha256, into a content store shared by every worktree of the repository (default `<git common dir>/nullius/store`: never checked out, untouched by `git clean` and `git worktree remove`), makes the run's file read-only, writes `bulk_manifest.json` (path, size, sha256 per file), and adds a managed block to the run directory's `.gitignore` listing exactly those paths. The manifest is tracked, so later stamps capture the hashes of bulk inputs while their bytes stay out of history. The stored object is always an independent file, never sharing an inode with a run's file, so editing a run's file can never alter the stored evidence or another run's copy: a copy-on-write clone where the file system supports it (APFS, btrfs, XFS — no extra blocks), otherwise a verified byte copy (a second copy on disk, still far fewer than one per checkout plus the object store). Any object already in the store is trusted only after its full hash is checked; a damaged one is set aside, never deleted or reused. Identical outputs of different runs share one stored object. `stow` never replaces a run's file; it only makes it read-only. A recorded output that changed or shrank, or that is gone from both the run directory and the store, is refused (a corrected result belongs in a new run, exactly as the stamp rules require); one that is only absent in place but intact in the store is accepted (`materialize` restores it); names that cannot be written into a manifest or ignore rule (a line break, invalid UTF-8) are refused before anything is changed; on macOS, names are recorded in git's composed Unicode form. On a case-insensitive file system (measured once, in the first run root) a file renamed only in letter case is still the recorded one; when git does not treat the two spellings as equal (`core.ignorecase` not true, or — since git folds only ASCII letters — spellings that differ in other letters), the ignore block does not cover the new spelling, so `stow` refuses until the file is renamed back (a dry run reports the same refusal). With `core.ignorecase` true on a case-sensitive file system (carried over from another checkout), names differing only in case are different files that git treats as one path: such a file is the recorded output renamed when the recorded spelling is gone and the file holds exactly the recorded bytes, and otherwise a new output, reported and stowed like any other. Where git does not fold case on a case-sensitive file system (`core.ignorecase` false, the default there), renaming a stowed file only in letter case is an ordinary rename, like any other: the new name is a new output to stow, and the old entry stays valid from the store (`in_store_only`). A run is recorded by one manifest: stowing a directory inside, or around, an already stowed run directory is refused, as is a run directory holding a nested repository. The managed block is rewritten where it stands (gitignore rule order decides which rule wins), and user rules are kept exactly; a run directory whose `.gitignore` is a symbolic link is refused (git does not read a symlinked `.gitignore`). Under a run root the file name `bulk_manifest.json` is reserved: any file with that name marks a stowed run directory, so rename a data file that happens to have it. `stow` refuses, before changing anything, when git's ignore rules exclude the run's `bulk_manifest.json` or `.gitignore` (for example a rule ignoring a whole run root): the record must be committable. Bulk files already committed are left alone (history is never rewritten here); bulk files that are staged or changed but not committed are refused, since the next commit would put them into history — unstage a new file with `git rm --cached <path>` (it stays on disk) and stow again. With `--json`, every refusal also prints a result object naming the kinds of refusal (`refused`) and the paths each concerns (`items`); a command stopped by an error (exit 2) prints `{"error": <message>}` (argument mistakes are reported by the parser on stderr only).
 
-`python3 scripts/run_storage.py verify <run_dir>` reports each manifest entry as `ok` (recorded bytes in place, valid store object), `ok_in_place_only` (store object missing or damaged — `stow` stores it again), `in_store_only` (absent in place, valid store object), `mismatch` (something else occupies the path: other bytes, a symlink, a special file), `store_mismatch` (absent in place, store object damaged or not of the recorded size), `missing`, or `unsafe_path` (the recorded path leads out of the run directory through a symlinked directory); only `ok` and `in_store_only` pass. `python3 scripts/run_storage.py materialize <run_dir>` recreates absent entries from verified store objects (a read-only clone, else a copy) in another worktree; in a clone — even on the same machine — the default store is the clone's own, so pass `--store <original store>` (or set `store_root`). A path occupied by anything other than the recorded bytes is reported and left untouched. The store does not travel with `git clone` or `git push`: on another machine, sync the store separately, and `verify` says honestly what is absent. If bulk outputs must travel with the remote, git LFS is the alternative (every checkout still materializes a copy, and the remote needs quota).
-
-**Operating assumptions.** These commands act on one user's own files (not an adversarial setting), and on run directories nothing still writes into: hashes are re-checked immediately before every step that records or replaces anything, but a process that keeps a file open can still write after the last check, so run `stow` only after the producing processes have stopped.
-
-**At commit time**: `python3 scripts/run_storage.py check --staged` lists bulk files about to enter history (warns; `--strict` also enforces semantic classifications, backup headers and aggregate admission limits). To make this automatic, call `check --staged --strict` from the project's own pre-commit hook. Without `--staged`, `check` hashes every manifest entry and classifies the working tree's bulk as `stowed` (valid store copy; the copy in place, where present, matches), `stowed_damaged` (changed, missing, without a valid store copy, or recorded by two manifests), tracked (already committed as it is), pending (staged, modified, or marked assume-unchanged / skip-worktree, so git hides its working-tree state — never taken as committed), untracked-not-ignored, or ignored-but-unstowed (lost if this checkout is removed); files of a nested repository are listed by its path and never classified, and symbolic links under the run roots are listed but not followed (git records the link, not its target's content, so `stow` does not record that content either). It also lists the manifest and `.gitignore` of every stowed run that are not committed as they are (missing, ignored, untracked, or changed): until committed, removing the checkout loses the record. `--strict` exits 1 when anything is `stowed_damaged`, pending, untracked-not-ignored, ignored-but-unstowed, or an uncommitted stow record. In both modes a run root passing through a symbolic link is reported and makes `--strict` exit 1. The working-tree check never counts the bulk manifest and `.gitignore` as bulk; staged and snapshot admission exempt them only as validated stow records (a valid manifest and its managed ignore block), since a reserved filename alone grants no exemption.
-
-**Backups and checkpoints.** Never in `/tmp` or `$TMPDIR` — those are swept. To preserve commits that already live in the project repository, add a ref (`git update-ref refs/nullius/keep/<name> <commit>`): no object is duplicated (only the ref itself is written), and the objects are safe from garbage collection. A `git bundle` or a separate bare repository is for copies that must leave this machine or disk: write it to a durable location and bundle only what the destination lacks (`--not` the refs it already has). A copy counts as redundant only when every object reachable in it (all refs, annotated tags, reflogs, index entries, pseudo-refs such as `FETCH_HEAD`) is reachable from the project repository's own refs — an object that merely exists there, or that only a reflog keeps, can be garbage-collected.
-
-**Pinned run refs and history.** Pins are right for traceability, and they make everything tracked at stamp time permanent: a bulk file committed before a stamp can no longer be reclaimed by later history edits, and when a stamp snapshots an uncommitted modification of a tracked bulk file, that never-committed version is pinned too. Stowed outputs are outside the snapshot; only their manifest is in it. There is deliberately no archival or migration command for bulk already in history: reclaiming it means rewriting or replacing pinned evidence objects, which is a separate, explicit decision for the project owner, never a side effect of a tool.
-
-**Linked worktrees.** Stowed bulk files are ignored, so a fresh worktree does not check them out; `python3 scripts/run_storage.py materialize <run_dir>` places them there from the shared store when the work needs them. A worktree also re-checks out every tracked file; where history holds bulk outputs, a worktree that does not need them can leave them out with git's own sparse checkout — configuration only, every tracked byte stays in git: `git sparse-checkout set --no-cone '/*' '!/artifacts/runs/<run_id>/<bulk file>'` (one `!/` pattern per file left out; `git sparse-checkout disable` restores the full checkout). Leaving out single files needs this non-cone mode (newer git warns that it is deprecated; it still works), and `set` replaces whatever patterns the worktree already has, so look at `git sparse-checkout list` first.
-
-`git worktree remove` silently deletes ignored files. Before removing a worktree, run `python3 scripts/run_storage.py worktree-check <path>` (or `--all` for every linked worktree): read-only, it answers whether removal loses anything and prints the removal command only when it does not. A worktree is `safe_to_remove` when its `HEAD` is contained in the base branch (`--base`, default main/master); nothing tracked is changed, including edits `git status` hides behind assume-unchanged or skip-worktree (a changed executable bit counts even when the repository's `core.filemode` is off and git itself ignores it: removal would lose it all the same; on a file system that holds no modes, where every file shows the same bit, such a worktree is kept rather than called safe); nothing is untracked; no per-worktree ref holds a commit outside the base, or any object other than a commit (an annotated tag would be lost with it); every commit that only the worktree's own records remember (its HEAD reflog, `ORIG_HEAD`, `FETCH_HEAD`) is an amended or rebased copy whose changes are all on the base (no merge in between, and each commit's patch text is byte-identical — whitespace, file modes, binary content and hunk positions included, so a rewritten commit whose hunks moved is not credited and the worktree is kept — to the patch of a base commit since the merge base); and every ignored file is regenerable (dependency trees, caches — judged by name, so hand edits inside them are not preserved), machine bookkeeping the tool rewrites from scratch (`.nullius/HARNESS_INVOCATION`), a verified object in the content store (full hash and size checked), or byte-identical in the main checkout (the event ledger `.nullius/ledger.jsonl` and refresh backups under `.nullius/backups/` are this checkout's own history and the user's customizations, judged like any other ignored file). Its private git state must be fully understood: the checkout's own bookkeeping, sparse-checkout patterns of the form the recipe above writes (`/*` followed only by `!/` exclusions), the sparse-checkout switches, and the settings agent apps and bare repositories write (`core.longpaths`, `core.bare=false`, and `core.hooksPath` naming the repository's own hooks directory) are, and so is the `refs/` directory git itself creates in a new worktree's private directory, while it holds no entry at all; anything else — an in-progress merge, a lock, private ignore rules, other per-worktree settings, submodules, any other directory even when empty — keeps the worktree. A checkout whose `.git` file names a worktree record that points back to another path — a copied checkout, or one whose record a newer worktree reuses — is kept and flagged without further git queries: git commands run in it read and write that other worktree's `HEAD` and index, so neither `git worktree remove` nor `git worktree prune` belongs there. In its `--json` output, `reflog_only_commits` lists object ids, annotated tag objects included. It exits 1 when any checked worktree is kept; an idle merged worktree that it reports safe is removed with the printed command, not left behind.
-
-**Measuring before cleaning.** `python3 scripts/run_storage.py report <tree> [<tree> ...]` estimates, read-only, the reclaimable bytes under any trees: identical content stored more than once (an upper bound: copy-on-write clones look like separate files), regenerable directories, separate git object stores and bundles already contained in a reference repository (`--repo`: contained means every object reachable in them — from any ref, `HEAD`, an annotated tag, a reflog, or an index entry — is reachable from that repository's refs; merely present there does not count, and objects nothing in the copy reaches are not considered, since git's own garbage collection drops them — but removing the copy loses such objects at once, before that collection would (`git fsck --unreachable` in the copy lists them); the objects must also be held by that repository, not merely promised by a partial clone's remote; a copy holding pseudo-refs such as `FETCH_HEAD`, an operation in progress, linked worktrees, submodule stores (`modules/`), or a ref git cannot read, and any bundle checked against a partial clone, is reported as not assessed), temporary roots under `--stale-dir` unchanged for `--older-than-days` (age only: the newest file or directory time; a root with any unreadable part is not listed), and a rough compression estimate. Reclaimable totals leave out files with more than one hard link (a local clone's objects, a pnpm store's packages, a hard-linked bundle or duplicate copy), since removing one link may free nothing; copy-on-write clones cannot be told apart, so the totals remain upper bounds; sizes are the bytes a file occupies (its allocated blocks: a sparse file counts what it holds, a one-byte file a whole block), except a duplicate group's `size`, which is the content length that made the copies a group (`occupied` lists what each copy holds; `reclaimable` sums the single-linked copies that may go, keeping the one occupying the least when all are single-linked). A git copy counted as contained in the reference is contained in its objects, refs, reflogs and index entries; its reclaimable bytes are its objects directory net of hard links (which may also hold unreachable objects: counted, not compared, lost on removal), while the rest of the git directory (`other_bytes`: configuration, hooks, index, logs, refs, info) is neither compared with the reference nor counted. Unreadable paths are skipped and listed. It changes nothing; what to remove stays the owner's decision.
+Read [`references/run-storage.md`](references/run-storage.md) when running `verify`, `materialize`, `check`, `worktree-check` or `report`, taking backups, working with pinned refs and linked worktrees, or applying the operating assumptions for `stow` (the verify, materialize, operating-assumptions, commit-time check, backup, pinned-ref, linked-worktree and measuring paragraphs, moved there verbatim).
 
 **Existing projects** (nothing migrates by itself): run `check` to see where the bytes are, `worktree-check --all` to see which worktrees can go, and stow new runs from now on; bulk already tracked in history stays as it is. Project-template changes (the dispatch-table row, the `.gitignore` comment) reach existing projects only when copied by hand.
 
@@ -357,15 +409,7 @@ python3 scripts/independent_reproduction_check.py \
     --manifest artifacts/runs/<run_id>/reproduction_manifest.json
 ```
 
-Semantics, fail-closed by design:
-
-- **Fresh isolation.** The preferred mode checks out committed `HEAD` into a new git worktree and reruns the entry there — whatever is not committed does not exist for the rerun, *by design*: not committed means not reproducible. The fallback (non-git projects, `--isolation copy`) copies the declared `working_inputs` whitelist into a fresh directory; copy mode is strictly weaker — it copies filesystem state as-is, uncommitted edits included, and refuses symlinked inputs. The original working tree is never modified; worktree mode records only removable git bookkeeping metadata (the report carries the exact removal command).
-- **No vacuous pass.** Declared artifact paths already present in the fresh checkout (e.g. committed stale outputs) are deleted before the entry runs, so only what the rerun actually regenerates can satisfy the comparison; artifact paths must not be symlinks and must resolve inside the isolated run root. Committed symlinks that resolve outside the fresh checkout are refused outright (checkout-internal relative links are fine). Keep output artifacts gitignored as usual.
-- **Default-deny verdict** in `reproduced | mismatch | incomplete | environment_failed`: any expected value outside its tolerance → `mismatch`; entry non-zero exit, timeout, or any value that cannot be extracted → `incomplete`; manifest invalid, manifest not committed clean (worktree mode), or isolation not preparable → `environment_failed`; precedence `environment_failed` over `incomplete` over `mismatch`. The exit code is `0` only for `reproduced`.
-- **Tolerance honesty.** The report records, per value, the signed deviation and the deviation-to-tolerance ratio — an agreement is exactly as strong as its declared tolerance, never "same ballpark".
-- **Inspection over disposal.** The isolated checkout, entry stdout/stderr logs, and the JSON + Markdown reports are kept under the check's work directory (paths in the report); pass `--cleanup` to remove the checkout once inspected. Copy the two reports into `artifacts/runs/<run_id>/` when folding the outcome back.
-- **Environment scrub, then honest limits.** Environment entries that reference the original project tree — textually, through a symlink alias, or through a relative traversal from the run root (a `PYTHONPATH`, `PATH`, or `TMPDIR` component, a venv, and similar) — are dropped from the entry's environment and recorded in the report, so the rerun cannot import uncommitted state through the environment; the check's own work directory (including a `TMPDIR` default) must lie outside the project; on macOS the path comparison is case-folded to match its default case-insensitive filesystem. Beyond that, isolation is checkout-level, not container-level: the entry inherits the rest of the invoking environment and is not sandboxed against absolute-path writes. POSIX (macOS/Linux) only. Declare interpreter/library/data expectations in `environment_note`; the report restates this limitation.
-- **What it verifies — and what it does not.** The check catches *accidental* contamination — a result that inadvertently depends on uncommitted edits, stale artifacts, or original-tree code leaking in through the environment. It does not verify that the entry command computes the right thing: the manifest's entry command and extraction rules are trusted input, so an entry that reads the original tree by absolute path or emits numbers without computing them is not caught here. Correctness of the computation itself rests with the numerical-reliability-gate checks and with human review of the entry command recorded in every report; container-level sandboxing is out of scope by design.
+Read [`references/reproduction-check.md`](references/reproduction-check.md) when interpreting a reproduction verdict or the isolation, environment-scrub and limits behaviour (the fail-closed semantics bullets, moved there verbatim).
 
 This is the execution arm of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) reproduction discipline: its G8 demands that a claimed match to a reference number be *computed, not asserted* — the fresh-checkout rerun is that computation in its strongest form — and its G7 production-setting rule applies to the manifest itself: declare the entry and configuration that produce the recorded values at their production setting, not a cheaper stand-in.
 
@@ -424,15 +468,7 @@ python3 scripts/check_launch_authorization.py \
 
 The record's relative paths resolve against `--project-root`, which defaults to the git toplevel enclosing the record; a project outside git must pass `--project-root` explicitly.
 
-Semantics, default refuse:
-
-- **Unambiguous JSON only.** Duplicate JSON object keys are rejected at every nesting level in the authorization record, review verdicts, and observed fingerprint. A duplicate in the record is `invalid_record`; a duplicate in a verdict makes that review invalid and unable to count; a duplicate in the observed fingerprint produces `fingerprint_mismatch`.
-- The result is a `launch_authorization_v1` artifact (the shared contract in `@nullius/shared` and `meta/schemas/`). Verdict is one of `authorized | invalid_record | missing_plan_hash | stale_review | missing_review | review_rejected | reviewer_unavailable | fingerprint_mismatch` — every refusal names what was falsified. Exit code is `0` only for `authorized`, `2` for an unusable record, `3` for every other refusal.
-- Checks run in a fixed order — `plan_frozen`, `review_binding`, `fingerprint_match` — and the verdict is the first failing check's label. Each check is still evaluated independently for the audit record where possible; a check that cannot be evaluated is recorded `not_evaluated`, which is never a pass.
-- Within `review_binding`, when the quorum is unmet the refusal priority is `stale_review` over `review_rejected` over `reviewer_unavailable` over `missing_review`: the sharpest falsification wins, an active rejection outranks unavailability, and unavailability outranks absence. Any verdict bound to a superseded hash — approving or rejecting that older plan version — is stale; `review_rejected` is reserved for a `changes_needed` bound to exactly the live plan hash.
-- One reviewer never counts twice (duplicate reviewer ids make the record invalid), and a quorum larger than the listed reviews is invalid by construction. A void verdict — unavailable, bound to a superseded hash, missing, or malformed — never counts as approval, and it also never vetoes a quorum already met by approvals bound to the live plan hash: the quorum the record declares is the requirement, so list only reviewers whose approval you require (or raise `required_approvals`) if every listed verdict must be live.
-- The result JSON is always printed on stdout; `--output` additionally persists it atomically. If the authorization record is unreadable or cannot be parsed unambiguously, no `--output` file is written at all because its declared input paths cannot be recovered safely; the labeled refusal artifact remains available on stdout. Otherwise the `--output` write is guarded on every exit path: an `--output` that aliases the record, the observed fingerprint, or any path the record declares (however malformed the declaration) — including hard links, symlinks, and case-colliding names, even for files that do not exist yet — is never written and the run exits `2`; a failed `--output` write likewise makes the checker exit `2` even for an authorized verdict, because an authorization whose requested audit artifact cannot be persisted is refused.
-- **Honest limits.** The plan file is read once and that content hashed for every comparison, so the check itself has no read-then-reuse window; but it cannot prevent the plan or environment changing *after* it exits — run it immediately before launch in the same command chain, as above. The record and verdict files are trusted filesystem inputs: the gate proves *consistency* (hashes bound, fingerprints equal), not *authenticity* — protecting those files is commit discipline. Independence of the reviewers is governed by the review process itself (see `review-swarm`), not by this checker.
+Read [`references/launch-authorization.md`](references/launch-authorization.md) when a launch-authorization refusal or verdict needs explaining (the default-refuse semantics bullets, moved there verbatim).
 
 This preflight is the machine arm of the A3 (`compute_runs`) gate — the shared gate registry's A3 policy names `launch_authorization_v1` as its result contract, so launchers know what to produce. The enforcement locus is the **project-side launcher**: chain the checker before the production command as shown above; the engine's bounded-computation runner does not invoke it. In projects using the engine's approval flow, `nullius approve <A3-...>` records the *human* go-ahead; this preflight checks the *technical* launch preconditions at the moment of launch. They are complementary: neither substitutes for the other.
 
@@ -492,34 +528,7 @@ Then land the folded result (the same obligations apply in engine and file mode)
 - Require a reviewer report covering every notebook section, with source anchors and reasons addressing complete derivation steps, logical consistency, notation, definitions, assumptions and conventions. Do not give the reviewer an expected verdict or the writer's initial judgment. Links, automatic tables, formula counts, completed checklists and writing self-assessment cannot supply a content verdict. Semantic review does not prove scientific truth, and a single reviewer leaves limits on model, method and input independence; result-specific verification remains required.
 - Run `nullius notebook check --json` without a result selector for final closeout and inspect `nullius current --json`. The read-only check reports `structure` and `content_review` separately; exit 0 requires structural success and an accepted current full-text review, exit 1 means incomplete acceptance (including invalid review evidence), and exit 2 means invalid command/setup input or unavailable execution/runtime. `--result` scopes only the link check; content coverage always remains full-text. `--structure-only` success establishes navigation alone. Missing, partial, failed, unavailable, invalid or stale review leaves closeout incomplete in both file and engine mode; retired historical records remain readable, while every current result participates in the final unscoped structural check.
 
-Valid UTF-8 text remains text regardless of size; Markdown links are discovered
-recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links`
-snapshots and hash locators, not read evidence. Every opaque path/hash needs a
-specific `opaque_sources` assessment; a required unread source prevents acceptance.
-Notebook and explicit dependencies require strict UTF-8 and LF or CRLF endings.
-
-The complete material is frozen before review. Storage (`--snapshot-bytes`,
-default 512 MiB; `--max-files`, default 256) is separate from each request's
-`--context-bytes` and configured backend `--context-tokens` window (default
-200,000 tokens, with instruction/output reserves). Default request bytes use a
-conservative token upper bound. A larger explicit byte packet requires captured
-backend token usage when that bound exceeds the window; missing capacity evidence,
-observed backend compaction or delivery failure supplies no acceptance.
-
-Larger materials use original UTF-8 intervals with adjacent original context,
-followed by a joint audit receiving the COMPLETE original notebook and text
-dependencies. All intervals and the joint audit must be complete and fresh;
-selected quotations or summaries cannot replace this original input. The default
-execution budget is 1200 seconds and 64 calls (`--timeout-secs`, `--max-batches`),
-with one attempt per call and no automatic retry. Shortfalls expose total frozen
-material, pending intervals and joint scope, the reason and a resumable command.
-An unfinished intake reports discovered material and incomplete dependency
-enumeration. `--resume <run-id>` creates a new run, revalidates original receipts
-and material identity, retains explicit dependencies and storage budgets, and
-never rewrites old evidence. If the full joint input does not fit the backend,
-raise an available backend's request budget or leave the review incomplete.
-Only tool mode `none` is accepted. Multiple batches are one semantic review;
-they do not establish independent confirmations or a cross-family quorum.
+Read [`references/notebook-review-budget.md`](references/notebook-review-budget.md) when `nullius notebook review` reports a storage, context or budget shortfall, or an unfinished review is resumed with `--resume` (the material-handling, frozen-storage and execution-budget paragraphs, moved there verbatim).
 
 Converged folds invoke the same unscoped `nullius notebook check --json` required
 for final file closeout. `none` declarations and a missing launcher grant no
@@ -531,75 +540,3 @@ the full default check, whose structural scope includes every current result.
 - Cite evidence under the parent `artifacts/runs/<run_id>/`, including its `research_team/` payload where relevant.
 - Preserve unresolved questions as explicit blockers rather than burying them in chat or transient team logs. When a question needs the project owner's decision, also record it with `nullius decision pending "<question>"` — it stays counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until a later `nullius decision record "<what was decided>" --resolves <id>` closes it, instead of scrolling away in conversation. Use `--relates <id>` when a new decided or pending entry needs non-closing context from an earlier readable entry; do not overload `--resolves` for a standing directive that remains in force. A replayed malformed relation is diagnosed without voiding the containing record. Legacy string kinds remain readable under current `decided` semantics and retain their original spelling in diagnostics: only the exact persisted `pending` kind creates an open item, while an otherwise valid `resolves` on a normalized entry still closes its pending target. Branch-local records carry provisional six-character handles; after all contributing branch tails are merged into the authoritative trunk, run `nullius decision land` there before citing the resulting durable `D<n>` ids. Never land on an unmerged branch; `decisions_unlanded` in the status receipt names work that is not yet ready for durable citation.
 - At a milestone handoff or stakeholder plan-summary, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) via `research-team` (`assets/roadmap_dependency_map_template.md`, rendered with `nullius graph --kind roadmap`). It is a planning view — distinct from the Claim DAG and from `research_plan.md#Current Status`, and it makes "what gates what / what caps feasibility / shortest route to the goal" legible to whoever picks up the work next.
-
-## Closeout
-
-Once producers have stopped, complete [Run Storage](#run-storage) before a
-run-output commit or handoff: classify outputs, stow and verify selected
-files, and commit their manifest/ignore records with the small evidence.
-Run `check --staged --strict` before committing and `inventory` before
-considering local retention. Never stow live output or infer deletion safety
-from age, size or duplicate bytes. This is a storage check, not scientific
-acceptance; the commands below keep their own research requirements.
-
-Before handing off or claiming completion, finish the human-notebook rewrite, result-link check and accepted current full-text review described in **Fold Results Back**, identically in file and engine mode. `nullius notebook sync` refreshes only the automatic table; neither an in-sync table nor a fresh version stamp establishes that the human account was updated. If the task changes no scientific understanding, no notebook rewrite is owed. Record unresolved content gaps in the plan rather than declaring the scientific stage complete.
-
-Run the narrowest applicable closeout command:
-
-```bash
-nullius verify
-nullius final-conclusions
-nullius approve <approval_id>
-nullius decision record "<what was decided>" --by <who>
-nullius decision land
-nullius export --run-id <run_id>
-nullius report-validate
-```
-
-Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path. In projects that do not use the engine's approval flow (declared `execution_mode: file`, or any project where the go-ahead was given in conversation), record that go-ahead with `nullius decision record` at the closeout boundary — it is the engine-visible counterpart of the approval receipt, and open questions recorded with `nullius decision pending` stay counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until resolved. `nullius decision land` is a separate trunk-only fold after branch integration, not a command to run inside an unmerged worktree.
-
-Run `nullius report-validate` only when a main report is being promoted or
-superseded. It fails closed on structural incompleteness, stale current
-pointers, mutated registered reports, broken supersession relations,
-machine-only evidence, and replay mislabeled as independent validation. Its
-pass is structural; scientific sufficiency remains a judgment on the report.
-
-Run the `research-integrity` skill's M1-M7 checklist at the moments
-work becomes durable. These triggers are observable file events — none
-of them requires the engine's approval flow to be active:
-
-- before folding a new number, claim, or result into
-  `research_plan.md#Current Status` or the `research_contract.md`
-  claims table,
-- before checking off a task-board item whose output later work will
-  build on — the item that makes a claim, interface, or result durable,
-  not each sub-step or remediation retry inside it; sub-steps inherit
-  the walk owed at their parent boundary,
-- before a milestone closeout commit,
-- when a `research-team` convergence gate reports the cycle converged,
-- before assembling submission or handoff material,
-- and before invoking `nullius approve` for any A1-A5 gate, in
-  projects that use the engine's approval flow.
-
-M1-M7 is the agent-side discipline that
-catches hallucinated citations, hallucinated measurements, shortcut
-graph claims, bugs-as-insights, methodology fabrication, and frame-lock
-before they reach the durable record. The machine gates and the
-`HARNESS_INVOCATION_REQUIRED` anchor remain authoritative; the
-integrity check is owed to the next agent who reads your work.
-
-Optional closeout retrospective (recommended at milestone or project
-closeout): list the workflow lessons from the finished stretch of work;
-split the generalizable verification philosophy (how results of this
-kind should be verified anywhere) into the toolchain backlog, and keep
-the project-specific instantiation (what was verified here, with which
-tests) in the project repo; and when the project owner had to ask for
-the same type of verification more than once, promote that moment into
-the event → workflow dispatch table as a default trigger instead of
-leaving it a reminder.
-
-All newly generated managed project runs use `artifacts/runs/<run_id>/`; team and draft executor payloads live in `research_team/` beneath that run. Origin stamps bind the parent run. Historical `team/runs/<run_id>/` remains read-only evidence: status, run listing, index links and export retain its original location, stamps, validity rulings and result references. Reads do not migrate or rewrite it, and `init --runtime-only` reconnects without moving evidence. Unreadable historical locations are reported as unavailable without blocking unrelated readable runs. Duplicate IDs are reported as ambiguous; bare-ID reads refuse ambiguity, and new execution cannot reuse any historical ID. Stamping, backfill, staging, execution and resume cannot write historical run payloads. Use a distinct ID under `artifacts/runs/` for new work. The `inventory_run_relocation.py --fixture-root <anonymous-fixture> --source-manifest <hash-manifest>` helper only inventories pinned fixture bytes, references, collisions and unresolved bindings; it has no apply mode. Independent reviewer snapshots omit every run's executor payload and all workspace trees, retain production artifacts, and allow only each member's own declared output prefix. Historical reports/adjudications remain coordinator evidence. `team/LATEST*.md` and `artifacts/LATEST.md` are navigation pointers.
-
-The generic scaffold creates `project_index.md`; the team helper updates only executor-local latest pointers and requires `nullius init` when the root index is missing. Selected-result and derived-block writers share a short path lock, reread their inputs, and make at most three attempts when edits are detected while preserving human bytes, mode and EOL outside their marked region. Arbitrary writers that ignore the lock remain outside its guarantee. Generic run counts do not interpret execution round limits; the Python executor resolver and suffix gate own those settings.
-
-Existing `PROJECT_INDEX_AUTO` blocks are historical, unmaintained observations; the team helper neither parses nor updates them. Current `RUN_INDEX` navigation and curated result/report registries have separate owners. Do not silently rewrite or delete an old block.

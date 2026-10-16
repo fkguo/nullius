@@ -182,6 +182,112 @@ python3 scripts/bin/run_multi_task.py \
 Choose the intended reviewer models explicitly. Verify actual identity and input/method independence
 before crediting the review; there is no automatic family rotation to rely on.
 
+## Convergence check
+
+```bash
+python3 scripts/bin/run_multi_task.py \
+  --out-dir /tmp/multi_review \
+  --system /path/to/system.md \
+  --prompt /path/to/task.md \
+  --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
+  --check-convergence \
+  --check-review-contract \
+  --agents-file /path/to/agents.json \
+  --convergence-threshold 0.8
+```
+
+`--check-convergence` measures **lexical similarity** between completed eligible reviewer outputs
+(Jaccard). It is a signal that reviewers are talking about the same things —
+it is **not** the acceptance convergence defined in the gate-loop discipline
+below: two similar NOT_READY reviews sharing the same blockers score high
+similarity while the artifact is not accepted at all. Acceptance convergence
+is always read from **contract-valid** verdicts (zero BLOCKING findings on the
+current artifact, dispositions complete), never from this similarity score; a
+malformed delivery joins the count only after its same-model normalization
+rerun (see the disposition rule under Contract checking). `convergence.converged` additionally requires
+at least two eligible outputs and the declared completed-family quorum. Unknown identities, unchecked
+contracts and unavailable roster entries cannot supply that quorum. `quorum_satisfied` records this
+condition separately from the similarity value.
+
+### Re-review after every fix (gate-loop discipline)
+
+Convergence is a property of the **reviewers' agreement on the current artifact**, never a
+self-pronouncement after applying a fix. The gate loop is review → fix → **re-run the independent
+reviewers on the fixed artifact** → repeat, and it converges only when the reviewers themselves return
+clean. Re-review after **every** correction round, including ones that look trivial or single-line: a fix
+can introduce a **new** defect — a corrected transcription line that silently drops a magnitude factor, or
+a refactor that re-breaks an invariant — that exists only after the fix and is caught only by the next
+independent round. Skipping the confirmation round because the change "obviously" closed the finding is the
+failure mode this rule exists to stop. The leader integrates and decides, but does **not** declare
+convergence in place of the reviewers.
+
+**"Clean" is defined by severity, and the loop has a stop condition.** Reviewers grade every finding
+on a shared three-level scale:
+
+- **BLOCKING** — changes a result, claim, or contract; violates input identity, target-value
+  isolation, or origin traceability; turns a silent failure into an apparent success; or is a
+  quantitative discrepancy of the reference-reproduction kind (the order-of-magnitude/sign-reversal
+  rule below is the exemplar). BLOCKING findings must be fixed and re-reviewed.
+- **HIGH** — a correctness risk inside the declared scope that does not change current results
+  (e.g. a declared failure mode with no regression test). Fix before the artifact's acceptance
+  point; a batch of HIGH fixes takes one confirmation round together, and does not restart the
+  full independent panel unless production logic changed.
+- **LOW** — hardening beyond the declared scope, mutation-style test strengthening, style. Never
+  blocks by itself; each LOW finding gets an explicit disposition (fix now / attach to a named
+  acceptance point / discard with a stated reason) — dispositioned, not silently dropped.
+
+Convergence = zero BLOCKING findings on the current artifact, every HIGH fixed or scheduled at its
+named acceptance point, and every LOW dispositioned. When another workflow's severity scheme also
+applies to the same artifact (e.g. a member-cycle blocking/non-blocking grading), the stricter
+classification governs: an in-scope correctness risk that is HIGH here never demotes to a
+deferrable non-blocking finding there — it blocks the artifact's acceptance point either way. A round that produces only LOW findings is a
+converging round, not grounds for another full cycle. Once an artifact has passed a full review pair,
+later findings re-open it only if they meet the BLOCKING bar — "keep reviewing until no reviewer can
+imagine a stronger test" is an unbounded loop, not a standard. A later non-BLOCKING finding still
+receives the standard disposition (fix now / attach to a named acceptance point / discard with a
+stated reason): not re-opening the artifact is not discarding the finding.
+
+The loop is also **bounded**: cap review rounds per artifact (default 5, counting every round that
+reviewed a candidate of this artifact). Hitting the cap is not a license for one more round — it
+forces the narrowing rule: narrow the artifact's scope, reduce the claim's strength, or take the
+blocking question to the project owner. The mandatory confirmation round after an applied fix batch
+is unaffected — the cap bounds how many candidate revisions the loop may consume, not whether a
+revision gets its confirmation. Batch fixes: one confirmation round
+covers the whole accumulated fix batch, scoped to the exact delta by default (see packet composition
+above). Review verdicts are judged on content: a source-grounded READY whose verdict string or label
+spelling deviates from the requested format is a normalization task, never a new blocking round —
+a same-model rerun re-emits it in contract shape (the disposition rule under Contract checking).
+Leader transcription is NOT a convergence path: an output the reviewer did not re-deliver in
+contract shape stays out of the count no matter how unambiguous its verdict reads — archive the
+original for diagnosis and rerun the seat. An ambiguous verdict is never normalized into a pass;
+it fails closed as usual.
+
+The verdict is scoped to the exact hashes in `inputs/review_input_manifest.json`.
+Before counting an older run toward a later convergence or closeout, rerun the
+freshness check:
+
+```bash
+python3 <nullius-root>/skills/review-swarm/scripts/bin/verify_review_freshness.py \
+  --review-dir /path/to/review-out
+```
+
+Require `status: FRESH`. A target, source, correction record, context, system prompt,
+packet, or diff mismatch is `STALE`, even if the edit is one character and the prior
+model output says READY. Re-review the full current artifact or the complete exact delta
+from the reviewed hash. Running the checker once does not authorize later edits; any
+post-check mutation invalidates the acceptance state.
+
+The standalone checker returns `0` for `FRESH`, `3` for `STALE`, and `2` for an invalid
+or unreadable manifest. The `review_one.py` entry instead returns `86` when its model run
+succeeded but acceptance is `STALE` or `UNVERIFIABLE`, so it remains distinguishable from
+the delegated model result. Automation should treat the JSON `status` as authoritative
+rather than assuming both entry points share one numeric convention.
+
+The manifest is a trusted launch record, not a cryptographic signature over itself.
+This gate catches accidental or uncoordinated post-review drift. If deliberate co-editing
+of both an input and its manifest is in scope, commit the review directory or persist the
+reported manifest SHA-256 in an external closeout record before accepting the verdict.
+
 ## Single-reviewer entry (`review_one.py`)
 
 ### Full research-notebook review
@@ -284,118 +390,7 @@ python3 scripts/bin/review_one.py \
   --out-dir /tmp/source_extraction
 ```
 
-Flags:
-
-- `--model SPEC` — **required, exactly one**, no default (`codex/default`,
-  `gemini/default`, `kimi/default`, `claude/<model>`, or an OpenCode
-  `provider/model`).
-- `--artifact PATH` (repeatable), `--diff BASE..HEAD`, **or**
-  `--extraction-request PATH` — mutually exclusive packet inputs. The first two
-  are review targets. The last is a neutral locator/question list accepted only
-  by `source-extraction`.
-- A `--diff` packet contains changed hunks, not every unchanged declaration or
-  invariant they depend on. Add the full relevant files with repeatable `--context`
-  flags when a correctness verdict may depend on surrounding definitions. A reviewer must
-  not infer that an implementation element is absent merely because it is not
-  visible in the diff.
-- **Confirmation rounds default to the delta.** For a re-review of an artifact
-  whose prior content hashes were already reviewed, the packet may be the exact
-  delta from the reviewed baseline plus the manifest reference to that
-  baseline (the freshness gate already accepts "the complete exact delta from
-  the reviewed hash"), with a findings-to-resolutions table. Reserve full-file
-  packets for first rounds, and re-escalate when the delta reaches into
-  surface the panel never reviewed, changes formulas/assumptions, a data model
-  or global invariant, or an origin-traceability root — or when the reviewer
-  asks. Re-feeding unchanged contracts, registries, and prior verdicts every
-  round consumes reviewer context without adding verification power.
-- **Packet composition**: embed immutable snapshots (content copies) of
-  anything that lifecycle machinery rewrites in place (status summaries,
-  registries, adjudication indexes). A packet that embeds a live mutable file
-  goes STALE on every unrelated bookkeeping write, cascading re-reviews that
-  verify nothing new.
-- **Candidate-commit binding**: a packet whose review target is a committed
-  candidate states **exactly one** candidate commit in a machine-readable
-  header line (`Candidate-commit: <full commit id>`, top of the packet, never
-  inside embedded artifacts or diffs); registration or bookkeeping commits,
-  when mentioned at all, are labeled as such and never share that line. A
-  dispatch in which the reviewer must guess which of two commits is under
-  review is refused before any reviewer is launched — an ambiguous binding
-  voids the whole round after the tokens are already spent. Machine support:
-  `review_one.py --candidate-commit <ref>` resolves the ref to its full
-  commit id at dispatch (a movable ref is pinned then and there), records it
-  in the input manifest, emits the header line, and — when the target is a
-  `--diff BASE..HEAD` — refuses a candidate id that does not equal the
-  resolved HEAD side of the range. Candidate binding names the state under
-  review; `--baseline-review` separately binds the BASE to the previously
-  reviewed state — the two relations never substitute for each other.
-- `--role generic|correctness|execution-adversary|source-extraction|source-fidelity` — picks the
-  system prompt from `templates/<role>.md` (default: `generic`). Each template
-  embeds the required review-contract output format.
-- `--source PATH` (repeatable) — exact UTF-8 text/LaTeX/Markdown primary-source
-  input for the two source roles. They fail closed before model
-  launch when no source is supplied, when source and target are the same file,
-  or when the source is binary/non-UTF-8. A PDF/image-capable reviewer must
-  first check PDF/scan passages against the original rendered page. Persist
-  the visually verified excerpt, locator, original-page hash, and crop hash;
-  lossy automatic PDF decoding is not formula-level evidence. A later
-  text-only pass checks note against excerpt, not excerpt against original page.
-- `--source-text-origin direct-original-text|visually-verified-transcription` —
-  **required** for both source roles. This prevents a manually normalized extract
-  from being silently treated as publisher/repository bytes. The declaration is
-  recorded but not machine-proven.
-- `--source-provenance-evidence PATH` (repeatable) — exact UTF-8 record of the
-  original document/page/crop locators and hashes plus the visual comparison.
-  Required for `visually-verified-transcription`. It must be separate from the
-  source and correction-search files. The launcher verifies presence, separation,
-  UTF-8 validity, and hashes; the reviewer must still inspect it for source-layer
-  normalization, answer leakage, and lack of an independent visual verifier.
-- `--correction-status not-applicable|checked-none-found|checked-corrections-included`
-  — **required** for both source roles; it prevents silent reliance on an
-  unchecked main publication. Use `not-applicable` only when a correction chain
-  is genuinely inapplicable, not as a shortcut for an unperformed search.
-- `--correction-source PATH` (repeatable) — exact UTF-8 correction text. It is
-  required with `checked-corrections-included`, rejected with the other statuses,
-  and persisted separately from the primary source in the packet and manifest.
-- `--correction-search-evidence PATH` (repeatable) — exact UTF-8 record of the
-  indexes/identifiers searched and their result. It is required for both
-  `checked-none-found` and `checked-corrections-included`, so a negative or
-  positive correction-chain claim cannot be represented by an unsupported flag.
-- `--extraction-request PATH` — exact UTF-8 neutral questions/locators for
-  `source-extraction`. That role rejects `--artifact`, `--diff`, and `--context`
-  to keep the candidate and prior verdict out of the packet by construction.
-  The launcher cannot semantically prove that the request is neutral, so the
-  reviewer must block if it contains an expected answer or proposed correction.
-- `--context PATH` — optional extra material appended to the packet. Repeatable;
-  every file is embedded and recorded in command-line order. Duplicate paths are
-  rejected instead of being silently collapsed, and a context path identical to
-  an `--artifact` target is rejected for every reviewer role.
-- `--locator PATH` — notebook-only raw-byte source locator. Its bytes and hash
-  enter the same review input manifest and pre/post/final freshness checks,
-  without embedding or claiming to read its binary/invalid UTF-8 content. The scope
-  inventory must list it under `opaque_links`; its necessity assessment belongs
-  in `opaque_sources`. Missing assessments or required unread sources refuse
-  notebook acceptance. Supply checked readable text dependencies when needed.
-- `--out-dir DIR` — defaults to `./review-one-<UTC timestamp>/`; the assembled
-  inputs are persisted under `<out-dir>/inputs/` for audit. Every run also writes
-  `inputs/review_input_manifest.json`, which records the SHA-256 of each target,
-  primary source, correction source, correction-search record, source-provenance
-  record, context, neutral extraction request, persisted system prompt, and
-  persisted packet, plus the exact diff hash when applicable.
-- `--host-family FAMILY` — pass your own family to make the entry refuse when
-  `--model` resolves to it, pointing you to host-native sub-agent review instead
-  (mirrors "Host-aware execution" above).
-- `--max-prompt-bytes N` / `--max-prompt-chars N` — the launcher's prompt-size
-  guard applied to the assembled inputs; an oversize packet is refused with the
-  guard's message (no silent truncation).
-- `--use-project-config` — opt back into `.nullius/review-swarm.json`
-  auto-discovery; by default the entry sets `REVIEW_SWARM_NO_AUTO_CONFIG=1` so
-  runs are hermetic. With the flag, `REVIEW_SWARM_NO_AUTO_CONFIG` is removed for
-  the delegated run even when the caller's environment already sets it (the
-  prior value is restored afterward), so the opt-in works under a suppressing
-  environment too.
-- `--timeout-secs`, `--claude-live-capture`, `--expected-secs`, `--inactivity-secs`,
-  `--inactivity-grace-secs`, `--backend-tool-mode`, `--<backend>-runner` — forwarded
-  to the launcher unchanged. No implicit hard deadline is added by this entry.
+Read [`references/review-one-flags.md`](references/review-one-flags.md) when choosing or checking a `review_one.py` flag (packet inputs, source-role declarations, candidate-commit binding, confirmation-round deltas, output and budget options) (the `Flags:` list, moved there verbatim).
 
 The assembled packet's first line is a single-reviewer advisory caveat. One route or alias does
 not establish a named model family; family and other independence evidence must be checked separately. When the reviewer returns,
@@ -408,79 +403,7 @@ This immediate `FRESH` status means only that the inputs did not change while th
 review ran. Durable closeout still requires rerunning the standalone checker immediately
 before the verdict is folded into a conclusion.
 
-## Backend overrides
-
-`run_multi_task.py` supports per-backend overrides:
-- `--backend-prompt backend=/path/to/prompt`
-- `--backend-prompt @/path/to/overrides.json` (batch mode)
-- `--backend-system backend=/path/to/system` or `backend=none`
-- `--backend-output backend=relative_or_absolute_path`
-- `--backend-tool-mode backend=mode`
-- `--timeout-secs N`
-- `--max-attempts N`
-
-Notes:
-- These flags are repeatable.
-- `--backend-prompt @json` supports:
-  - shorthand prompt map: `{"gemini": "/path/to/gemini_prompt.txt"}`
-  - batch object: `{"prompt": {...}, "system": {...}, "output": {...}}`
-- Relative `--backend-output` paths are resolved under `--out-dir`.
-- `claude=none` for `--backend-system` is rejected (Claude runner requires a system prompt file).
-- For a single run, `--backend-output` does not allow one path for repeated same-backend agents (to avoid output clobbering).
-- An explicit hard cap is sized from what the seat actually needs, not from habit: read the
-  `elapsed_secs` of the same family on comparable earlier seats (recorded in `meta.json`) and set the
-  cap well above it. A cap below a family's ordinary completion time turns every round into an
-  `unavailable` seat — an availability failure manufactured by the caller, which the round then has to
-  re-dispatch. When no comparable record exists, prefer the default (no hard budget, soft
-  `--expected-secs`) over a guessed cap.
-- `--timeout-secs` retains its explicit hard-cap meaning: one total deadline per review seat,
-  starting at its first runner invocation and shared by both phases, retries and fallback. Default:
-  no hard budget (`0`). Advancing output never resets an explicit deadline.
-- `--expected-secs` is a soft estimate (default `1200`); exceeding it is recorded and does not kill
-  generation. `--claude-live-capture` opts into durable Claude stream events, stderr, partial text and a
-  separate terminal result. It is disabled at the runner seam unless requested. Without capture,
-  buffered output bytes retain their prior meaning and progress is unknown.
-- `--inactivity-secs` is disabled by default. With Claude live capture, it records an inactivity
-  diagnostic using event types, advancing counters, timestamps, capture health and process/provider
-  status. `--inactivity-grace-secs` (default `30`, positive) requires a further grace check. Only an
-  observable stream with earlier advancing content can terminate for confirmed configured inactivity;
-  silence before the first advancing event, or unknown/degraded capture, cannot. Repeated heartbeats and
-  identical events do not advance the counters. Private reasoning text stays out of progress metadata.
-  Activity describes generation, not semantic quality, correctness or billed usage.
-- User cancellation, terminal failure, explicit hard-budget exhaustion and confirmed configured
-  inactivity preserve durable evidence before process-group cleanup. Partial text cannot substitute for
-  a terminal CLI result or a valid review contract.
-- `--max-attempts` caps total runner subprocess invocations per seat, including both phases, empty-output retries, and outer fallback. Default: `3`; a complete two-phase review needs at least `2`. Exhausted seats are unavailable, never successful reviews. `meta.json` records the cap and consumed calls in each seat's `seat_budget`.
-- The launcher requests one inner attempt from Claude, Codex, Kimi, and OpenCode, and disables supported inner model fallback so the explicit outer fallback policy owns replacement. Gemini has no inner attempt flag: its approved transport routing is preserved, and the seat cap counts runner invocations rather than underlying HTTP requests.
-- `--backend-tool-mode` is explicit and backend-specific:
-  - `claude=none|review`
-  - `gemini=none|review`
-  - `opencode=none|workspace`
-
-## Reviewer Tool Modes
-
-Default behavior is explicit:
-- Claude, Gemini, and OpenCode now receive an explicit tool mode from `review-swarm`.
-- The default mode is `none` for all three backends.
-- Tool access must be opted into per backend with `--backend-tool-mode`.
-
-Reviewer-safe modes:
-- `claude=review`: maps to a read-only built-in tool profile (`Read,Glob,Grep`).
-- `gemini=review`: maps to Gemini CLI `--approval-mode plan` plus local CLI execution (`--no-proxy-first`), sandboxing, and `--extensions none`, which is Gemini's read-only review path.
-- When Gemini is in `review` mode and `--gemini-cli-home` was not explicitly set, `review-swarm` now synthesizes an isolated `GEMINI_CLI_HOME` under the run output directory and writes a minimal user settings file there (`mcpServers={}`, `mcp.allowed=[]`) to avoid inheriting reviewer-external user MCP state by default.
-- Gemini `review` is a headless review path, not the same interaction mode as the Gemini TUI `/mcp` session. If this path emits MCP discovery noise or does not yield a usable source-grounded verdict on a large packet, prefer a same-model rerun with an embedded-source packet and `gemini=none` rather than assuming TUI MCP health guarantees headless review stability.
-
-OpenCode caveat:
-- `opencode=workspace` explicitly grants workspace visibility by passing `--workspace-dir`.
-- For formal workspace reviews, prefer OpenCode's official headless-server flow (`opencode serve` + `opencode run --attach ...`) rather than relying only on repeated direct `run --dir ...` cold starts.
-- Current `opencode run` CLI does not expose a built-in read-only tool allowlist comparable to Claude/Gemini, so `workspace` is explicit workspace access, not a hard no-mutation guarantee.
-- For `opencode=workspace`, prefer workspace-relative file paths in prompts/packets. Large prompts that enumerate absolute workspace paths or globs can push the model into `external_directory` permission requests even when the repo itself is mounted as the workspace.
-- Treat `OpenCode workspace` and `OpenCode embedded-source` as two different review roles:
-  - `workspace`: packet-challenge / discovery reviewer. Best when blast radius or hidden front-door / consumer drift is still uncertain.
-  - `none` + embedded-source packet: verdict-normalization / formal gate reviewer. Best when scope is already narrowed and you need a stable closeout artifact.
-- Do not treat an OpenCode workspace pass as "failed" just because the output includes exploratory text or lacks a clean final JSON block. If it still contains source-grounded, current-worktree findings, keep that review signal and only rerun same-model to normalize the gate artifact.
-- For formal reviewer use, prefer Claude/Gemini for source-grounded read-only review guarantees; treat OpenCode workspace mode as discovery-strong but gate-fragile, and reserve embedded-source OpenCode passes for final formal-verdict stabilization once packet scope is adequate.
-- When packet scope touches public/package/CLI/workflow/default-entry surfaces, also follow the `Front-door Surface Audit` requirement in `AGENTS.md`; runner setup does not replace packet widening.
+Read [`references/backend-overrides-and-tool-modes.md`](references/backend-overrides-and-tool-modes.md) when overriding a backend's prompt, system prompt, output, tool mode or deadline, or granting a reviewer tool access (the `Backend overrides` and `Reviewer Tool Modes` sections, moved there verbatim).
 
 ### Execution adversary (mandatory for correctness-critical / method-precondition reviews)
 
@@ -745,169 +668,8 @@ This rule applies to all backends:
 - Gemini CLI
 - Kimi CLI
 
-## Fallback policy
+Read [`references/fallback-and-outages.md`](references/fallback-and-outages.md) when a backend is unavailable, a fallback must be chosen or recorded, or a packet approaches the prompt-size limit (the `Fallback policy`, `Backend outage handling` and `Prompt-size guardrail` sections, moved there verbatim).
 
-Fallback can be enabled for explicitly chosen target backends:
-
-- `--fallback-mode off` (default)
-- `--fallback-mode ask` (exit code `4`, asks for rerun decision)
-- `--fallback-mode auto` (tries `--fallback-order`, default `codex,claude`)
-- `--fallback-target-backends a,b` — **required whenever fallback is enabled**.
-  There is no default target list: enabling `ask`/`auto` without naming targets
-  is an input error, so a substitute reviewer can never be swapped in for a
-  backend you did not explicitly nominate.
-
-Example:
-
-```bash
-python3 scripts/bin/run_multi_task.py \
-  --out-dir /tmp/cross_family_review \
-  --system /path/to/system.md \
-  --prompt /path/to/prompt.md \
-  --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
-  --check-review-contract \
-  --fallback-mode auto \
-  --fallback-target-backends gemini \
-  --fallback-order codex,claude
-```
-
-## Backend outage handling (retry + availability report)
-
-Backend infrastructure failures are classified and handled distinctly from
-review content, so a degraded run is legible as "backend down" rather than
-mistaken for reviewer disagreement:
-
-- Every agent result carries a `failure_class`: `infrastructure` (timeout,
-  crash exit, empty output — the backend never delivered reviewable content) or
-  `content` (the backend answered but the answer failed a protocol check, e.g.
-  an invalid two-phase criteria block). Successes carry `null`.
-- `--retry-empty-output N` (default `0` — disabled, so existing callers of the
-  launcher keep their behavior; `review_one.py` passes `1` explicitly for its
-  delegated run): an agent whose runner exited 0 but wrote an empty output file
-  is re-run at the orchestrator level up to N times — before fallback is
-  considered and before the agent is recorded as `empty_output`. Retried agents
-  record `empty_output_retries` in `meta.json`. In two-phase mode a phase-1
-  empty output (`phase1_empty_output`) is classified infrastructure but is NOT
-  auto-retried by this flag, and `--two-phase` rejects fallback — recover it
-  with a manual same-model rerun (see the two-phase section).
-- Empty-output retries and outer fallback stop when the seat's attempt cap or deadline is exhausted. Failure reasons `attempt_budget_exhausted` and `deadline_exhausted` record this limit separately from content disagreement.
-- `meta.json` always includes `unavailable_backends`: the requested model specs
-  whose runs ALL failed at the infrastructure level this invocation (a
-  fallback-recovered run counts by its original failure). Read entries there as
-  backend outages; never fold them into a review verdict.
-
-## Prompt-size guardrail (optional)
-
-- `--max-prompt-bytes N` or `--max-prompt-chars N`
-- `--max-prompt-overflow fail|truncate`
-
-When enabled, guardrails apply to global inputs and backend override inputs.
-
-## Convergence check
-
-```bash
-python3 scripts/bin/run_multi_task.py \
-  --out-dir /tmp/multi_review \
-  --system /path/to/system.md \
-  --prompt /path/to/task.md \
-  --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
-  --check-convergence \
-  --check-review-contract \
-  --agents-file /path/to/agents.json \
-  --convergence-threshold 0.8
-```
-
-`--check-convergence` measures **lexical similarity** between completed eligible reviewer outputs
-(Jaccard). It is a signal that reviewers are talking about the same things —
-it is **not** the acceptance convergence defined in the gate-loop discipline
-below: two similar NOT_READY reviews sharing the same blockers score high
-similarity while the artifact is not accepted at all. Acceptance convergence
-is always read from **contract-valid** verdicts (zero BLOCKING findings on the
-current artifact, dispositions complete), never from this similarity score; a
-malformed delivery joins the count only after its same-model normalization
-rerun (see the disposition rule under Contract checking). `convergence.converged` additionally requires
-at least two eligible outputs and the declared completed-family quorum. Unknown identities, unchecked
-contracts and unavailable roster entries cannot supply that quorum. `quorum_satisfied` records this
-condition separately from the similarity value.
-
-### Re-review after every fix (gate-loop discipline)
-
-Convergence is a property of the **reviewers' agreement on the current artifact**, never a
-self-pronouncement after applying a fix. The gate loop is review → fix → **re-run the independent
-reviewers on the fixed artifact** → repeat, and it converges only when the reviewers themselves return
-clean. Re-review after **every** correction round, including ones that look trivial or single-line: a fix
-can introduce a **new** defect — a corrected transcription line that silently drops a magnitude factor, or
-a refactor that re-breaks an invariant — that exists only after the fix and is caught only by the next
-independent round. Skipping the confirmation round because the change "obviously" closed the finding is the
-failure mode this rule exists to stop. The leader integrates and decides, but does **not** declare
-convergence in place of the reviewers.
-
-**"Clean" is defined by severity, and the loop has a stop condition.** Reviewers grade every finding
-on a shared three-level scale:
-
-- **BLOCKING** — changes a result, claim, or contract; violates input identity, target-value
-  isolation, or origin traceability; turns a silent failure into an apparent success; or is a
-  quantitative discrepancy of the reference-reproduction kind (the order-of-magnitude/sign-reversal
-  rule below is the exemplar). BLOCKING findings must be fixed and re-reviewed.
-- **HIGH** — a correctness risk inside the declared scope that does not change current results
-  (e.g. a declared failure mode with no regression test). Fix before the artifact's acceptance
-  point; a batch of HIGH fixes takes one confirmation round together, and does not restart the
-  full independent panel unless production logic changed.
-- **LOW** — hardening beyond the declared scope, mutation-style test strengthening, style. Never
-  blocks by itself; each LOW finding gets an explicit disposition (fix now / attach to a named
-  acceptance point / discard with a stated reason) — dispositioned, not silently dropped.
-
-Convergence = zero BLOCKING findings on the current artifact, every HIGH fixed or scheduled at its
-named acceptance point, and every LOW dispositioned. When another workflow's severity scheme also
-applies to the same artifact (e.g. a member-cycle blocking/non-blocking grading), the stricter
-classification governs: an in-scope correctness risk that is HIGH here never demotes to a
-deferrable non-blocking finding there — it blocks the artifact's acceptance point either way. A round that produces only LOW findings is a
-converging round, not grounds for another full cycle. Once an artifact has passed a full review pair,
-later findings re-open it only if they meet the BLOCKING bar — "keep reviewing until no reviewer can
-imagine a stronger test" is an unbounded loop, not a standard. A later non-BLOCKING finding still
-receives the standard disposition (fix now / attach to a named acceptance point / discard with a
-stated reason): not re-opening the artifact is not discarding the finding.
-
-The loop is also **bounded**: cap review rounds per artifact (default 5, counting every round that
-reviewed a candidate of this artifact). Hitting the cap is not a license for one more round — it
-forces the narrowing rule: narrow the artifact's scope, reduce the claim's strength, or take the
-blocking question to the project owner. The mandatory confirmation round after an applied fix batch
-is unaffected — the cap bounds how many candidate revisions the loop may consume, not whether a
-revision gets its confirmation. Batch fixes: one confirmation round
-covers the whole accumulated fix batch, scoped to the exact delta by default (see packet composition
-above). Review verdicts are judged on content: a source-grounded READY whose verdict string or label
-spelling deviates from the requested format is a normalization task, never a new blocking round —
-a same-model rerun re-emits it in contract shape (the disposition rule under Contract checking).
-Leader transcription is NOT a convergence path: an output the reviewer did not re-deliver in
-contract shape stays out of the count no matter how unambiguous its verdict reads — archive the
-original for diagnosis and rerun the seat. An ambiguous verdict is never normalized into a pass;
-it fails closed as usual.
-
-The verdict is scoped to the exact hashes in `inputs/review_input_manifest.json`.
-Before counting an older run toward a later convergence or closeout, rerun the
-freshness check:
-
-```bash
-python3 <nullius-root>/skills/review-swarm/scripts/bin/verify_review_freshness.py \
-  --review-dir /path/to/review-out
-```
-
-Require `status: FRESH`. A target, source, correction record, context, system prompt,
-packet, or diff mismatch is `STALE`, even if the edit is one character and the prior
-model output says READY. Re-review the full current artifact or the complete exact delta
-from the reviewed hash. Running the checker once does not authorize later edits; any
-post-check mutation invalidates the acceptance state.
-
-The standalone checker returns `0` for `FRESH`, `3` for `STALE`, and `2` for an invalid
-or unreadable manifest. The `review_one.py` entry instead returns `86` when its model run
-succeeded but acceptance is `STALE` or `UNVERIFIABLE`, so it remains distinguishable from
-the delegated model result. Automation should treat the JSON `status` as authoritative
-rather than assuming both entry points share one numeric convention.
-
-The manifest is a trusted launch record, not a cryptographic signature over itself.
-This gate catches accidental or uncoordinated post-review drift. If deliberate co-editing
-of both an input and its manifest is in scope, commit the review directory or persist the
-reported manifest SHA-256 in an external closeout record before accepting the verdict.
 
 ## Contract checking (delivery shape)
 
@@ -963,127 +725,9 @@ Contract auto-detects output format:
 
 JSON outputs wrapped in markdown code fences (`` ```json ... ``` ``) are automatically unwrapped.
 
-## Two-phase review protocol (opt-in)
+Read [`references/two-phase-protocol.md`](references/two-phase-protocol.md) when a review is run with the opt-in `--two-phase` protocol or declared review criteria (the `Two-phase review protocol` section, moved there verbatim).
 
-Default reviews are single-phase: each reviewer sees the full packet (diff included) in one
-call. `--two-phase` adds an opt-in commit-then-review protocol for formal reviews where two
-documented multi-agent failure modes matter: a reviewer improvising its evaluation standard
-only after seeing the diff, and persuasive phase-2 prose substituting for the standard it
-would have committed to up front. **Single-phase behavior is completely unchanged when the
-flag is absent.**
-
-When to use: formal review of high-risk or irreversible public-surface changes —
-cross-package contract changes, default-entry behavior, anything where the project already
-requires independent formal review. Routine incremental diffs do not need it.
-
-How it works:
-
-1. **Phase 1 — criteria commitment.** Each reviewer receives a scope packet only — change
-   title, intent, and the changed-file list, with the diff deliberately withheld
-   (`--scope-prompt` file, prepared by the caller). The reviewer must declare the review
-   criteria it commits to: exactly one block wrapped in `<review_criteria>` /
-   `</review_criteria>` sentinel lines, containing a JSON object with a non-empty
-   `categories` array (each entry: a `name` plus a one-sentence `blocking_criteria`) and a
-   `severity_scale` sentence. The `severity_scale` sentence binds the reviewer's categories
-   to the canonical BLOCKING/HIGH/LOW ladder defined in the gate-loop discipline section —
-   it maps categories onto that shared scale, it does not invent a private one.
-2. **Phase 2 — review per committed criteria.** The same reviewer is called again with the
-   full diff packet (the normal `--prompt` / per-backend override) plus its own phase-1
-   criteria block, verbatim. Every BLOCKING finding must carry a declared category:
-   a `[<category>]` bullet prefix under `## Blockers` in Markdown output, or a `category`
-   field / `[<category>]` string prefix on `blocking_issues` entries in JSON output.
-3. **Criteria revision.** If the diff reveals a problem class outside the declared
-   categories, the reviewer may add a category only with an explicit revision declaration:
-   a `CRITERIA_REVISION: <category>: <one-line reason>` line in Markdown output, or a
-   `criteria_revisions` array entry (`category` + `reason`) in JSON output. The machine
-   check verifies the declaration exists and is well-formed; judging whether the reason is
-   any good stays with the synthesis agent.
-
-Conformance is machine-checked after phase 2 (same code path as
-`check_review_output_contract.py --two-phase PHASE1_FILE PHASE2_FILE`): a BLOCKING finding
-whose category is neither declared nor covered by a revision declaration is a conformance
-failure. **Conformance failures are purely informational** — recorded per agent in
-`meta.json` under `two_phase` (`conformance_ok`, `conformance_errors`), never a fallback
-trigger, and (deliberately, unlike single-phase contract failures) never withheld from
-convergence/credit aggregation: judging whether a criteria revision was legitimate is the
-synthesis agent's job, not a mechanical exclusion. Phase-1 failures are different: if the
-phase-1 call fails or returns no parseable criteria block, phase 2 is skipped and the agent
-is marked failed (`phase1_command_failed`, `phase1_empty_output`, or
-`phase1_criteria_invalid`); rerun that reviewer same-model. A phase-1 empty output is
-classified as an infrastructure failure but is NOT auto-retried by `--retry-empty-output`,
-and two-phase rejects fallback — recovery is that manual same-model rerun.
-
-```bash
-python3 scripts/bin/run_multi_task.py \
-  --out-dir /tmp/formal_review \
-  --system /path/to/reviewer_system.md \
-  --scope-prompt /path/to/scope_packet.md \
-  --prompt /path/to/diff_packet.md \
-  --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
-  --two-phase \
-  --check-review-contract
-```
-
-Notes:
-- The scope packet must not contain the diff; keeping it to the change title, intent, and
-  changed-file list is the caller's responsibility.
-- `--scope-prompt` is global (no per-backend override); per-backend `--backend-prompt`
-  overrides apply to the phase-2 diff packet as usual.
-- `--two-phase` rejects `--fallback-mode ask|auto`: silently substituting a different
-  backend mid-protocol would break the commitment chain. Use a same-model rerun instead.
-- Two-phase is a per-invocation CLI opt-in only; it is deliberately not settable from the
-  project config file, so a config can never silently flip a default run into two-phase.
-- In Markdown phase-2 output, findings under `## Blockers` must be bullets. Untagged
-  indented lines are continuations of the bullet above; an indented bullet that itself
-  carries a `[<category>]` tag counts as a finding (nesting is not an evasion channel);
-  column-0 prose other than a no-blocker placeholder is flagged as unstructured content.
-- Phase transcripts stay auditable: composite prompts live under `{out-dir}/two_phase/`,
-  phase-1 outputs sit next to the final outputs with a `.phase1` suffix (both paths are
-  cleared of stale files from previous runs at the start of a two-phase run).
-
-## Outputs
-
-- `{out-dir}/agent_*_*.txt` (or backend output override paths)
-- `{out-dir}/trace.jsonl`
-- `{out-dir}/meta.json` (per-agent results incl. `failure_class`, plus the
-  `unavailable_backends` outage report)
-- With `--two-phase`: `{out-dir}/two_phase/` (composite phase prompts) and `*.phase1.*`
-  phase-1 outputs next to the final outputs.
-- With `review_one.py`: the assembled inputs persist under `{out-dir}/inputs/`
-  (`system.md`, `packet.md`) for audit.
-
-## Runner parity notes
-
-### System prompt delivery
-
-All backends now receive the system prompt by default. However, the delivery mechanism differs:
-
-| Runner | Delivery | True system role? |
-|--------|----------|-------------------|
-| claude-cli-runner | `--system-prompt` native arg | Yes |
-| codex-cli-runner | Merged into stdin (`=== System Instructions ===` + `=== Task ===`) | No — prepended to user message |
-| gemini-cli-runner | Concatenated into stdin (`system + \n\n + prompt`) | No — prepended to stdin |
-| opencode-cli-runner | Concatenated into stdin (same as gemini) | No — prepended to stdin |
-| kimi-cli-runner | `--system-prompt-file` prepended to the prompt file | No — prepended to user message |
-
-Only Claude CLI uses a true system role with elevated priority. The other four runners prepend the system prompt as a user-message prefix. This is a CLI limitation, not a bug.
-
-### File access
-
-| Runner | File access | Notes |
-|--------|-------------|-------|
-| Codex | `--sandbox read-only` | Can browse the codebase |
-| Gemini | Default headless Gemini CLI mode | Review-safe tool access is opt-in via `--backend-tool-mode gemini=review` |
-| Claude | `--tools` parameter | Review-safe tool access is opt-in via `--backend-tool-mode claude=review` |
-| OpenCode | Workspace exposure is explicit | `--backend-tool-mode opencode=workspace` exposes the workspace, but not with a hard read-only allowlist |
-
-### Implications for review weight
-
-- Codex reviews may reference specific files/lines thanks to sandbox access — treat as higher-confidence for implementation details.
-- Gemini reviews now default to standard headless mode unless review-safe tools are explicitly enabled.
-- Claude reviews now default to no built-in tools unless review-safe tools are explicitly enabled.
-- OpenCode reviews default to isolated, prompt-driven runs unless workspace access is explicitly enabled.
-- System prompt parity ensures all backends share the same review criteria (BLOCKING/HIGH/LOW taxonomy, output format).
+Read [`references/outputs-and-runner-parity.md`](references/outputs-and-runner-parity.md) when locating a review's output files or weighing how the backends differ in system-prompt delivery and file access (the `Outputs` and `Runner parity notes` sections, moved there verbatim).
 
 ## Skill name note
 

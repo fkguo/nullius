@@ -286,7 +286,7 @@ class ReviewFreshnessTests(unittest.TestCase):
             encoding="utf-8"
         )
         integrity = (
-            _SKILL_ROOT.parent / "research-integrity" / "SKILL.md"
+            _SKILL_ROOT.parent / "research-integrity" / "references" / "transcription-fidelity.md"
         ).read_text(encoding="utf-8")
         self.assertIn("verify_review_freshness.py", skill)
         self.assertIn("--review-dir /path/to/review-out", skill)

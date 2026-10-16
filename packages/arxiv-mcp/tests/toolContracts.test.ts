@@ -7,9 +7,10 @@ import {
   ArxivSearchSchema,
   ArxivPaperSourceSchema,
   normalizeArxivId,
+  type ToolExposureMode,
 } from '../src/tools/registry.js';
 import { handleToolCall } from '../src/tools/dispatcher.js';
-import { ARXIV_SEARCH, ARXIV_GET_METADATA, ARXIV_PAPER_SOURCE } from '@nullius/shared';
+import { ARXIV_SEARCH, ARXIV_GET_METADATA, ARXIV_PAPER_SOURCE, findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,5 +235,19 @@ describe('Category validation', () => {
       query: 'test',
       categories: ['HEP-PH'],
     })).toThrow();
+  });
+});
+
+describe('Tool inputSchema required keys', () => {
+  it.each<ToolExposureMode>(['standard', 'full'])('required lists exactly the keys whose omission fails to parse (%s)', mode => {
+    const specs = new Map(TOOL_SPECS.map(spec => [spec.name, spec]));
+    const defs = getTools(mode);
+    expect(defs.length).toBeGreaterThan(0);
+    const issues = defs.flatMap(def => {
+      const spec = specs.get(def.name);
+      if (!spec) return [`[${def.name}] no tool spec`];
+      return findRequiredKeyMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
   });
 });

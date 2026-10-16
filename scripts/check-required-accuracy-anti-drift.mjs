@@ -37,6 +37,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 const SKILL_FILE = 'skills/numerical-reliability-gate/SKILL.md';
 const CONTRACT_FILE = 'skills/numerical-reliability-gate/references/contract.md';
+const PROVENANCE_FILE = 'skills/numerical-reliability-gate/references/provenance.md';
 const CHECKER_FILE = 'skills/numerical-reliability-gate/scripts/check_reliability_matrix.py';
 const CHECKER_TESTS = 'skills/numerical-reliability-gate/tests/test_check_reliability_matrix.py';
 const MEMBER_A = 'skills/research-team/assets/system_member_a.txt';
@@ -131,9 +132,16 @@ requireAll(`${SKILL_FILE} (G2)`, gateItem(SKILL_FILE, skill, 'G2'), [
 requireAll(`${SKILL_FILE} (output and provenance)`, skill, [
   ['reliable requires G0', '`reliable` requires every *applicable* G0–G10 check to pass — including the G0 total error at or below the required accuracy'],
   ['G6 folds only G0–G10 passes', 'passed every applicable G0–G10 check at the converged setting'],
+]);
+// The recorded failure episodes live in the provenance reference (moved out of SKILL.md).
+requireAll(PROVENANCE_FILE, read(PROVENANCE_FILE), [
+  ['G0 episodes heading', 'the episodes that created **G0**'],
   ['over-tight gate episode', 'some six orders of magnitude tighter than the declared target accuracy'],
   ['subdominant refinement episode', 'the agent kept tightening the integration precision'],
   ['display-held episode', 'held out of a manuscript for three review re-entries'],
+]);
+requireAll(SKILL_FILE, skill, [
+  ['provenance pointer', '[`references/provenance.md`](references/provenance.md)'],
 ]);
 
 // 4. The matrix contract carries G0 as a field rule, the example uses it, and the checker is named.

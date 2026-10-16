@@ -397,7 +397,7 @@ requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['extension from the measured rate', 'projected need = the larger of elapsed time × total units ÷ completed units and elapsed time + remaining units × the time per unit over the latest interval'],
   ['fresh observations per extension', 'Every extension needs fresh observations taken since the previous one'],
 ]);
-requireAll('skills/review-swarm/SKILL.md', read('skills/review-swarm/SKILL.md'), [
+requireAll('skills/review-swarm/references/backend-overrides-and-tool-modes.md', read('skills/review-swarm/references/backend-overrides-and-tool-modes.md'), [
   ['seat cap sized from earlier runs', 'An explicit hard cap is sized from what the seat actually needs, not from habit'],
   ['manufactured unavailability', 'an availability failure manufactured by the caller'],
 ]);

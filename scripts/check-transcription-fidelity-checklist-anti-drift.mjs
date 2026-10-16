@@ -4,13 +4,13 @@
  * Transcription-fidelity checklist anti-drift CI check.
  *
  * The "Extraction / transcription fidelity" failure checklist — currently items (a)–(o)
- * — is defined CANONICALLY in skills/research-integrity/SKILL.md and is
+ * — is defined CANONICALLY in skills/research-integrity/references/transcription-fidelity.md and is
  * restated / referenced by sibling skills. Nothing else keeps those copies in
  * sync, so a label edit in one file can silently diverge from the canonical
  * list. This lock asserts:
  *
  *   1. LABEL-SET SYNC. The short label of every canonical item parsed from the
- *      canonical bullet list in research-integrity/SKILL.md is identical
+ *      canonical bullet list in research-integrity/references/transcription-fidelity.md is identical
  *      (letter -> normalized label) to the inline enumeration restated in
  *      deep-literature-review/SKILL.md.
  *
@@ -24,7 +24,7 @@
  *
  * ## What is the canonical source
  *
- * skills/research-integrity/SKILL.md owns the list as a bullet block:
+ * skills/research-integrity/references/transcription-fidelity.md owns the list as a bullet block:
  *
  *   - **(a) equation misquote** — a sign, coefficient, index, ...
  *   - **(b) wrong numeric value** — a transposed digit, ...
@@ -63,7 +63,26 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Canonical owner of the transcription-fidelity checklist (bullet-list form).
-const CANONICAL_FILE = 'skills/research-integrity/SKILL.md';
+const CANONICAL_FILE = 'skills/research-integrity/references/transcription-fidelity.md';
+
+// Reference files of the skills whose text was moved out of SKILL.md; their
+// "(x)–(y)" range references are scanned together with the SKILL.md files.
+const REFERENCE_SCAN_SKILLS = [
+  'numerical-reliability-gate',
+  'research-harness',
+  'research-team',
+  'idea-posterior',
+  'review-swarm',
+  'research-integrity',
+];
+const EXTRA_RANGE_SCAN_FILES = REFERENCE_SCAN_SKILLS.flatMap((name) => {
+  const dirRel = `skills/${name}/references`;
+  const dirAbs = path.join(repoRoot, dirRel);
+  if (!existsSync(dirAbs)) return [];
+  return readdirSync(dirAbs)
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => `${dirRel}/${f}`);
+});
 
 // Files that restate the full short-label set inline. Each MUST carry the same
 // letter -> label set as CANONICAL_FILE. See KNOWN LIMITATION 1.
@@ -96,7 +115,7 @@ function readRepoFile(relPath) {
 // The canonical checklist lives under the "Extraction / transcription fidelity"
 // section heading. Scope the parse to that section so that OTHER lettered bullet
 // lists elsewhere in the same file — e.g. the "Validation-chain validity"
-// section, whose own "- **(a) …**" / "- **(b) …**" / "- **(c) …**" items are a
+// section (now in references/numerical-claim-checks.md), whose own "- **(a) …**" / "- **(b) …**" / "- **(c) …**" items are a
 // different, unrelated enumeration — cannot overwrite the canonical labels
 // labels in the flat scan.
 const CANONICAL_SECTION_RE = /^##\s+Extraction\s*\/\s*transcription\s+fidelity\b/i;
@@ -261,7 +280,7 @@ function main() {
   // 3. Letter-range sync: every "(x)–(y)" range in skills spans the canonical
   //    letters. Discovery-based, so a new range-referencing file is caught.
   if (canonicalHigh) {
-    for (const relPath of listSkillFiles()) {
+    for (const relPath of [...listSkillFiles(), CANONICAL_FILE, ...EXTRA_RANGE_SCAN_FILES]) {
       const read = readRepoFile(relPath);
       if (read.error) continue;
       for (const hit of scanRanges(relPath, read.text)) {

@@ -249,43 +249,7 @@ live in `artifacts/runs/<tag>/research_team/`. A present project-local launcher
 must accept the parent origin stamp before cycle work; a missing launcher is
 reported as unstamped. Conflicting origin never silently rebinds the run.
 
-**Workspace disk policy**: `artifacts/runs/<tag>/research_team/workspaces/` contains per-member
-project snapshots that the reviewer subprocess runs against. They can grow
-large (full project tree × 2 members × N runs). They are **ephemeral scratch
-space**, not durable artifacts — every piece of forensic data needed to audit
-a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
-`member_*_evidence.json`, `member_*_audit.jsonl`, `logs/member_*/`).
-
-- `run_team_cycle.sh` deletes `workspaces/` automatically when the cycle
-  completes successfully. Set `RESEARCH_TEAM_KEEP_WORKSPACES=1` to disable.
-- On failure the workspaces are preserved by default for debugging. Set
-  `RESEARCH_TEAM_KEEP_WORKSPACES_ON_FAILURE=0` to also clean up on failure.
-- At the start of every new cycle, `run_team_cycle.sh` also sweeps orphaned
-  workspaces from any earlier cycle whose `on_exit` trap could not fire
-  (SIGKILL / OOM kill / power loss). The startup sweep only deletes workspaces
-  of clean successful exits (status `completed|converged|early_stop|preflight_only`)
-  and only when the workspace mtime is at least 30 minutes old. Set
-  `RESEARCH_TEAM_KEEP_WORKSPACES_AT_STARTUP=1` to disable the sweep.
-- To reclaim disk on existing projects whose old runs still carry workspaces,
-  use the prune utility. Defaults are `--keep-last 0`, `--keep-failed` unset,
-  and dry-run; pass `--apply` to actually delete and any combination of the
-  flags below to widen what survives:
-  ```bash
-  # Dry-run preview of all eligible workspaces (deletes nothing).
-  python3 "${SKILL_DIR}/scripts/bin/prune_team_workspaces.py" --root /path/to/project
-  # Apply, preserving the 3 most-recent runs and any failed runs:
-  python3 "${SKILL_DIR}/scripts/bin/prune_team_workspaces.py" --root /path/to/project \
-    --keep-last 3 --keep-failed --apply
-  ```
-  The tool only touches `artifacts/runs/<tag>/research_team/workspaces/` subdirectories; all
-  forensic data at the run_dir top level is preserved. Pass `--json` to emit
-  a machine-readable plan plus, after `--apply`, a `result` envelope.
-- For projects that run cycles in an unattended loop, either keep the
-  `RESEARCH_TEAM_KEEP_WORKSPACES_ON_FAILURE=1` default and schedule a periodic
-  `prune_team_workspaces.py --root <project> --keep-last N --keep-failed --apply`
-  sweep (cron / launchd / scheduled task), or set
-  `RESEARCH_TEAM_KEEP_WORKSPACES_ON_FAILURE=0` to clean up failures inline
-  once the loop is known healthy.
+Read [`references/workspace-disk-policy.md`](references/workspace-disk-policy.md) when a team cycle leaves per-member workspaces on disk, disk space must be reclaimed, or an unattended loop needs a pruning schedule (the `Workspace disk policy` block, moved there verbatim).
 
 ## Capabilities index (discoverability)
 
@@ -294,16 +258,9 @@ a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
 - **Autopilot**: `scripts/bin/run_autopilot.sh` (plan autofill + loop coordinator; uses `scripts/bin/autopilot_loop.py`).
 - **Packet build only**: `scripts/bin/build_team_packet.py`, `scripts/bin/build_draft_packet.py`.
 - **Literature fetch (INSPIRE/arXiv/Crossref/DataCite/DOI/GitHub)**: `scripts/bin/literature_fetch.py` (project-leader source-adapter helper for prework/KB building; reviewers must not use network).
-  - Generic literature workflow sequencing authority lives in `literature-workflows` recipes / session protocol plus the checked-in public front door, not in this script.
-  - Use `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/literature_fetch.py" workflow-plan ...` when you need the lower-level literature workflow plan consumer during skill-side prework.
-  - Literature/reference/knowledge-evidence work must maintain both `knowledge_base/methodology_traces/literature_queries.md` and `knowledge_base/methodology_traces/literature_saturation.json`; a single result page or fixed paper count is not a completion criterion.
-  - `literature_saturation.json` is also the candidate-disposition, core-bibliography-reconciliation, and method-family-audit authority. Each queried provider records finite `execution_bounds` and a per-request query/page-or-cursor/continuation log whose counts reconcile to `returned_count`; every declared query must appear, and `saturated` requires an exhausted terminal request plus full coverage of any known total. A resolved candidate carries canonical DOI/URL/provider identity metadata bound to citation-triangulation-compatible provider blocks through a project-root-bounded exact-SHA reference; unknown identities remain explicit debt. The separate `url` display field is not a join key unless it is also an archived canonical id or explicit alias. Every selected core source similarly binds its JSON raw-reference manifest, and each raw entry joins back to the same canonical candidate identity. Method coverage records one `method_bearing`, `not_method_bearing`, or `coverage_debt` screening disposition for every reconciled bibliography candidate; both positive and negative dispositions require source-text evidence, while method-bearing records additionally require descriptions/features and taxonomy classification. The gate rejects `saturated` until all surfaces close.
-  - Subcommands (arXiv): `arxiv-search`, `arxiv-get --write-note`, `arxiv-source` (syntax: `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/literature_fetch.py" <subcommand> ...`; downloads LaTeX source to `references/arxiv_src/<arxiv_id>/` by default).
+  - Read [`references/capabilities-detail.md`](references/capabilities-detail.md) when running `literature_fetch.py` or maintaining the literature query and saturation records (the sub-bullets of the literature-fetch entry, moved there verbatim).
 - **Derive the contract's notebook-sync block**: `scripts/bin/refresh_research_contract.py --root /path/to/project`. It writes the derived block to `artifacts/research_contract_block.proposed.md` and **does not modify `research_contract.md` at all** — merge what is right into the contract's sync block by hand.
-  - It works that way because the block is machine-derived while the contract around it is curated, and no rule reliably told the two apart: every version that rewrote the block in place was measured deleting real references. Deriving into a separate file removes the ambiguity instead of arbitrating it.
-  - The section and reference lists come from a deterministic line scanner, not a Markdown parser: it reads `-`/`*`/`+` and numbered items, and does not see references written as a table, as running prose, inside a block quote, or as an HTML list. The proposal is therefore incomplete on such notebooks — that costs a reading, not a bibliography, and the proposal file says so in its own header.
-  - `--proposal` chooses the destination. It refuses the contract and the notebook by file identity — `st_dev`/`st_ino`, so a hardlink or a case-variant name is caught, not just a different spelling — and refuses any other path that already holds a file, unless that file carries this tool's own generated-output header. The write goes through a fresh temporary file and a rename, so it cannot follow a link created after the check. A run that nevertheless observes the contract changing exits non-zero.
-  - `nullius init` fills this block only on a contract it just created from the template, and never touches an existing one.
+  - Read [`references/capabilities-detail.md`](references/capabilities-detail.md) when running `refresh_research_contract.py` or reasoning about the derived notebook-sync block (the sub-bullets of the contract-block entry, moved there verbatim).
 - **Export a portable bundle**: `scripts/bin/export_paper_bundle.sh` (wrapper) / `scripts/bin/export_paper_bundle.py`.
 - **KB index export (deterministic/L1)**: `scripts/bin/kb_export.py` + `scripts/bin/validate_kb_index.py` + `scripts/schemas/kb_index.schema.json`.
 - **Demo generation**: `scripts/bin/generate_demo_milestone.sh`.
@@ -321,50 +278,9 @@ a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
   `project_index.md#Main research report`; validate promotion with
   `nullius report-validate`. This skill consumes that authority and does not
   carry a second template.
-- **Secondary utilities (advanced; see `references/usage_guide.md`)**:
-  - Autofill: `scripts/bin/auto_fill_prework.py`, `scripts/bin/auto_fill_research_plan.py`
-  - Tag helpers: `scripts/bin/next_team_tag.py`, `scripts/bin/next_draft_tag.py`
-  - Claim gates: `scripts/bin/auto_enable_claim_gates.py`
-  - Post-run helpers: `scripts/bin/summarize_team_reports.py`, `scripts/bin/validate_evidence.py`
-  - Diagnostics/hygiene: `scripts/bin/check_md_double_backslash.sh`, `scripts/bin/check_low_order_quadrature_usage.py`, `scripts/bin/discover_latex_zero_arg_macros.py`, `scripts/bin/format_kb_reference_links.py`
-  - Adjudication: `scripts/bin/build_adjudication_response.py`
-  - Member review (debug): `scripts/bin/run_member_review.py`
-  - Internal helpers: `scripts/bin/team_cycle_*.py` (used by `run_team_cycle.sh`; usually not called directly)
+- Read [`references/capabilities-detail.md`](references/capabilities-detail.md) when looking for a secondary utility (autofill, tag helpers, claim gates, post-run helpers, diagnostics, adjudication, member review) (the secondary-utilities entry, moved there verbatim).
 
-## Parallel worktree lanes: judgment-point stops and merge authority
-
-When independent workstreams run as separate git worktrees/branches driven by
-separate agents (any host), four conventions keep the fan-out auditable,
-mergeable, and affordable on disk; real multi-lane runs had to invent them ad
-hoc (or paid for their absence), so they are recorded here as the standing
-contract:
-
-- **Stop only at judgment points.** A lane runs autonomously until it reaches a
-  decision only the coordinator (or the human) can make, then stops and reports
-  a machine-readable status — e.g. `merge_decision_needed`,
-  `blocker_decision_needed`, `done` — with what it is waiting on and where its
-  artifacts live. Lanes do not pause for routine progress confirmation, and
-  they do not push past a blocker by guessing.
-- **The coordinator is the only merge authority.** Worker lanes never merge to
-  the main branch and never merge each other; they leave their branch at the
-  judgment point. The coordinator reviews, decides, merges, and resolves
-  cross-lane conflicts with the whole portfolio in view. This also keeps the
-  independent-review boundary intact: a reviewer lane stays read-only.
-- **Track liveness through the harness, not bare background jobs.** Long-running
-  computations inside a lane use the `research-harness` checkpoint + heartbeat +
-  deadline + resume machinery (see that skill), so a killed or hung lane is
-  detectable and resumable. A small per-lane status file (lane id, status,
-  waiting-on, artifact paths, last-heartbeat) in a gitignored scratch area is
-  enough for the coordinator to poll; keep it out of the durable artifact tree.
-- **Keep lane checkouts light, and close them after the merge.** A worktree
-  re-checks out every tracked file, so in a project whose history holds bulk
-  run outputs a lane that does not read them leaves them out with git's own
-  sparse checkout, and materializes only the stowed outputs of the run
-  directories it does read (see `research-harness`, Run Storage). After the
-  coordinator merges a lane, it runs `run_storage.py worktree-check <lane path>`
-  before removing it: `git worktree remove` silently deletes ignored files, so
-  a lane is removed only when the check reports nothing that exists solely in
-  that checkout. Idle merged lanes are not left behind.
+Read [`references/parallel-worktree-lanes.md`](references/parallel-worktree-lanes.md) when independent workstreams run as separate git worktrees or branches driven by separate agents (the section on judgment-point stops and merge authority, moved there verbatim).
 
 ## Delegation budgets and weight tiers: the record matches the risk
 
@@ -610,44 +526,7 @@ and an adopt-or-reject verdict with measured reasons per source. A grep
 for a routine name is not a reuse scan. `research-integrity` M8 carries
 the matching pre-computation trigger.
 
-## Plan-summary / milestone-handoff: roadmap dependency-map
-
-At a **plan-summary or milestone-handoff moment** (communicating a multi-phase
-plan to a stakeholder, closing out a milestone, or handing off), produce a
-**roadmap dependency-map** from `assets/roadmap_dependency_map_template.md`. It is
-a one-page planning view with five parts: (1) a roadmap summary table (per
-milestone/lane: status · effort estimate with uncertainty · resource/compute
-cost · upstream deps · unlocks); (2) a milestone/lane dependency graph where node
-fill encodes status and edge type encodes dependency kind (solid = hard "unlocks";
-dashed = soft "feeds into"), with the critical path marked; (3) a binding-constraint
-callout (the single hardest resource/feasibility limit, with its scaling); (4) a
-critical-path recommendation (minimal ordered chain + what is parallelizable +
-"later upgrade ≠ prerequisite"); (5) honest estimate discipline (numbers are
-estimates with stated uncertainty, distinct from measurements).
-
-Render the graph through the `nullius graph --kind roadmap --spec <roadmap.json>`
-front door (consumes the `@nullius/shared/graph-viz` engine: always writes DOT;
-optional PNG/SVG only if Graphviz is installed). This is a **planning** view and is
-intentionally **distinct from the Claim DAG** (`knowledge_graph/`, which encodes
-*what we believe* — claims + evidence): it reuses the Claim DAG's rendering
-conventions but shares no input files and must not be conflated with it.
-
-## Main research report promotion
-
-The roadmap map, member reports, convergence summaries, checkpoint notes, and
-closeout briefs are coordination or review artifacts. None is the main
-research report. Machine manifests and receipts bind execution but likewise do
-not replace the human-readable scientific account.
-
-When a converged milestone is promoted into the project's main report, copy
-the canonical project template to a new stable path under `reports/` and fill
-the complete narrative contract. Register its SHA-256 and any supersession in
-`project_index.md#Main research report`; update the old and new registry rows
-in both directions and switch the single current pointer. Registered report
-bytes are immutable. Run `nullius report-validate` before calling the
-promotion complete. Structural validation checks the contract shape,
-human-readable links, replay classification, hashes, and supersession chain;
-it does not decide whether the scientific narrative is sufficient.
+Read [`references/roadmap-and-report-promotion.md`](references/roadmap-and-report-promotion.md) when producing a plan-summary or milestone-handoff roadmap dependency-map, or promoting a converged milestone into the main research report (the roadmap dependency-map and main-report-promotion sections, moved there verbatim).
 
 ## Deep dive (read only when needed)
 
@@ -658,10 +537,4 @@ it does not decide whether the scientific narrative is sufficient.
 - Gate contract notes: `FULL_VALIDATION_CONTRACT.md`
 - Artifact contract: `references/artifact_contract.md`
 
-All newly generated managed project runs use `artifacts/runs/<run_id>/`; team and draft executor payloads live in `research_team/` beneath that run. Origin stamps bind the parent run. Historical `team/runs/<run_id>/` remains read-only evidence: status, run listing, index links and export retain its original location, stamps, validity rulings and result references. Reads do not migrate or rewrite it, and `init --runtime-only` reconnects without moving evidence. Unreadable historical locations are reported as unavailable without blocking unrelated readable runs. Duplicate IDs are reported as ambiguous; bare-ID reads refuse ambiguity, and new execution cannot reuse any historical ID. Stamping, backfill, staging, execution and resume cannot write historical run payloads. Use a distinct ID under `artifacts/runs/` for new work. The `inventory_run_relocation.py --fixture-root <anonymous-fixture> --source-manifest <hash-manifest>` helper only inventories pinned fixture bytes, references, collisions and unresolved bindings; it has no apply mode. Independent reviewer snapshots omit every run's executor payload and all workspace trees, retain production artifacts, and allow only each member's own declared output prefix. Historical reports/adjudications remain coordinator evidence. `team/LATEST*.md` and `artifacts/LATEST.md` are navigation pointers.
-
-The generic scaffold creates `project_index.md`; the team helper updates only executor-local latest pointers and requires `nullius init` when the root index is missing. Selected-result and derived-block writers share a short path lock, reread their inputs, and make at most three attempts when edits are detected while preserving human bytes, mode and EOL outside their marked region. Arbitrary writers that ignore the lock remain outside its guarantee. Generic run counts do not interpret execution round limits; the Python executor resolver and suffix gate own those settings.
-
-Existing `PROJECT_INDEX_AUTO` blocks are historical, unmaintained observations; the team helper neither parses nor updates them. Current `RUN_INDEX` navigation and curated result/report registries have separate owners. Do not silently rewrite or delete an old block.
-
-The source-assessor packet embeds the complete readable project source, raw-input, result, execution-log and recursive local-dependency closure. It has no fixed 1 MiB total-text cutoff or summary substitution. A source scan/transport/capacity failure is explicit unavailable and supplies no confirmations; large-material batching belongs to the front-door capacity workflow. Its assessment is bound to actual successful launcher system/request/raw-output bytes and current inputs. Source scans currently allow up to 2 MB per source and 500 files per member; exceeding these explicit bounds is unavailable, never opaque conversion or partial acceptance. The assessor request has a separately configured byte/token budget and observes captured Claude usage/compaction when available; a configured window does not discover backend capability. In `full_access`, disabling the gate cannot promote `SKIP` as scientific confirmation. Packet-only report convergence is labeled `report_consistency_only` with zero independent confirmations and requires separate independent evidence before scientific promotion.
+Read [`references/run-layout.md`](references/run-layout.md) when locating run payloads or historical run evidence, working with the project index and run index, or checking what the source-assessor packet embeds (the closing run-layout paragraphs, moved there verbatim).
