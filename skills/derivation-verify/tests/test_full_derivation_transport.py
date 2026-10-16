@@ -105,6 +105,27 @@ def test_complete_original_material_and_observed_requests_are_not_truncated():
     assert all(json.loads(d['transport']['raw_output'])['derivation'] == original for d in packet)
 
 
+
+def test_complete_original_output_with_text_outside_json_is_not_truncated():
+    original = 'Begin complete derivation.\n' + '\n'.join(f'Original step {i}: preserve this exact evidence.' for i in range(300)) + '\nUNIQUE_FINAL_SOURCE_ANCHOR'
+    early = 'Working notes before the JSON: the operands are the raw integers 17 and 25.\n'
+    raw = early + json.dumps(verdict(original))
+    seen = []
+    def run(model, system, prompt, tag):
+        if 'compare' in tag:
+            seen.append(prompt)
+            report = assessed_comparison({'majority_answer':'42', 'majority_size': 2, 'majority_indices': [0, 1],
+                'adjudicated_matches_majority': True}, prompt)
+            for a in report['independence_assessments']:
+                for e in a['evidence'].values(): e['source_span'] = early.strip()
+            return json.dumps(report)
+        return raw
+    assert verify(CLAIM, run)['converged']
+    packet, _ = json.JSONDecoder().raw_decode(seen[0].split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
+    assert all(d['derivation'] == original and d['derivation_context'] == raw for d in packet)
+    assert all(CLAIM['statement'] in d['transport']['request']['prompt'] for d in packet)
+
+
 def test_stale_complete_lane_material_invalidates_bound_comparison():
     run = runner()
     ds = [mb._execute_derivation(run, 'claude/opus', mb._DERIVE_SYSTEM, 'neutral raw problem', f'fresh-{i}') for i in range(2)]
