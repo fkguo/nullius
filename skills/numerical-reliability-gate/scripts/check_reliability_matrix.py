@@ -123,7 +123,8 @@ def _is_count(value: Any) -> bool:
 
 
 def _is_text(value: Any) -> bool:
-    return isinstance(value, str) and value.strip() != "" and "\n" not in value
+    """A non-empty single line: no line-boundary character of any kind (LF, CR, U+2028, ...)."""
+    return isinstance(value, str) and value.strip() != "" and value.splitlines() == [value]
 
 
 def _check_required_accuracy(row_id: str, row: dict[str, Any], findings: list[dict[str, str]]) -> dict[str, Any] | None:
@@ -248,15 +249,16 @@ def _check_total_error(row_id: str, row: dict[str, Any], budget: list[dict[str, 
         findings.append(_finding(row_id, "INVALID_TOTAL_ERROR",
                                  "a total error cannot be formed while a source is unestimated; set `total_error` to null"))
         return None
-    floats = [float(e) for e in estimates]
-    combined = sum(floats) if rule == "linear_sum" else math.sqrt(sum(e * e for e in floats))
+    # A linear sum stays exact (no float conversion, so large integers keep their ordering);
+    # a quadrature sum uses hypot, which does not overflow for any accepted magnitude.
+    combined = sum(estimates) if rule == "linear_sum" else math.hypot(*[float(e) for e in estimates])
     if total["value"] < combined * (1 - 1e-12):
         findings.append(_finding(row_id, "TOTAL_ERROR_BELOW_ITS_RULE",
                                  f"`total_error.value` {total['value']} is smaller than the {rule} of the estimates ({combined:.6g})"))
         return None
     # The stop rule uses whichever is larger, so the rounding allowance above can never
     # bring the total below what the estimates give.
-    return max(float(total["value"]), combined)
+    return max(total["value"], combined)
 
 
 def _finding(row_id: str, code: str, message: str) -> dict[str, str]:

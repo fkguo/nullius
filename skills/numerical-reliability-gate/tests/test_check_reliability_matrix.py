@@ -295,6 +295,38 @@ def test_rounding_allowance_cannot_reverse_the_verdict():
     assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(row))
 
 
+def test_large_integers_keep_their_exact_ordering():
+    # 2**53 + 1 rounds to 2**53 as a float; the checker must not let that hide a total above target.
+    row = _row(
+        required_accuracy=_acc(2**53),
+        error_budget=[{"source": "grid", "estimate": 2**53 + 1, "dominant": True}],
+        total_error={"rule": "linear_sum", "value": 2**53 + 1},
+    )
+    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(row))
+    # A total reported as 2**53 (within the rounding allowance of the exact sum) still fails,
+    # because the exact sum of the estimates governs.
+    understated = dict(row, total_error={"rule": "linear_sum", "value": 2**53})
+    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(understated))
+
+
+def test_quadrature_of_large_accepted_estimates_does_not_overflow():
+    budget = [
+        {"source": "grid", "estimate": 1e200, "dominant": True},
+        {"source": "order", "estimate": 1e200, "dominant": False},
+    ]
+    row = _row(
+        required_accuracy=_acc(2e200),
+        error_budget=budget,
+        total_error={"rule": "quadrature", "value": 1.5e200, "basis": "independent knobs"},
+    )
+    assert _codes(_matrix(row)) == []
+
+
+@pytest.mark.parametrize("bad", ["two\rlines", "two\u2028lines", "trailing\n"])
+def test_one_line_fields_reject_every_line_break(bad):
+    assert "DIAGNOSTIC_WITHOUT_BASIS" in _codes(_matrix(_row(invariant_check={"passed": True, "threshold_basis": bad})))
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -442,6 +474,12 @@ def test_contract_example_matrix_satisfies_the_checker():
     diagnostic = [r for r in rows if isinstance(r.get("invariant_check"), dict)]
     assert diagnostic and all(r["invariant_check"].get("threshold_basis") for r in diagnostic)
     assert any(r["invariant_check"]["integer_residual_threshold"] < r["required_accuracy"]["value"] for r in diagnostic)
+    # Every cross-method entry of a reliable example row records the contract's mandatory G2 evidence.
+    for row in rows:
+        if row["verdict"] == "reliable":
+            for entry in row["cross_method"]:
+                for field in ("raw_input_provenance", "applicability", "known_defects", "diagnostic_limits"):
+                    assert entry.get(field), (row["id"], entry["method"], field)
 
 
 def test_contract_example_with_g0_removed_fails():

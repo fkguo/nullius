@@ -35,15 +35,15 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
         "uses": [
           { "source": "comparison_uncertainty", "value": 0.02,
             "basis": "compared against a competing model's value quoted with an uncertainty of 0.02" },
-          { "source": "display", "value": 0.03,
-            "basis": "quoted to one decimal in the summary table; the value sits 0.03 from the nearest rounding boundary" }
+          { "source": "display", "value": 0.025,
+            "basis": "quoted to one decimal (round half up); the value sits 0.03 from the rounding boundary 1.95, so the error must stay strictly inside it" }
         ]
       },
       "error_budget": [
-        { "source": "integration grid", "estimate": 0.007, "dominant": true },
-        { "source": "continuation node count", "estimate": 0.001, "dominant": false }
+        { "source": "continuation method (spread between the two independent continuations below)", "estimate": 0.009, "dominant": true },
+        { "source": "integration grid (change across the last refinement step)", "estimate": 0.007, "dominant": false }
       ],
-      "total_error": { "rule": "linear_sum", "value": 0.008 },
+      "total_error": { "rule": "linear_sum", "value": 0.016 },
 
       // G1 — discretization convergence. value MUST be stable as setting refines.
       "refinement": [
@@ -55,8 +55,16 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
       // G2 — independent-confirmation cross-check. >=2 independent evidence lanes; agree within tolerance.
       "cross_method": [
-        { "method": "AAA continuation", "value": "1.920" },
-        { "method": "Thiele continuation", "value": "1.929" }
+        { "method": "AAA continuation", "value": "1.920",
+          "raw_input_provenance": "the converged-grid samples, read directly from the run artifact",
+          "applicability": "well conditioned for the node counts used; nodes stay away from the continuation's poles",
+          "known_defects": "spurious low-chi2 wells at low node counts (G1 provenance) — excluded by the converged node count",
+          "diagnostic_limits": "cannot resolve differences below the 0.009 spread to the second continuation" },
+        { "method": "Thiele continuation", "value": "1.929",
+          "raw_input_provenance": "the same converged-grid samples, re-read by a separately written routine",
+          "applicability": "stable in this node range; known to destabilize past the range used",
+          "known_defects": "none found at this node count; checked against the AAA result above",
+          "diagnostic_limits": "shares the grid samples, so it cannot test the integration grid (the ladder does)" }
       ],
       "methods_agree": true,
       "tolerance": "abs < 0.02",
@@ -153,9 +161,11 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
         ]
       },
       "error_budget": [
-        { "source": "contour sampling", "estimate": 0.002, "dominant": true }
+        // From the refinement ladder, NOT from closeness to an integer: an inaccurate integral can sit
+        // close to the wrong integer, so the integer residual below is a consistency check only.
+        { "source": "contour sampling (change across the last refinement step)", "estimate": 0.007, "dominant": true }
       ],
-      "total_error": { "rule": "linear_sum", "value": 0.002 },
+      "total_error": { "rule": "linear_sum", "value": 0.007 },
       "refinement": [
         { "setting": "contour samples = 512", "value": "0.991" },
         { "setting": "contour samples = 2048", "value": "0.998" }
@@ -163,8 +173,16 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "converged": true,
       "mirage": false,
       "cross_method": [
-        { "method": "argument-principle winding of D(z)", "value": "1" },
-        { "method": "independent subdivision count: R1 split into four sub-rectangles, each winding evaluated by a separately written quadrature routine; the sub-counts sum to 1", "value": "1" }
+        { "method": "argument-principle winding of D(z)", "value": "1",
+          "raw_input_provenance": "D(z) evaluated by the production evaluator on the contour samples",
+          "applicability": "D analytic and pole-free in R1; no zero on or near the contour (see the invariant's preconditions)",
+          "known_defects": "a contour passing close to a zero is under-resolved between samples — excluded by the min |D| bound below",
+          "diagnostic_limits": "counts zeros, does not locate them" },
+        { "method": "independent subdivision count: R1 split into four sub-rectangles, each winding evaluated by a separately written quadrature routine; the sub-counts sum to 1", "value": "1",
+          "raw_input_provenance": "D(z) re-evaluated on the sub-rectangle contours, including the new internal boundaries",
+          "applicability": "valid only when no zero lies on or near an internal boundary — min |D| on the internal boundaries is 0.18",
+          "known_defects": "none found; the sub-counts are each within 0.01 of an integer",
+          "diagnostic_limits": "shares the evaluator D(z), so it cannot detect an error in D itself" }
       ],
       "methods_agree": true,
       "tolerance": "integer counts equal",
@@ -176,14 +194,14 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
         "region": "Re[1.28,1.46] x Im[-0.18,-0.055]",
         "contour": "rectangle, positively oriented (CCW)",
         "sheet": "principal branch (name the sheet/branch explicitly when the function is multivalued)",
-        "preconditions_checked": ["meromorphic in R1", "no zero/pole on the contour (min |D| on Gamma = 0.21)", "correct sheet"],
+        "preconditions_checked": ["meromorphic in R1", "no zero/pole on or near the contour: min |D| on Gamma = 0.21, with the bound on |D'| times the sample spacing well below it, so |D| cannot vanish between samples", "correct sheet"],
         "raw_winding": 0.998,
         "rounded_count": 1,
         "integer_residual": 0.002,
         // A DIAGNOSTIC threshold, stricter than the 0.25 required accuracy and still blocking: it carries
         // its rationale in `threshold_basis` (G0).
         "integer_residual_threshold": 0.05,
-        "threshold_basis": "the distance from the nearest integer is the contour quadrature's own error indicator, held an order of magnitude inside the 0.25 decision margin so the error estimate behind the count can be trusted; the near-contour hazard is bounded separately by min |D| on the contour (0.21) against the evaluator's error and the sample spacing",
+        "threshold_basis": "integrality consistency only: a resolved winding of an analytic function is an integer, so a residual above 0.05 means the contour is under-resolved and the count is not read; closeness to an integer is not an error bound (the sampling error comes from the ladder, in error_budget) and the near-contour hazard is bounded separately by the min |D| precondition",
         "passed": true
       },
       "regression_anchor": null,
@@ -275,8 +293,8 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   recorded in `notes` as informational and does not block the verdict; a diagnostic threshold (a
   residual, an invariant's integer residual, a precondition) is set by what it must detect or by how
   its defect propagates, carries that rationale, and keeps blocking. The rationale is machine-readable:
-  a present `invariant_check` or `method_precondition` object carries a non-empty one-line
-  `threshold_basis`.
+  a present (non-null) `invariant_check` or `method_precondition` value must be an object carrying a
+  non-empty one-line `threshold_basis`.
   Checker: `python3 $SKILL_DIR/scripts/check_reliability_matrix.py numerical_reliability_matrix_v1.json`
   (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings). It also
   checks the matrix bookkeeping: `total`, `reliable` and `not_reliable` are required and must match the
