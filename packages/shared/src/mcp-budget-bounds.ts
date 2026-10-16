@@ -86,12 +86,14 @@ function checkBudgetBounds({ chain, type, json, mismatch }: SchemaPair): void {
   // A fractional value inside the range tells integer and number apart: a
   // half-integer as close to zero as the range allows (far from zero a
   // half-integer is not representable), else the largest half-integer not
-  // above the maximum, else the midpoint of a range too narrow for either.
+  // above the maximum. A range holding no half-integer is narrower than 1 and
+  // lies within (k - 1/2, k + 1/2); its midpoint, or when that is k its
+  // quarter point, is then fractional.
   const low = min ?? -Infinity;
   const high = max ?? Infinity;
   const start = Math.min(Math.max(0, low), high);
   const nearZero = Math.floor(start) + 0.5;
-  const fraction = [nearZero < low ? nearZero + 1 : nearZero, Math.floor(high - 0.5) + 0.5, (low + high) / 2].find(
+  const fraction = [nearZero < low ? nearZero + 1 : nearZero, Math.floor(high - 0.5) + 0.5, (low + high) / 2, low + (high - low) / 4].find(
     value => Number.isFinite(value) && value >= low && value <= high && !Number.isInteger(value),
   );
   if (fraction !== undefined) {

@@ -95,6 +95,7 @@ describe('budget bounds in the published inputSchema', () => {
     const fractionalBounds = z.object({
       count: optionalBudgetInt({ min: 0.5, max: 2.5 }),
       share: optionalBudgetNumber({ min: -3, max: 0.3 }),
+      narrow: optionalBudgetNumber({ min: 0.75, max: 1.25 }),
     });
     const json = structuredClone(zodToMcpInputSchema(fractionalBounds)) as { properties: Properties };
 
@@ -103,9 +104,11 @@ describe('budget bounds in the published inputSchema', () => {
 
     json.properties.count.maximum = 3.5;
     json.properties.share.type = 'integer';
+    json.properties.narrow.type = 'integer';
     expect(findBudgetBoundMismatches(fractionalBounds, json)).toEqual([
       '$.count: stated maximum 3.5 (integer 3) is rejected by the parser',
       '$.share: published as integer, but the parser accepts -0.5',
+      '$.narrow: published as integer, but the parser accepts 0.875',
     ]);
   });
 
