@@ -10,6 +10,9 @@ export * from './tool-names.js';
 // Tool risk classification (H-11a)
 export * from './tool-risk.js';
 
+// MCP tool annotations derived from the risk classification
+export * from './tool-annotations.js';
+
 // MCP inputSchema conversion
 export { zodToMcpInputSchema } from './mcp-input-schema.js';
 export { findRequiredKeyMismatches } from './mcp-required-keys.js';

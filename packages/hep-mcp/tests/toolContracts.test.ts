@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
 import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
+import { getTools as getArxivTools } from '@nullius/arxiv-mcp/tooling';
+import { getTools as getHepdataTools } from '@nullius/hepdata-mcp/tooling';
+import { getTools as getOpenalexTools } from '@nullius/openalex-mcp/tooling';
+import { getTools as getPdgTools } from '@nullius/pdg-mcp/tooling';
+import { getTools as getZoteroTools } from '@nullius/zotero-mcp/tooling';
 import { findBudgetBoundMismatches, findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
@@ -242,6 +247,110 @@ describe('Destructive tool confirmation gate (H-11a Phase 2)', () => {
     // A read tool should work without _confirm
     const res = await handleToolCall('hep_health', { check_inspire: false, inspire_timeout_ms: 1000 }, 'standard');
     expect(res.isError).toBeFalsy();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MCP annotations, titles and structuredContent
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MCP annotations and titles', () => {
+  it('every listed tool carries a non-empty title and all four boolean hints', () => {
+    const issues: string[] = [];
+    const tools = getTools('full');
+    expect(tools).toHaveLength(58);
+    for (const tool of tools) {
+      if (typeof tool.title !== 'string' || tool.title.trim() === '') issues.push(`${tool.name}: missing title`);
+      const annotations = tool.annotations as unknown as Record<string, unknown> | undefined;
+      for (const hint of ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint']) {
+        if (typeof annotations?.[hint] !== 'boolean') issues.push(`${tool.name}: ${hint} is not a boolean`);
+      }
+    }
+    expect(issues).toEqual([]);
+  });
+
+  it('agrees with the standalone servers for every re-exported tool', () => {
+    const standalone = [
+      ...getArxivTools('full'),
+      ...getHepdataTools('full'),
+      ...getOpenalexTools('full'),
+      ...getPdgTools('full'),
+      ...getZoteroTools('full'),
+    ];
+    const hepByName = new Map(getTools('full').map(t => [t.name, t]));
+    const mismatches: string[] = [];
+    for (const tool of standalone) {
+      const hep = hepByName.get(tool.name);
+      if (!hep) {
+        mismatches.push(`${tool.name}: not listed by hep-mcp`);
+        continue;
+      }
+      if (hep.title !== tool.title) mismatches.push(`${tool.name}: title ${hep.title} != ${tool.title}`);
+      if (stableStringify(hep.annotations) !== stableStringify(tool.annotations)) {
+        mismatches.push(`${tool.name}: annotations ${stableStringify(hep.annotations)} != ${stableStringify(tool.annotations)}`);
+      }
+    }
+    expect(standalone).toHaveLength(35);
+    expect(mismatches).toEqual([]);
+  });
+
+  it('readOnlyHint and destructiveHint follow the riskLevel that gates _confirm', () => {
+    const issues: string[] = [];
+    const specsByName = new Map(getToolSpecs('full').map(s => [s.name, s]));
+    for (const tool of getTools('full')) {
+      const risk = specsByName.get(tool.name)!.riskLevel;
+      if (tool.annotations.readOnlyHint !== (risk === 'read')) issues.push(`${tool.name}: readOnlyHint vs ${risk}`);
+      if (risk === 'destructive' && !tool.annotations.destructiveHint) issues.push(`${tool.name}: destructive without destructiveHint`);
+    }
+    expect(issues).toEqual([]);
+  });
+});
+
+describe('structuredContent', () => {
+  async function callWith(name: string, args: Record<string, unknown>, result: unknown) {
+    const spec = getToolSpecs('full').find(s => s.name === name)!;
+    const original = spec.handler;
+    spec.handler = (async () => result) as typeof spec.handler;
+    try {
+      return await handleToolCall(name, args, 'full');
+    } finally {
+      spec.handler = original;
+    }
+  }
+
+  it('mirrors the JSON text block of an object result', async () => {
+    const res = await callWith('hep_health', {}, { ok: true, nested: { values: [1, 2] }, skipped: undefined });
+    expect(res.isError).not.toBe(true);
+    expect(res.structuredContent).toEqual(JSON.parse(res.content[0]!.text));
+  });
+
+  it('carries the compacted object the text shows, not the full result', async () => {
+    const paper = {
+      recid: '1', title: 'T', authors: ['A', 'B', 'C', 'D'], author_count: 4,
+      abstract: 'long abstract', inspire_url: 'https://inspirehep.net/literature/1',
+    };
+    const res = await callWith('inspire_search_next', { next_url: 'https://inspirehep.net/api/literature?q=x' }, { total: 1, papers: [paper] });
+    expect(res.structuredContent).toEqual(JSON.parse(res.content[0]!.text));
+    const papers = (res.structuredContent as { papers: Array<Record<string, unknown>> }).papers;
+    expect(papers[0]!.abstract).toBeUndefined();
+    expect(papers[0]!.authors).toEqual(['A', 'B', 'C']);
+  });
+
+  it('is kept between the soft and hard byte caps and left out once the text is truncated', async () => {
+    const between = await callWith('hep_health', {}, { blob: 'x'.repeat(50_000) });
+    expect(between.structuredContent).toEqual(JSON.parse(between.content[0]!.text));
+
+    const truncated = await callWith('hep_health', {}, { blob: 'x'.repeat(100_000) });
+    expect(truncated.content[0]!.text).toContain('[TRUNCATED');
+    expect(truncated.structuredContent).toBeUndefined();
+  });
+
+  it('is left out for markdown text, string and array results', async () => {
+    const markdown = await callWith('inspire_search', { query: 't:x', format: 'markdown' }, { total: 0, papers: [] });
+    expect(() => JSON.parse(markdown.content[0]!.text)).toThrow();
+    expect(markdown.structuredContent).toBeUndefined();
+    expect((await callWith('hep_health', {}, 'plain text')).structuredContent).toBeUndefined();
+    expect((await callWith('hep_health', {}, [1, 2])).structuredContent).toBeUndefined();
   });
 });
 

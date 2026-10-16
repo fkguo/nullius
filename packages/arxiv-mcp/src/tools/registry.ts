@@ -13,7 +13,9 @@ import {
   DiscoveryProviderDescriptorSchema,
   type DiscoveryProviderDescriptor,
   optionalBudgetInt,
+  toolAnnotationsFor,
 } from '@nullius/shared';
+import { ARXIV_TOOL_HINTS, ARXIV_TOOL_RISK_LEVELS } from './annotations.js';
 import { ARXIV_ID_REGEX, normalizeArxivId } from '../source/arxivSource.js';
 import { searchArxiv, fetchArxivMetadata } from '../api/searchClient.js';
 import { accessPaperSource } from '../source/paperSource.js';
@@ -27,6 +29,8 @@ export type ToolExposure = 'standard' | 'full';
 
 export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, any>> {
   name: string;
+  /** Human-readable display name. */
+  title?: string;
   description: string;
   exposure: ToolExposure;
   zodSchema: TSchema;
@@ -91,6 +95,7 @@ const ArxivPaperSourceSchema = z.object({
 export const TOOL_SPECS: ToolSpec[] = [
   {
     name: ARXIV_SEARCH,
+    title: 'Search arXiv',
     description: 'Search arXiv papers by query, categories, and date range',
     exposure: 'standard',
     zodSchema: ArxivSearchSchema,
@@ -108,6 +113,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ARXIV_GET_METADATA,
+    title: 'arXiv paper metadata',
     description: 'Get arXiv paper metadata (title, authors, abstract, categories)',
     exposure: 'standard',
     zodSchema: ArxivGetMetadataSchema,
@@ -121,6 +127,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ARXIV_PAPER_SOURCE,
+    title: 'arXiv paper source',
     description: 'Access arXiv paper source: download URLs, LaTeX/PDF content, or metadata',
     exposure: 'standard',
     zodSchema: ArxivPaperSourceSchema,
@@ -158,8 +165,10 @@ export function isToolExposed(spec: ToolSpec, mode: ToolExposureMode): boolean {
 export function getTools(mode: ToolExposureMode = 'standard') {
   return getToolSpecs(mode).map(spec => ({
     name: spec.name,
+    title: spec.title,
     description: spec.description,
     inputSchema: zodToMcpInputSchema(spec.zodSchema),
+    annotations: toolAnnotationsFor(spec.name, ARXIV_TOOL_RISK_LEVELS, ARXIV_TOOL_HINTS),
   }));
 }
 

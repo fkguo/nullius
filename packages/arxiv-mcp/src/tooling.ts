@@ -10,6 +10,9 @@ export {
   type ToolSpec,
 } from './tools/index.js';
 
+// Risk levels and behaviour hints behind the listed tool annotations
+export { ARXIV_TOOL_HINTS, ARXIV_TOOL_RISK_LEVELS } from './tools/annotations.js';
+
 // Source layer
 export { normalizeArxivId, ARXIV_ID_REGEX, checkSourceAvailability, getArxivSource } from './source/arxivSource.js';
 export type { ArxivMetadata, ArxivSourceResult } from './source/arxivSource.js';

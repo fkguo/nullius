@@ -26,7 +26,10 @@ import {
   PDG_GET_DECAYS,
   PDG_GET_MEASUREMENTS,
   PDG_BATCH,
+  toolAnnotationsFor,
+  type McpToolAnnotations,
 } from '@nullius/shared';
+import { PDG_TOOL_HINTS, PDG_TOOL_RISK_LEVELS } from './annotations.js';
 import { sqlite3JsonQuery, sqlStringLiteral } from '../db/sqlite3Cli.js';
 import { defaultArtifactName, writeJsonArtifact, writeJsonlArtifact } from '../artifacts.js';
 import { requireUniqueBaseParticle } from './resolveParticle.js';
@@ -42,6 +45,8 @@ export interface ToolHandlerContext {}
 
 export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, any>> {
   name: string;
+  /** Human-readable display name. */
+  title?: string;
   description: string;
   exposure: ToolExposure;
   /** Tool input schema (SSOT) */
@@ -242,6 +247,7 @@ function toInspireLookupIdentifiers(ref: { doi: string | null; inspire_id: strin
 export const TOOL_SPECS: ToolSpec[] = [
   {
     name: PDG_INFO,
+    title: 'PDG server info',
     description: 'Return PDG MCP server info and local data directories (small result; local-only).',
     exposure: 'standard',
     zodSchema: PdgInfoToolSchema,
@@ -291,6 +297,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: PDG_FIND_PARTICLE,
+    title: 'Find PDG particle',
     description:
       'Find particle candidates by name / MCID / PDG identifier (small result; supports pagination; local-only; requires `PDG_DB_PATH`).',
     exposure: 'standard',
@@ -389,6 +396,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: PDG_FIND_REFERENCE,
+    title: 'Find PDG reference',
     description:
       'Find PDG references by DOI / INSPIRE recid / document id / title (small result; supports pagination; local-only; requires `PDG_DB_PATH`).',
     exposure: 'standard',
@@ -429,6 +437,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: PDG_GET_REFERENCE,
+    title: 'PDG reference',
     description: 'Get a PDG reference record (small result; includes INSPIRE lookup identifiers; local-only; requires `PDG_DB_PATH`).',
     exposure: 'standard',
     zodSchema: PdgGetReferenceToolSchema,
@@ -457,6 +466,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: PDG_GET_PROPERTY,
+    title: 'PDG particle property',
     description:
       'Get a high-frequency particle property (mass/width/lifetime) with uncertainties and PDG locator (local-only; requires `PDG_DB_PATH`).',
     exposure: 'standard',
@@ -860,6 +870,7 @@ WHERE table_name='PDGDATA'
   },
   {
     name: PDG_GET,
+    title: 'PDG identifier object',
     description: 'Get a PDG identifier object (writes a JSON artifact; returns URI + summary; local-only; requires `PDG_DB_PATH`).',
     exposure: 'standard',
     zodSchema: PdgGetToolSchema,
@@ -1017,6 +1028,7 @@ WHERE parent_pdgid = ${sqlStringLiteral(row.pdgid)};
   },
   {
     name: PDG_GET_DECAYS,
+    title: 'PDG decay modes',
     description: 'List decay modes for a particle (writes JSONL artifact; returns URI + summary; local-only; requires `PDG_DB_PATH`).',
     exposure: 'standard',
     zodSchema: PdgGetDecaysToolSchema,
@@ -1221,6 +1233,7 @@ ORDER BY pdgid_id ASC, sort ASC;
   },
   {
     name: PDG_GET_MEASUREMENTS,
+    title: 'PDG measurements',
     description:
       'List PDG measurements for an identifier (writes JSONL artifact; includes references/values/footnotes; local-only; requires `PDG_DB_PATH`). Can be called with pdgid, particle selector, or property_pdgid directly. ' +
       'CRITICAL: If the result has kind="series_options" or stop_here=true, you MUST STOP querying and select one series using property_pdgid or data_type from example_next_calls. ' +
@@ -1837,6 +1850,7 @@ ORDER BY mf.pdgmeasurement_id ASC, COALESCE(f.footnote_index, 0) ASC, f.id ASC;
   },
   {
     name: PDG_BATCH,
+    title: 'PDG batch calls',
     description:
       'Execute multiple PDG tool calls in one request (writes a JSON artifact; supports limited parallelism; local-only; requires `PDG_DB_PATH` for most calls).',
     exposure: 'full',
@@ -1993,12 +2007,16 @@ export function getToolSpecs(mode: ToolExposureMode = 'standard'): ToolSpec[] {
 
 export function getTools(mode: ToolExposureMode = 'standard'): Array<{
   name: string;
+  title?: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  annotations: McpToolAnnotations;
 }> {
   return getToolSpecs(mode).map(s => ({
     name: s.name,
+    title: s.title,
     description: s.description,
     inputSchema: zodToMcpInputSchema(s.zodSchema),
+    annotations: toolAnnotationsFor(s.name, PDG_TOOL_RISK_LEVELS, PDG_TOOL_HINTS),
   }));
 }

@@ -12,6 +12,7 @@ import { isMainModule } from '@nullius/shared';
 
 import { getTools, handleToolCall, type ToolExposureMode } from './tools/index.js';
 import { cleanupOldPdgArtifacts } from './artifactTtl.js';
+import { SERVER_INSTRUCTIONS } from './serverInstructions.js';
 
 const TOOL_MODE: ToolExposureMode = process.env.PDG_TOOL_MODE === 'full' ? 'full' : 'standard';
 
@@ -24,6 +25,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
+    instructions: SERVER_INSTRUCTIONS,
   }
 );
 

@@ -7,6 +7,7 @@ import type { ToolSpec } from './types.js';
 
 const RAW_OPENALEX_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = OPENALEX_MCP_TOOL_SPECS.map(spec => ({
   name: spec.name,
+  title: spec.title,
   tier: 'consolidated',
   maturity: 'experimental',
   exposure: spec.exposure,

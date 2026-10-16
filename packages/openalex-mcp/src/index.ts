@@ -11,12 +11,13 @@ import {
 import { isMainModule } from '@nullius/shared';
 
 import { getTools, handleToolCall, type ToolExposureMode } from './tools/index.js';
+import { SERVER_INSTRUCTIONS } from './serverInstructions.js';
 
 const TOOL_MODE: ToolExposureMode = process.env.OPENALEX_TOOL_MODE === 'full' ? 'full' : 'standard';
 
 const server = new Server(
   { name: 'openalex-mcp', version: '0.6.0' },
-  { capabilities: { tools: {} } },
+  { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {

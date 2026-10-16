@@ -1,4 +1,7 @@
 import { zodToMcpInputSchema } from '../mcpSchema.js';
+import { toolAnnotationsFor } from '@nullius/shared';
+import { HEP_TOOL_HINTS } from '../../tool-hints.js';
+import { HEP_TOOL_RISK_LEVELS } from '../../tool-risk.js';
 import { z } from 'zod';
 import {
   type ToolExposure,
@@ -85,8 +88,10 @@ export function getTools(mode: ToolExposureMode = 'standard') {
 
     return {
       name: spec.name,
+      title: spec.title,
       description,
       inputSchema: zodToMcpInputSchema(spec.zodSchema),
+      annotations: toolAnnotationsFor(spec.name, HEP_TOOL_RISK_LEVELS, HEP_TOOL_HINTS),
     };
   });
 }

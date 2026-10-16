@@ -9,7 +9,7 @@ import { cliArguments, cliWrites, cliSchema } from './cli.js';
 import { readDelivery, submitDelivery } from './delivery.js';
 import { acquireExecution, releaseExecution } from './execution-lock.js';
 import { execute } from './execute.js';
-import { errorResult, jsonResult, type Result } from './result.js';
+import { errorResult, jsonResult, withStructuredContent, type Result } from './result.js';
 import { isStateTouchingProjectMcp } from './state-touch-classification.js';
 
 const deliverySchema = z.object({ delivery_id: z.string(), timeout_seconds: z.number().int().min(1).max(3600).default(300) });
@@ -72,7 +72,7 @@ export class ProjectAdapter {
         const owner = `sampling-${randomUUID()}`;
         acquireExecution(this.root, owner);
         try {
-          return await execute(this.root, name, parsed, {
+          return withStructuredContent(await execute(this.root, name, parsed, {
             createMessage: host.createMessage,
             // Internal ownership is a closure, never a caller-supplied argument.
             callTool: (tool, input) => {
@@ -80,11 +80,11 @@ export class ProjectAdapter {
               coreArguments(this.root, tool, input);
               return execute(this.root, tool, input).catch(errorResult);
             },
-          });
+          }));
         } finally { releaseExecution(this.root, owner); }
       }
       if (isBackground(name)) return this.submit(name, { ...parsed, delivery_id: args.delivery_id, timeout_seconds: args.timeout_seconds }, verifyInvocation);
-      return await execute(this.root, name, parsed);
+      return withStructuredContent(await execute(this.root, name, parsed));
     } catch (error) { return errorResult(error); }
   }
   private submit(name: string, input: Record<string, unknown>, beforeDispatch: () => void): Result {

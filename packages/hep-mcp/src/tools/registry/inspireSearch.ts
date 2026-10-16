@@ -22,6 +22,7 @@ import {
 export const RAW_INSPIRE_SEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   {
     name: INSPIRE_SEARCH,
+    title: 'Search INSPIRE',
     tier: 'core',
     exposure: 'standard',
     description: `Search INSPIRE-HEP literature database (network). Supports combining multiple conditions in one query.
@@ -143,6 +144,7 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
   },
   {
     name: INSPIRE_SEARCH_NEXT,
+    title: 'INSPIRE next results page',
     tier: 'core',
     exposure: 'standard',
     description:
@@ -170,6 +172,7 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
   },
   {
     name: INSPIRE_LITERATURE,
+    title: 'INSPIRE literature lookup',
     tier: 'consolidated',
     exposure: 'standard',
     description: `Unified INSPIRE literature access tool (network).
@@ -217,6 +220,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
   },
   {
     name: INSPIRE_RESOLVE_CITEKEY,
+    title: 'Resolve INSPIRE citekeys',
     tier: 'consolidated',
     exposure: 'standard',
     description:
