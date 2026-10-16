@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Codex CLI runner: one-shot with file-based prompt input.
 #
-# Interface matches native-cli-runner-style usage:
+# Interface matches the claude CLI runner (native-cli-runner) usage:
 #   --model MODEL (optional)
 #   --reasoning-effort low|medium|high|xhigh (optional)
 #   --system-prompt-file FILE (required)
