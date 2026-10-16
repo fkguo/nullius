@@ -26,6 +26,7 @@
       "SKILL.md",
       "README.md",
       "scripts/**",
+      "references/**",
       "templates/**",
       ".gitignore"
     ],
