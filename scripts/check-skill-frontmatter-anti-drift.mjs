@@ -60,8 +60,9 @@ export const RESERVED_WORD_EXEMPTIONS = new Map([
   ],
 ]);
 
-// A malformed byte sequence throws a TypeError instead of being replaced by U+FFFD.
-const strictUtf8 = new TextDecoder('utf-8', { fatal: true });
+// A malformed byte sequence throws instead of being replaced by U+FFFD, and a leading
+// byte-order mark is kept (the default decoder drops it) so that the line-1 rule can see it.
+const strictUtf8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 const FENCE_LINE = /^---[ \t]*$/;
 const SKILL_FILE = /^skills\/([^/]+)\/SKILL\.md$/;
@@ -182,10 +183,15 @@ export function runCheck({
 } = {}) {
   const violations = [];
   const exemptionsUsed = new Set();
+  let matched = 0;
   let scanned = 0;
   for (const file of files) {
     const match = SKILL_FILE.exec(file);
     if (!match) continue;
+    matched += 1;
+    if (exemptions.has(match[1]) && RESERVED_SUBSTRINGS.some(word => match[1].includes(word))) {
+      exemptionsUsed.add(match[1]);
+    }
     let content;
     try {
       content = strictUtf8.decode(readFileSync(path.join(repoRoot, file)));
@@ -199,11 +205,8 @@ export function runCheck({
     for (const reason of checkSkillFile({ skillDir: match[1], content, exemptions })) {
       violations.push({ file, reason });
     }
-    if (exemptions.has(match[1]) && RESERVED_SUBSTRINGS.some(word => match[1].includes(word))) {
-      exemptionsUsed.add(match[1]);
-    }
   }
-  if (scanned === 0) {
+  if (matched === 0) {
     violations.push({ file: 'skills/', reason: 'no skills/<dir>/SKILL.md file was scanned' });
   }
   for (const name of exemptions.keys()) {
@@ -217,14 +220,16 @@ export function runCheck({
   return { scanned, violations };
 }
 
-// The module URL is already symlink-resolved, so resolve the argument the same way:
-// otherwise a run through a symlinked path would skip the check and exit 0 silently.
+// Resolve both sides through symlinks (the module URL is already resolved unless node runs
+// with --preserve-symlinks-main): otherwise a run through a symlinked path would skip the
+// check and exit 0 silently.
 function isMainModule() {
   if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
   try {
-    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+    return realpathSync(process.argv[1]) === realpathSync(modulePath);
   } catch {
-    return false;
+    return path.resolve(process.argv[1]) === modulePath;
   }
 }
 

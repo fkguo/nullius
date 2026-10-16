@@ -171,6 +171,9 @@ test('a "---" sequence inside the block is reported, wherever it stands', () => 
   const withInvalidYaml = frontmatter('name: [unclosed ---', 'description: x');
   assertFires(withInvalidYaml, /contains "---"/);
   assertFires(withInvalidYaml, /not valid YAML/);
+  // Nor does it hide itself behind the other early returns.
+  assertFires(frontmatter('- name---x'), /contains "---"/);
+  assertFires(frontmatter('- name---x'), /must be a mapping/);
   // Hyphenated names and keys are not mistaken for the sequence.
   const hyphens = frontmatter('name: demo-skill', 'description: A - B -- C.', 'allowed-tools: Read');
   assert.deepEqual(check(hyphens), []);
@@ -222,8 +225,9 @@ test('runCheck lists each offender with its file and reason', t => {
 test('runCheck: an unreadable listed file and an empty scan both fail', t => {
   const { root } = fixture(t, {});
   const missing = runCheck({ repoRoot: root, files: ['skills/gone/SKILL.md'], exemptions: NO_EXEMPTIONS });
-  assert.ok(missing.violations.some(v => /cannot be read/.test(v.reason)));
-  assert.ok(missing.violations.some(v => /no skills\/<dir>\/SKILL\.md file was scanned/.test(v.reason)));
+  assert.deepEqual(missing.violations.map(v => [v.file, v.reason.replace(/:.*$/, '')]), [
+    ['skills/gone/SKILL.md', 'cannot be read'],
+  ]);
   const empty = runCheck({ repoRoot: root, files: [], exemptions: NO_EXEMPTIONS });
   assert.deepEqual(empty.violations.map(v => v.file), ['skills/']);
 });
@@ -240,6 +244,29 @@ test('runCheck: a file that is not valid UTF-8 fails instead of being repaired s
   const result = runCheck({ repoRoot: root, files: ['skills/latin-skill/SKILL.md'], exemptions: NO_EXEMPTIONS });
   assert.ok(result.violations.some(v => v.file === 'skills/latin-skill/SKILL.md' && /not valid UTF-8/.test(v.reason)));
   assert.equal(result.scanned, 0);
+});
+
+test('runCheck: a byte-order mark in the file bytes is reported, not swallowed by the decoder', t => {
+  const { root } = fixture(t, {});
+  fs.mkdirSync(path.join(root, 'skills', 'bom-skill'), { recursive: true });
+  const bytes = Buffer.concat([
+    Buffer.from([0xef, 0xbb, 0xbf]),
+    Buffer.from(frontmatter('name: bom-skill', 'description: Fine.')),
+  ]);
+  fs.writeFileSync(path.join(root, 'skills', 'bom-skill', 'SKILL.md'), bytes);
+  const result = runCheck({ repoRoot: root, files: ['skills/bom-skill/SKILL.md'], exemptions: NO_EXEMPTIONS });
+  assert.equal(result.scanned, 1);
+  assert.deepEqual(result.violations.map(v => v.file), ['skills/bom-skill/SKILL.md']);
+  assert.match(result.violations[0].reason, /byte-order mark/);
+});
+
+test('runCheck: a skill that cannot be decoded is reported once, without a misleading exemption notice', t => {
+  const { root } = fixture(t, {});
+  fs.mkdirSync(path.join(root, 'skills', 'claude-cli-runner'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'skills', 'claude-cli-runner', 'SKILL.md'), Buffer.from([0xff, 0xfe, 0xfd]));
+  const exemptions = new Map([['claude-cli-runner', 'reason']]);
+  const result = runCheck({ repoRoot: root, files: ['skills/claude-cli-runner/SKILL.md'], exemptions });
+  assert.deepEqual(result.violations.map(v => v.reason), ['is not valid UTF-8']);
 });
 
 test('runCheck: only depth-one skills/<dir>/SKILL.md files are scanned', t => {
@@ -294,8 +321,8 @@ function commandTree(t, skillContent, extraSkills = {}) {
   return { root, script };
 }
 
-function runCommand(entry, cwd) {
-  const result = spawnSync('node', [entry], { cwd, encoding: 'utf-8' });
+function runCommand(entry, cwd, nodeArgs = []) {
+  const result = spawnSync('node', [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
@@ -327,4 +354,16 @@ test('the command still checks when it is started through a symlinked path', t =
   assert.equal(result.status, 1, `stdout: ${result.stdout} stderr: ${result.stderr}`);
   assert.match(result.stderr, /skills\/demo-skill\/SKILL\.md/);
   assert.ok(root);
+});
+
+test('the command still checks when node keeps symlinks in the main module path', t => {
+  const { root } = commandTree(t, OFFENDING);
+  const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-skill-frontmatter-root-link-'));
+  t.after(() => fs.rmSync(linkDir, { recursive: true, force: true }));
+  const linkedRoot = path.join(linkDir, 'tree');
+  fs.symlinkSync(root, linkedRoot);
+  const entry = path.join(linkedRoot, 'scripts', 'check-skill-frontmatter-anti-drift.mjs');
+  const result = runCommand(entry, linkDir, ['--preserve-symlinks-main']);
+  assert.equal(result.status, 1, `stdout: ${result.stdout} stderr: ${result.stderr}`);
+  assert.match(result.stderr, /skills\/demo-skill\/SKILL\.md/);
 });
