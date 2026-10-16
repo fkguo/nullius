@@ -36,6 +36,7 @@ FORBIDDEN_TEMPLATE_WORDS = (
 # Prose surfaces of the skill itself, locked by the same word scan.
 PROSE_FILES = (
     SKILL_ROOT / "SKILL.md",
+    *sorted((SKILL_ROOT / "references").glob("*.md")),
     SKILL_ROOT / "scripts" / "gaia_package_scaffold.py",
     SKILL_ROOT / "scripts" / "prepare_gaia_sdk_reference.py",
     SKILL_ROOT / "scripts" / "run_infer_and_extract.py",
