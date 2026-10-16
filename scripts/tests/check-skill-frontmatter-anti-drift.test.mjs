@@ -174,6 +174,8 @@ test('a "---" sequence inside the block is reported, wherever it stands', () => 
   // Nor does it hide itself behind the other early returns.
   assertFires(frontmatter('- name---x'), /contains "---"/);
   assertFires(frontmatter('- name---x'), /must be a mapping/);
+  assertFires(frontmatter('# a --- b'), /contains "---"/);
+  assertFires(frontmatter('# a --- b'), /frontmatter is empty/);
   // Hyphenated names and keys are not mistaken for the sequence.
   const hyphens = frontmatter('name: demo-skill', 'description: A - B -- C.', 'allowed-tools: Read');
   assert.deepEqual(check(hyphens), []);
