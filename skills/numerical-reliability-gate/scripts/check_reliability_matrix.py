@@ -27,10 +27,10 @@ unambiguous JSON object, or is not a version-1 matrix.
 from __future__ import annotations
 
 import argparse
-import decimal
 import json
 import sys
 from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +59,7 @@ TOTAL_ERROR_RULES = frozenset({"linear_sum", "quadrature"})
 
 # A total error this many times smaller than the required accuracy is reported
 # as refinement carried past what the result needed.
-OVER_REFINEMENT_FACTOR = Decimal(1000)
+OVER_REFINEMENT_FACTOR = 1000
 
 
 class InputError(Exception):
@@ -103,10 +103,12 @@ def load_matrix(path: Path) -> dict[str, Any]:
     return data
 
 
-# Magnitudes beyond this are refused; everything accepted is handled in exact decimal
-# arithmetic with enough digits that sums and comparisons never round.
+# Accepted numbers: zero, or a magnitude between 1e-300 and 1e300. Inside that range every
+# comparison below is exact: each value is converted to an exact rational, linear sums are
+# exact rational sums, and quadrature totals are compared through their squares (no square
+# root, no rounding). Values outside the range are refused as malformed rather than rounded.
 _MAX_MAGNITUDE = Decimal("1e300")
-_DIGITS = 1000
+_MIN_MAGNITUDE = Decimal("1e-300")
 
 
 def _dec(value: Any) -> Decimal:
@@ -118,11 +120,19 @@ def _dec(value: Any) -> Decimal:
     return Decimal(repr(value))
 
 
+def _q(value: Any) -> Fraction:
+    """The exact rational a JSON number denotes."""
+    return Fraction(_dec(value))
+
+
 def _is_number(value: Any) -> bool:
     if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
         return False
     number = _dec(value)
-    return number.is_finite() and abs(number) <= _MAX_MAGNITUDE
+    if not number.is_finite():
+        return False
+    size = abs(number)
+    return size == 0 or _MIN_MAGNITUDE <= size <= _MAX_MAGNITUDE
 
 
 def _in(value: Any, allowed: frozenset[str]) -> bool:
@@ -232,7 +242,7 @@ def _check_error_budget(row_id: str, row: dict[str, Any], findings: list[dict[st
 
 
 def _check_total_error(row_id: str, row: dict[str, Any], budget: list[dict[str, Any]], reliable: bool,
-                       findings: list[dict[str, str]]) -> Decimal | None:
+                       findings: list[dict[str, str]]) -> Fraction | None:
     total = row.get("total_error")
     if total is None:
         if reliable:
@@ -261,18 +271,22 @@ def _check_total_error(row_id: str, row: dict[str, Any], budget: list[dict[str, 
         findings.append(_finding(row_id, "INVALID_TOTAL_ERROR",
                                  "a total error cannot be formed while a source is unestimated; set `total_error` to null"))
         return None
-    # Exact decimal arithmetic: a linear sum of the written values is exact whatever mix of
-    # integers and decimals it holds, and a quadrature sum cannot overflow.
-    values = [_dec(e) for e in estimates]
-    combined = sum(values, Decimal(0)) if rule == "linear_sum" else sum((v * v for v in values), Decimal(0)).sqrt()
-    reported = _dec(total["value"])
-    if reported < combined * (1 - Decimal("1e-12")):
+    # Exact rational arithmetic. A linear total is compared with the exact sum; a quadrature
+    # total is compared through squares, so no square root is ever rounded.
+    values = [_q(e) for e in estimates]
+    reported = _q(total["value"])
+    if rule == "linear_sum":
+        combined = sum(values, Fraction(0))
+        understated = reported < combined
+    else:
+        combined_sq = sum((v * v for v in values), Fraction(0))
+        understated = reported * reported < combined_sq
+    if understated:
         findings.append(_finding(row_id, "TOTAL_ERROR_BELOW_ITS_RULE",
-                                 f"`total_error.value` {total['value']} is smaller than the {rule} of the estimates ({combined:.6g})"))
+                                 f"`total_error.value` {total['value']} is smaller than the {rule} of the estimates"))
         return None
-    # The stop rule uses whichever is larger, so the allowance above can never
-    # bring the total below what the estimates give.
-    return max(reported, combined)
+    # The reported total is never below its rule, so it is the value the stop rule uses.
+    return reported
 
 
 def _finding(row_id: str, code: str, message: str) -> dict[str, str]:
@@ -280,13 +294,6 @@ def _finding(row_id: str, code: str, message: str) -> dict[str, str]:
 
 
 def check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    with decimal.localcontext() as ctx:
-        ctx.prec = _DIGITS
-        ctx.traps[decimal.Inexact] = False
-        return _check(data)
-
-
-def _check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     findings: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -338,12 +345,12 @@ def _check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, s
         total = _check_total_error(row_id, row, budget, reliable, findings)
         if accuracy is None or total is None:
             continue
-        if reliable and total > _dec(accuracy["value"]):
+        if reliable and total > _q(accuracy["value"]):
             dominant = next(entry for entry in budget if entry["dominant"])
             findings.append(_finding(row_id, "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY",
                                      f"total error {total} exceeds the required accuracy {accuracy['value']}; the row is `unconverged`, "
                                      f"and the next refinement goes to the dominant source ({dominant['source']})"))
-        elif 0 < total * OVER_REFINEMENT_FACTOR < _dec(accuracy["value"]):
+        elif 0 < total * OVER_REFINEMENT_FACTOR < _q(accuracy["value"]):
             warnings.append(_finding(row_id, "REFINED_PAST_REQUIRED_ACCURACY",
                                      f"total error {total} is more than {OVER_REFINEMENT_FACTOR:g} times below the "
                                      f"required accuracy {accuracy['value']}: refinement went past what the result needed"))

@@ -298,9 +298,9 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   estimate; the dominant source is where the next refinement goes. `total_error` is
   `{ "rule", "value" }` (plus `"basis"` for quadrature): `rule` is `linear_sum` (the default) or
   `quadrature` (a one-line `basis` stating why the sources are independent is then required), and
-  `value` is not smaller than that rule applied to the estimates; the stop rule compares the larger of
-  the reported value and the recomputed rule with the required accuracy, so a rounding allowance can
-  never reduce the total below what the estimates give. `total_error` may be `null` only on a
+  `value` is not smaller than that rule applied to the estimates — checked exactly, so a total rounded
+  down is refused (round a quadrature total up) — and the stop rule compares that value with the
+  required accuracy. `total_error` may be `null` only on a
   non-`reliable` row. A `reliable` row requires every estimate to be numeric and the total error to be
   at or below the required accuracy; a row claiming `reliable` whose total error is above it is
   `unconverged` instead. A total error more than three orders of magnitude below the required accuracy
@@ -312,8 +312,9 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   a present (non-null) `invariant_check` or `method_precondition` value must be an object carrying a
   non-empty one-line `threshold_basis`.
   Checker: `python3 $SKILL_DIR/scripts/check_reliability_matrix.py numerical_reliability_matrix_v1.json`
-  (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings). It reads
-  numbers as exact decimals, so a linear sum of the written values is exact. It also
+  (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings). Accepted
+  numbers are zero or between 1e-300 and 1e300 in magnitude; within that range every comparison is
+  exact (exact rationals; a quadrature total is compared through squares). It also
   checks the matrix bookkeeping: `total`, `reliable` and `not_reliable` are required and must match the
   rows, and `recorded_value`/`recorded_setting` are present exactly on `reliable` rows.
 - `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob (resolution

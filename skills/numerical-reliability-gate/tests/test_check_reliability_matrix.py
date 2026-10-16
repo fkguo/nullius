@@ -90,6 +90,14 @@ def _codes(data):
     return [f["code"] for f in findings]
 
 
+REFUSALS = {"TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY", "TOTAL_ERROR_BELOW_ITS_RULE"}
+
+
+def _refused(data):
+    """The row may not pass as reliable: either its total exceeds the target, or it was reported below its rule."""
+    return bool(REFUSALS & set(_codes(data)))
+
+
 def _run(tmp_path, data, *extra, raw=None):
     path = tmp_path / "numerical_reliability_matrix_v1.json"
     path.write_text(raw if raw is not None else json.dumps(data), encoding="utf-8")
@@ -292,7 +300,7 @@ def test_rounding_allowance_cannot_reverse_the_verdict():
         error_budget=[{"source": "grid", "estimate": big, "dominant": True}],
         total_error={"rule": "linear_sum", "value": 999_999_999_999.5},
     )
-    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(row))
+    assert _refused(_matrix(row))
 
 
 def test_large_integers_keep_their_exact_ordering():
@@ -302,11 +310,11 @@ def test_large_integers_keep_their_exact_ordering():
         error_budget=[{"source": "grid", "estimate": 2**53 + 1, "dominant": True}],
         total_error={"rule": "linear_sum", "value": 2**53 + 1},
     )
-    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(row))
+    assert _refused(_matrix(row))
     # A total reported as 2**53 (within the rounding allowance of the exact sum) still fails,
     # because the exact sum of the estimates governs.
     understated = dict(row, total_error={"rule": "linear_sum", "value": 2**53})
-    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(understated))
+    assert _refused(_matrix(understated))
 
 
 def test_mixed_integer_and_decimal_sums_stay_exact(tmp_path):
@@ -319,9 +327,9 @@ def test_mixed_integer_and_decimal_sums_stay_exact(tmp_path):
         ],
         total_error={"rule": "linear_sum", "value": 2**53},
     )
-    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(row))
+    assert _refused(_matrix(row))
     proc = _run(tmp_path, _matrix(row))
-    assert proc.returncode == 1 and "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in proc.stdout
+    assert proc.returncode == 1 and any(code in proc.stdout for code in REFUSALS)
 
 
 def test_decimal_sums_hit_the_target_exactly(tmp_path):
@@ -351,6 +359,35 @@ def test_written_digits_beyond_binary_precision_are_kept(tmp_path):
     raw = raw.replace('"total_error": {"rule": "linear_sum", "value": 0.3}', '"total_error": {"rule": "linear_sum", "value": 0.30000000000000000001}')
     proc = _run(tmp_path, None, raw=raw)
     assert proc.returncode == 1 and "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in proc.stdout, proc.stdout
+
+
+def test_tiny_addends_are_never_rounded_away():
+    # 1 + 1e-300 exceeds a target of 1; no fixed working precision may drop the small addend.
+    row = _row(
+        required_accuracy=_acc(1),
+        error_budget=[
+            {"source": "grid", "estimate": 1, "dominant": True},
+            {"source": "order", "estimate": 1e-300, "dominant": False},
+        ],
+        total_error={"rule": "linear_sum", "value": 1},
+    )
+    assert _refused(_matrix(row))
+
+
+def test_quadrature_of_tiny_estimates_does_not_underflow():
+    # Squares of 1e-300 are compared exactly; a reported total of zero is refused.
+    row = _candidate(
+        error_budget=[{"source": "grid", "estimate": 1e-300, "dominant": True}],
+        total_error={"rule": "quadrature", "value": 0, "basis": "single source"},
+    )
+    assert "TOTAL_ERROR_BELOW_ITS_RULE" in _codes(_matrix(row))
+
+
+@pytest.mark.parametrize("value", ["1e-1001", "1e-1000000", "1e301"])
+def test_numbers_outside_the_accepted_range_are_refused(tmp_path, value):
+    raw = json.dumps(_matrix(_row())).replace('"estimate": 0.001', '"estimate": ' + value)
+    proc = _run(tmp_path, None, raw=raw)
+    assert proc.returncode == 1 and "INVALID_ERROR_BUDGET" in proc.stdout, proc.stdout
 
 
 def test_quadrature_of_large_accepted_estimates_does_not_overflow():
