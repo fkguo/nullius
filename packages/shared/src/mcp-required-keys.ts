@@ -16,7 +16,7 @@ import { z } from 'zod';
  *
  * Returns one line per disagreement, and one line per place where the JSON
  * structure could not be matched to the Zod structure; an empty list means the
- * schema passes. Two forms are reported as unmatched although the converter
+ * schema passes. Two forms can be reported as unmatched although the converter
  * handles them: a loose record with regex keys (emitted as patternProperties)
  * and an annotated intersection nested inside a chain of intersections.
  */
