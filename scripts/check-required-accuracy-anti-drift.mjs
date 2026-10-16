@@ -1,0 +1,187 @@
+#!/usr/bin/env node
+
+/**
+ * Required-accuracy anti-drift CI check.
+ *
+ * An executing agent's default drift is to keep refining a number long after it
+ * is accurate enough for its use: the reliability gate's G1 ladder ("refine
+ * until it stops moving") and its precision escalation have no natural end,
+ * and a strict tolerance always looks like extra rigor. Across several
+ * projects this spent computation and review rounds on precision nobody
+ * needed, refined error sources that were not the dominant ones, and held
+ * correct results out of the record behind gates far stricter than the
+ * results' use.
+ *
+ * The countermeasure is the gate's G0: the accuracy a quantity's use requires
+ * is written down first and bounds every later tolerance; the error is
+ * budgeted by source and only the dominant source is refined; refinement stops
+ * when the dominant source is below the required accuracy; and an over-tight
+ * gate is a defect, not rigor.
+ *
+ * This lock fails the build when G0 or its back-references in G1/G2 are removed
+ * or renamed, when the matrix contract loses the G0 field rule, when the
+ * matrix checker or its tests disappear, when the research-team prompts lose
+ * their stop-at-required-accuracy sentences, or when the lock or the checker
+ * tests are unwired from CI. Matching is whitespace-normalized and scoped to
+ * the owning gate item, so a clause cannot survive under an unrelated gate.
+ */
+
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+const SKILL_FILE = 'skills/numerical-reliability-gate/SKILL.md';
+const CONTRACT_FILE = 'skills/numerical-reliability-gate/references/contract.md';
+const CHECKER_FILE = 'skills/numerical-reliability-gate/scripts/check_reliability_matrix.py';
+const CHECKER_TESTS = 'skills/numerical-reliability-gate/tests/test_check_reliability_matrix.py';
+const MEMBER_A = 'skills/research-team/assets/system_member_a.txt';
+const MEMBER_B = 'skills/research-team/assets/system_member_b.txt';
+const VERIFIER = 'skills/research-team/assets/system_asymmetric_verifier.txt';
+const TEAM_SKILL = 'skills/research-team/SKILL.md';
+const CI_FILE = '.github/workflows/ci.yml';
+const PACKAGE_FILE = 'package.json';
+
+const errors = [];
+
+function read(relPath) {
+  const abs = path.join(repoRoot, relPath);
+  if (!existsSync(abs)) {
+    errors.push(`file missing: ${relPath}`);
+    return null;
+  }
+  return readFileSync(abs, 'utf-8');
+}
+
+function flatten(text) {
+  return text.replace(/\s+/g, ' ');
+}
+
+/** Slice one "- **G<n> — …**" gate item: from its marker to the next gate item. */
+function gateItem(relPath, text, gate) {
+  if (text === null) return null;
+  const marker = `- **${gate} — `;
+  const start = text.indexOf(marker);
+  if (start === -1) {
+    errors.push(`${relPath}: missing gate item ${JSON.stringify(marker)}`);
+    return null;
+  }
+  const rest = text.slice(start + marker.length);
+  const end = rest.indexOf('\n- **G');
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+function requireAll(label, text, needles) {
+  if (text === null) return;
+  const flat = flatten(text);
+  for (const [what, needle] of needles) {
+    if (!flat.includes(flatten(needle))) {
+      errors.push(`${label}: missing ${what}: expected to find ${JSON.stringify(needle)}`);
+    }
+  }
+}
+
+const skill = read(SKILL_FILE);
+
+// 1. G0 owns the rule, and comes before G1.
+if (skill !== null) {
+  const g0 = skill.indexOf('- **G0 — ');
+  const g1 = skill.indexOf('- **G1 — ');
+  if (g0 !== -1 && g1 !== -1 && g0 > g1) {
+    errors.push(`${SKILL_FILE}: G0 must precede G1 (it sets how far every later check is run)`);
+  }
+}
+requireAll(`${SKILL_FILE} (G0)`, gateItem(SKILL_FILE, skill, 'G0'), [
+  ['G0 heading', 'Required accuracy first; refine only the dominant error; stop when it is met.**'],
+  ['required accuracy written down first', 'write down the **required accuracy** of the quantity and where it comes from'],
+  ['sources of the required accuracy', 'the digits the result will be displayed with, how far a downstream conclusion moves when the value moves, or the uncertainty the value will be compared against'],
+  ['method capability is not a source', 'What the method could achieve is never a source.'],
+  ['bounds every tolerance', 'The required accuracy bounds every tolerance this gate applies to the quantity'],
+  ['observable, not raw parameters', 'not on raw internal parameters in mixed units'],
+  ['error budget by source', '**Budget the error by source.**'],
+  ['refine only the dominant source', 'Refine **only the dominant source**'],
+  ['subdominant refinement is not progress', 'changes nothing the result depends on and is not progress'],
+  ['stop rule', '**Stop when the dominant source is below the required accuracy.**'],
+  ['further refinement needs authorization', 'Refinement past that point needs explicit authorization from the project owner.'],
+  ['stricter checks do not block', 'may be kept as an informational record but may not block acceptance'],
+  ['over-tight gate is a defect', '**an over-tight gate is a defect, just as a loose one is**'],
+  ['unknown target comes first', 'the first deliverable is that accuracy and its source, not more digits'],
+]);
+
+// 2. G1 and G2 are bounded by G0.
+requireAll(`${SKILL_FILE} (G1)`, gateItem(SKILL_FILE, skill, 'G1'), [
+  ['ladder bounded by G0', '**The ladder runs to the G0 required accuracy, not to the last digit.**'],
+  ['refinement only for the dominant source above target', 'owed only when that knob is the dominant error source and the dominant source is still above the required accuracy'],
+]);
+requireAll(`${SKILL_FILE} (G2)`, gateItem(SKILL_FILE, skill, 'G2'), [
+  ['cross-check tolerance bounded by G0', 'set from the G0 required accuracy and no tighter than it'],
+]);
+
+// 3. The foldable verdict includes G0, and the recorded failure modes stay.
+requireAll(`${SKILL_FILE} (output and provenance)`, skill, [
+  ['reliable requires G0', '`reliable` requires every *applicable* G0–G10 check to pass — including the G0 dominant error below the required accuracy'],
+  ['G6 folds only G0–G10 passes', 'passed every applicable G0–G10 check at the converged setting'],
+  ['over-tight gate episode', 'some six orders of magnitude tighter than the declared target accuracy'],
+  ['subdominant refinement episode', 'the agent kept tightening the integration precision'],
+  ['display-held episode', 'held out of a manuscript for three review re-entries'],
+]);
+
+// 4. The matrix contract carries G0 as a field rule, the example uses it, and the checker is named.
+requireAll(CONTRACT_FILE, read(CONTRACT_FILE), [
+  ['G0 field rule', '**G0 required accuracy and error budget (every row)**'],
+  ['method capability is not a source', 'What the method could achieve is never a source.'],
+  ['exactly one dominant source', '**exactly one** entry marked `dominant: true`'],
+  ['reliable needs dominant within target', 'A `reliable` row requires every estimate to be numeric and the dominant estimate to be at or below the required accuracy'],
+  ['stricter checks informational', 'a stricter check is recorded in `notes` as informational and does not block the verdict'],
+  ['example carries required_accuracy', '"required_accuracy": {'],
+  ['example carries error_budget', '"error_budget": ['],
+  ['checker named', 'scripts/check_reliability_matrix.py'],
+  ['reliable verdict covers G0', 'passed **every applicable** G0–G10 check at the converged setting — including the G0 dominant error at or below the required accuracy'],
+]);
+
+// 5. The checker enforces the rules it is documented to enforce.
+requireAll(CHECKER_FILE, read(CHECKER_FILE), [
+  ['missing required accuracy finding', 'MISSING_REQUIRED_ACCURACY'],
+  ['dominant above target finding', 'DOMINANT_ABOVE_REQUIRED_ACCURACY'],
+  ['dominant must be largest finding', 'DOMINANT_NOT_LARGEST'],
+  ['over-refinement warning', 'REFINED_PAST_REQUIRED_ACCURACY'],
+  ['allowed accuracy sources', 'ACCURACY_SOURCES = frozenset({"display", "downstream_sensitivity", "comparison_uncertainty"})'],
+]);
+requireAll(CHECKER_TESTS, read(CHECKER_TESTS), [
+  ['contract example is checked', 'def test_contract_example_matrix_satisfies_the_checker'],
+  ['dominant-above-target test', 'def test_reliable_requires_dominant_error_within_required_accuracy'],
+]);
+
+// 6. The research-team prompts carry the stop-at-required-accuracy instruction.
+requireAll(MEMBER_A, read(MEMBER_A), [
+  ['member A stop sentence', 'Do not request precision beyond what the result\'s use requires (numerical-reliability-gate G0)'],
+]);
+requireAll(MEMBER_B, read(MEMBER_B), [
+  ['member B stop sentence', 'Precision stops at the required accuracy (numerical-reliability-gate G0)'],
+  ['member B over-tight finding', 'report any gate stricter than that accuracy as a finding (an over-tight gate), never as a reason to refine further'],
+]);
+requireAll(VERIFIER, read(VERIFIER), [
+  ['verifier judges against required accuracy', 'Judge "appropriate" against the accuracy the result\'s use requires (numerical-reliability-gate G0)'],
+]);
+requireAll(TEAM_SKILL, read(TEAM_SKILL), [
+  ['tolerance ceiling is G0 on delegation', 'This ceiling is the delegation-side form of the `numerical-reliability-gate` G0 required accuracy'],
+]);
+
+// 7. CI wiring: the lock and the checker tests still run.
+requireAll(CI_FILE, read(CI_FILE), [
+  ['CI step for this lock', 'node scripts/check-required-accuracy-anti-drift.mjs'],
+  ['CI step for the checker tests', 'python -m pytest skills/numerical-reliability-gate/tests -q'],
+]);
+requireAll(PACKAGE_FILE, read(PACKAGE_FILE), [
+  ['package script for this lock', '"check:required-accuracy-anti-drift": "node scripts/check-required-accuracy-anti-drift.mjs"'],
+]);
+
+if (errors.length > 0) {
+  console.error('[check-required-accuracy-anti-drift] FAIL');
+  for (const err of errors) console.error(`  - ${err}`);
+  process.exit(1);
+}
+
+console.log('[check-required-accuracy-anti-drift] OK');

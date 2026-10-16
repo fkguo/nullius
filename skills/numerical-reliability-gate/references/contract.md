@@ -24,6 +24,22 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "recorded_value": "1.92",       // the value folded into the durable record (only if reliable)
       "recorded_setting": "grid=(24,16,16,10), nodes=36, method=AAA",
 
+      // G0 — required accuracy and error budget. REQUIRED on every row. The required accuracy comes
+      // from the quantity's use, never from what the method can achieve; every tolerance below is
+      // derived from it. The budget names exactly one dominant source; a `reliable` row's dominant
+      // estimate is at or below the required accuracy (stop there — further refinement needs the
+      // project owner's authorization).
+      "required_accuracy": {
+        "kind": "absolute",           // "absolute" | "relative"
+        "value": 0.02,                // finite positive number
+        "source": "display",          // "display" | "downstream_sensitivity" | "comparison_uncertainty"
+        "basis": "quoted to two decimals in the results table"
+      },
+      "error_budget": [
+        { "source": "integration grid", "estimate": 0.007, "dominant": true },
+        { "source": "continuation node count", "estimate": 0.001, "dominant": false }
+      ],
+
       // G1 — discretization convergence. value MUST be stable as setting refines.
       "refinement": [
         { "setting": "grid=(12,10,10,8)", "value": "1.913" },
@@ -122,6 +138,13 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "verdict": "reliable",
       "recorded_value": "1",
       "recorded_setting": "rectangle Re[1.28,1.46] x Im[-0.18,-0.055] on the principal branch",
+      "required_accuracy": {
+        "kind": "absolute", "value": 0.5, "source": "downstream_sensitivity",
+        "basis": "an integer count; any winding error below 0.5 leaves the rounded count unchanged"
+      },
+      "error_budget": [
+        { "source": "contour sampling", "estimate": 0.002, "dominant": true }
+      ],
       "refinement": [
         { "setting": "contour samples = 512", "value": "0.991" },
         { "setting": "contour samples = 2048", "value": "0.998" }
@@ -160,6 +183,15 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "verdict": "fragile_method",
       "recorded_value": null,
       "recorded_setting": null,
+      "required_accuracy": {
+        "kind": "absolute", "value": 0.001, "source": "comparison_uncertainty",
+        "basis": "compared against a reference location quoted to three decimals"
+      },
+      "error_budget": [
+        // null: the seed dependence of a fixed-seed search has not been estimated — only a
+        // non-reliable row may carry a null estimate.
+        { "source": "seed dependence of the fixed-seed search", "estimate": null, "dominant": true }
+      ],
       "refinement": [],
       "converged": false,
       "mirage": false,
@@ -180,7 +212,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
 | verdict | meaning | foldable? |
 |---|---|---|
-| `reliable` | passed **every applicable** G1–G10 check at the converged setting — including the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, and the G10 fast-path scoping where the value comes from an accelerated/heuristic path, not only G1–G3 | **yes** |
+| `reliable` | passed **every applicable** G0–G10 check at the converged setting — including the G0 dominant error at or below the required accuracy, the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, and the G10 fast-path scoping where the value comes from an accelerated/heuristic path, not only G1–G3 | **yes** |
 | `mirage` | a candidate optimum/feature that did not survive G1 refinement | no |
 | `unconverged` | value still moving as the resolution is refined (G1) | no |
 | `method_disagreement` | independent checks (G2) do not agree and the discrepancy is unexplained | no |
@@ -199,6 +231,22 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
 
 ## Field rules
 
+- **G0 required accuracy and error budget (every row)**: `required_accuracy` is an object with `kind`
+  (`absolute` or `relative`), a finite positive `value`, a `source` naming what the quantity is for
+  (`display` — the digits or stroke width it is shown with; `downstream_sensitivity` — how far a
+  conclusion moves when it moves; `comparison_uncertainty` — the uncertainty it is compared against), and
+  a non-empty one-line `basis`. What the method could achieve is never a source. `error_budget` lists at
+  least one entry `{ "source", "estimate", "dominant" }` with a finite non-negative `estimate` in the same
+  `kind` as the required accuracy (or `null` — not yet estimated — which only a non-`reliable` row may
+  carry), and **exactly one** entry marked `dominant: true`, whose estimate is not smaller than any other
+  numeric estimate in the list. A `reliable` row requires every estimate to be numeric and the dominant
+  estimate to be at or below the required accuracy; a row whose dominant estimate is still above it is `unconverged`, and the next refinement goes
+  to the dominant source only. A dominant estimate far below the required accuracy (more than three orders
+  of magnitude) is reported as a warning: refinement was carried past the point the result needed. Every
+  `tolerance` in the row is derived from the required accuracy; a stricter check is recorded in `notes` as
+  informational and does not block the verdict.
+  Checker: `python3 $SKILL_DIR/scripts/check_reliability_matrix.py numerical_reliability_matrix_v1.json`
+  (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings).
 - `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob (resolution
   **or** size/extent/parity, whichever the value or its precondition could depend on) for any
   `converged: true`. A single setting can never establish convergence. Two `refinement` entries whose

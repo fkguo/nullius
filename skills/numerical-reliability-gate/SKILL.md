@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before a RESULT-BEARING computed number — one a conclusion or durable artifact will rest on — is trusted, compared, published, or folded into durable research artifacts; numbers that exist only to exercise code (test fixtures, internal tooling values) are covered by ordinary tests, not this gate. Requires resolution convergence, independent-confirmation checks, regression anchors, post-correction downstream recomputation, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, accelerated/heuristic fast-path scoping (no false guarantee, unconditional escape hatch, production-validated precondition), and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
+description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before a RESULT-BEARING computed number — one a conclusion or durable artifact will rest on — is trusted, compared, published, or folded into durable research artifacts; numbers that exist only to exercise code (test fixtures, internal tooling values) are covered by ordinary tests, not this gate. Starts from the accuracy the number's use requires (an error budget by source; refine only the dominant source; stop when it is met; an over-tight gate is a defect), then requires resolution convergence, independent-confirmation checks, regression anchors, post-correction downstream recomputation, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, accelerated/heuristic fast-path scoping (no false guarantee, unconditional escape hatch, production-validated precondition), and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
 ---
 
 # Numerical Reliability Gate
@@ -60,7 +60,26 @@ Example quantities (illustrative, not a fixed list):
 
 Apply the checks that fit the quantity; a result is **reliable** only when every applicable one passes.
 Each check names its own minimum disconfirming test — never accept a number because it "looks reasonable".
+G0 comes first because it sets how far every later check is run.
 
+- **G0 — Required accuracy first; refine only the dominant error; stop when it is met.** Before any
+  refinement, write down the **required accuracy** of the quantity and where it comes from: the digits
+  the result will be displayed with, how far a downstream conclusion moves when the value moves, or the
+  uncertainty the value will be compared against. What the method could achieve is never a source. The
+  required accuracy bounds every tolerance this gate applies to the quantity; state it on the quantity a
+  conclusion uses, not on raw internal parameters in mixed units, whose spread need not reach that
+  quantity at all.
+  **Budget the error by source.** List the error sources with their estimated sizes — discretization or
+  integration, representation or basis truncation, model or scheme choice, statistical — and name the
+  dominant one. Refine **only the dominant source**: tightening a subdominant one (more quadrature digits
+  while a truncated representation leaves a residual orders of magnitude larger, say) changes nothing the
+  result depends on and is not progress.
+  **Stop when the dominant source is below the required accuracy.** Refinement past that point needs
+  explicit authorization from the project owner. A check stricter than the required accuracy may be kept
+  as an informational record but may not block acceptance: **an over-tight gate is a defect, just as a
+  loose one is** — it spends computation and review rounds, and it can hold a correct result out of the
+  record. When the required accuracy is not yet known, the first deliverable is that accuracy and its
+  source, not more digits.
 - **G1 — Discretization convergence (mirage check).** Vary *every* resolution/size knob independently —
   integration grid, continuation/interpolation node count, step size, contour density, sample count,
   **domain size / number of grid points / domain extent, truncation order, grid parity (even–odd)** —
@@ -83,7 +102,10 @@ Each check names its own minimum disconfirming test — never accept a number be
   frozen value but *shrinking uncertainty*: use independent seeds/chains, an effective sample size and
   autocorrelation check, sensitivity to rare events, and report a confidence/credible interval — not a
   single point that "stopped moving".
-- **G2 — Independent-confirmation cross-check.** Recompute with `>=2` independently constructed and executed checks. Method diversity is a separate risk dimension; same/similar methods can qualify after substantive applicability and diagnostic checks. They must **agree** within a stated tolerance. **Declare each
+  **The ladder runs to the G0 required accuracy, not to the last digit.** A plateau measured to the
+  required accuracy is convergence; escalating precision or refining a knob beyond it is owed only when
+  that knob is the dominant error source and the dominant source is still above the required accuracy.
+- **G2 — Independent-confirmation cross-check.** Recompute with `>=2` independently constructed and executed checks. Method diversity is a separate risk dimension; same/similar methods can qualify after substantive applicability and diagnostic checks. They must **agree** within a stated tolerance, set from the G0 required accuracy and no tighter than it. **Declare each
   check's resolution** — the smallest discrepancy it could detect — and *what it cannot resolve*; an
   agreement within a tolerance **coarser** than the property/effect you are certifying is **non-diagnostic**
   (record it as "agree, but cannot resolve `<X>`"), not a pass for that property. The same applies to a G3
@@ -204,7 +226,7 @@ Each check names its own minimum disconfirming test — never accept a number be
   robust to the degeneracy** (e.g., in a fit, the χ², a pole position, a lineshape, a residue) and mark
   flat-direction parameters "not individually determined".
 - **G6 — Report only converged values, with provenance.** Fold into the durable record only values that
-  passed every applicable G1–G10 check at the converged setting, each tagged with its
+  passed every applicable G0–G10 check at the converged setting, each tagged with its
   grid/node/method/contour. A coarse, intermediate, or non-converged number is **labeled as such or
   discarded** — never silently reused. Before trusting a reused artifact, check that the **evaluator
   fingerprint** that produced it (code/model version, solver settings, source and dependency identity —
@@ -405,6 +427,7 @@ Each check names its own minimum disconfirming test — never accept a number be
 
 | Task | Fragile (false ±) | Reliable |
 |---|---|---|
+| "Is it accurate enough?" | refine until nothing moves; one strict tolerance for every quantity | required accuracy from the quantity's use + error budget by source; refine the dominant source; stop when it is met |
 | Presence/absence, counting | fixed-seed search; `|F| < ε` threshold | topological invariant (argument-principle winding) |
 | Analytic continuation | a continuation unstable past `~N` nodes | a continuation well conditioned as nodes grow + cross-check |
 | "It converged" | a single setting that "looks flat" | a measured plateau across a 2–3× knob range + independently constructed check |
@@ -426,12 +449,13 @@ rather than paper the blind spot over with a guarantee the method cannot deliver
 
 Emit one auditable record per gated quantity, conforming to
 [`references/contract.md`](references/contract.md): an artifact named
-`numerical_reliability_matrix_v1.json` (ART-01) with, per quantity, the refinement ladder (setting →
+`numerical_reliability_matrix_v1.json` (ART-01) with, per quantity, the G0 required accuracy with its
+source and the error budget naming the dominant source, the refinement ladder (setting →
 value), the independently constructed check values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
 unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact |
 heterogeneous_series | precondition_violated | reference_mismatch | circular_validation | overclaimed_heuristic`
-(`reliable` requires every *applicable* G1–G10 check to pass — including the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, the G9 gate-discrimination audit when trust rests on a purpose-built validation chain, and the G10 fast-path scoping when the value comes from an accelerated/heuristic path,
+(`reliable` requires every *applicable* G0–G10 check to pass — including the G0 dominant error below the required accuracy, the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, the G9 gate-discrimination audit when trust rests on a purpose-built validation chain, and the G10 fast-path scoping when the value comes from an accelerated/heuristic path,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
 candidate or is discarded. Gate evidence is keyed **per quantity** to the evaluator fingerprint that
 produced it: a later change re-opens only the checks whose fingerprint inputs it altered, and every
@@ -581,3 +605,25 @@ table; domain carried only by the caller's context):
 - a cross-check run through a genuinely different implementation shared the **same under-resolved value of
   the very knob whose adequacy was in question**, so its agreement confirmed nothing about the setting under
   suspicion. **G2** — independence has to hold in the suspect setting, not only in the implementation.
+
+Further failure modes from a set of episodes across several unrelated projects in which executing agents
+spent computation and review rounds on precision the result did not need (domain carried only by the
+caller's context) — the episodes that created **G0**:
+
+- an invariant gate was set some six orders of magnitude tighter than the declared target accuracy of the
+  quantity it protected; it failed only at the coarsest refinement tier while the quantity met its target at
+  every tier, and the project owner had to rule the gate immaterial. **G0** — every tolerance derives from the
+  quantity's required accuracy; a stricter check is an informational record, not a blocker;
+- a rational-continuation residual gate failed, and the reflex was to raise the continuation's degree and
+  precision, while the observable the continuation fed already agreed with an independent route below the
+  physical target. **G0** — an over-tight method gate is a defect; the response is to check the required
+  accuracy of the observable, not to refine the method;
+- integration differences were orders of magnitude below a few-percent residual left by a finite
+  representation, and the agent kept tightening the integration precision. **G0** — refine only the dominant
+  error source; tightening a subdominant one is not progress;
+- a displayed result was held out of a manuscript for three review re-entries by a gate stricter than the
+  stroke width of the figure and the digits of the table that displayed it. **G0** — the display and the
+  downstream use set the required accuracy;
+- once a stated accuracy target had been met, further refinement and extra calculations followed until the
+  owner stopped them, and later dispatches had to forbid precision expansion in advance. **G0** — stop when the
+  dominant error is below the required accuracy; going further needs explicit authorization.

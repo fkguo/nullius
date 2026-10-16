@@ -416,6 +416,9 @@ Required field groups of the full-tier contract, all machine-checked:
     exactness as numeric zero.
   The two forms are mutually exclusive. Unknown modes, missing or multiline
   predicates, and contracts carrying fields from both forms fail closed.
+  This ceiling is the delegation-side form of the `numerical-reliability-gate`
+  G0 required accuracy: derive it the same way, and an undelegated result-bearing
+  number still owes G0 through that gate.
 - **`time_box`** — a hard wall-clock budget for the workstream.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the
