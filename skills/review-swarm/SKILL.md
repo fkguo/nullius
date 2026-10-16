@@ -427,6 +427,12 @@ Notes:
 - Relative `--backend-output` paths are resolved under `--out-dir`.
 - `claude=none` for `--backend-system` is rejected (Claude runner requires a system prompt file).
 - For a single run, `--backend-output` does not allow one path for repeated same-backend agents (to avoid output clobbering).
+- An explicit hard cap is sized from what the seat actually needs, not from habit: read the
+  `elapsed_secs` of the same family on comparable earlier seats (recorded in `meta.json`) and set the
+  cap well above it. A cap below a family's ordinary completion time turns every round into an
+  `unavailable` seat — an availability failure manufactured by the caller, which the round then has to
+  re-dispatch. When no comparable record exists, prefer the default (no hard budget, soft
+  `--expected-secs`) over a guessed cap.
 - `--timeout-secs` retains its explicit hard-cap meaning: one total deadline per review seat,
   starting at its first runner invocation and shared by both phases, retries and fallback. Default:
   no hard budget (`0`). Advancing output never resets an explicit deadline.

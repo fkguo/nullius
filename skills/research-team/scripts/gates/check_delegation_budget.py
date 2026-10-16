@@ -29,7 +29,19 @@ delegated workstream, default location `<project_root>/team/delegations/`):
       anchor_note: one line stating which requirement of the task derives
              the selected stopping condition (what the result is for — not
              what the method can achieve)
-  - time_box: { seconds: hard wall-clock budget for the workstream }
+  - time_box: hard wall-clock budget for the workstream, in one of two forms:
+      measured (required when the contract declares
+      launches_full_scale_computation: true):
+        seconds: the box; must be >= unit_seconds * units
+        basis: the exact string "measured"
+        unit_seconds: wall clock of a single-unit dry run, measured BEFORE
+               the full launch (a box sized by guess is the recorded way a
+               complex task is killed before it can finish)
+        units: the number of units the workstream runs
+        dry_run_ref: optional pointer to the dry-run log
+      declared (short workstreams that launch no full-scale computation):
+        seconds, basis: "declared", note: one line stating why a dry-run
+        measurement is not warranted
   - max_attempts: cap on "one last attempt" retries (>= 1)
   - scope_negative_list: non-empty list of expansions the executor must
       NOT undertake on its own initiative (e.g. infrastructure rewrites,
@@ -107,7 +119,9 @@ Falsification labels (all fail-closed):
   MISSING_TOLERANCE_CEILING, MISSING_TOLERANCE_VALUE,
   MISSING_EXACT_PREDICATE, INVALID_TOLERANCE_MODE,
   CONTRADICTORY_TOLERANCE_FIELDS, MISSING_TOLERANCE_ANCHOR,
-  MISSING_TIME_BOX, MISSING_MAX_ATTEMPTS,
+  MISSING_TIME_BOX, MISSING_TIME_BOX_BASIS, INVALID_TIME_BOX_BASIS,
+  MISSING_UNIT_SECONDS, MISSING_UNIT_COUNT, TIME_BOX_BELOW_MEASURED_NEED,
+  MISSING_TIME_BOX_NOTE, CONTRADICTORY_TIME_BOX, MISSING_MAX_ATTEMPTS,
   MISSING_SCOPE_NEGATIVE_LIST, MISSING_PEAK_MEMORY_ESTIMATE,
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
   HEAP_LIMIT_BELOW_DRY_RUN_PEAK, INVALID_MEMORY_MODE,
@@ -166,6 +180,7 @@ import os
 import re
 import sys
 import tempfile
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -525,13 +540,71 @@ def _validate_contract(contract: Any) -> list[str]:
                 "single line with no line-break characters — one auditable sentence, not an essay"
             )
 
-    # time_box: hard wall-clock budget.
+    # time_box: hard wall-clock budget, sized like the memory estimate — measured
+    # from a single-unit dry run, or declared with a one-line reason for a short
+    # workstream that launches no full-scale computation. A box sized by guess is
+    # the recorded way a complex task is killed before it can finish.
     time_box = contract.get("time_box")
     if not isinstance(time_box, dict) or not _is_positive_int(time_box.get("seconds")):
         issues.append(
             "MISSING_TIME_BOX: `time_box.seconds` must be a positive integer "
             f"(got {time_box!r}); an open-ended delegation has no stopping point"
         )
+    else:
+        basis = time_box.get("basis")
+        launches_full = contract.get("launches_full_scale_computation") is True
+        if "basis" not in time_box:
+            issues.append(
+                "MISSING_TIME_BOX_BASIS: `time_box.basis` is required — \"measured\" "
+                "(single-unit dry-run wall clock `unit_seconds` x `units`) or \"declared\" "
+                "(a one-line `note` for a short workstream that launches no full-scale computation)"
+            )
+        elif basis == "measured":
+            unit_seconds = time_box.get("unit_seconds")
+            units = time_box.get("units")
+            if not _is_finite_positive_number(unit_seconds):
+                issues.append(
+                    "MISSING_UNIT_SECONDS: `time_box.unit_seconds` must be a finite positive number "
+                    f"measured on a single-unit dry run (got {_decimal_str(unit_seconds)})"
+                )
+            if not _is_positive_int(units):
+                issues.append(
+                    "MISSING_UNIT_COUNT: `time_box.units` must be a positive integer — the number of "
+                    f"units the workstream runs (got {_decimal_str(units)})"
+                )
+            if _is_finite_positive_number(unit_seconds) and _is_positive_int(units):
+                # The value as written (a float maps to its shortest decimal), so
+                # 0.1 s x 30 units is exactly 3 s, not 3 s plus binary rounding.
+                exact_unit = Fraction(repr(unit_seconds)) if isinstance(unit_seconds, float) else Fraction(unit_seconds)
+                need = exact_unit * units
+                if Fraction(time_box["seconds"]) < need:
+                    issues.append(
+                        "TIME_BOX_BELOW_MEASURED_NEED: `time_box.seconds` "
+                        f"({_decimal_str(time_box['seconds'])}) is below the measured need "
+                        f"unit_seconds x units = {float(need):.6g} s; the box would kill the "
+                        "workstream before it can finish"
+                    )
+        elif basis == "declared":
+            if not _is_nonempty_single_line(time_box.get("note")):
+                issues.append(
+                    "MISSING_TIME_BOX_NOTE: a declared time box needs a one-line `note` stating "
+                    "why a dry-run measurement is not warranted"
+                )
+            if launches_full:
+                issues.append(
+                    "CONTRADICTORY_TIME_BOX: the contract declares "
+                    "`launches_full_scale_computation: true` but its time box is declared, "
+                    "not measured — a full-scale launch needs a measured time box"
+                )
+        else:
+            issues.append(
+                "INVALID_TIME_BOX_BASIS: `time_box.basis` must be the exact string "
+                f"\"measured\" or \"declared\" (got {basis!r}); unknown forms fail closed"
+            )
+        allowed = {"seconds", "basis", "unit_seconds", "units", "dry_run_ref", "note", "_note"}
+        extra = sorted(set(time_box) - allowed)
+        if extra:
+            issues.append(f"INVALID_TIME_BOX_BASIS: unknown `time_box` field(s) {extra}")
 
     # max_attempts: cap on "one last attempt" retries.
     if not _is_positive_int(contract.get("max_attempts")):

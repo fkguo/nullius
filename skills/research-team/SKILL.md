@@ -419,7 +419,24 @@ Required field groups of the full-tier contract, all machine-checked:
   This ceiling is the delegation-side form of the `numerical-reliability-gate`
   G0 required accuracy: derive it the same way, and an undelegated result-bearing
   number still owes G0 through that gate.
-- **`time_box`** — a hard wall-clock budget for the workstream.
+- **`time_box`** — a hard wall-clock budget for the workstream, sized the
+  way the memory estimate is, in one of two machine-checked forms. A box
+  sized by guess is the recorded way a complex task is killed before it can
+  finish, and a budget death only teaches the real need one wasted run
+  later. **Measured** (`basis: "measured"`, required when the contract
+  declares `launches_full_scale_computation: true`): `unit_seconds` is the
+  wall clock of a single-unit dry run made before the full launch, `units`
+  is how many units the workstream runs, and `seconds` must be at least
+  `unit_seconds × units` (leave margin above that floor; the gate refuses a
+  box below it as `TIME_BOX_BELOW_MEASURED_NEED`). **Declared**
+  (`basis: "declared"`): a short workstream that launches no full-scale
+  computation gives a one-line `note` instead. When the box expires while
+  the run is still advancing (checkpoint rows still landing), the
+  coordinator may extend it **once**, as a contract amendment carrying
+  `retry_of` with `exhausted_budget: "time_box_seconds"` and the projected
+  need from the measured rate as `measured_requirement` — the existing
+  strict-exceedance check then applies; a run that has stopped advancing is
+  wrapped up instead.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the
   delivered task (the `research-harness` attempt semantics), **not**

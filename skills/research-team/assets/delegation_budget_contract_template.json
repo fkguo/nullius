@@ -11,8 +11,12 @@
     "anchor_note": "<one line: which task requirement derives this stopping condition>"
   },
   "time_box": {
-    "_note": "Hard wall-clock budget for the whole workstream. On expiry the executor wraps up from the atomic results already flushed to disk (see the research-harness long-running-jobs contract) — it never voids the batch.",
-    "seconds": "<positive integer>"
+    "_note": "Hard wall-clock budget for the whole workstream, sized like the memory estimate. MEASURED (this shape; required when launches_full_scale_computation is true): unit_seconds is the wall clock of a single-unit dry run measured BEFORE the full launch, units is how many units the workstream runs, and seconds must be >= unit_seconds x units (leave margin above that floor). DECLARED (short workstreams that launch no full-scale computation): replace unit_seconds/units/dry_run_ref with \"basis\": \"declared\" and a one-line \"note\" stating why a dry run is not warranted. On expiry the executor wraps up from the atomic results already flushed to disk (see the research-harness long-running-jobs contract) — it never voids the batch; when the run is still advancing at expiry, the coordinator may extend it once through a retry_of amendment derived from the measured rate.",
+    "seconds": "<positive integer>",
+    "basis": "measured",
+    "unit_seconds": "<finite positive number: wall clock of a single-unit dry run, in seconds>",
+    "units": "<positive integer: number of units the workstream runs>",
+    "dry_run_ref": "<optional: pointer to the dry-run log>"
   },
   "max_attempts": "<positive integer: cap on 'one last attempt' retries; exhausting it means wrap up, not retry>",
   "scope_negative_list": [

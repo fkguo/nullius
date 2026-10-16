@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 GATE = ROOT / "scripts" / "gates" / "check_delegation_budget.py"
 TEMPLATE = ROOT / "assets" / "delegation_budget_contract_template.json"
@@ -42,7 +44,7 @@ def _complete_contract() -> dict:
             "value": 1e-6,
             "anchor_note": "downstream comparison only distinguishes results at the 1e-5 level; 1e-6 is one guard digit",
         },
-        "time_box": {"seconds": 7200},
+        "time_box": {"seconds": 7200, "basis": "measured", "unit_seconds": 60, "units": 30, "dry_run_ref": "artifacts/runs/dry/scan_unit0.log"},
         "max_attempts": 2,
         "scope_negative_list": [
             "no infrastructure / build-system rewrites",
@@ -188,6 +190,16 @@ def test_explicit_contract_flag(tmp_path: Path) -> None:
 # ------------------------------------------------- negative controls (mandate)
 
 
+def _assert_passes(tmp_path: Path, contract: dict) -> None:
+    # Each call gets its own project directory so a pass after a fail is judged afresh.
+    sub = tmp_path / f"pass{len(list(tmp_path.glob('pass*')))}"
+    sub.mkdir()
+    proj = _make_project(sub, contracts={"c.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, (proc.stderr, verdict and verdict.get("reasons"))
+    assert verdict is not None and verdict["status"] == "pass"
+
+
 def _assert_fails_with(tmp_path: Path, contract: dict | str, label: str) -> None:
     proj = _make_project(tmp_path, contracts={"c.json": contract})
     proc, verdict = _run_gate(proj)
@@ -284,6 +296,73 @@ def test_nonpositive_time_box_fails(tmp_path: Path) -> None:
     contract = _complete_contract()
     contract["time_box"]["seconds"] = 0
     _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX")
+
+
+def test_time_box_needs_a_basis(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"] = {"seconds": 7200}
+    _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX_BASIS")
+
+
+@pytest.mark.parametrize("basis", ["guessed", None, 1, ["measured"]])
+def test_unknown_time_box_basis_fails_closed(tmp_path: Path, basis: object) -> None:
+    contract = _complete_contract()
+    contract["time_box"]["basis"] = basis
+    _assert_fails_with(tmp_path, contract, "INVALID_TIME_BOX_BASIS")
+
+
+def test_measured_time_box_below_the_dry_run_need_fails(tmp_path: Path) -> None:
+    # 60 s per unit x 30 units = 1800 s: a 1799 s box would kill the workstream before it finishes.
+    contract = _complete_contract()
+    contract["time_box"]["seconds"] = 1799
+    _assert_fails_with(tmp_path, contract, "TIME_BOX_BELOW_MEASURED_NEED")
+    contract["time_box"]["seconds"] = 1800
+    _assert_passes(tmp_path, contract)
+
+
+@pytest.mark.parametrize(
+    "field,value,label",
+    [
+        ("unit_seconds", 0, "MISSING_UNIT_SECONDS"),
+        ("unit_seconds", -5, "MISSING_UNIT_SECONDS"),
+        ("unit_seconds", "60", "MISSING_UNIT_SECONDS"),
+        ("unit_seconds", True, "MISSING_UNIT_SECONDS"),
+        ("units", 0, "MISSING_UNIT_COUNT"),
+        ("units", 2.5, "MISSING_UNIT_COUNT"),
+        ("units", True, "MISSING_UNIT_COUNT"),
+    ],
+)
+def test_measured_time_box_fields_are_checked(tmp_path: Path, field: str, value: object, label: str) -> None:
+    contract = _complete_contract()
+    contract["time_box"][field] = value
+    _assert_fails_with(tmp_path, contract, label)
+
+
+def test_measured_time_box_with_fractional_unit_time_is_exact(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"].update({"seconds": 3, "unit_seconds": 0.1, "units": 30})
+    _assert_passes(tmp_path, contract)
+
+
+def test_declared_time_box_needs_a_note(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"] = {"seconds": 600, "basis": "declared"}
+    _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX_NOTE")
+    contract["time_box"]["note"] = "a symbolic check that launches no computation"
+    _assert_passes(tmp_path, contract)
+
+
+def test_declared_time_box_contradicts_a_full_scale_launch(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["launches_full_scale_computation"] = True
+    contract["time_box"] = {"seconds": 600, "basis": "declared", "note": "short"}
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TIME_BOX")
+
+
+def test_unknown_time_box_field_fails_closed(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"]["guess_seconds"] = 100
+    _assert_fails_with(tmp_path, contract, "INVALID_TIME_BOX_BASIS")
 
 
 def test_missing_max_attempts_fails(tmp_path: Path) -> None:

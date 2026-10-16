@@ -87,6 +87,9 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['mixed-tolerance-shape falsification label', 'CONTRADICTORY_TOLERANCE_FIELDS'],
   ['tolerance-anchor falsification label', 'MISSING_TOLERANCE_ANCHOR'],
   ['time-box falsification label', 'MISSING_TIME_BOX'],
+  ['time-box basis falsification label', 'MISSING_TIME_BOX_BASIS'],
+  ['time-box below measured need label', 'TIME_BOX_BELOW_MEASURED_NEED'],
+  ['declared time box contradiction label', 'CONTRADICTORY_TIME_BOX'],
   ['max-attempts falsification label', 'MISSING_MAX_ATTEMPTS'],
   ['scope-negative-list falsification label', 'MISSING_SCOPE_NEGATIVE_LIST'],
   ['peak-memory falsification label', 'MISSING_PEAK_MEMORY_ESTIMATE'],
@@ -309,6 +312,9 @@ requireAll(TEMPLATE_FILE, read(TEMPLATE_FILE), [
   ['exact-predicate mode guidance', 'exact_predicate'],
   ['tolerance anchor note', '"anchor_note"'],
   ['time box group', '"time_box"'],
+  ['measured time box form', '"basis": "measured"'],
+  ['dry-run unit time', '"unit_seconds"'],
+  ['unit count', '"units"'],
   ['max attempts field', '"max_attempts"'],
   ['scope negative list', '"scope_negative_list"'],
   ['peak memory group', '"peak_memory_estimate"'],
@@ -336,6 +342,10 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['exact predicate field', '`predicate`'],
   ['numeric-zero exclusion', 'Numeric zero remains invalid'],
   ['time box field', '`time_box`'],
+  ['measured time box rule', '`unit_seconds × units` (leave margin above that floor'],
+  ['time box below need label', '`TIME_BOX_BELOW_MEASURED_NEED`'],
+  ['declared time box form', 'computation gives a one-line `note` instead'],
+  ['advancing-run extension once', 'extend it **once**'],
   ['max attempts field', '`max_attempts`'],
   ['scope negative list field', '`scope_negative_list`'],
   ['peak memory field', '`peak_memory_estimate`'],
@@ -365,6 +375,16 @@ requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['measured-shortfall re-budget clause', 'measured shortfall'],
   ['censored-boundary rationale', 'censored lower bound'],
   ['no-identical-exhaustion clause', 'never a chain of identical exhaustions'],
+  ['advancing run at deadline is a decision point', '**A run still advancing at its deadline is a decision point, not an automatic wrap-up.**'],
+  ['extension from the measured rate', 'projected need = elapsed time × total units ÷ completed units'],
+  ['no unmeasured extension', 'never extend a box that was never measured'],
+]);
+requireAll('skills/review-swarm/SKILL.md', read('skills/review-swarm/SKILL.md'), [
+  ['seat cap sized from earlier runs', 'An explicit hard cap is sized from what the seat actually needs, not from habit'],
+  ['manufactured unavailability', 'an availability failure manufactured by the caller'],
+]);
+requireAll('skills/derivation-verify/scripts/run_multi_backend.py', read('skills/derivation-verify/scripts/run_multi_backend.py'), [
+  ['no hard deadline by default', '_DEFAULT_TIMEOUT = 0'],
 ]);
 requireAll(SHARED_README_FILE, read(SHARED_README_FILE), [
   ['dedicated gate-result contract', '`delegation_budget_gate_result_v1`'],
@@ -411,6 +431,9 @@ requireAll(TESTS_FILE, testsText, [
   ['atomic success cleanup regression', 'test_atomic_output_success_leaves_no_temporary_file'],
   ['atomic failure preservation regression', 'test_atomic_replace_failure_preserves_previous_output_and_cleans_temp'],
   ['mode-absent numeric compatibility', 'test_complete_contract_passes'],
+  ['time box basis required', 'test_time_box_needs_a_basis'],
+  ['time box below measured need', 'test_measured_time_box_below_the_dry_run_need_fails'],
+  ['declared time box contradicts full-scale launch', 'test_declared_time_box_contradicts_a_full_scale_launch'],
   ['explicit numeric mode positive control', 'test_explicit_numeric_tolerance_mode_passes'],
   ['numeric-zero negative control', 'test_numeric_zero_tolerance_still_fails'],
   ['exact-predicate positive control', 'test_exact_predicate_tolerance_mode_passes'],
