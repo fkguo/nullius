@@ -28,6 +28,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 python_ok=0
+pyyaml_ok=0
 wolfram_ok=0
 julia_ok=0
 mma_pkgs_ok=0
@@ -64,6 +65,9 @@ feynrules_date=""
 if [[ -n "${python_path}" ]]; then
   python_ok=1
   python_ver="$(python3 -c 'import sys; print(sys.version.replace("\n"," "))' 2>/dev/null || true)"
+  if python3 -c 'import yaml' >/dev/null 2>&1; then
+    pyyaml_ok=1
+  fi
 fi
 
 if [[ -n "${wolfram_path}" ]]; then
@@ -176,6 +180,7 @@ fi
 ok="${python_ok}"
 
 echo "python3: ${python_ok} (${python_path})"
+echo "pyyaml: ${pyyaml_ok} (python3 -c 'import yaml')"
 echo "wolframscript: ${wolfram_ok} (${wolfram_path})"
 echo "julia: ${julia_ok} (${julia_path})"
 echo "mma_packages: ${mma_pkgs_ok} (FeynCalc=${mma_feyncalc_ok} FeynArts=${mma_feynarts_ok} FormCalc=${mma_formcalc_ok})"
@@ -190,6 +195,9 @@ echo "feynrules: ${feynrules_ok} (${feynrules_ver} ${feynrules_date})"
 
 echo ""
 echo "=== hep-calc env hints (for humans + agents) ==="
+if [[ "${python_ok}" -eq 1 && "${pyyaml_ok}" -ne 1 ]]; then
+  echo "HINT: PyYAML is not importable by python3; every hep-calc run imports it. Install: python3 -m pip install pyyaml"
+fi
 if [[ -z "${wolfram_path}" ]]; then
   echo "HINT: wolframscript not found. Install WolframScript/Mathematica and ensure 'wolframscript' is on PATH."
   echo "      (Agent note) If Mathematica is installed but PATH is wrong, an agent can locate wolframscript and export PATH."

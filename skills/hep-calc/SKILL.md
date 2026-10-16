@@ -228,7 +228,7 @@ bash scripts/check_env.sh --json /tmp/hep_calc_env.json  # runs also write meta/
 ```
 
 Core requirements:
-- `python3` (reporting, extraction, comparison)
+- `python3` (reporting, extraction, comparison) with PyYAML importable (`python3 -c "import yaml"`); every run imports it to read the job file
 - `wolframscript` + Mathematica packages (FeynCalc/FeynArts/FormCalc; auto_qft also needs FeynRules for FeynRules mode)
 - `julia` + `using LoopTools` (only if numeric stage enabled)
 
