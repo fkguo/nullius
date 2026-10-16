@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
+import { findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
 import { HEP_TOOL_RISK_LEVELS, type ToolRiskLevel } from '../src/tool-risk.js';
@@ -241,5 +242,19 @@ describe('Destructive tool confirmation gate (H-11a Phase 2)', () => {
     // A read tool should work without _confirm
     const res = await handleToolCall('hep_health', { check_inspire: false, inspire_timeout_ms: 1000 }, 'standard');
     expect(res.isError).toBeFalsy();
+  });
+});
+
+describe('Tool inputSchema required keys', () => {
+  it.each<ToolExposureMode>(['standard', 'full'])('required lists exactly the keys whose omission fails to parse (%s)', mode => {
+    const specs = new Map(getToolSpecs(mode).map(spec => [spec.name, spec]));
+    const defs = getTools(mode);
+    expect(defs.length).toBeGreaterThan(0);
+    const issues = defs.flatMap(def => {
+      const spec = specs.get(def.name);
+      if (!spec) return [`[${def.name}] no tool spec`];
+      return findRequiredKeyMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
   });
 });
