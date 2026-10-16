@@ -16,6 +16,7 @@ import {
   HARD_CAP_RESULT_BYTES,
   PERMISSION_POLICY,
   redact,
+  structuredContentOf,
   verifyHarnessInvocationMarker,
 } from '@nullius/shared';
 import type { SpanSink } from '@nullius/shared';
@@ -241,11 +242,16 @@ function truncateUtf8(text: string, maxBytes: number): string {
   return bytes.subarray(0, end).toString('utf-8');
 }
 
+/**
+ * `structuredContent` mirrors the JSON text block exactly: it is the same
+ * (possibly compacted) object the text serialises, and it is left out for
+ * string results, markdown text and hard-truncated text.
+ */
 function formatToolResult(
   name: string,
   result: unknown,
   args: Record<string, unknown>
-): { content: ToolResultContentBlock[] } {
+): { content: ToolResultContentBlock[]; structuredContent?: Record<string, unknown> } {
   // String result: pass through
   if (typeof result === 'string') {
     return { content: [{ type: 'text', text: result }] };
@@ -268,9 +274,12 @@ function formatToolResult(
   const json = JSON.stringify(processed);
   const size = Buffer.byteLength(json, 'utf-8');
 
+  const structuredContent = structuredContentOf(processed);
+  const structured = structuredContent ? { structuredContent } : {};
+
   // L3: fast path — small result
   if (size <= MAX_INLINE_RESULT_BYTES) {
-    return { content: [{ type: 'text', text: json }] };
+    return { content: [{ type: 'text', text: json }], ...structured };
   }
 
   // L3: over soft limit — hard truncate if beyond hard cap, counting UTF-8
@@ -282,7 +291,7 @@ function formatToolResult(
   }
 
   // Between soft and hard cap — return as-is
-  return { content: [{ type: 'text', text: json }] };
+  return { content: [{ type: 'text', text: json }], ...structured };
 }
 
 function formatToolError(
@@ -359,7 +368,7 @@ export async function handleToolCall(
   args: Record<string, unknown>,
   mode: ToolExposureMode = 'standard',
   ctx?: ToolCallContext
-): Promise<{ content: ToolResultContentBlock[]; isError?: boolean }> {
+): Promise<{ content: ToolResultContentBlock[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
   try {
     // P3-C (redesigned 2026-05-23): event-driven anchor verification before
     // data root resolution. State-touch classification per audit table in
@@ -383,7 +392,7 @@ async function handleToolCallInResolvedDataRoot(
   args: Record<string, unknown>,
   mode: ToolExposureMode = 'standard',
   ctx?: ToolCallContext
-): Promise<{ content: ToolResultContentBlock[]; isError?: boolean }> {
+): Promise<{ content: ToolResultContentBlock[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
   const reportProgress = createProgressReporter(ctx);
   // H-02: extract or generate trace_id for this tool call
   const { traceId, params: cleanArgs } = extractTraceId(args);

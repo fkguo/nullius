@@ -12,6 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { getTools, handleToolCall, type ToolExposureMode } from './tools/index.js';
+import { SERVER_INSTRUCTIONS } from './serverInstructions.js';
 
 const TOOL_MODE: ToolExposureMode = process.env.ARXIV_TOOL_MODE === 'full' ? 'full' : 'standard';
 
@@ -24,6 +25,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
+    instructions: SERVER_INSTRUCTIONS,
   }
 );
 

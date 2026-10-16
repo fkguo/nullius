@@ -12,12 +12,13 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { getTools, handleToolCall, type ToolExposureMode } from './tools/index.js';
+import { SERVER_INSTRUCTIONS } from './serverInstructions.js';
 
 const TOOL_MODE: ToolExposureMode = process.env.HEPDATA_TOOL_MODE === 'full' ? 'full' : 'standard';
 
 const server = new Server(
   { name: 'hepdata-mcp', version: '0.6.0' },
-  { capabilities: { tools: {} } },
+  { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {

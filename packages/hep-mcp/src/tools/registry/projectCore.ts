@@ -16,6 +16,7 @@ import {
 export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   {
     name: HEP_HEALTH,
+    title: 'hep-mcp health check',
     tier: 'core',
     exposure: 'standard',
     description:
@@ -26,6 +27,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: HEP_INSPIRE_SEARCH_EXPORT,
+    title: 'Export INSPIRE search',
     tier: 'core',
     exposure: 'standard',
     description:
@@ -53,6 +55,7 @@ export const RAW_PROJECT_CORE_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: HEP_INSPIRE_RESOLVE_IDENTIFIERS,
+    title: 'Resolve INSPIRE identifiers',
     tier: 'core',
     exposure: 'standard',
     description:

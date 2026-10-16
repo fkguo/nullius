@@ -10,11 +10,18 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { McpError, invalidParams, verifyHarnessInvocationMarker } from '@nullius/shared';
+import {
+  McpError,
+  invalidParams,
+  structuredContentOf,
+  toolAnnotationsFor,
+  verifyHarnessInvocationMarker,
+} from '@nullius/shared';
 import { isStateTouchingIdeaMcp } from './state-touch-classification.js';
 import { IdeaRpcClient } from './rpc-client.js';
 import { zodToMcpInputSchema } from './mcp-input-schema.js';
-import { CONFIRM_FIELD, IDEA_TOOLS, type IdeaToolDef } from './tool-registry.js';
+import { CONFIRM_FIELD, IDEA_TOOL_HINTS, IDEA_TOOLS, type IdeaToolDef } from './tool-registry.js';
+import { SERVER_INSTRUCTIONS } from './serverInstructions.js';
 
 /**
  * B-10 testable helper: Zod-parse `rawArgs` against the tool's schema, then
@@ -159,21 +166,30 @@ export function createIdeaRpcClient(env: NodeJS.ProcessEnv = process.env): IdeaR
   });
 }
 
+const IDEA_TOOL_RISK_LEVELS = Object.fromEntries(IDEA_TOOLS.map(t => [t.name, t.riskLevel]));
+
+/** The tools/list payload. */
+export function listIdeaTools() {
+  return IDEA_TOOLS.map(t => ({
+    name: t.name,
+    title: t.title,
+    description: t.description,
+    inputSchema: zodToMcpInputSchema(t.schema),
+    annotations: toolAnnotationsFor(t.name, IDEA_TOOL_RISK_LEVELS, IDEA_TOOL_HINTS),
+  }));
+}
+
 export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const rpc = createIdeaRpcClient(env);
 
   const server = new Server(
     { name: 'idea-mcp', version: '0.6.0' },
-    { capabilities: { tools: {} } },
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
   );
 
   // List tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: IDEA_TOOLS.map(t => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: zodToMcpInputSchema(t.schema),
-    })),
+    tools: listIdeaTools(),
   }));
 
   // Call tool
@@ -198,8 +214,10 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise
       });
       const params = parseAndCleanToolArgs(toolDef, request.params.arguments);
       const result = await rpc.call(toolDef.rpcMethod, params);
+      const structuredContent = structuredContentOf(result);
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        ...(structuredContent ? { structuredContent } : {}),
       };
     } catch (err) {
       const mcpErr = err instanceof McpError ? err : (
