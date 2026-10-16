@@ -237,16 +237,31 @@ def _resolve_default_paper_dir(project_root: Path) -> Path | None:
 # extra flags are optional with sane defaults, so the same dispatch works for all.
 BACKEND_FAMILIES = ("claude", "gemini", "codex", "opencode", "kimi")
 
+# Runner skill directory per backend family. Runner skills are named
+# `<family>-cli-runner`, except the claude family, whose skill is
+# `native-cli-runner` because skill names may not contain the vendor's
+# reserved word.
+RUNNER_SKILL_DIRS: dict[str, str] = {
+    "claude": "native-cli-runner",
+    "gemini": "gemini-cli-runner",
+    "codex": "codex-cli-runner",
+    "opencode": "opencode-cli-runner",
+    "kimi": "kimi-cli-runner",
+}
+
 
 def _family_runner_path(family: str) -> Path | None:
-    """Resolve `<family>-cli-runner/scripts/run_<family>.sh` next to this skill.
+    """Resolve `<runner skill>/scripts/run_<family>.sh` next to this skill (see RUNNER_SKILL_DIRS).
 
     Runner skills are installed as siblings of this skill under the agent skills
     home (the same layout the old claude/gemini auto-detection assumed). Returns
-    the path if the runner script exists, else None.
+    the path if the family is known and the runner script exists, else None.
     """
+    skill_dir = RUNNER_SKILL_DIRS.get(family)
+    if skill_dir is None:
+        return None
     base = _skill_root().parent
-    runner = base / f"{family}-cli-runner" / "scripts" / f"run_{family}.sh"
+    runner = base / skill_dir / "scripts" / f"run_{family}.sh"
     return runner if runner.is_file() else None
 
 
@@ -319,7 +334,7 @@ def _run_backend(
     out_file: Path,
     system_prompt_file: Path | None = None,
 ) -> None:
-    """Invoke any `<family>-cli-runner/scripts/run_<family>.sh` via its shared core flags.
+    """Invoke any `<runner skill>/scripts/run_<family>.sh` via its shared core flags.
 
     All five runners accept `--model / --system-prompt-file / --prompt-file / --out`;
     their family-specific extras are optional with sane defaults, so this one dispatch
@@ -592,7 +607,7 @@ def main() -> int:
     #   1. generic --writer-runner / --auditor-runner
     #   2. family-specific --claude-runner / --gemini-runner (only when that
     #      role's backend is claude / gemini) — kept for back-compat
-    #   3. auto-detected `<family>-cli-runner/scripts/run_<family>.sh`
+    #   3. auto-detected `<runner skill>/scripts/run_<family>.sh` (RUNNER_SKILL_DIRS)
     family_runner_overrides: dict[str, Path] = {}
     if args.claude_runner:
         family_runner_overrides["claude"] = args.claude_runner.expanduser().resolve()
@@ -723,7 +738,7 @@ def main() -> int:
             if cfg.writer_runner is None or not cfg.writer_runner.is_file():
                 print(
                     f"ERROR: writer runner for backend '{cfg.writer_backend}' not found "
-                    f"(set --writer-runner or install {cfg.writer_backend}-cli-runner)",
+                    f"(set --writer-runner or install {RUNNER_SKILL_DIRS.get(cfg.writer_backend, cfg.writer_backend + '-cli-runner')})",
                     file=sys.stderr,
                 )
                 return 2
@@ -801,7 +816,7 @@ def main() -> int:
             if cfg.auditor_runner is None or not cfg.auditor_runner.is_file():
                 print(
                     f"ERROR: auditor runner for backend '{cfg.auditor_backend}' not found "
-                    f"(set --auditor-runner or install {cfg.auditor_backend}-cli-runner)",
+                    f"(set --auditor-runner or install {RUNNER_SKILL_DIRS.get(cfg.auditor_backend, cfg.auditor_backend + '-cli-runner')})",
                     file=sys.stderr,
                 )
                 return 2

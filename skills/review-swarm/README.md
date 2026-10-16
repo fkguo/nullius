@@ -14,7 +14,7 @@ runs, and you can run them yourself for reproducibility and debugging.
 
 - `python3` — the launcher; Claude and Kimi process supervision requires Python 3.10 or newer
 - Runner skills for whichever backends you use, with their CLIs on `PATH`:
-  - `claude-cli-runner` (for `claude/...` models)
+  - `native-cli-runner` (for `claude/...` models)
   - `gemini-cli-runner` (for `gemini/...` models)
   - `codex-cli-runner` (for `codex/...` models)
   - `kimi-cli-runner` (for `kimi/...` models)

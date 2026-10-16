@@ -187,7 +187,7 @@ def _agent_skills_root() -> Path:
     # A complete checkout/plugin carries its own reviewed runner versions.
     # Explicit command-line runner overrides still take precedence.
     sibling_root = Path(__file__).resolve().parents[3]
-    if (sibling_root / "claude-cli-runner" / "scripts" / "run_claude.sh").is_file():
+    if (sibling_root / "native-cli-runner" / "scripts" / "run_claude.sh").is_file():
         return sibling_root
     for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
         val = os.environ.get(env_var, "").strip()
@@ -205,7 +205,7 @@ def _opencode_runner() -> Path:
 
 
 def _claude_runner() -> Path:
-    return _agent_skills_root() / "claude-cli-runner" / "scripts" / "run_claude.sh"
+    return _agent_skills_root() / "native-cli-runner" / "scripts" / "run_claude.sh"
 
 
 def _codex_runner() -> Path:

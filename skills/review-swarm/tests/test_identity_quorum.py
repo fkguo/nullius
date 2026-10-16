@@ -107,7 +107,7 @@ def test_unchecked_delivery_does_not_supply_completed_review_quorum():
 
 def test_real_claude_runner_capture_separates_request_resolution_and_report(monkeypatch, tmp_path):
     mod = launcher()
-    source = Path(__file__).resolve().parents[2] / 'claude-cli-runner/tests/test_progress_supervision.py'
+    source = Path(__file__).resolve().parents[2] / 'native-cli-runner/tests/test_progress_supervision.py'
     spec = importlib.util.spec_from_file_location('progress_fake_fixture', source)
     fake = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fake)
@@ -142,7 +142,7 @@ def test_real_claude_runner_capture_separates_request_resolution_and_report(monk
 
 def test_partial_body_never_reaches_swarm_contract_or_quorum(monkeypatch, tmp_path):
     mod = launcher()
-    source = Path(__file__).resolve().parents[2] / 'claude-cli-runner/tests/test_progress_supervision.py'
+    source = Path(__file__).resolve().parents[2] / 'native-cli-runner/tests/test_progress_supervision.py'
     spec = importlib.util.spec_from_file_location('incomplete_fake_fixture', source)
     fake = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fake)

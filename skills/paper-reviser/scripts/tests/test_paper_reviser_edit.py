@@ -612,7 +612,7 @@ class PaperReviserEditTests(unittest.TestCase):
     def test_resolve_family_runner_maps_family_to_run_script(self) -> None:
         base = paper_reviser_edit._skill_root().parent
         for family in paper_reviser_edit.BACKEND_FAMILIES:
-            expected = base / f"{family}-cli-runner" / "scripts" / f"run_{family}.sh"
+            expected = base / paper_reviser_edit.RUNNER_SKILL_DIRS[family] / "scripts" / f"run_{family}.sh"
             resolved = paper_reviser_edit._resolve_family_runner(family)
             # Resolver returns the exact family path when present, else None.
             if resolved is not None:

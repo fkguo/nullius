@@ -505,7 +505,7 @@ def _agent_skills_root() -> Path:
     # A complete checkout/plugin carries its own reviewed runner versions.
     # Explicit command-line runner overrides still take precedence.
     sibling_root = Path(__file__).resolve().parents[3]
-    if (sibling_root / "claude-cli-runner" / "scripts" / "run_claude.sh").is_file():
+    if (sibling_root / "native-cli-runner" / "scripts" / "run_claude.sh").is_file():
         return sibling_root
     for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
         val = os.environ.get(env_var, "").strip()
@@ -519,17 +519,29 @@ def _agent_skills_root() -> Path:
 
 
 # The five cli-runner families share the same layout under the agent skills
-# root: `<family>-cli-runner/scripts/run_<family>.sh`, and all accept the same
+# root: `<runner skill>/scripts/run_<family>.sh` (RUNNER_SKILL_DIRS below), and all accept the same
 # core flags (--model / --system-prompt-file / --prompt-file / --out). The
 # distiller that consumes these outputs computes cross-model agreement/asymmetry,
 # so it must not be frozen to the claude+gemini pair.
 _RUNNER_FAMILIES: tuple[str, ...] = ("claude", "codex", "gemini", "opencode", "kimi")
 
+# Runner skill directory per backend family. Runner skills are named
+# `<family>-cli-runner`, except the claude family, whose skill is
+# `native-cli-runner` because skill names may not contain the vendor's
+# reserved word.
+RUNNER_SKILL_DIRS: dict[str, str] = {
+    "claude": "native-cli-runner",
+    "gemini": "gemini-cli-runner",
+    "codex": "codex-cli-runner",
+    "opencode": "opencode-cli-runner",
+    "kimi": "kimi-cli-runner",
+}
+
 
 def _find_runner(kind: str) -> Path:
     root = _agent_skills_root()
     if kind in _RUNNER_FAMILIES:
-        return root / f"{kind}-cli-runner" / "scripts" / f"run_{kind}.sh"
+        return root / RUNNER_SKILL_DIRS[kind] / "scripts" / f"run_{kind}.sh"
     raise ValueError(kind)
 
 

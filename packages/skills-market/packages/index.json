@@ -4,7 +4,6 @@
   "packages": [
     "citation-triangulation.json",
     "claim-grounding.json",
-    "claude-cli-runner.json",
     "codex-cli-runner.json",
     "deep-literature-review.json",
     "derivation-verify.json",
@@ -25,6 +24,7 @@
     "literature-to-package.json",
     "literature-workflows.json",
     "markdown-hygiene.json",
+    "native-cli-runner.json",
     "numerical-reliability-gate.json",
     "opencode-cli-runner.json",
     "paper-reviser.json",

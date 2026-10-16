@@ -9,6 +9,13 @@ the version to cite.
 
 ## [Unreleased]
 
+### Changed
+- **The claude CLI runner skill is now `native-cli-runner`.** Skill names may not
+  contain the reserved words `claude` or `anthropic`, so `skills/claude-cli-runner`
+  is renamed. Its script is still `scripts/run_claude.sh` and the backend family is
+  still `claude`. Symlinked or copied installs under the agent skill homes must be
+  re-pointed to `skills/native-cli-runner`.
+
 ## [0.6.0] - 2026-10-16
 
 First archived release. Nullius is positioned as an evidence-first harness for

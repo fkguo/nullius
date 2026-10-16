@@ -1,9 +1,11 @@
 ---
-name: claude-cli-runner
+name: native-cli-runner
 description: Run the local `claude` CLI in non-interactive mode (with optional retries/backoff) for arbitrary prompts; supports loading system+user prompts from files and writing output to a target file.
 ---
 
 # Claude CLI Runner
+
+This skill is named `native-cli-runner` rather than after its CLI because skill names may not contain the reserved words `claude` or `anthropic`; it runs the `claude` executable and serves the `claude` backend family.
 
 Use this skill when you need to call Claude from the command line (any task), independent of the downstream workflow (review, drafting, translation, etc.).
 
@@ -22,7 +24,7 @@ Use this skill when you need to call Claude from the command line (any task), in
 ## Recommended: runner script (retries + file inputs)
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/claude-cli-runner" ] && echo "$r/skills/claude-cli-runner" && break; done || true)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/native-cli-runner" ] && echo "$r/skills/native-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_claude.sh" \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \
@@ -81,7 +83,7 @@ membrane. Read-only tool access alone cannot enforce filesystem isolation.
 Example:
 
 ```bash
-bash /path/to/claude-cli-runner/scripts/run_claude.sh \
+bash /path/to/native-cli-runner/scripts/run_claude.sh \
   --system-prompt-file /path/to/system.txt --prompt-file /path/to/prompt.txt \
   --out /path/to/review.txt --live-capture --expected-secs 1200 --timeout-secs 5400
 ```
@@ -170,7 +172,7 @@ Historical workflow-like tool names may since have been pruned. Use the current 
 ## Runner dry-run
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/claude-cli-runner" ] && echo "$r/skills/claude-cli-runner" && break; done || true)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/native-cli-runner" ] && echo "$r/skills/native-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_claude.sh" \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \

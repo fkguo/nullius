@@ -1,5 +1,5 @@
 {
-  "package_id": "claude-cli-runner",
+  "package_id": "native-cli-runner",
   "package_type": "skill-pack",
   "repo": "nullius/skills-market",
   "channel": "beta",
@@ -11,7 +11,7 @@
     "kimi_code",
     "opencode"
   ],
-  "source_path": "skills/claude-cli-runner/SKILL.md",
+  "source_path": "skills/native-cli-runner/SKILL.md",
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",
@@ -21,7 +21,7 @@
   "source": {
     "repo": "nullius/skills",
     "ref": "main",
-    "subpath": "skills/claude-cli-runner",
+    "subpath": "skills/native-cli-runner",
     "include": [
       "SKILL.md",
       "SKILL.zh.md",
