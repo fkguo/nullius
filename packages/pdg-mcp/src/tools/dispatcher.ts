@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { invalidParams, McpError, verifyHarnessInvocationMarker } from '@nullius/shared';
+import { invalidParams, McpError, structuredContentOf, verifyHarnessInvocationMarker } from '@nullius/shared';
 import type { ToolExposureMode } from './registry.js';
 import { getToolSpec, isToolExposed } from './registry.js';
 import { isStateTouchingPdgMcp } from './state-touch-classification.js';
@@ -51,7 +51,7 @@ export async function handleToolCall(
   args: Record<string, unknown>,
   mode: ToolExposureMode = 'standard',
   _ctx?: ToolCallContext
-): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
+): Promise<{ content: { type: string; text: string }[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
   try {
     // P3-C (redesigned 2026-05-23): event-driven anchor verification.
     // pdg-mcp standalone classifier: all tools NO_STATE_TOUCH per audit;
@@ -69,7 +69,11 @@ export async function handleToolCall(
 
     const parsedArgs = parseToolArgs(name, spec.zodSchema, args);
     const result = await spec.handler(parsedArgs as any, {});
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    const structuredContent = structuredContentOf(result);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      ...(structuredContent ? { structuredContent } : {}),
+    };
   } catch (err) {
     return formatToolError(err);
   }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { zodToMcpInputSchema } from '@nullius/shared';
+import { riskToAnnotations, toolAnnotationsFor, zodToMcpInputSchema } from '@nullius/shared';
+import { PROJECT_LOCAL_TOOL_RISK_LEVELS, PROJECT_TOOL_HINTS, PROJECT_TOOL_TITLES, riskFromExecutionPolicy } from './annotations.js';
 import { coreSpecs, isBackground } from './policy.js';
 import { cliSchema } from './cli.js';
 
@@ -19,7 +20,7 @@ const descriptions: Record<keyof typeof extraSchemas, string> = {
 };
 export function toolsList() {
   return [
-    ...Object.entries(extraSchemas).map(([name, schema]) => ({ name, description: descriptions[name as keyof typeof extraSchemas], inputSchema: { ...zodToMcpInputSchema(schema), type: 'object' as const }, annotations: { readOnlyHint: ['project_capabilities', 'project_file_read', 'project_delivery_read'].includes(name) } })),
+    ...Object.entries(extraSchemas).map(([name, schema]) => ({ name, title: PROJECT_TOOL_TITLES[name], description: descriptions[name as keyof typeof extraSchemas], inputSchema: { ...zodToMcpInputSchema(schema), type: 'object' as const }, annotations: toolAnnotationsFor(name, PROJECT_LOCAL_TOOL_RISK_LEVELS, PROJECT_TOOL_HINTS) })),
     ...coreSpecs.map(spec => {
       const schema = zodToMcpInputSchema(spec.zodSchema);
       const properties: Record<string, unknown> = { ...(schema.properties as Record<string, unknown>) };
@@ -30,11 +31,14 @@ export function toolsList() {
         properties.timeout_seconds = { type: 'integer', minimum: 1, maximum: 3600, default: 300 };
         required = [...required, 'delivery_id'];
       }
+      const hints = PROJECT_TOOL_HINTS[spec.name];
+      if (!hints) throw new Error(`No behaviour hints recorded for tool ${spec.name}`);
       return {
         name: spec.name,
+        title: PROJECT_TOOL_TITLES[spec.name],
         description: spec.description + (isBackground(spec.name) ? ' Project transport: returns a delivery handle; poll project_delivery_read for the original result. Reuse delivery_id after disconnect.' : ''),
         inputSchema: { ...schema, type: 'object' as const, properties, required },
-        annotations: { readOnlyHint: spec.execution_policy.mutation_class === 'read_only', destructiveHint: spec.execution_policy.mutation_class === 'stateful' },
+        annotations: riskToAnnotations(riskFromExecutionPolicy(spec.execution_policy), hints),
       };
     }),
   ];

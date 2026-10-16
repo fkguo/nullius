@@ -9,7 +9,9 @@ import {
   ZOTERO_CONFIRM,
   ZOTERO_DELETE,
   optionalBudgetInt,
+  toolAnnotationsFor,
 } from '@nullius/shared';
+import { ZOTERO_TOOL_HINTS, ZOTERO_TOOL_RISK_LEVELS } from './annotations.js';
 
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import { normalizeZoteroArxivId, normalizeZoteroDoi } from '../zotero/identifiers.js';
@@ -40,6 +42,8 @@ export interface ToolHandlerContext {}
 
 export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, any>> {
   name: string;
+  /** Human-readable display name. */
+  title?: string;
   description: string;
   exposure: ToolExposure;
   /** Tool input schema (SSOT) */
@@ -417,6 +421,7 @@ async function runZoteroQueryItemsBridge(request: ZoteroQueryItemsBridgeRequest)
 export const TOOL_SPECS: ToolSpec[] = [
   {
     name: ZOTERO_LOCAL,
+    title: 'Zotero local library',
     exposure: 'standard',
     description:
       'Unified Zotero Local API tool (requires Zotero Local API at `http://127.0.0.1:23119`). Modes: list_collections/list_collection_paths/list_items/get_item/get_item_attachments/download_attachment/get_attachment_fulltext/list_tags (fulltext requires `ZOTERO_DATA_DIR`; local-only).',
@@ -466,6 +471,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ZOTERO_FIND_ITEMS,
+    title: 'Find Zotero items',
     exposure: 'standard',
     description:
       'Resolve Zotero items by identifiers (doi/arxiv/recid/item_key/title) with optional local filters (tags/authors/publication_title/year/volume/issue), optionally scoped by collection_key (and include_children). Internally, it fetches a limited candidate set via Zotero Local API search and then verifies matches; for interactive browsing, prefer zotero_search_items (local-only).',
@@ -474,6 +480,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ZOTERO_SEARCH_ITEMS,
+    title: 'Search Zotero items',
     exposure: 'standard',
     description:
       'Browse/search Zotero items via Zotero Local API query params (q/qmode/tag/itemType, optional collection scope). Returns summarized items with select_uri + identifier digest; does not guarantee exact identifier resolution (use zotero_find_items for that; local-only).',
@@ -482,6 +489,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ZOTERO_EXPORT_ITEMS,
+    title: 'Export Zotero items',
     exposure: 'standard',
     description: 'Export Zotero items into BibTeX/CSL-JSON/RIS/etc via Local API (local-only).',
     zodSchema: ZoteroExportItemsToolSchema,
@@ -489,6 +497,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ZOTERO_GET_SELECTED_COLLECTION,
+    title: 'Zotero selected collection',
     exposure: 'standard',
     description:
       'Resolve the Zotero UI-selected collection to a Local API collection_key (requires Zotero Connector + Zotero open; maps connector path → Local API key; local-only).',
@@ -497,6 +506,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ZOTERO_ADD,
+    title: 'Preview Zotero add',
     exposure: 'standard',
     description:
       'Preview a Zotero add/update operation and return a confirm_token; execute via zotero_confirm (local-only write). ' +
@@ -507,6 +517,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ZOTERO_DELETE,
+    title: 'Preview Zotero delete',
     exposure: 'standard',
     description:
       'Preview a Zotero delete and return a confirm_token; execute via zotero_confirm (local-only write via the zotero-inspire endpoint, which the native read-only Local API cannot do). mode=trash (default) is recoverable from the Zotero trash; mode=erase is permanent.',
@@ -515,6 +526,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   },
   {
     name: ZOTERO_CONFIRM,
+    title: 'Confirm Zotero change',
     exposure: 'standard',
     description:
       'Confirm and execute a previewed Zotero write operation (local-only). Use the confirm_token returned by tools like zotero_add.',
@@ -563,8 +575,10 @@ export function getTools(mode: ToolExposureMode = 'standard') {
   return getToolSpecs(mode).map(spec => {
     return {
       name: spec.name,
+      title: spec.title,
       description: spec.description,
       inputSchema: zodToMcpInputSchema(spec.zodSchema),
+      annotations: toolAnnotationsFor(spec.name, ZOTERO_TOOL_RISK_LEVELS, ZOTERO_TOOL_HINTS),
     };
   });
 }

@@ -22,6 +22,7 @@ import { ensureDir, getDataDir, getDownloadsDir } from './data/dataDir.js';
 import { cleanupRegisteredDownloadDirs } from './data/downloadSession.js';
 import { isMarkedDirectory } from './data/markers.js';
 import { cleanupOldPdgArtifacts } from '@nullius/pdg-mcp/tooling';
+import { SERVER_INSTRUCTIONS } from './serverInstructions.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -160,6 +161,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
+    instructions: SERVER_INSTRUCTIONS,
   }
 );
 

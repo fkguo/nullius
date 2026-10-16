@@ -13,7 +13,9 @@ import {
   OPENALEX_RATE_LIMIT,
   DiscoveryProviderDescriptorSchema,
   type DiscoveryProviderDescriptor,
+  toolAnnotationsFor,
 } from '@nullius/shared';
+import { OPENALEX_TOOL_HINTS, OPENALEX_TOOL_RISK_LEVELS } from './annotations.js';
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import {
   OpenAlexSearchSchema,
@@ -51,6 +53,8 @@ export type ToolExposure = 'standard' | 'full';
 
 export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, any>> {
   name: string;
+  /** Human-readable display name. */
+  title?: string;
   description: string;
   exposure: ToolExposure;
   zodSchema: TSchema;
@@ -64,6 +68,7 @@ export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, a
 export const TOOL_SPECS: ToolSpec[] = [
   {
     name: OPENALEX_SEARCH,
+    title: 'Search OpenAlex works',
     exposure: 'standard',
     description: `Search OpenAlex works by full-text (title/abstract/fulltext). Returns paginated results with cursor for deep pagination.
 
@@ -84,6 +89,7 @@ Examples:
 
   {
     name: OPENALEX_SEMANTIC_SEARCH,
+    title: 'OpenAlex semantic search',
     exposure: 'standard',
     description: `AI-powered semantic similarity search for OpenAlex works. Requires OPENALEX_API_KEY.
 
@@ -95,6 +101,7 @@ Best for: finding papers by concept/topic rather than specific terms.`,
 
   {
     name: OPENALEX_GET,
+    title: 'OpenAlex entity',
     exposure: 'standard',
     description: `Get a single OpenAlex entity by any supported ID format (network).
 
@@ -114,6 +121,7 @@ Returns the full entity object (all fields) unless select is specified.`,
 
   {
     name: OPENALEX_FILTER,
+    title: 'Filter OpenAlex entities',
     exposure: 'standard',
     description: `Filter/list any OpenAlex entity type with structured filter syntax (network).
 
@@ -136,6 +144,7 @@ Supports cursor pagination and bulk JSONL output via max_results.`,
 
   {
     name: OPENALEX_GROUP,
+    title: 'Group OpenAlex entities',
     exposure: 'standard',
     description: `Aggregate OpenAlex entities by a field (group_by) with optional filter (network).
 
@@ -152,6 +161,7 @@ Examples:
 
   {
     name: OPENALEX_REFERENCES,
+    title: 'OpenAlex work references',
     exposure: 'standard',
     description: `Get outgoing references (bibliography) of a work (network).
 
@@ -163,6 +173,7 @@ work_id accepts: OpenAlex W-ID, DOI, or full OpenAlex URL.`,
 
   {
     name: OPENALEX_CITATIONS,
+    title: 'OpenAlex citing works',
     exposure: 'standard',
     description: `Get incoming citations (citing works) for a work (network).
 
@@ -176,6 +187,7 @@ work_id accepts: OpenAlex W-ID, DOI, or full OpenAlex URL.`,
 
   {
     name: OPENALEX_BATCH,
+    title: 'OpenAlex batch lookup',
     exposure: 'standard',
     description: `Batch lookup up to 500 entities by mixed ID types (network).
 
@@ -192,6 +204,7 @@ Example:
 
   {
     name: OPENALEX_AUTOCOMPLETE,
+    title: 'OpenAlex autocomplete',
     exposure: 'standard',
     description: `Fast type-ahead autocomplete for any OpenAlex entity (network).
 
@@ -203,6 +216,7 @@ Useful for resolving partial author/institution/venue names to OpenAlex IDs.`,
 
   {
     name: OPENALEX_CONTENT,
+    title: 'Download OpenAlex full text',
     exposure: 'full',
     description: `Download full-text PDF or TEI-XML from content.openalex.org (network, writes files, requires _confirm: true).
 
@@ -216,6 +230,7 @@ Returns: file_path, file_size, mime_type, uri.`,
 
   {
     name: OPENALEX_RATE_LIMIT,
+    title: 'OpenAlex rate-limit status',
     exposure: 'standard',
     description: `Check current OpenAlex API rate limit and budget status (local-only unless refresh=true).
 
@@ -249,8 +264,10 @@ export function getToolSpecs(mode: ToolExposureMode = 'standard'): ToolSpec[] {
 export function getTools(mode: ToolExposureMode = 'standard') {
   return getToolSpecs(mode).map(spec => ({
     name: spec.name,
+    title: spec.title,
     description: spec.description,
     inputSchema: zodToMcpInputSchema(spec.zodSchema),
+    annotations: toolAnnotationsFor(spec.name, OPENALEX_TOOL_RISK_LEVELS, OPENALEX_TOOL_HINTS),
   }));
 }
 
