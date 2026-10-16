@@ -19,6 +19,7 @@
     "check:portable-paths-anti-drift": "node scripts/check-portable-paths-anti-drift.mjs",
     "check:scaffold-authority": "node scripts/check-scaffold-authority.mjs",
     "check:host-neutral-skill-paths-anti-drift": "node scripts/check-host-neutral-skill-paths-anti-drift.mjs",
+    "check:skill-frontmatter-anti-drift": "node --test scripts/tests/check-skill-frontmatter-anti-drift.test.mjs && node scripts/check-skill-frontmatter-anti-drift.mjs",
     "check:transcription-fidelity-checklist-anti-drift": "node scripts/check-transcription-fidelity-checklist-anti-drift.mjs",
     "check:launch-authorization-anti-drift": "node scripts/check-launch-authorization-anti-drift.mjs",
     "check:citation-identity-grounding-anti-drift": "node scripts/check-citation-identity-grounding-anti-drift.mjs",
@@ -40,6 +41,7 @@
   },
   "packageManager": "pnpm@9.0.0",
   "devDependencies": {
+    "js-yaml": "^4.1.1",
     "json-schema-to-typescript": "^15.0.4",
     "tsx": "^4.21.0"
   }
