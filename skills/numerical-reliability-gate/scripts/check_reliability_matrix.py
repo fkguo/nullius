@@ -232,7 +232,7 @@ def _check_error_budget(row_id: str, row: dict[str, Any], findings: list[dict[st
 
 
 def _check_total_error(row_id: str, row: dict[str, Any], budget: list[dict[str, Any]], reliable: bool,
-                       findings: list[dict[str, str]]) -> float | None:
+                       findings: list[dict[str, str]]) -> Decimal | None:
     total = row.get("total_error")
     if total is None:
         if reliable:
