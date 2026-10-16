@@ -12,11 +12,13 @@
  * correct results out of the record behind gates far stricter than the
  * results' use.
  *
- * The countermeasure is the gate's G0: the accuracy a quantity's use requires
- * is written down first and bounds every later tolerance; the error is
- * budgeted by source and only the dominant source is refined; refinement stops
- * when the dominant source is below the required accuracy; and an over-tight
- * gate is a defect, not rigor.
+ * The countermeasure is the gate's G0: the strictest accuracy among the
+ * quantity's uses is written down first and bounds every tolerance placed on
+ * the quantity itself; the error is budgeted by source and only the dominant
+ * source is refined; refinement stops when the total error (combined by a
+ * stated rule) is at or below the required accuracy; an over-tight tolerance
+ * on the quantity is a defect, not rigor, while diagnostic thresholds keep
+ * blocking where they are needed to bound the error or validate the method.
  *
  * This lock fails the build when G0 or its back-references in G1/G2 are removed
  * or renamed, when the matrix contract loses the G0 field rule, when the
@@ -96,16 +98,21 @@ if (skill !== null) {
 requireAll(`${SKILL_FILE} (G0)`, gateItem(SKILL_FILE, skill, 'G0'), [
   ['G0 heading', 'Required accuracy first; refine only the dominant error; stop when it is met.**'],
   ['required accuracy written down first', 'write down the **required accuracy** of the quantity and where it comes from'],
-  ['sources of the required accuracy', 'the digits the result will be displayed with, how far a downstream conclusion moves when the value moves, or the uncertainty the value will be compared against'],
+  ['every use, strictest governs', 'List every use the quantity serves'],
+  ['strictest use', 'and take the **strictest** of them'],
+  ['display accuracy is half the last digit', 'about half the last displayed digit'],
   ['method capability is not a source', 'What the method could achieve is never a source.'],
-  ['bounds every tolerance', 'The required accuracy bounds every tolerance this gate applies to the quantity'],
   ['observable, not raw parameters', 'not on raw internal parameters in mixed units'],
   ['error budget by source', '**Budget the error by source.**'],
   ['refine only the dominant source', 'Refine **only the dominant source**'],
   ['subdominant refinement is not progress', 'changes nothing the result depends on and is not progress'],
-  ['stop rule', '**Stop when the dominant source is below the required accuracy.**'],
+  ['total error by a stated rule', 'combine them into a **total error** by a stated rule: a linear sum by default, a sum in quadrature only with a one-line reason the sources are independent'],
+  ['stop rule on the total error', '**Stop when the total error is at or below the required accuracy.**'],
   ['further refinement needs authorization', 'Refinement past that point needs explicit authorization from the project owner.'],
-  ['stricter checks do not block', 'may be kept as an informational record but may not block acceptance'],
+  ['quantity tolerances bounded', 'A tolerance placed on the quantity itself — a ladder plateau, a cross-check agreement — is set from the required accuracy and no tighter'],
+  ['stricter quantity tolerances do not block', 'may be kept as an informational record but may not block acceptance'],
+  ['diagnostic thresholds keep blocking', 'stays blocking where that is what it takes to bound the quantity\'s error or to validate the method'],
+  ['G0 never demotes diagnostics', 'G0 never demotes it, and G3/G7/G9 keep their thresholds'],
   ['over-tight gate is a defect', '**an over-tight gate is a defect, just as a loose one is**'],
   ['unknown target comes first', 'the first deliverable is that accuracy and its source, not more digits'],
 ]);
@@ -113,7 +120,7 @@ requireAll(`${SKILL_FILE} (G0)`, gateItem(SKILL_FILE, skill, 'G0'), [
 // 2. G1 and G2 are bounded by G0.
 requireAll(`${SKILL_FILE} (G1)`, gateItem(SKILL_FILE, skill, 'G1'), [
   ['ladder bounded by G0', '**The ladder runs to the G0 required accuracy, not to the last digit.**'],
-  ['refinement only for the dominant source above target', 'owed only when that knob is the dominant error source and the dominant source is still above the required accuracy'],
+  ['refinement only for the dominant source above target', 'owed only when that knob is the dominant error source and the total error is still above the required accuracy'],
 ]);
 requireAll(`${SKILL_FILE} (G2)`, gateItem(SKILL_FILE, skill, 'G2'), [
   ['cross-check tolerance bounded by G0', 'set from the G0 required accuracy and no tighter than it'],
@@ -121,7 +128,7 @@ requireAll(`${SKILL_FILE} (G2)`, gateItem(SKILL_FILE, skill, 'G2'), [
 
 // 3. The foldable verdict includes G0, and the recorded failure modes stay.
 requireAll(`${SKILL_FILE} (output and provenance)`, skill, [
-  ['reliable requires G0', '`reliable` requires every *applicable* G0–G10 check to pass — including the G0 dominant error below the required accuracy'],
+  ['reliable requires G0', '`reliable` requires every *applicable* G0–G10 check to pass — including the G0 total error at or below the required accuracy'],
   ['G6 folds only G0–G10 passes', 'passed every applicable G0–G10 check at the converged setting'],
   ['over-tight gate episode', 'some six orders of magnitude tighter than the declared target accuracy'],
   ['subdominant refinement episode', 'the agent kept tightening the integration precision'],
@@ -130,28 +137,35 @@ requireAll(`${SKILL_FILE} (output and provenance)`, skill, [
 
 // 4. The matrix contract carries G0 as a field rule, the example uses it, and the checker is named.
 requireAll(CONTRACT_FILE, read(CONTRACT_FILE), [
-  ['G0 field rule', '**G0 required accuracy and error budget (every row)**'],
+  ['G0 field rule', '**G0 required accuracy, error budget and total error (every row)**'],
   ['method capability is not a source', 'What the method could achieve is never a source.'],
+  ['strictest use governs', '`required_accuracy.value` MUST equal the smallest use value (the strictest use governs)'],
   ['exactly one dominant source', '**exactly one** entry marked `dominant: true`'],
-  ['reliable needs dominant within target', 'A `reliable` row requires every estimate to be numeric and the dominant estimate to be at or below the required accuracy'],
-  ['stricter checks informational', 'a stricter check is recorded in `notes` as informational and does not block the verdict'],
+  ['quadrature needs independence basis', '`quadrature` (a one-line `basis` stating why the sources are independent is then required)'],
+  ['reliable needs total within target', 'A `reliable` row requires every estimate to be numeric and the total error to be at or below the required accuracy'],
+  ['quantity tolerances informational when stricter', 'a stricter one is recorded in `notes` as informational and does not block the verdict'],
+  ['diagnostic thresholds keep blocking', 'carries that rationale, and keeps blocking'],
+  ['example carries total_error', '"total_error": {'],
   ['example carries required_accuracy', '"required_accuracy": {'],
   ['example carries error_budget', '"error_budget": ['],
   ['checker named', 'scripts/check_reliability_matrix.py'],
-  ['reliable verdict covers G0', 'passed **every applicable** G0–G10 check at the converged setting — including the G0 dominant error at or below the required accuracy'],
+  ['reliable verdict covers G0', 'passed **every applicable** G0–G10 check at the converged setting — including the G0 total error at or below the required accuracy'],
 ]);
 
 // 5. The checker enforces the rules it is documented to enforce.
 requireAll(CHECKER_FILE, read(CHECKER_FILE), [
   ['missing required accuracy finding', 'MISSING_REQUIRED_ACCURACY'],
-  ['dominant above target finding', 'DOMINANT_ABOVE_REQUIRED_ACCURACY'],
+  ['total above target finding', 'TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY'],
+  ['total understated finding', 'TOTAL_ERROR_BELOW_ITS_RULE'],
+  ['strictest-use finding', 'REQUIRED_ACCURACY_NOT_STRICTEST'],
   ['dominant must be largest finding', 'DOMINANT_NOT_LARGEST'],
   ['over-refinement warning', 'REFINED_PAST_REQUIRED_ACCURACY'],
   ['allowed accuracy sources', 'ACCURACY_SOURCES = frozenset({"display", "downstream_sensitivity", "comparison_uncertainty"})'],
 ]);
 requireAll(CHECKER_TESTS, read(CHECKER_TESTS), [
   ['contract example is checked', 'def test_contract_example_matrix_satisfies_the_checker'],
-  ['dominant-above-target test', 'def test_reliable_requires_dominant_error_within_required_accuracy'],
+  ['aggregate-error counterexample test', 'def test_stop_rule_uses_the_total_error_not_only_the_dominant_source'],
+  ['strictest-use test', 'def test_required_accuracy_is_the_strictest_use'],
 ]);
 
 // 6. The research-team prompts carry the stop-at-required-accuracy instruction.
@@ -164,6 +178,7 @@ requireAll(MEMBER_B, read(MEMBER_B), [
 ]);
 requireAll(VERIFIER, read(VERIFIER), [
   ['verifier judges against required accuracy', 'Judge "appropriate" against the accuracy the result\'s use requires (numerical-reliability-gate G0)'],
+  ['older challenge rule yields to required accuracy', 'this is a CHALLENGED verdict, unless the method already meets the required accuracy below'],
 ]);
 requireAll(TEAM_SKILL, read(TEAM_SKILL), [
   ['tolerance ceiling is G0 on delegation', 'This ceiling is the delegation-side form of the `numerical-reliability-gate` G0 required accuracy'],

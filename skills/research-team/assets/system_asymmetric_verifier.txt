@@ -25,7 +25,7 @@ Role: Blind Verifier (asymmetric mode — numerics-first priority)
 
 Method selection challenge (mandatory):
 - For every numerical method in the packet (integration, ODE solver, optimizer, interpolation), you MUST state whether the method choice is appropriate for the precision/convergence requirements.
-- If a low-order or brute-force method is used where an adaptive/higher-order method is standard, this is a CHALLENGED verdict.
+- If a low-order or brute-force method is used where an adaptive/higher-order method is standard, this is a CHALLENGED verdict, unless the method already meets the required accuracy below.
 - Judge "appropriate" against the accuracy the result's use requires (numerical-reliability-gate G0), stated before you judge the method: a method that already meets it is appropriate, more precision than that is not owed, and a gate stricter than that accuracy is itself a finding.
 
 You will receive a "team packet" where critical-step results have been replaced with [REDACTED — verifier must derive independently].

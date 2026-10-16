@@ -1,4 +1,4 @@
-"""Behavior tests for the reliability-matrix checker (G0 required accuracy and error budget).
+"""Behavior tests for the reliability-matrix checker (G0 required accuracy, error budget, total error).
 
 Each rule is exercised by a passing matrix and by a minimal edit that must make it
 fail, so a rule that silently stopped firing would be caught. The contract's own
@@ -33,6 +33,16 @@ def _load():
 crm = _load()
 
 
+def _acc(value=0.02, uses=None, **extra):
+    acc = {
+        "kind": "absolute",
+        "value": value,
+        "uses": uses if uses is not None else [{"source": "display", "value": value, "basis": "shown to two decimals"}],
+    }
+    acc.update(extra)
+    return acc
+
+
 def _row(**overrides):
     row = {
         "id": "q1",
@@ -40,23 +50,36 @@ def _row(**overrides):
         "verdict": "reliable",
         "recorded_value": "1.92",
         "recorded_setting": "converged setting",
-        "required_accuracy": {"kind": "absolute", "value": 0.02, "source": "display", "basis": "shown to two decimals"},
+        "required_accuracy": _acc(
+            0.02,
+            [
+                {"source": "comparison_uncertainty", "value": 0.02, "basis": "compared against a value quoted to 0.02"},
+                {"source": "display", "value": 0.05, "basis": "shown to one decimal"},
+            ],
+        ),
         "error_budget": [
             {"source": "integration grid", "estimate": 0.007, "dominant": True},
             {"source": "continuation order", "estimate": 0.001, "dominant": False},
         ],
+        "total_error": {"rule": "linear_sum", "value": 0.008},
     }
     row.update(overrides)
     return row
 
 
+def _candidate(**overrides):
+    """A non-reliable row: no recorded value or setting."""
+    base = dict(verdict="unconverged", recorded_value=None, recorded_setting=None)
+    base.update(overrides)
+    return _row(**base)
+
+
 def _matrix(*rows):
     rows = list(rows) or [_row()]
-    reliable = [r["id"] for r in rows if r.get("verdict") == "reliable"]
     return {
         "schema_version": 1,
         "total": len(rows),
-        "reliable": len(reliable),
+        "reliable": sum(1 for r in rows if r.get("verdict") == "reliable"),
         "not_reliable": [r["id"] for r in rows if r.get("verdict") != "reliable"],
         "matrix": rows,
     }
@@ -73,17 +96,21 @@ def _run(tmp_path, data, *extra, raw=None):
     return subprocess.run([sys.executable, str(CHECKER), str(path), *extra], capture_output=True, text=True)
 
 
+# --- the passing baseline -------------------------------------------------------------------
+
+
 def test_well_formed_matrix_passes(tmp_path):
-    unconverged = _row(
+    unestimated = _candidate(
         id="q2",
-        verdict="unconverged",
-        recorded_value=None,
-        recorded_setting=None,
         error_budget=[{"source": "seed dependence", "estimate": None, "dominant": True}],
+        total_error=None,
     )
-    proc = _run(tmp_path, _matrix(_row(), unconverged))
+    proc = _run(tmp_path, _matrix(_row(), unestimated))
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "OK" in proc.stdout
+
+
+# --- required accuracy: every use, the strictest one governs --------------------------------
 
 
 def test_missing_required_accuracy_fails(tmp_path):
@@ -95,21 +122,37 @@ def test_missing_required_accuracy_fails(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "field,value",
+    "acc",
     [
-        ("source", "method_capability"),
-        ("kind", "percent"),
-        ("value", 0),
-        ("value", -1.0),
-        ("value", True),
-        ("basis", ""),
-        ("basis", "two\nlines"),
+        _acc(kind="percent"),
+        _acc(value=0),
+        _acc(value=-1.0),
+        _acc(value=True),
+        _acc(uses=[]),
+        _acc(uses=[{"source": "method_capability", "value": 0.02, "basis": "what the solver reaches"}]),
+        _acc(uses=[{"source": "display", "value": 0.02, "basis": ""}]),
+        _acc(uses=[{"source": "display", "value": 0.02, "basis": "two\nlines"}]),
+        _acc(uses=[{"source": "display", "value": 0.02, "basis": "ok", "note": "x"}]),
+        _acc(source="display"),
+        "0.02",
     ],
 )
-def test_malformed_required_accuracy_fails(field, value):
-    row = _row()
-    row["required_accuracy"] = dict(row["required_accuracy"], **{field: value})
-    assert "INVALID_REQUIRED_ACCURACY" in _codes(_matrix(row))
+def test_malformed_required_accuracy_fails(acc):
+    assert "INVALID_REQUIRED_ACCURACY" in _codes(_matrix(_row(required_accuracy=acc)))
+
+
+def test_required_accuracy_is_the_strictest_use():
+    uses = [
+        {"source": "display", "value": 0.05, "basis": "shown to one decimal"},
+        {"source": "downstream_sensitivity", "value": 0.004, "basis": "a threshold decision moves at 0.004"},
+    ]
+    # Choosing the coarse display requirement while a finer use exists is refused.
+    assert "REQUIRED_ACCURACY_NOT_STRICTEST" in _codes(_matrix(_row(required_accuracy=_acc(0.05, uses))))
+    # Taking the strictest use makes the same row fail on its total error, as it should.
+    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(_row(required_accuracy=_acc(0.004, uses))))
+
+
+# --- error budget: one dominant source, the largest ------------------------------------------
 
 
 def test_missing_error_budget_fails():
@@ -146,21 +189,9 @@ def test_exactly_one_dominant_source():
 def test_dominant_must_be_the_largest_source():
     budget = [
         {"source": "integration precision", "estimate": 1e-9, "dominant": True},
-        {"source": "basis truncation", "estimate": 4e-2, "dominant": False},
+        {"source": "basis truncation", "estimate": 4e-3, "dominant": False},
     ]
     assert "DOMINANT_NOT_LARGEST" in _codes(_matrix(_row(error_budget=budget)))
-
-
-def test_reliable_requires_dominant_error_within_required_accuracy():
-    above = [{"source": "grid", "estimate": 0.03, "dominant": True}]
-    at = [{"source": "grid", "estimate": 0.02, "dominant": True}]
-    assert "DOMINANT_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(_row(error_budget=above)))
-    assert _codes(_matrix(_row(error_budget=at))) == []
-
-
-def test_unconverged_row_may_carry_a_dominant_error_above_the_target():
-    row = _row(verdict="unconverged", recorded_value=None, error_budget=[{"source": "grid", "estimate": 0.03, "dominant": True}])
-    assert _codes(_matrix(row)) == []
 
 
 def test_reliable_row_needs_every_error_estimated():
@@ -171,22 +202,94 @@ def test_reliable_row_needs_every_error_estimated():
     assert "RELIABLE_WITH_UNESTIMATED_ERROR" in _codes(_matrix(_row(error_budget=budget)))
 
 
+# --- total error and the stop rule -----------------------------------------------------------
+
+
+def test_stop_rule_uses_the_total_error_not_only_the_dominant_source():
+    # Two sources of 0.015 each: the largest is within 0.02, the total is not.
+    budget = [
+        {"source": "grid", "estimate": 0.015, "dominant": True},
+        {"source": "truncation", "estimate": 0.015, "dominant": False},
+    ]
+    linear = _row(error_budget=budget, total_error={"rule": "linear_sum", "value": 0.03})
+    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(linear))
+    quad = _row(error_budget=budget, total_error={"rule": "quadrature", "value": 0.0213, "basis": "independent knobs"})
+    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(quad))
+    # Understating the total below its own rule is refused.
+    understated = _row(error_budget=budget, total_error={"rule": "linear_sum", "value": 0.015})
+    assert "TOTAL_ERROR_BELOW_ITS_RULE" in _codes(_matrix(understated))
+
+
+def test_total_within_or_at_target_passes():
+    at = _row(error_budget=[{"source": "grid", "estimate": 0.02, "dominant": True}],
+              total_error={"rule": "linear_sum", "value": 0.02})
+    assert _codes(_matrix(at)) == []
+    assert _codes(_matrix(_row())) == []
+
+
+@pytest.mark.parametrize(
+    "total",
+    [
+        {"rule": "quadrature", "value": 0.0071},
+        {"rule": "rms", "value": 0.008},
+        {"rule": "linear_sum", "value": -1},
+        {"rule": "linear_sum", "value": 0.008, "note": "x"},
+        {"rule": ["linear_sum"], "value": 0.008},
+        "0.008",
+    ],
+)
+def test_malformed_total_error_fails(total):
+    assert "INVALID_TOTAL_ERROR" in _codes(_matrix(_row(total_error=total)))
+
+
+def test_quadrature_with_independence_basis_passes():
+    row = _row(total_error={"rule": "quadrature", "value": 0.0071, "basis": "grid and order errors come from independent knobs"})
+    assert _codes(_matrix(row)) == []
+
+
+def test_reliable_row_needs_a_total_error():
+    assert "MISSING_TOTAL_ERROR" in _codes(_matrix(_row(total_error=None)))
+
+
+def test_total_error_cannot_be_formed_from_unestimated_sources():
+    row = _candidate(error_budget=[{"source": "seed", "estimate": None, "dominant": True}],
+                     total_error={"rule": "linear_sum", "value": 0.0})
+    assert "INVALID_TOTAL_ERROR" in _codes(_matrix(row))
+
+
+def test_candidate_row_may_carry_a_total_above_the_target():
+    row = _candidate(error_budget=[{"source": "grid", "estimate": 0.03, "dominant": True}],
+                     total_error={"rule": "linear_sum", "value": 0.03})
+    assert _codes(_matrix(row)) == []
+
+
 def test_refinement_far_past_the_target_warns_without_failing(tmp_path):
-    budget = [{"source": "grid", "estimate": 1e-9, "dominant": True}]
-    findings, warnings = crm.check(_matrix(_row(error_budget=budget)))
+    tiny = dict(error_budget=[{"source": "grid", "estimate": 1e-9, "dominant": True}],
+                total_error={"rule": "linear_sum", "value": 1e-9})
+    findings, warnings = crm.check(_matrix(_row(**tiny)))
     assert findings == []
     assert [w["code"] for w in warnings] == ["REFINED_PAST_REQUIRED_ACCURACY"]
-    proc = _run(tmp_path, _matrix(_row(error_budget=budget)))
+    proc = _run(tmp_path, _matrix(_row(**tiny)))
     assert proc.returncode == 0
     assert "WARNING REFINED_PAST_REQUIRED_ACCURACY" in proc.stdout
-    # A dominant error within three orders of the target is not flagged.
-    close = [{"source": "grid", "estimate": 1e-4, "dominant": True}]
-    assert crm.check(_matrix(_row(error_budget=close)))[1] == []
+    # A non-reliable row that documents wasted refinement is flagged too.
+    assert [w["code"] for w in crm.check(_matrix(_candidate(**tiny)))[1]] == ["REFINED_PAST_REQUIRED_ACCURACY"]
+    # Within three orders of the target, or an exactly zero error, is not flagged.
+    close = _row(error_budget=[{"source": "grid", "estimate": 1e-4, "dominant": True}],
+                 total_error={"rule": "linear_sum", "value": 1e-4})
+    zero = _row(error_budget=[{"source": "exact identity", "estimate": 0, "dominant": True}],
+                total_error={"rule": "linear_sum", "value": 0})
+    assert crm.check(_matrix(close))[1] == []
+    assert crm.check(_matrix(zero)) == ([], [])
 
 
-def test_only_reliable_rows_carry_a_recorded_value():
-    assert "RECORDED_VALUE_MISMATCH" in _codes(_matrix(_row(recorded_value=None)))
-    assert "RECORDED_VALUE_MISMATCH" in _codes(_matrix(_row(verdict="mirage")))
+# --- matrix bookkeeping ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("field", ["recorded_value", "recorded_setting"])
+def test_only_reliable_rows_carry_recorded_fields(field):
+    assert "RECORDED_FIELD_MISMATCH" in _codes(_matrix(_row(**{field: None})))
+    assert "RECORDED_FIELD_MISMATCH" in _codes(_matrix(_candidate(**{field: "something"})))
 
 
 def test_verdict_vocabulary_and_unique_ids():
@@ -194,12 +297,35 @@ def test_verdict_vocabulary_and_unique_ids():
     assert "DUPLICATE_ID" in _codes(_matrix(_row(), _row()))
 
 
-def test_summary_counts_must_match_rows():
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"verdict": []},
+        {"verdict": {}},
+        {"required_accuracy": {"kind": {}, "value": 0.02, "uses": [{"source": [], "value": 0.02, "basis": "x"}]}},
+        {"total_error": {"rule": {}, "value": 0.008}},
+        {"id": ["q1"]},
+    ],
+)
+def test_unhashable_field_values_are_findings_not_crashes(overrides):
+    assert _codes(_matrix(_row(**overrides)))
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda d: d.update(total=2),
+        lambda d: d.update(total=True),
+        lambda d: d.update(reliable=None),
+        lambda d: d.pop("total"),
+        lambda d: d.pop("not_reliable"),
+        lambda d: d.update(not_reliable=["q1"]),
+        lambda d: d.update(not_reliable=[1]),
+    ],
+)
+def test_summary_counts_are_required_and_must_match_rows(mutate):
     data = _matrix(_row())
-    data["total"] = 2
-    assert "COUNT_MISMATCH" in _codes(data)
-    data = _matrix(_row())
-    data["not_reliable"] = ["q1"]
+    mutate(data)
     assert "COUNT_MISMATCH" in _codes(data)
 
 
@@ -231,6 +357,9 @@ def test_json_output_reports_findings(tmp_path):
     assert payload["findings"][0]["code"] == "MISSING_REQUIRED_ACCURACY"
 
 
+# --- the contract and the checker stay in step -----------------------------------------------
+
+
 def _strip_line_comments(text: str) -> str:
     """Remove // comments outside JSON strings (the contract example is JSON with comments)."""
     out, in_string, escaped, i = [], False, False, 0
@@ -260,22 +389,24 @@ def _strip_line_comments(text: str) -> str:
     return "".join(out)
 
 
-def test_contract_example_matrix_satisfies_the_checker():
+def _contract_example():
     contract = CONTRACT.read_text(encoding="utf-8")
     block = re.search(r"```jsonc\n(.*?)\n```", contract, re.S)
     assert block, "contract.md must keep its jsonc example matrix"
-    data = json.loads(_strip_line_comments(block.group(1)))
+    return json.loads(_strip_line_comments(block.group(1)))
+
+
+def test_contract_example_matrix_satisfies_the_checker():
+    data = _contract_example()
     findings, _ = crm.check(data)
     assert findings == [], findings
-    # The example must actually exercise G0 on every row, including an unestimated source.
     rows = data["matrix"]
-    assert all("required_accuracy" in r and "error_budget" in r for r in rows)
+    assert all("required_accuracy" in r and "error_budget" in r and "total_error" in r for r in rows)
+    assert any(len(r["required_accuracy"]["uses"]) > 1 for r in rows)
     assert any(e["estimate"] is None for r in rows for e in r["error_budget"])
 
 
 def test_contract_example_with_g0_removed_fails():
-    contract = CONTRACT.read_text(encoding="utf-8")
-    data = json.loads(_strip_line_comments(re.search(r"```jsonc\n(.*?)\n```", contract, re.S).group(1)))
-    broken = copy.deepcopy(data)
+    broken = copy.deepcopy(_contract_example())
     del broken["matrix"][0]["required_accuracy"]
     assert "MISSING_REQUIRED_ACCURACY" in _codes(broken)

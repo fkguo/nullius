@@ -6,17 +6,18 @@ number long after it is accurate enough for its use, or to hold a correct result
 back behind a check far stricter than anything the result is used for. The gate's
 G0 rule fixes the stopping point before any refinement: every gated quantity
 records the accuracy its use requires, and an error budget naming the dominant
-error source. This script checks that those records exist, are well formed, and
-are consistent with the verdict: a quantity is foldable (`reliable`) only when its
-dominant error is at or below the accuracy its use requires.
+error source and the total error combined by a stated rule. This script checks
+that those records exist, are well formed, and are consistent with the verdict: a
+quantity is foldable (`reliable`) only when its total error is at or below the
+strictest accuracy its uses require.
 
 It also checks the matrix bookkeeping the contract states (verdict vocabulary,
 unique ids, the summary counts, and that only `reliable` rows carry a recorded
 value). It does not re-judge G1-G10 evidence; that judgement stays with the gate
 and its reviewers.
 
-A dominant error far below the required accuracy (more than three orders of
-magnitude) is reported as a warning: the refinement went past what the result
+A total error far below the required accuracy (more than three orders of
+magnitude) is reported as a warning on any row: the refinement went past what the result
 needed. Warnings never change the exit status.
 
 Exit status: 0 no findings; 1 findings; 2 the file is unreadable, is not one
@@ -53,6 +54,7 @@ VERDICTS = frozenset(
 )
 ACCURACY_KINDS = frozenset({"absolute", "relative"})
 ACCURACY_SOURCES = frozenset({"display", "downstream_sensitivity", "comparison_uncertainty"})
+TOTAL_ERROR_RULES = frozenset({"linear_sum", "quadrature"})
 
 # A dominant error this many times smaller than the required accuracy is reported
 # as refinement carried past what the result needed.
@@ -102,6 +104,15 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _in(value: Any, allowed: frozenset[str]) -> bool:
+    """Membership test that never raises on unhashable JSON values (lists, objects)."""
+    return isinstance(value, str) and value in allowed
+
+
+def _is_count(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 def _is_text(value: Any) -> bool:
     return isinstance(value, str) and value.strip() != "" and "\n" not in value
 
@@ -110,25 +121,46 @@ def _check_required_accuracy(row_id: str, row: dict[str, Any], findings: list[di
     acc = row.get("required_accuracy")
     if acc is None:
         findings.append(_finding(row_id, "MISSING_REQUIRED_ACCURACY",
-                                 "`required_accuracy` is required on every row: state the accuracy the quantity's use requires before any refinement"))
+                                 "`required_accuracy` is required on every row: state the accuracy the quantity's uses require before any refinement"))
         return None
     problems = []
     if not isinstance(acc, dict):
-        problems.append("must be an object")
+        findings.append(_finding(row_id, "INVALID_REQUIRED_ACCURACY", "must be an object"))
+        return None
+    if not _in(acc.get("kind"), ACCURACY_KINDS):
+        problems.append(f"`kind` must be one of {sorted(ACCURACY_KINDS)}")
+    if not _is_number(acc.get("value")) or acc.get("value") <= 0:
+        problems.append("`value` must be a finite positive number")
+    extra = set(acc) - {"kind", "value", "uses"}
+    if extra:
+        problems.append(f"unknown field(s) {sorted(extra)}")
+    uses = acc.get("uses")
+    use_values = []
+    if not isinstance(uses, list) or not uses:
+        problems.append("`uses` must be a non-empty list of every use the quantity serves")
     else:
-        if acc.get("kind") not in ACCURACY_KINDS:
-            problems.append(f"`kind` must be one of {sorted(ACCURACY_KINDS)}")
-        if not _is_number(acc.get("value")) or acc.get("value") <= 0:
-            problems.append("`value` must be a finite positive number")
-        if acc.get("source") not in ACCURACY_SOURCES:
-            problems.append(f"`source` must be one of {sorted(ACCURACY_SOURCES)} (what the method can achieve is never a source)")
-        if not _is_text(acc.get("basis")):
-            problems.append("`basis` must be a non-empty one-line string")
-        extra = set(acc) - {"kind", "value", "source", "basis"}
-        if extra:
-            problems.append(f"unknown field(s) {sorted(extra)}")
+        for index, use in enumerate(uses):
+            where = f"use {index}"
+            if not isinstance(use, dict):
+                problems.append(f"{where} must be an object")
+                continue
+            if not _in(use.get("source"), ACCURACY_SOURCES):
+                problems.append(f"{where}: `source` must be one of {sorted(ACCURACY_SOURCES)} (what the method can achieve is never a source)")
+            if not _is_number(use.get("value")) or use.get("value") <= 0:
+                problems.append(f"{where}: `value` must be a finite positive number")
+            else:
+                use_values.append(use["value"])
+            if not _is_text(use.get("basis")):
+                problems.append(f"{where}: `basis` must be a non-empty one-line string")
+            extra = set(use) - {"source", "value", "basis"}
+            if extra:
+                problems.append(f"{where}: unknown field(s) {sorted(extra)}")
     if problems:
         findings.append(_finding(row_id, "INVALID_REQUIRED_ACCURACY", "; ".join(problems)))
+        return None
+    if acc["value"] != min(use_values):
+        findings.append(_finding(row_id, "REQUIRED_ACCURACY_NOT_STRICTEST",
+                                 f"`required_accuracy.value` {acc['value']} must equal the strictest use ({min(use_values)})"))
         return None
     return acc
 
@@ -177,6 +209,44 @@ def _check_error_budget(row_id: str, row: dict[str, Any], findings: list[dict[st
     return budget
 
 
+def _check_total_error(row_id: str, row: dict[str, Any], budget: list[dict[str, Any]], reliable: bool,
+                       findings: list[dict[str, str]]) -> float | None:
+    total = row.get("total_error")
+    if total is None:
+        if reliable:
+            findings.append(_finding(row_id, "MISSING_TOTAL_ERROR",
+                                     "a `reliable` row needs `total_error`: the error sources combined by a stated rule"))
+        return None
+    problems = []
+    if not isinstance(total, dict):
+        findings.append(_finding(row_id, "INVALID_TOTAL_ERROR", "`total_error` must be an object or null"))
+        return None
+    rule = total.get("rule")
+    if not _in(rule, TOTAL_ERROR_RULES):
+        problems.append(f"`rule` must be one of {sorted(TOTAL_ERROR_RULES)}")
+    if not _is_number(total.get("value")) or total.get("value") < 0:
+        problems.append("`value` must be a finite non-negative number")
+    if rule == "quadrature" and not _is_text(total.get("basis")):
+        problems.append("a quadrature sum needs a one-line `basis` stating why the sources are independent")
+    extra = set(total) - {"rule", "value", "basis"}
+    if extra:
+        problems.append(f"unknown field(s) {sorted(extra)}")
+    if problems:
+        findings.append(_finding(row_id, "INVALID_TOTAL_ERROR", "; ".join(problems)))
+        return None
+    estimates = [entry["estimate"] for entry in budget]
+    if any(e is None for e in estimates):
+        findings.append(_finding(row_id, "INVALID_TOTAL_ERROR",
+                                 "a total error cannot be formed while a source is unestimated; set `total_error` to null"))
+        return None
+    combined = sum(estimates) if rule == "linear_sum" else math.sqrt(sum(e * e for e in estimates))
+    if total["value"] < combined * (1 - 1e-12):
+        findings.append(_finding(row_id, "TOTAL_ERROR_BELOW_ITS_RULE",
+                                 f"`total_error.value` {total['value']} is smaller than the {rule} of the estimates ({combined:.6g})"))
+        return None
+    return total["value"]
+
+
 def _finding(row_id: str, code: str, message: str) -> dict[str, str]:
     return {"id": row_id, "code": code, "message": message}
 
@@ -201,48 +271,53 @@ def check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, st
         seen.add(row_id)
 
         verdict = row.get("verdict")
-        if verdict not in VERDICTS:
+        if not _in(verdict, VERDICTS):
             findings.append(_finding(row_id, "INVALID_VERDICT", f"`verdict` must be one of the contract's verdicts (got {verdict!r})"))
             verdict = None
         reliable = verdict == "reliable"
         (reliable_ids if reliable else other_ids).append(row_id)
 
-        if reliable and row.get("recorded_value") is None:
-            findings.append(_finding(row_id, "RECORDED_VALUE_MISMATCH", "a `reliable` row must carry its `recorded_value`"))
-        if verdict is not None and not reliable and row.get("recorded_value") is not None:
-            findings.append(_finding(row_id, "RECORDED_VALUE_MISMATCH",
-                                     "only a `reliable` row may carry a `recorded_value`; every other row stays a labeled candidate"))
+        for field in ("recorded_value", "recorded_setting"):
+            if reliable and row.get(field) is None:
+                findings.append(_finding(row_id, "RECORDED_FIELD_MISMATCH", f"a `reliable` row must carry its `{field}`"))
+            if verdict is not None and not reliable and row.get(field) is not None:
+                findings.append(_finding(row_id, "RECORDED_FIELD_MISMATCH",
+                                         f"only a `reliable` row may carry a `{field}`; every other row stays a labeled candidate"))
 
         accuracy = _check_required_accuracy(row_id, row, findings)
         budget = _check_error_budget(row_id, row, findings)
-        if accuracy is None or budget is None:
+        if budget is None:
             continue
-        dominant = next(entry for entry in budget if entry["dominant"])
         unestimated = [entry["source"] for entry in budget if entry["estimate"] is None]
         if reliable and unestimated:
             findings.append(_finding(row_id, "RELIABLE_WITH_UNESTIMATED_ERROR",
                                      f"a `reliable` row needs a numeric estimate for every error source (unestimated: {unestimated})"))
             continue
-        if dominant["estimate"] is None:
+        total = _check_total_error(row_id, row, budget, reliable, findings)
+        if accuracy is None or total is None:
             continue
-        if reliable and dominant["estimate"] > accuracy["value"]:
-            findings.append(_finding(row_id, "DOMINANT_ABOVE_REQUIRED_ACCURACY",
-                                     f"dominant error {dominant['estimate']} ({dominant['source']}) exceeds the required accuracy "
-                                     f"{accuracy['value']}; the row is `unconverged`, and the next refinement goes to that source"))
-        elif reliable and dominant["estimate"] * OVER_REFINEMENT_FACTOR < accuracy["value"]:
+        if reliable and total > accuracy["value"]:
+            dominant = next(entry for entry in budget if entry["dominant"])
+            findings.append(_finding(row_id, "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY",
+                                     f"total error {total} exceeds the required accuracy {accuracy['value']}; the row is `unconverged`, "
+                                     f"and the next refinement goes to the dominant source ({dominant['source']})"))
+        elif 0 < total * OVER_REFINEMENT_FACTOR < accuracy["value"]:
             warnings.append(_finding(row_id, "REFINED_PAST_REQUIRED_ACCURACY",
-                                     f"dominant error {dominant['estimate']} is more than {OVER_REFINEMENT_FACTOR:g} times below the "
+                                     f"total error {total} is more than {OVER_REFINEMENT_FACTOR:g} times below the "
                                      f"required accuracy {accuracy['value']}: refinement went past what the result needed"))
 
-    total = data.get("total")
-    if total is not None and total != len(data["matrix"]):
-        findings.append(_finding("matrix", "COUNT_MISMATCH", f"`total` is {total!r} but the matrix has {len(data['matrix'])} rows"))
-    reliable_count = data.get("reliable")
-    if reliable_count is not None and reliable_count != len(reliable_ids):
-        findings.append(_finding("matrix", "COUNT_MISMATCH", f"`reliable` is {reliable_count!r} but {len(reliable_ids)} rows are reliable"))
+    rows = len(data["matrix"])
+    for field, expected in (("total", rows), ("reliable", len(reliable_ids))):
+        value = data.get(field)
+        if not _is_count(value):
+            findings.append(_finding("matrix", "COUNT_MISMATCH", f"`{field}` is required and must be a non-negative integer (got {value!r})"))
+        elif value != expected:
+            findings.append(_finding("matrix", "COUNT_MISMATCH", f"`{field}` is {value} but the rows give {expected}"))
     not_reliable = data.get("not_reliable")
-    if not_reliable is not None and (not isinstance(not_reliable, list) or sorted(map(str, not_reliable)) != sorted(other_ids)):
-        findings.append(_finding("matrix", "COUNT_MISMATCH", "`not_reliable` must list exactly the ids whose verdict is not `reliable`"))
+    if (not isinstance(not_reliable, list) or not all(isinstance(x, str) for x in not_reliable)
+            or sorted(not_reliable) != sorted(other_ids)):
+        findings.append(_finding("matrix", "COUNT_MISMATCH",
+                                 "`not_reliable` is required and must list exactly the ids whose verdict is not `reliable`"))
     return findings, warnings
 
 
