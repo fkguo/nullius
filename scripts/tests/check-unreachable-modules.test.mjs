@@ -213,6 +213,21 @@ test('negative control: an orphan planted in a copy of each enforced package fai
   }
 });
 
+// The compiler entry the script itself would borrow: the first workspace package that resolves it.
+function resolveCompiler() {
+  const packagesDir = path.join(repoRoot, 'packages');
+  for (const name of fs.readdirSync(packagesDir).sort()) {
+    const manifest = path.join(packagesDir, name, 'package.json');
+    if (!fs.existsSync(manifest)) continue;
+    try {
+      return createRequire(manifest).resolve('typescript');
+    } catch {
+      // try the next package
+    }
+  }
+  throw new Error('typescript is not resolvable from any packages/*/package.json');
+}
+
 // A throwaway tree holding a copy of the script and no enforced package: every enforced package
 // is then reported as missing, so a command that really runs exits 1 with FAIL lines, while one
 // that skips its check exits 0 with no output. The script borrows typescript from the first
@@ -222,7 +237,7 @@ function commandTree(t) {
   fs.mkdirSync(path.join(ws.base, 'scripts'));
   const script = path.join(ws.base, 'scripts', 'check-unreachable-modules.mjs');
   fs.copyFileSync(scriptPath, script);
-  const compilerEntry = createRequire(path.join(repoRoot, 'packages', 'agent-arxiv', 'package.json')).resolve('typescript');
+  const compilerEntry = resolveCompiler();
   ws.write('packages/compiler-host/package.json', '{}\n');
   fs.mkdirSync(path.join(ws.base, 'packages', 'compiler-host', 'node_modules'), { recursive: true });
   fs.symlinkSync(
