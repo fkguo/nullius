@@ -16,9 +16,10 @@ import { walkSchemaPairs, type SchemaPair } from './mcp-required-keys.js';
  * itself (a budget helper turns a rejected value into undefined; a strict
  * variant fails). For the JSON node paired with the field:
  * - `type` is `integer` exactly when a fractional value inside the range is
- *   rejected (checked when the range is wide enough to hold one);
+ *   rejected (checked whenever the range has nonzero width);
  * - a stated `minimum` / `maximum` is accepted and one step beyond it is
- *   rejected (step 1 for integers, a relative 1e-9 otherwise);
+ *   rejected (for integers the nearest integer inside the bound, step 1;
+ *   otherwise the bound itself, a relative step of 1e-9);
  * - with no `minimum` / `maximum`, a far value on that side is accepted.
  *
  * Returns one line per disagreement, and one line per place where the JSON
@@ -62,29 +63,38 @@ function checkBudgetBounds({ chain, type, json, mismatch }: SchemaPair): void {
   const min = typeof node.minimum === 'number' ? node.minimum : undefined;
   const max = typeof node.maximum === 'number' ? node.maximum : undefined;
 
-  if (min !== undefined) {
-    if (!accepts(min)) mismatch(`stated minimum ${min} is rejected by the parser`);
-    if (accepts(min - step(min))) mismatch(`parser accepts ${min - step(min)}, below the stated minimum ${min}`);
+  // For an integer field the stated bounds admit the integers between them.
+  const lowest = min === undefined ? undefined : integer ? Math.ceil(min) : min;
+  const highest = max === undefined ? undefined : integer ? Math.floor(max) : max;
+  const stated = (word: string, bound: number, endpoint: number) =>
+    endpoint === bound ? `stated ${word} ${bound}` : `stated ${word} ${bound} (integer ${endpoint})`;
+  if (min !== undefined && lowest !== undefined) {
+    if (!accepts(lowest)) mismatch(`${stated('minimum', min, lowest)} is rejected by the parser`);
+    const below = lowest - step(lowest);
+    if (accepts(below)) mismatch(`parser accepts ${below}, below the ${stated('minimum', min, lowest)}`);
   } else if (!accepts(-far)) {
     mismatch(`no minimum stated, but the parser rejects ${-far}`);
   }
-  if (max !== undefined) {
-    if (!accepts(max)) mismatch(`stated maximum ${max} is rejected by the parser`);
-    if (accepts(max + step(max))) mismatch(`parser accepts ${max + step(max)}, above the stated maximum ${max}`);
+  if (max !== undefined && highest !== undefined) {
+    if (!accepts(highest)) mismatch(`${stated('maximum', max, highest)} is rejected by the parser`);
+    const above = highest + step(highest);
+    if (accepts(above)) mismatch(`parser accepts ${above}, above the ${stated('maximum', max, highest)}`);
   } else if (!accepts(far)) {
     mismatch(`no maximum stated, but the parser rejects ${far}`);
   }
 
-  // A fractional value inside the range, as close to zero as the range allows
-  // (far from zero a half-integer is not representable), tells integer and
-  // number apart.
+  // A fractional value inside the range tells integer and number apart: a
+  // half-integer as close to zero as the range allows (far from zero a
+  // half-integer is not representable), else the largest half-integer not
+  // above the maximum, else the midpoint of a range too narrow for either.
   const low = min ?? -Infinity;
   const high = max ?? Infinity;
   const start = Math.min(Math.max(0, low), high);
-  let fraction = Math.floor(start) + 0.5;
-  if (fraction < low) fraction += 1;
-  if (fraction > high) fraction = Math.ceil(high) - 0.5;
-  if (fraction >= low && fraction <= high && !Number.isInteger(fraction)) {
+  const nearZero = Math.floor(start) + 0.5;
+  const fraction = [nearZero < low ? nearZero + 1 : nearZero, Math.floor(high - 0.5) + 0.5, (low + high) / 2].find(
+    value => Number.isFinite(value) && value >= low && value <= high && !Number.isInteger(value),
+  );
+  if (fraction !== undefined) {
     if (integer && accepts(fraction)) mismatch(`published as integer, but the parser accepts ${fraction}`);
     if (!integer && !accepts(fraction)) mismatch(`published as number, but the parser rejects ${fraction}`);
   }

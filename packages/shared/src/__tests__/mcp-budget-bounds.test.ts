@@ -91,6 +91,24 @@ describe('budget bounds in the published inputSchema', () => {
     ]);
   });
 
+  it('reads non-integer bounds of an integer field as the integers between them', () => {
+    const fractionalBounds = z.object({
+      count: optionalBudgetInt({ min: 0.5, max: 2.5 }),
+      share: optionalBudgetNumber({ min: -3, max: 0.3 }),
+    });
+    const json = structuredClone(zodToMcpInputSchema(fractionalBounds)) as { properties: Properties };
+
+    expect(json.properties.count).toMatchObject({ type: 'integer', minimum: 0.5, maximum: 2.5 });
+    expect(findBudgetBoundMismatches(fractionalBounds, json)).toEqual([]);
+
+    json.properties.count.maximum = 3.5;
+    json.properties.share.type = 'integer';
+    expect(findBudgetBoundMismatches(fractionalBounds, json)).toEqual([
+      '$.count: stated maximum 3.5 (integer 3) is rejected by the parser',
+      '$.share: published as integer, but the parser accepts -0.5',
+    ]);
+  });
+
   it('checks a budget-style field recognised by structure even without bounds metadata', () => {
     // A preprocess pipe to a number built without the helpers carries no
     // metadata, so the converter publishes zod's generic integer range.
