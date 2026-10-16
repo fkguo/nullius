@@ -50,6 +50,27 @@ def derivation_body(d: dict) -> str:
     return body if isinstance(body, str) else ""
 
 
+def _same_line_endings(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def quoted_in_derivation(span: str, d: dict, closure: str | None = None) -> bool:
+    """A span quotes original derivation material when it occurs in the complete context (or the
+    given closure built from it) or in the structured derivation as read. When the context is the
+    raw output, that derivation sits inside it in JSON quoting (newlines, quotes and non-ASCII
+    escaped), so a faithful multi-line quote of the readable field would otherwise never match.
+    Line endings (CRLF, CR, LF) are not content and compare equal.
+    valid_derivation_transport requires the structured field to equal the one parsed from that raw
+    output before any lane counts."""
+    span = _same_line_endings(span)
+    body = derivation_body(d)
+    if span in _same_line_endings(body if closure is None else closure):
+        return True
+    structured = d.get("derivation")
+    return (runtime_observed(d) and isinstance(structured, str) and structured != body
+            and span in _same_line_endings(structured))
+
+
 AXES = ("input", "execution", "construction", "applicability", "diagnostic")
 
 
@@ -82,14 +103,16 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
                 valid = False
                 break
             span, reason = item.get("source_span"), item.get("reason")
-            axis_source = source if axis in ("input", "execution") else derivation_body(derivations[i])
-            if axis == "construction" and "construction_body" in derivations[i]:
-                axis_source = derivations[i]["construction_body"]
-            if not isinstance(axis_source, str):
+            if (not isinstance(span, str) or not span.strip()
+                    or not isinstance(reason, str) or len(reason.strip()) < 20):
                 valid = False
                 break
-            if (not isinstance(span, str) or not span.strip() or span not in axis_source
-                    or not isinstance(reason, str) or len(reason.strip()) < 20):
+            if axis == "construction" and "construction_body" in derivations[i]:
+                construction = derivations[i]["construction_body"]
+                quoted = isinstance(construction, str) and span in construction
+            else:
+                quoted = quoted_in_derivation(span, derivations[i], source if axis in ("input", "execution") else None)
+            if not quoted:
                 valid = False
                 break
         if valid:
@@ -164,7 +187,7 @@ def method_risk_passes(derivations: list[dict], eligible: list[int], records) ->
             if not isinstance(item, dict) or type(item.get("index")) is not int or item["index"] not in indices:
                 continue
             span, reason = item.get("source_span"), item.get("reason")
-            if isinstance(span, str) and span.strip() and span in derivation_body(derivations[item["index"]]) and isinstance(reason, str) and len(reason.strip()) >= 20:
+            if isinstance(span, str) and span.strip() and quoted_in_derivation(span, derivations[item["index"]]) and isinstance(reason, str) and len(reason.strip()) >= 20:
                 ok.add(item["index"])
         if ok == set(indices):
             return True
