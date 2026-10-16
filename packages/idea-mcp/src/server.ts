@@ -2,7 +2,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import { z } from 'zod';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -13,6 +12,7 @@ import {
 import {
   McpError,
   invalidParams,
+  isMainModule,
   structuredContentOf,
   toolAnnotationsFor,
   verifyHarnessInvocationMarker,
@@ -245,7 +245,7 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise
   });
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (isMainModule(import.meta.url)) {
   startServer().catch((err) => {
     process.stderr.write(`[idea-mcp] Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
