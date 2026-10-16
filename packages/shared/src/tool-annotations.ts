@@ -12,23 +12,23 @@
  *   record the caller can see; internal bookkeeping (HTTP or source caches,
  *   rate-limit state, staging that is removed again) is not a write.
  * - destructiveHint = risk is 'destructive', i.e. the tool may replace or
- *   delete existing data. Writes that only add new data are 'write' and
- *   report false; so does a write that only rewrites its own regenerable
- *   output at a path fixed by its arguments. Reads report false. A tool whose
- *   own confirmation protocol (a preview token) already gates a delete keeps
- *   risk 'write', since 'destructive' would add the dispatcher's `_confirm`
- *   gate on top; its entry sets `destructive: true`, which can only raise the
- *   hint, never lower it.
+ *   delete existing data, including caller-visible files it wrote earlier
+ *   and stored state it updates in place. Writes that only add new data are
+ *   'write' and report false. Reads report false. The risk level also drives
+ *   the dispatchers' `_confirm` gate, so a 'write' tool that may replace or
+ *   delete data (for instance one gated by its own preview token) keeps its
+ *   level and sets `destructive: true` in its entry; that flag can only raise
+ *   the hint, never lower it.
  * - idempotentHint = true for every read. A write or destructive tool is
  *   idempotent only when the entry says so: the call is keyed by an
  *   idempotency or delivery id whose replay returns the original response,
  *   or it writes the same artifact for the same arguments, so repeating it
  *   has no further effect.
  * - openWorldHint = the tool calls services outside this machine (INSPIRE,
- *   arXiv, OpenAlex, HEPData, CrossRef) or writes into the user's Zotero
- *   library, which the Zotero app may sync to zotero.org and shared groups;
- *   false for tools confined to local data (a local SQLite database, the idea
- *   store, the bound project, Zotero local-API reads).
+ *   arXiv, OpenAlex, HEPData, CrossRef) or runs code that is not
+ *   network-isolated; false for tools confined to local data (a local SQLite
+ *   database, the idea store, the bound project, the Zotero app's local API
+ *   on 127.0.0.1).
  *
  * Hints are advisory for hosts, never a security boundary; gating such as
  * `_confirm` stays with the provider's dispatcher.

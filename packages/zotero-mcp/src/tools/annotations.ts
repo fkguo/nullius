@@ -52,8 +52,8 @@ export const ZOTERO_TOOL_HINTS: ToolBehaviourHintTable = {
   [ZOTERO_CONFIRM]: {
     destructive: true,
     idempotent: true,
-    openWorld: true,
-    reason: 'Executes a previewed add or delete in the Zotero library (which Zotero may sync); a delete token trashes or erases items; the token is spent before execution, so a repeat is refused.',
+    openWorld: false,
+    reason: 'Executes a previewed add or delete through the Zotero app on 127.0.0.1; a delete token trashes or erases items; the token is spent before execution, so a repeat is refused.',
   },
   [ZOTERO_DELETE]: {
     openWorld: false,

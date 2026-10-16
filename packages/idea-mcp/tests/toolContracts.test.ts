@@ -24,12 +24,12 @@ describe('MCP annotations and titles', () => {
     expect(issues).toEqual([]);
   });
 
-  it('readOnlyHint and destructiveHint follow riskLevel', () => {
+  it('readOnlyHint follows riskLevel and every _confirm-gated tool is destructive', () => {
     const byName = new Map(IDEA_TOOLS.map(t => [t.name, t]));
     for (const tool of listIdeaTools()) {
       const risk = byName.get(tool.name)!.riskLevel;
       expect(tool.annotations.readOnlyHint, tool.name).toBe(risk === 'read');
-      expect(tool.annotations.destructiveHint, tool.name).toBe(risk === 'destructive');
+      if (risk === 'destructive') expect(tool.annotations.destructiveHint, tool.name).toBe(true);
     }
   });
 });

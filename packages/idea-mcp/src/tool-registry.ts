@@ -231,9 +231,12 @@ const IDEMPOTENCY_KEY_REASON =
 export const IDEA_TOOL_HINTS: ToolBehaviourHintTable = {
   idea_campaign_init: { idempotent: true, openWorld: false, reason: IDEMPOTENCY_KEY_REASON },
   idea_campaign_status: { openWorld: false, reason: 'Reads the campaign from the local idea store.' },
-  idea_campaign_topup: { idempotent: true, openWorld: false, reason: IDEMPOTENCY_KEY_REASON },
-  idea_campaign_pause: { idempotent: true, openWorld: false, reason: IDEMPOTENCY_KEY_REASON },
-  idea_campaign_resume: { idempotent: true, openWorld: false, reason: IDEMPOTENCY_KEY_REASON },
+  // topup/pause/resume rewrite the campaign's budget and status in place
+  // (topup can also resume an exhausted campaign); riskLevel stays 'write'
+  // so no _confirm gate is added.
+  idea_campaign_topup: { destructive: true, idempotent: true, openWorld: false, reason: `Updates budget and status in place. ${IDEMPOTENCY_KEY_REASON}` },
+  idea_campaign_pause: { destructive: true, idempotent: true, openWorld: false, reason: `Updates status in place. ${IDEMPOTENCY_KEY_REASON}` },
+  idea_campaign_resume: { destructive: true, idempotent: true, openWorld: false, reason: `Updates status in place. ${IDEMPOTENCY_KEY_REASON}` },
   idea_campaign_complete: {
     idempotent: true,
     openWorld: false,

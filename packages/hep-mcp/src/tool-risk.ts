@@ -43,7 +43,8 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   [T.INSPIRE_FIND_CROSSOVER_TOPICS]: 'read',
   [T.INSPIRE_ANALYZE_CITATION_STANCE]: 'read',
   [T.INSPIRE_CLEANUP_DOWNLOADS]: 'destructive',
-  [T.INSPIRE_VALIDATE_BIBLIOGRAPHY]: 'read',
+  // Downloads the paper source and returns its path (source_file).
+  [T.INSPIRE_VALIDATE_BIBLIOGRAPHY]: 'write',
   // Sibling-provider tools re-exported here take their levels from the
   // provider's own table, so this server and the standalone one agree.
   ...ARXIV_TOOL_RISK_LEVELS,

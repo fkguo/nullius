@@ -30,8 +30,9 @@ export const ARXIV_TOOL_HINTS: ToolBehaviourHintTable = {
     reason: 'Queries the arXiv API; writes only rate-limit bookkeeping.',
   },
   [ARXIV_PAPER_SOURCE]: {
+    destructive: true,
     idempotent: true,
     openWorld: true,
-    reason: 'Fetches from arxiv.org; mode=content writes the paper into a fixed per-paper dir of its download area, a repeat returns the cached copy or rewrites the same paths.',
+    reason: 'Fetches from arxiv.org; mode=content writes the paper into a fixed per-paper dir of its download area, replacing an earlier archive, PDF or extracted file there; a repeat returns the cached copy or rewrites the same paths.',
   },
 };

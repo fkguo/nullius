@@ -16,9 +16,9 @@ const OUTPUT_DIR_WRITE =
  * @nullius/shared tool-annotations.ts), alongside HEP_TOOL_RISK_LEVELS.
  * Re-exported sibling-provider tools keep their provider's hints.
  *
- * Downloads of arXiv sources into the arXiv source cache, made by the
- * analysis tools below, are cache bookkeeping: the cache paths are not
- * returned.
+ * The arXiv sources inspire_detect_measurement_conflicts downloads are
+ * cache bookkeeping: their paths are not returned. Tools that return such a
+ * path (source_file) count it as a write.
  */
 export const HEP_TOOL_HINTS: ToolBehaviourHintTable = {
   [T.HEP_HEALTH]: {
@@ -52,14 +52,16 @@ export const HEP_TOOL_HINTS: ToolBehaviourHintTable = {
   [T.INSPIRE_TRACE_ORIGINAL_SOURCE]: { openWorld: true, reason: INSPIRE_READ },
   [T.INSPIRE_LITERATURE]: { openWorld: true, reason: INSPIRE_READ },
   [T.INSPIRE_PAPER_SOURCE]: {
+    destructive: true,
     idempotent: true,
     openWorld: true,
-    reason: 'Resolves the paper on INSPIRE and fetches from arxiv.org; mode=content writes the paper into a fixed per-paper dir of the downloads area, a repeat returns the cached copy or rewrites the same paths.',
+    reason: 'Resolves the paper on INSPIRE and fetches from arxiv.org; mode=content writes the paper into a fixed per-paper dir of the downloads area, replacing earlier files there (auto_cleanup removes the dir at exit); a repeat returns the cached copy or rewrites the same paths.',
   },
   [T.INSPIRE_PARSE_LATEX]: {
+    destructive: true,
     idempotent: true,
     openWorld: true,
-    reason: `Fetches the LaTeX source from arxiv.org (via INSPIRE ids), may use sampling, and ${OUTPUT_DIR_WRITE}`,
+    reason: `Fetches the LaTeX source from arxiv.org into the arXiv source dir (replacing an earlier archive there, path returned as source_file), may use sampling, and ${OUTPUT_DIR_WRITE}`,
   },
   [T.INSPIRE_RESOLVE_CITEKEY]: { openWorld: true, reason: INSPIRE_READ },
   [T.INSPIRE_GRADE_EVIDENCE]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
@@ -81,8 +83,10 @@ export const HEP_TOOL_HINTS: ToolBehaviourHintTable = {
     reason: 'Deletes marked arxiv-* download dirs in the local downloads area; with older_than_hours a later repeat can delete dirs that have aged since.',
   },
   [T.INSPIRE_VALIDATE_BIBLIOGRAPHY]: {
+    destructive: true,
+    idempotent: true,
     openWorld: true,
-    reason: 'Queries INSPIRE and arxiv.org (sources go to the arXiv source cache); returns its result inline.',
+    reason: 'Queries INSPIRE and downloads the source from arxiv.org into the arXiv source dir, replacing an earlier archive there, and returns its path as source_file; a repeat returns the cached copy.',
   },
   ...ARXIV_TOOL_HINTS,
   ...PDG_TOOL_HINTS,
