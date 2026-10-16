@@ -353,10 +353,11 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['measured time box rule', '`unit_seconds × units` (leave margin above that floor'],
   ['time box below need label', '`TIME_BOX_BELOW_MEASURED_NEED`'],
   ['declared time box form', 'computation gives a one-line `note` instead'],
-  ['advancing-run extension once', 'extend it **once**'],
-  ['extension projection recomputed', 'the projection from it (`TIME_BOX_RETRY_BELOW_PROGRESS`), refuses a run'],
-  ['progress required on time-box re-budgets', '`total_units`; required on every time-box re-budget, with work remaining),'],
-  ['once-only rule is the coordinator\'s', 'instead. The once-only rule is the coordinator\'s: the gate sees one'],
+  ['advancing-run extension', 'coordinator may extend it, as a contract amendment carrying `retry_of`'],
+  ['extension projection recomputed', 'the projection (`TIME_BOX_RETRY_BELOW_PROGRESS`), refuses an extension'],
+  ['kind and progress required on time-box re-budgets', 'progress with work remaining; a run wrapped up at its deadline is'],
+  ['what the gate cannot see', 'two observations are the last checks before the deadline (the'],
+
   ['max attempts field', '`max_attempts`'],
   ['scope negative list field', '`scope_negative_list`'],
   ['peak memory field', '`peak_memory_estimate`'],
@@ -388,7 +389,7 @@ requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['no-identical-exhaustion clause', 'never a chain of identical exhaustions'],
   ['advancing run at deadline is a decision point', '**A run still advancing at its deadline is a decision point, not an automatic wrap-up.**'],
   ['extension from the measured rate', 'projected need = elapsed time × total units ÷ completed units'],
-  ['no unmeasured extension', 'never extend a box that was never measured'],
+  ['fresh observations per extension', 'Every extension needs fresh observations taken since the previous one'],
 ]);
 requireAll('skills/review-swarm/SKILL.md', read('skills/review-swarm/SKILL.md'), [
   ['seat cap sized from earlier runs', 'An explicit hard cap is sized from what the seat actually needs, not from habit'],
@@ -450,6 +451,8 @@ requireAll(TESTS_FILE, testsText, [
   ['extension projection recomputed test', 'test_extension_projection_is_recomputed_from_recorded_progress'],
   ['progress required test', 'test_time_box_rebudget_without_progress_fails'],
   ['stalled run test', 'test_stalled_run_is_not_an_advancing_extension'],
+  ['kind required test', 'test_time_box_rebudget_must_name_its_kind'],
+  ['probe log test', 'test_advancing_extension_names_its_probe_log'],
   ['explicit numeric mode positive control', 'test_explicit_numeric_tolerance_mode_passes'],
   ['numeric-zero negative control', 'test_numeric_zero_tolerance_still_fails'],
   ['exact-predicate positive control', 'test_exact_predicate_tolerance_mode_passes'],

@@ -434,18 +434,23 @@ Required field groups of the full-tier contract, all machine-checked:
   top-level declaration `launches_full_scale_computation: false` (absent
   fails closed); the two forms are mutually exclusive. When the box expires while
   the run is still advancing (checkpoint rows still landing), the
-  coordinator may extend it **once**, as a contract amendment carrying
-  `retry_of` with `exhausted_budget: "time_box_seconds"` and the projected
-  need from the measured rate as `measured_requirement`, the measurement
-  itself as `progress` (`elapsed_seconds`, `completed_units`,
-  `total_units`; required on every time-box re-budget, with work remaining),
-  and `kind: "advancing_extension"` with an earlier observation
-  `progress.earlier` showing the completed count grew — the gate recomputes
-  the projection from it (`TIME_BOX_RETRY_BELOW_PROGRESS`), refuses a run
-  that did not advance (`EXTENSION_NOT_ADVANCING`) and applies the
-  existing strict-exceedance check; a run that has stopped advancing is
-  wrapped up instead. The once-only rule is the coordinator's: the gate sees one
-  contract revision at a time and cannot count earlier extensions.
+  coordinator may extend it, as a contract amendment carrying `retry_of`
+  with `exhausted_budget: "time_box_seconds"`, `kind:
+  "advancing_extension"`, the projected need from the measured rate as
+  `measured_requirement`, and the measurement as `progress`
+  (`elapsed_seconds`, `completed_units`, `total_units`, an `earlier`
+  observation showing the completed count grew, and the `probe_log` both
+  come from). Every time-box re-budget names its kind and records its
+  progress with work remaining; a run wrapped up at its deadline is
+  re-dispatched with `kind: "rebudget_after_wrap_up"`. The gate recomputes
+  the projection (`TIME_BOX_RETRY_BELOW_PROGRESS`), refuses an extension
+  whose observations show no advance (`EXTENSION_NOT_ADVANCING`) and applies
+  the existing strict-exceedance check. What the gate cannot see: whether
+  the two observations are the last checks before the deadline (the
+  coordinator attests it; a reviewer confirms it from the probe log), and
+  how many extensions came before (it reads one contract revision). Each
+  extension therefore needs fresh observations since the previous one; a
+  run that has stopped advancing is wrapped up instead.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the
   delivered task (the `research-harness` attempt semantics), **not**

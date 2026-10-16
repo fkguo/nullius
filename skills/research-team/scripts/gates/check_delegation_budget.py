@@ -111,10 +111,17 @@ delegated workstream, default location `<project_root>/team/delegations/`):
                0 <= completed_units < total_units; the measured requirement
                must be at least elapsed x total / completed (or the elapsed
                time itself when no unit completed)
-        kind: optional "advancing_extension" for a run still advancing at
-               its deadline; then progress.earlier { elapsed_seconds,
-               completed_units } from an earlier check must be strictly
-               below the current values (a stalled run is wrapped up)
+        kind: REQUIRED for exhausted_budget "time_box_seconds": either
+               "rebudget_after_wrap_up" (the run was wrapped up and is
+               re-dispatched) or "advancing_extension" (the run was still
+               advancing at its deadline); the latter needs
+               progress.earlier { elapsed_seconds, completed_units } strictly
+               below the current values and progress.probe_log naming the
+               log both observations come from. The gate checks the numbers
+               are consistent; that they are the last checks before the
+               deadline is attested by the coordinator and checkable by a
+               reviewer from the probe log. Each extension needs fresh
+               observations; the gate does not count extensions.
       Machine cross-check: where the contract carries the matching budget
       field (time_box.seconds, peak_memory_estimate.heap_limit_mb,
       max_attempts), the new budget must STRICTLY EXCEED a numeric measured
@@ -132,7 +139,7 @@ Falsification labels (all fail-closed):
   CONTRADICTORY_TOLERANCE_FIELDS, MISSING_TOLERANCE_ANCHOR,
   MISSING_TIME_BOX, MISSING_TIME_BOX_BASIS, INVALID_TIME_BOX_BASIS,
   MISSING_UNIT_SECONDS, MISSING_UNIT_COUNT, TIME_BOX_BELOW_MEASURED_NEED,
-  MISSING_TIME_BOX_NOTE, CONTRADICTORY_TIME_BOX, MISSING_LAUNCH_DECLARATION,
+  MISSING_TIME_BOX_NOTE, CONTRADICTORY_TIME_BOX,
   INVALID_TIME_BOX_FIELD, TIME_BOX_RETRY_BELOW_PROGRESS, EXTENSION_NOT_ADVANCING,
   MISSING_MAX_ATTEMPTS,
   MISSING_SCOPE_NEGATIVE_LIST, MISSING_PEAK_MEMORY_ESTIMATE,
@@ -432,7 +439,8 @@ def _fraction_str(value: Fraction) -> str:
     import decimal
 
     with decimal.localcontext() as ctx:
-        ctx.prec = 12
+        ctx.prec = 6
+        ctx.rounding = decimal.ROUND_CEILING  # never display a bound below its exact value
         return f"{decimal.Decimal(value.numerator) / decimal.Decimal(value.denominator):.6g}"
 
 
@@ -986,14 +994,21 @@ def _validate_contract(contract: Any) -> list[str]:
             # A run still advancing at its deadline is extended with kind
             # "advancing_extension" and an earlier observation proving the advance.
             kind = retry.get("kind")
-            if kind is not None and kind != "advancing_extension":
+            time_kinds = ("advancing_extension", "rebudget_after_wrap_up")
+            if "kind" in retry and kind not in time_kinds:
                 issues.append(
-                    "MISSING_RETRY_FIELDS: `retry_of.kind` is optional and, when present, must be "
-                    f'the exact string "advancing_extension" (got {kind!r})'
+                    "MISSING_RETRY_FIELDS: `retry_of.kind` must be one of "
+                    f"{', '.join(time_kinds)} (got {kind!r}); an explicit null is not 'absent'"
                 )
-            if kind == "advancing_extension" and dimension != "time_box_seconds":
+            if dimension == "time_box_seconds" and "kind" not in retry:
                 issues.append(
-                    "MISSING_RETRY_FIELDS: an advancing extension re-budgets the time box — "
+                    "MISSING_RETRY_FIELDS: a time-box re-budget names its `retry_of.kind` — "
+                    '"advancing_extension" (the run was still advancing at its deadline) or '
+                    '"rebudget_after_wrap_up" (the run was wrapped up and is re-dispatched)'
+                )
+            if "kind" in retry and dimension != "time_box_seconds":
+                issues.append(
+                    "MISSING_RETRY_FIELDS: `retry_of.kind` belongs to a time-box re-budget — "
                     '`exhausted_budget` must be "time_box_seconds"'
                 )
             if "progress" in retry and dimension != "time_box_seconds":
@@ -1029,6 +1044,12 @@ def _validate_contract(contract: Any) -> list[str]:
                             "or the elapsed time when no unit completed)"
                         )
                     if kind == "advancing_extension":
+                        if not _is_nonempty_single_line(progress.get("probe_log")):
+                            issues.append(
+                                "EXTENSION_NOT_ADVANCING: an advancing extension names the probe log "
+                                "its two observations come from (`retry_of.progress.probe_log`), so a "
+                                "reviewer can confirm they are the last checks before the deadline"
+                            )
                         earlier = progress.get("earlier")
                         e_elapsed = earlier.get("elapsed_seconds") if isinstance(earlier, dict) else None
                         e_completed = earlier.get("completed_units") if isinstance(earlier, dict) else None
