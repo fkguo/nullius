@@ -448,8 +448,10 @@ Required field groups of the full-tier contract, all machine-checked:
   progress with work remaining; a run wrapped up at its deadline is
   re-dispatched with `kind: "rebudget_after_wrap_up"`. The gate recomputes
   the projection (`TIME_BOX_RETRY_BELOW_PROGRESS`), refuses an extension
-  whose observations show no advance (`EXTENSION_NOT_ADVANCING`) or cannot
-  be located in the probe log (`MISSING_EXTENSION_PROBE_REFERENCE`) and applies
+  whose observations show no advance (`EXTENSION_NOT_ADVANCING`) or do not
+  name the probe log and both rows in order
+  (`MISSING_EXTENSION_PROBE_REFERENCE` — the gate does not open the log;
+  a reviewer checks the rows against it) and applies
   the existing strict-exceedance check. What the gate cannot see: whether
   the two observations are the last checks before the deadline (the
   coordinator attests it; a reviewer confirms it from the probe log), and

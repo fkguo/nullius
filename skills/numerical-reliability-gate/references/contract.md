@@ -313,7 +313,9 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   non-empty one-line `threshold_basis`.
   Checker: `python3 $SKILL_DIR/scripts/check_reliability_matrix.py numerical_reliability_matrix_v1.json`
   (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings). Accepted
-  numbers are zero or between 1e-300 and 1e300 in magnitude; within that range every comparison is
+  numbers are written in at most 400 characters (an error estimate or accuracy carrying more digits
+  than that has no physical meaning, and the limit keeps an extreme literal from crashing the reader)
+  and are zero or between 1e-300 and 1e300 in magnitude; within that range every comparison is
   exact (exact rationals; a quadrature total is compared through squares). It also
   checks the matrix bookkeeping: `total`, `reliable` and `not_reliable` are required and must match the
   rows, and `recorded_value`/`recorded_setting` are present exactly on `reliable` rows.
