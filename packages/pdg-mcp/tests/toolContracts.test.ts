@@ -110,7 +110,7 @@ describe('MCP annotations and titles', () => {
     const issues: string[] = [];
     for (const tool of getTools('full')) {
       if (typeof tool.title !== 'string' || tool.title.trim() === '') issues.push(`${tool.name}: missing title`);
-      const annotations = (tool as { annotations?: Record<string, unknown> }).annotations;
+      const annotations = tool.annotations as unknown as Record<string, unknown> | undefined;
       for (const hint of ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint']) {
         if (typeof annotations?.[hint] !== 'boolean') issues.push(`${tool.name}: ${hint} is not a boolean`);
       }
