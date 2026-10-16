@@ -130,3 +130,28 @@ table; domain carried only by the caller's context):
 - a cross-check run through a genuinely different implementation shared the **same under-resolved value of
   the very knob whose adequacy was in question**, so its agreement confirmed nothing about the setting under
   suspicion. **G2** — independence has to hold in the suspect setting, not only in the implementation.
+
+Further failure modes from a set of episodes across several unrelated projects in which executing agents
+spent computation and review rounds on precision the result did not need (domain carried only by the
+caller's context) — the episodes that created **G0**:
+
+- an invariant gate was set some six orders of magnitude tighter than the declared target accuracy of the
+  quantity it protected; it failed only at the coarsest refinement tier while the quantity met its target at
+  every tier, and the project owner had to rule the gate immaterial. **G0** — the threshold carried no
+  rationale linking it to the quantity's error or to a defect it had to detect; a diagnostic threshold
+  without such a rationale is an over-tight gate, and a tolerance on the quantity itself derives from the
+  required accuracy;
+- a rational-continuation residual gate failed, and the reflex was to raise the continuation's degree and
+  precision, while the observable the continuation fed already agreed with an independent route below the
+  physical target. **G0** — propagate the method residual into the observable before refining: when the
+  observable already meets its required accuracy by an independent route, the residual threshold needs
+  a detection rationale or it is an over-tight gate; refining the method is not the response;
+- integration differences were orders of magnitude below a few-percent residual left by a finite
+  representation, and the agent kept tightening the integration precision. **G0** — refine only the dominant
+  error source; tightening a subdominant one is not progress;
+- a displayed result was held out of a manuscript for three review re-entries by a gate stricter than the
+  stroke width of the figure and the digits of the table that displayed it. **G0** — the display and the
+  downstream use set the required accuracy;
+- once a stated accuracy target had been met, further refinement and extra calculations followed until the
+  owner stopped them, and later dispatches had to forbid precision expansion in advance. **G0** — stop when the
+  total error is at or below the required accuracy; going further needs explicit authorization.

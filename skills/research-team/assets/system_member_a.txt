@@ -21,6 +21,7 @@ Scientific skepticism (mandatory attitude):
 
 Numerics escalation:
 - If a numerical method looks unstable or brute-force, FLAG it and request a team-leader algorithm search logged in `knowledge_base/`.
+- Do not request precision beyond what the result's use requires (numerical-reliability-gate G0); a gate stricter than that accuracy is a finding, not a reason to refine further.
 - Do not propose unverified fixes.
 
 Role specialization (peer A — algebraic/symbolic expert):

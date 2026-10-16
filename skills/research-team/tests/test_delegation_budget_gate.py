@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 GATE = ROOT / "scripts" / "gates" / "check_delegation_budget.py"
 TEMPLATE = ROOT / "assets" / "delegation_budget_contract_template.json"
@@ -42,7 +44,7 @@ def _complete_contract() -> dict:
             "value": 1e-6,
             "anchor_note": "downstream comparison only distinguishes results at the 1e-5 level; 1e-6 is one guard digit",
         },
-        "time_box": {"seconds": 7200},
+        "time_box": {"seconds": 7200, "basis": "measured", "unit_seconds": 60, "units": 30, "dry_run_ref": "artifacts/runs/dry/scan_unit0.log"},
         "max_attempts": 2,
         "scope_negative_list": [
             "no infrastructure / build-system rewrites",
@@ -188,6 +190,18 @@ def test_explicit_contract_flag(tmp_path: Path) -> None:
 # ------------------------------------------------- negative controls (mandate)
 
 
+def _assert_passes(tmp_path: Path, contract: dict) -> None:
+    # Each call gets its own fresh project directory so a pass after a fail is judged afresh.
+    import uuid
+
+    sub = tmp_path / f"pass-{uuid.uuid4().hex}"
+    sub.mkdir()
+    proj = _make_project(sub, contracts={"c.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, (proc.stderr, verdict and verdict.get("reasons"))
+    assert verdict is not None and verdict["status"] == "pass"
+
+
 def _assert_fails_with(tmp_path: Path, contract: dict | str, label: str) -> None:
     proj = _make_project(tmp_path, contracts={"c.json": contract})
     proc, verdict = _run_gate(proj)
@@ -284,6 +298,271 @@ def test_nonpositive_time_box_fails(tmp_path: Path) -> None:
     contract = _complete_contract()
     contract["time_box"]["seconds"] = 0
     _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX")
+
+
+def test_time_box_needs_a_basis(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"] = {"seconds": 7200}
+    _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX_BASIS")
+
+
+@pytest.mark.parametrize("basis", ["guessed", None, 1, ["measured"]])
+def test_unknown_time_box_basis_fails_closed(tmp_path: Path, basis: object) -> None:
+    contract = _complete_contract()
+    contract["time_box"]["basis"] = basis
+    _assert_fails_with(tmp_path, contract, "INVALID_TIME_BOX_BASIS")
+
+
+def test_measured_time_box_below_the_dry_run_need_fails(tmp_path: Path) -> None:
+    # 60 s per unit x 30 units = 1800 s: a 1799 s box would kill the workstream before it finishes.
+    contract = _complete_contract()
+    contract["time_box"]["seconds"] = 1799
+    _assert_fails_with(tmp_path, contract, "TIME_BOX_BELOW_MEASURED_NEED")
+    contract["time_box"]["seconds"] = 1800
+    _assert_passes(tmp_path, contract)
+
+
+@pytest.mark.parametrize(
+    "field,value,label",
+    [
+        ("unit_seconds", 0, "MISSING_UNIT_SECONDS"),
+        ("unit_seconds", -5, "MISSING_UNIT_SECONDS"),
+        ("unit_seconds", "60", "MISSING_UNIT_SECONDS"),
+        ("unit_seconds", True, "MISSING_UNIT_SECONDS"),
+        ("units", 0, "MISSING_UNIT_COUNT"),
+        ("units", 2.5, "MISSING_UNIT_COUNT"),
+        ("units", True, "MISSING_UNIT_COUNT"),
+    ],
+)
+def test_measured_time_box_fields_are_checked(tmp_path: Path, field: str, value: object, label: str) -> None:
+    contract = _complete_contract()
+    contract["time_box"][field] = value
+    _assert_fails_with(tmp_path, contract, label)
+
+
+def test_measured_time_box_with_fractional_unit_time_is_exact(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"].update({"seconds": 3, "unit_seconds": 0.1, "units": 30})
+    _assert_passes(tmp_path, contract)
+
+
+def _declared_contract() -> dict:
+    contract = _complete_contract()
+    contract["launches_full_scale_computation"] = False
+    contract["time_box"] = {"seconds": 600, "basis": "declared", "note": "a symbolic check that launches no computation"}
+    return contract
+
+
+def test_declared_time_box_needs_a_note(tmp_path: Path) -> None:
+    contract = _declared_contract()
+    del contract["time_box"]["note"]
+    _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX_NOTE")
+    _assert_passes(tmp_path, _declared_contract())
+
+
+@pytest.mark.parametrize("launches", ["absent", None, 0, "false"])
+def test_declared_time_box_needs_an_explicit_false_launch_declaration(tmp_path: Path, launches: object) -> None:
+    contract = _declared_contract()
+    if launches == "absent":
+        del contract["launches_full_scale_computation"]
+    else:
+        contract["launches_full_scale_computation"] = launches
+    _assert_fails_with(tmp_path, contract, "MISSING_LAUNCH_DECLARATION")
+
+
+@pytest.mark.parametrize("field,value", [("unit_seconds", 60), ("units", 30), ("dry_run_ref", "x.log")])
+def test_declared_time_box_cannot_carry_measured_fields(tmp_path: Path, field: str, value: object) -> None:
+    contract = _declared_contract()
+    contract["time_box"][field] = value
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TIME_BOX")
+
+
+def test_measured_time_box_cannot_carry_a_note(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"]["note"] = "also declared"
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TIME_BOX")
+
+
+def test_huge_measured_need_keeps_its_label(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"].update({"unit_seconds": 10**400, "units": 10})
+    _assert_fails_with(tmp_path, contract, "TIME_BOX_BELOW_MEASURED_NEED")
+
+
+_NOTES = {
+    "advancing_extension": "run was still advancing at its deadline; extended from the measured rate",
+    "rebudget_after_wrap_up": "run was wrapped up at its deadline; re-dispatched with a box from the measured need",
+}
+
+
+def _extension_contract(measured: object, progress: object, kind: object = "advancing_extension") -> dict:
+    contract = _complete_contract()
+    contract["time_box"]["seconds"] = 10_000
+    contract["retry_of"] = {
+        "supersedes": "lane-scan-01 r1",
+        "exhausted_budget": "time_box_seconds",
+        "measured_requirement": measured,
+        "adjustment_note": _NOTES.get(kind, "re-budget from the measured need") if isinstance(kind, str) else "re-budget from the measured need",
+        "progress": progress,
+        "kind": kind,
+    }
+    return contract
+
+
+_ADVANCING = {
+    "elapsed_seconds": 1800, "completed_units": 10, "total_units": 30, "row": 12,
+    "earlier": {"elapsed_seconds": 1200, "completed_units": 6, "row": 11},
+    "probe_log": "artifacts/runs/scan/checkpoint.probe.jsonl",
+    "previous_extension_row": 0,
+}
+
+
+def test_extension_projection_is_recomputed_from_recorded_progress(tmp_path: Path) -> None:
+    # 1800 s elapsed for 10 of 30 units projects 5400 s; claiming 3000 s is refused.
+    _assert_fails_with(tmp_path, _extension_contract(3000, _ADVANCING), "TIME_BOX_RETRY_BELOW_PROGRESS")
+    _assert_passes(tmp_path, _extension_contract(5400, _ADVANCING))
+
+
+def test_time_box_rebudget_without_progress_fails(tmp_path: Path) -> None:
+    contract = _extension_contract(3000, None, kind="rebudget_after_wrap_up")
+    del contract["retry_of"]["progress"]
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+@pytest.mark.parametrize("kind", ["absent", None])
+def test_time_box_rebudget_must_name_its_kind(tmp_path: Path, kind: object) -> None:
+    # Without a kind, a stalled run could skip the advance check by claiming nothing.
+    contract = _extension_contract(5400, _ADVANCING)
+    if kind == "absent":
+        del contract["retry_of"]["kind"]
+    else:
+        contract["retry_of"]["kind"] = kind
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+def test_advancing_extension_names_its_probe_log(tmp_path: Path) -> None:
+    progress = {k: v for k, v in _ADVANCING.items() if k != "probe_log"}
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "MISSING_EXTENSION_PROBE_REFERENCE")
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [(None, 11), (12, None), (11, 11), (11, 12), (0, 11), (True, 11)],
+)
+def test_advancing_extension_locates_both_observations(tmp_path: Path, rows: tuple) -> None:
+    current, earlier = rows
+    progress = dict(_ADVANCING, earlier=dict(_ADVANCING["earlier"]))
+    for target, value in ((progress, current), (progress["earlier"], earlier)):
+        if value is None:
+            target.pop("row", None)
+        else:
+            target["row"] = value
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "MISSING_EXTENSION_PROBE_REFERENCE")
+
+
+def test_non_adjacent_rows_cannot_skip_a_stall(tmp_path: Path) -> None:
+    # Rows 10 (1200 s, 6 units), 11 (1500 s, 10 units), 12 (1800 s, 10 units): the last interval
+    # stalled. Comparing row 10 with row 12 would hide it; the earlier row must be row 11.
+    progress = dict(_ADVANCING, row=12, earlier={"elapsed_seconds": 1200, "completed_units": 6, "row": 10})
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "EXTENSION_ROWS_NOT_ADJACENT")
+
+
+@pytest.mark.parametrize("previous", ["absent", None, -1, True, "0"])
+def test_advancing_extension_records_the_previous_extension_row(tmp_path: Path, previous: object) -> None:
+    progress = dict(_ADVANCING)
+    if previous == "absent":
+        del progress["previous_extension_row"]
+    else:
+        progress["previous_extension_row"] = previous
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "EXTENSION_OBSERVATIONS_NOT_FRESH")
+
+
+def test_repeated_extension_cannot_reuse_older_observations(tmp_path: Path) -> None:
+    # The previous extension used row 12; copying its observations (rows 11 and 12) again fails,
+    # and so does a pair whose earlier row is the previous extension's row.
+    _assert_fails_with(tmp_path, _extension_contract(5400, dict(_ADVANCING, previous_extension_row=12)),
+                       "EXTENSION_OBSERVATIONS_NOT_FRESH")
+    _assert_fails_with(tmp_path, _extension_contract(5400, dict(_ADVANCING, previous_extension_row=11)),
+                       "EXTENSION_OBSERVATIONS_NOT_FRESH")
+    _assert_passes(tmp_path, _extension_contract(5400, dict(_ADVANCING, previous_extension_row=10)))
+
+
+def test_slowing_run_is_sized_from_its_latest_interval(tmp_path: Path) -> None:
+    # 9 units by 100 s, then 1 unit in the next 1700 s: the whole-run average projects 5400 s,
+    # the latest interval projects 1800 + 20 x 1700 = 35800 s. The extension must cover the latter.
+    progress = dict(_ADVANCING, earlier={"elapsed_seconds": 100, "completed_units": 9, "row": 11})
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "TIME_BOX_RETRY_BELOW_PROGRESS")
+    contract = _extension_contract(35800, progress)
+    contract["time_box"]["seconds"] = 40_000
+    _assert_passes(tmp_path, contract)
+
+
+def test_completed_run_cannot_be_extended(tmp_path: Path) -> None:
+    done = dict(_ADVANCING, completed_units=30)
+    _assert_fails_with(tmp_path, _extension_contract(5400, done), "MISSING_RETRY_FIELDS")
+
+
+@pytest.mark.parametrize(
+    "earlier",
+    [
+        None,
+        {"elapsed_seconds": 1200, "completed_units": 10},
+        {"elapsed_seconds": 1800, "completed_units": 6},
+        {"elapsed_seconds": 2000, "completed_units": 6},
+        "earlier check",
+    ],
+)
+def test_stalled_run_is_not_an_advancing_extension(tmp_path: Path, earlier: object) -> None:
+    progress = dict(_ADVANCING, earlier=earlier)
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "EXTENSION_NOT_ADVANCING")
+
+
+def test_rebudget_after_wrap_up_with_no_completed_unit_uses_the_elapsed_bound(tmp_path: Path) -> None:
+    # Wrapped up with no unit finished in 1800 s: the need is at least 1800 s (a censored
+    # lower bound). This is a re-budget after wrap-up, never an advancing extension.
+    stuck = {"elapsed_seconds": 1800, "completed_units": 0, "total_units": 30}
+    _assert_fails_with(tmp_path, _extension_contract(1000, stuck, kind="rebudget_after_wrap_up"), "TIME_BOX_RETRY_BELOW_PROGRESS")
+    _assert_passes(tmp_path, _extension_contract(1800, stuck, kind="rebudget_after_wrap_up"))
+
+
+def test_progress_on_another_retry_dimension_fails(tmp_path: Path) -> None:
+    contract = _retry_contract(
+        exhausted_budget="heap_limit_mb",
+        measured_requirement=2048,
+        adjustment_note="heap cap covers the measured peak",
+        progress={"elapsed_seconds": 1800, "completed_units": 10, "total_units": 30},
+    )
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+@pytest.mark.parametrize("kind", ["extension", 1, ["advancing_extension"]])
+def test_unknown_retry_kind_fails(tmp_path: Path, kind: object) -> None:
+    _assert_fails_with(tmp_path, _extension_contract(5400, _ADVANCING, kind=kind), "MISSING_RETRY_FIELDS")
+
+
+@pytest.mark.parametrize(
+    "progress",
+    [
+        {"elapsed_seconds": 0, "completed_units": 10, "total_units": 30},
+        {"elapsed_seconds": 1800, "completed_units": 31, "total_units": 30},
+        {"elapsed_seconds": 1800, "completed_units": -1, "total_units": 30},
+        "1800 s for 10 of 30",
+    ],
+)
+def test_malformed_extension_progress_fails(tmp_path: Path, progress: object) -> None:
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress, kind="rebudget_after_wrap_up"), "MISSING_RETRY_FIELDS")
+
+
+def test_declared_time_box_contradicts_a_full_scale_launch(tmp_path: Path) -> None:
+    contract = _declared_contract()
+    contract["launches_full_scale_computation"] = True
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TIME_BOX")
+
+
+def test_unknown_time_box_field_fails_closed(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"]["guess_seconds"] = 100
+    _assert_fails_with(tmp_path, contract, "INVALID_TIME_BOX_FIELD")
 
 
 def test_missing_max_attempts_fails(tmp_path: Path) -> None:
@@ -424,6 +703,13 @@ def _retry_contract(**overrides) -> dict:
         "adjustment_note": "time box set to the measured 5400 s need plus one-third margin",
         **overrides,
     }
+    # A time-box re-budget names its kind and records the progress it was measured from
+    # (10 of 30 units in 1800 s projects the 5400 s need); other dimensions carry neither.
+    if contract["retry_of"].get("exhausted_budget") == "time_box_seconds":
+        if "progress" not in overrides:
+            contract["retry_of"]["progress"] = {"elapsed_seconds": 1800, "completed_units": 10, "total_units": 30}
+        if "kind" not in overrides:
+            contract["retry_of"]["kind"] = "rebudget_after_wrap_up"
     return contract
 
 
