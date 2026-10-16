@@ -32,6 +32,7 @@ const GATE_SPEC_SCHEMA_FILE = 'meta/schemas/gate_spec_v1.schema.json';
 const REGISTRY_FILE = 'packages/shared/src/gate-registry.ts';
 const CHECKER_FILE = 'skills/research-harness/scripts/check_launch_authorization.py';
 const SKILL_FILE = 'skills/research-harness/SKILL.md';
+const SEMANTICS_FILE = 'skills/research-harness/references/launch-authorization.md';
 const TESTS_FILE = 'skills/research-harness/tests/test_launch_authorization_gate.py';
 const CI_FILE = '.github/workflows/ci.yml';
 
@@ -214,13 +215,21 @@ if (skillText !== null) {
     ['section header', '## Production Launch Authorization (A3 Preflight)'],
     ['checker invocation', 'check_launch_authorization.py'],
     ['result contract name', 'launch_authorization_v1'],
+    ['unavailable-never-approval discipline', 'Reviewer unavailability is never approval'],
+    ['zero-production-output contract', 'zero production output'],
+    ['stale-review discipline', 'Editing the plan after review voids the old verdict'],
+  ]);
+}
+
+// 5b. The default-refuse semantics bullets live in the skill's reference file.
+const semanticsText = read(SEMANTICS_FILE);
+if (semanticsText !== null) {
+  requireAll(SEMANTICS_FILE, semanticsText, [
+    ['result contract name', 'launch_authorization_v1'],
     [
       'verdict enum prose',
       'authorized | invalid_record | missing_plan_hash | stale_review | missing_review | review_rejected | reviewer_unavailable | fingerprint_mismatch',
     ],
-    ['unavailable-never-approval discipline', 'Reviewer unavailability is never approval'],
-    ['zero-production-output contract', 'zero production output'],
-    ['stale-review discipline', 'Editing the plan after review voids the old verdict'],
     ['recursive duplicate-key refusal', 'Duplicate JSON object keys are rejected at every nesting level'],
     [
       'ambiguous-record output suppression',

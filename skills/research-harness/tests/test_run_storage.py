@@ -23,6 +23,7 @@ rs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rs)
 
 SKILL_MD = Path(__file__).resolve().parent.parent / "SKILL.md"
+RUN_STORAGE_REFERENCE_MD = Path(__file__).resolve().parent.parent / "references" / "run-storage.md"
 THRESHOLD = 4096
 STOWED_FOR_LARGE_MANIFEST = 24  # enough manifest entries to exceed THRESHOLD bytes
 
@@ -3222,7 +3223,7 @@ def test_skill_documents_exactly_the_implemented_subcommands_and_statuses():
     text = SKILL_MD.read_text(encoding="utf-8")
     match = re.search(r"^## Run Storage\b.*?(?=^## )", text, flags=re.S | re.M)
     assert match, "SKILL.md must have a '## Run Storage' section"
-    section = match.group(0)
+    section = match.group(0) + RUN_STORAGE_REFERENCE_MD.read_text(encoding="utf-8")
     documented = set(re.findall(r"run_storage\.py (\b[a-z][a-z-]+\b)", section))
     assert documented == set(rs.SUBCOMMANDS), (sorted(documented ^ set(rs.SUBCOMMANDS)))
     for status in rs.ENTRY_STATUSES:
