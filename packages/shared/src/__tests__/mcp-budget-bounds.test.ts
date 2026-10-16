@@ -74,6 +74,23 @@ describe('budget bounds in the published inputSchema', () => {
     ]);
   });
 
+  it('tells integer and number apart in ranges below zero', () => {
+    const negative = z.object({
+      int_range: optionalBudgetInt({ min: -10, max: -5 }),
+      number_range: optionalBudgetNumber({ min: -3, max: 0 }),
+    });
+    const json = structuredClone(zodToMcpInputSchema(negative)) as { properties: Properties };
+
+    expect(findBudgetBoundMismatches(negative, json)).toEqual([]);
+
+    json.properties.int_range.type = 'number';
+    json.properties.number_range.type = 'integer';
+    expect(findBudgetBoundMismatches(negative, json)).toEqual([
+      '$.int_range: published as number, but the parser rejects -5.5',
+      '$.number_range: published as integer, but the parser accepts -0.5',
+    ]);
+  });
+
   it('checks a budget-style field recognised by structure even without bounds metadata', () => {
     // A preprocess pipe to a number built without the helpers carries no
     // metadata, so the converter publishes zod's generic integer range.

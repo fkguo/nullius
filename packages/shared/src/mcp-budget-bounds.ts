@@ -83,7 +83,8 @@ function checkBudgetBounds({ chain, type, json, mismatch }: SchemaPair): void {
   const start = Math.min(Math.max(0, low), high);
   let fraction = Math.floor(start) + 0.5;
   if (fraction < low) fraction += 1;
-  if (fraction <= high && !Number.isInteger(fraction)) {
+  if (fraction > high) fraction = Math.ceil(high) - 0.5;
+  if (fraction >= low && fraction <= high && !Number.isInteger(fraction)) {
     if (integer && accepts(fraction)) mismatch(`published as integer, but the parser accepts ${fraction}`);
     if (!integer && !accepts(fraction)) mismatch(`published as number, but the parser rejects ${fraction}`);
   }
