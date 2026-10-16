@@ -41,26 +41,35 @@ function parseBudgetValue(
   return numeric;
 }
 
-export function optionalBudgetInt(options: OptionalBudgetOptions = {}) {
-  const schema = z.preprocess(
-    value => parseBudgetValue(value, { ...options, integer: true }),
-    z.number().int().optional(),
-  );
+// The parsing pipe is wrapped in an outer optional so that the published
+// input schema does not list the field as required: an omitted value parses
+// (to undefined, or to the caller's .default()). The pipe itself already
+// accepts undefined, so the wrapper does not change what parses. The bounds
+// sit on the returned node, where the schema converter reads them. Zod's
+// .describe() and .meta() return a copy of the node they are called on, and
+// the copy does not carry the bounds; chained after .default() or .optional()
+// they copy only that wrapper, and the bounds survive.
+function withBudgetMetadata<T extends z.ZodType>(parsed: T, metadata: BudgetSchemaMetadata) {
+  const schema = parsed.optional();
   Object.defineProperty(schema, '__mcpBudget', {
-    value: { ...options, integer: true } satisfies BudgetSchemaMetadata,
+    value: metadata,
     configurable: true,
   });
   return schema;
 }
 
+export function optionalBudgetInt(options: OptionalBudgetOptions = {}) {
+  const parsed = z.preprocess(
+    value => parseBudgetValue(value, { ...options, integer: true }),
+    z.number().int().optional(),
+  );
+  return withBudgetMetadata(parsed, { ...options, integer: true });
+}
+
 export function optionalBudgetNumber(options: OptionalBudgetOptions = {}) {
-  const schema = z.preprocess(
+  const parsed = z.preprocess(
     value => parseBudgetValue(value, { ...options, integer: false }),
     z.number().optional(),
   );
-  Object.defineProperty(schema, '__mcpBudget', {
-    value: { ...options, integer: false } satisfies BudgetSchemaMetadata,
-    configurable: true,
-  });
-  return schema;
+  return withBudgetMetadata(parsed, { ...options, integer: false });
 }

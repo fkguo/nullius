@@ -10,13 +10,12 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rendererPath = 'skills/idea-posterior/scripts/render_argument_graph.py';
 const browserTestPath = 'skills/idea-posterior/tests/test_reader_surface_interactions.py';
-const skillPath = 'skills/idea-posterior/SKILL.md';
+const rendererReferencePath = 'skills/idea-posterior/references/graph-reader-surface.md';
 const ciPath = '.github/workflows/ci.yml';
 
 const read = (relativePath) => readFileSync(path.join(repoRoot, relativePath), 'utf8');
 const renderer = read(rendererPath);
 const browserTest = read(browserTestPath);
-const skill = read(skillPath);
 const failures = [];
 
 const required = new Map([
@@ -53,7 +52,7 @@ const required = new Map([
     "doc.querySelectorAll('details')",
     'VISIBLE_PROBABILITY_DIGITS',
   ]],
-  [skillPath, [
+  [rendererReferencePath, [
     'one visible-probability formatter',
     'initial-DOM inspection is only a quick drift check',
     'interaction-state evidence or fail closed',

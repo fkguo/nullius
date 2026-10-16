@@ -5,6 +5,16 @@ from pathlib import Path
 _SKILLS_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _integrity_text() -> str:
+    """research-integrity SKILL.md plus the reference file holding the extraction /
+    transcription fidelity section that was moved out of it."""
+    root = _SKILLS_ROOT / "research-integrity"
+    return "\n".join(
+        (root / rel).read_text(encoding="utf-8")
+        for rel in ("SKILL.md", "references/transcription-fidelity.md")
+    )
+
+
 class SourceErrorProtocolTests(unittest.TestCase):
     def test_two_track_protocol_is_pinned_across_skills(self):
         extraction = (
@@ -16,9 +26,7 @@ class SourceErrorProtocolTests(unittest.TestCase):
         review_skill = (_SKILLS_ROOT / "review-swarm" / "SKILL.md").read_text(
             encoding="utf-8"
         )
-        integrity = (_SKILLS_ROOT / "research-integrity" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
+        integrity = _integrity_text()
         derivation = (_SKILLS_ROOT / "derivation-verify" / "SKILL.md").read_text(
             encoding="utf-8"
         )
@@ -72,9 +80,7 @@ class SourceErrorProtocolTests(unittest.TestCase):
         fidelity = (
             _SKILLS_ROOT / "review-swarm" / "templates" / "source-fidelity.md"
         ).read_text(encoding="utf-8")
-        integrity = (_SKILLS_ROOT / "research-integrity" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
+        integrity = _integrity_text()
         self.assertIn("underlying data", fidelity)
         self.assertIn("merely repeats the value", fidelity)
         self.assertIn("cannot be derived", integrity)
@@ -85,9 +91,7 @@ class SourceErrorProtocolTests(unittest.TestCase):
         fidelity = (
             _SKILLS_ROOT / "review-swarm" / "templates" / "source-fidelity.md"
         ).read_text(encoding="utf-8")
-        integrity = (_SKILLS_ROOT / "research-integrity" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
+        integrity = _integrity_text()
         ledger = (
             _SKILLS_ROOT / "deep-literature-review" / "templates" / "extraction-ledger.md"
         ).read_text(encoding="utf-8")

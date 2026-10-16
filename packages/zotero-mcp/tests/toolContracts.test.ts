@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
+import { findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
 
@@ -155,5 +156,19 @@ describe('structuredContent', () => {
     } finally {
       spec.handler = original;
     }
+  });
+});
+
+describe('Tool inputSchema required keys', () => {
+  it.each<ToolExposureMode>(['standard', 'full'])('required lists exactly the keys whose omission fails to parse (%s)', mode => {
+    const specs = new Map(getToolSpecs(mode).map(spec => [spec.name, spec]));
+    const defs = getTools(mode);
+    expect(defs.length).toBeGreaterThan(0);
+    const issues = defs.flatMap(def => {
+      const spec = specs.get(def.name);
+      if (!spec) return [`[${def.name}] no tool spec`];
+      return findRequiredKeyMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
   });
 });
