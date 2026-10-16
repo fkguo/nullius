@@ -99,6 +99,18 @@ const TOOL_PREFIXES = [
 // Skill source roots to scan.
 const SKILL_ROOTS = ['skills'];
 
+// Skills whose long reference text lives in skills/<name>/references/*.md next
+// to SKILL.md. Backtick-quoted tool names in those files are scanned too, so
+// moving text out of SKILL.md does not take it out of this lock.
+const SKILLS_WITH_REFERENCES = [
+  'numerical-reliability-gate',
+  'research-harness',
+  'research-team',
+  'idea-posterior',
+  'review-swarm',
+  'research-integrity',
+];
+
 /**
  * Tokens that look like tool names (match the prefix pattern) but are
  * deliberately not in the registry. Each entry MUST be `[token, reason]`
@@ -194,6 +206,15 @@ function listSkillFiles() {
         if (existsSync(nestedMd) && statSync(nestedMd).isFile()) {
           out.push(path.relative(repoRoot, nestedMd));
         }
+      }
+    }
+  }
+  for (const name of SKILLS_WITH_REFERENCES) {
+    const refDir = path.join(repoRoot, 'skills', name, 'references');
+    if (!existsSync(refDir)) continue;
+    for (const entry of readdirSync(refDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        out.push(path.relative(repoRoot, path.join(refDir, entry.name)));
       }
     }
   }

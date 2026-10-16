@@ -24,7 +24,8 @@
     "subpath": "skills/idea-posterior",
     "include": [
       "SKILL.md",
-      "scripts/**"
+      "scripts/**",
+      "references/**"
     ],
     "exclude": [
       "**/tests/**",

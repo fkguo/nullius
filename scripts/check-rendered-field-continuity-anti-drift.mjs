@@ -40,7 +40,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const FIGURE_SKILL_FILE = 'skills/figure-hygiene/SKILL.md';
-const NUMERICAL_SKILL_FILE = 'skills/numerical-reliability-gate/SKILL.md';
+const NUMERICAL_PROVENANCE_FILE = 'skills/numerical-reliability-gate/references/provenance.md';
 const CI_FILE = '.github/workflows/ci.yml';
 
 const errors = [];
@@ -122,7 +122,7 @@ requireAll(`${FIGURE_SKILL_FILE} (description)`, figureSkill, [
 ]);
 
 // 4. numerical-reliability-gate: the failure mode that produced the rule.
-requireAll(NUMERICAL_SKILL_FILE, read(NUMERICAL_SKILL_FILE), [
+requireAll(NUMERICAL_PROVENANCE_FILE, read(NUMERICAL_PROVENANCE_FILE), [
   ['recorded jump-versus-smooth evidence', 'isolated neighbour-to-neighbour jumps'],
   ['declared-singularity contrast', 'including across its genuinely declared singularities'],
   ['traced mechanism', '**discrete acceptance threshold inside the evaluator**'],
