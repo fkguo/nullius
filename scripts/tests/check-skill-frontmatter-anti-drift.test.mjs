@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -56,7 +56,7 @@ test('frontmatter must start on line 1 and be closed', () => {
   assertFires('# Title\n\n' + GOOD, /line 1 is not a --- line/);
   assertFires('\n' + GOOD, /line 1 is not a --- line/);
   assertFires('', /line 1 is not a --- line/);
-  assertFires('﻿' + GOOD, /byte-order mark/);
+  assertFires('\uFEFF' + GOOD, /byte-order mark/);
   assertFires('---\nname: demo-skill\ndescription: Does one thing.\n', /not closed/);
   assertFires('----\nname: demo-skill\n---\n', /line 1 is not a --- line/);
   assert.deepEqual(extractFrontmatter(GOOD), { text: 'name: demo-skill\ndescription: Does one thing.' });
@@ -152,11 +152,28 @@ test('description: a trailing newline is caught in every YAML spelling that prod
   assertFires(frontmatter('name: demo-skill', 'description: |', '  Does one thing.'), /ends with a newline/);
   assertFires(frontmatter('name: demo-skill', 'description: |+', '  Does one thing.', ''), /ends with a newline/);
   assertFires(frontmatter('name: demo-skill', 'description: "Does one thing.\\r\\n"'), /ends with a newline/);
+  assertFires(frontmatter('name: demo-skill', 'description: "Does one thing.\\r"'), /ends with a newline/);
   // Spellings that leave no trailing newline pass.
   assert.deepEqual(check(frontmatter('name: demo-skill', 'description: >-', '  Does one thing', '  across lines.')), []);
   assert.deepEqual(check(frontmatter('name: demo-skill', 'description: |-', '  Does one thing.')), []);
   assert.deepEqual(check(frontmatter('name: demo-skill', 'description: "Does one thing.\\n  Then another."')), []);
   assert.deepEqual(check(frontmatter('name: demo-skill', "description: 'Does one thing.'")), []);
+});
+
+test('a "---" sequence inside the block is reported, wherever it stands', () => {
+  const inline = frontmatter('name: demo-skill', 'description: Fits a curve --- then reports the residuals.');
+  assertFires(inline, /contains "---"/);
+  const inBlockScalar = frontmatter('name: demo-skill', 'description: >-', '  Part one.', '  ---', '  Part two.');
+  assertFires(inBlockScalar, /contains "---"/);
+  const inValue = frontmatter('name: demo-skill', 'description: x', 'metadata:', '  note: a---b');
+  assertFires(inValue, /contains "---"/);
+  // It does not hide the other problems of the same block.
+  const withInvalidYaml = frontmatter('name: [unclosed ---', 'description: x');
+  assertFires(withInvalidYaml, /contains "---"/);
+  assertFires(withInvalidYaml, /not valid YAML/);
+  // Hyphenated names and keys are not mistaken for the sequence.
+  const hyphens = frontmatter('name: demo-skill', 'description: A - B -- C.', 'allowed-tools: Read');
+  assert.deepEqual(check(hyphens), []);
 });
 
 test('keys outside the six portable fields are reported one by one', () => {
@@ -211,6 +228,20 @@ test('runCheck: an unreadable listed file and an empty scan both fail', t => {
   assert.deepEqual(empty.violations.map(v => v.file), ['skills/']);
 });
 
+test('runCheck: a file that is not valid UTF-8 fails instead of being repaired silently', t => {
+  const { root } = fixture(t, {});
+  fs.mkdirSync(path.join(root, 'skills', 'latin-skill'), { recursive: true });
+  const bytes = Buffer.concat([
+    Buffer.from('---\nname: latin-skill\ndescription: Caf'),
+    Buffer.from([0xe9]),
+    Buffer.from(' analysis.\n---\n'),
+  ]);
+  fs.writeFileSync(path.join(root, 'skills', 'latin-skill', 'SKILL.md'), bytes);
+  const result = runCheck({ repoRoot: root, files: ['skills/latin-skill/SKILL.md'], exemptions: NO_EXEMPTIONS });
+  assert.ok(result.violations.some(v => v.file === 'skills/latin-skill/SKILL.md' && /not valid UTF-8/.test(v.reason)));
+  assert.equal(result.scanned, 0);
+});
+
 test('runCheck: only depth-one skills/<dir>/SKILL.md files are scanned', t => {
   const { root, files } = fixture(t, {
     'good-skill': frontmatter('name: good-skill', 'description: Fine.'),
@@ -245,28 +276,55 @@ test('the repository skills pass the lock', () => {
   assert.ok(result.scanned > 0);
 });
 
-test('the command exits 1 and names each offender on a synthetic offending tree', t => {
+// A throwaway git tree holding one skill and a copy of the script, so the command scans that
+// tree and not the real repository.
+function commandTree(t, skillContent, extraSkills = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-skill-frontmatter-cli-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', root]);
-  fs.mkdirSync(path.join(root, 'skills', 'bad-skill'), { recursive: true });
-  fs.writeFileSync(
-    path.join(root, 'skills', 'bad-skill', 'SKILL.md'),
-    frontmatter('name: bad-skill', 'description: "Ends badly.\\n"'),
-  );
-  execFileSync('git', ['add', '--', 'skills'], { cwd: root });
-  // Copy the script into the synthetic tree so it scans that tree, not the real repository.
-  fs.mkdirSync(path.join(root, 'scripts'));
-  fs.copyFileSync(scriptPath, path.join(root, 'scripts', 'check-skill-frontmatter-anti-drift.mjs'));
-  fs.symlinkSync(path.join(repoRoot, 'node_modules'), path.join(root, 'node_modules'));
-  let status = 0;
-  let stderr = '';
-  try {
-    execFileSync('node', ['scripts/check-skill-frontmatter-anti-drift.mjs'], { cwd: root, encoding: 'utf-8', stdio: 'pipe' });
-  } catch (error) {
-    status = error.status;
-    stderr = error.stderr;
+  for (const [dir, content] of Object.entries({ 'demo-skill': skillContent, ...extraSkills })) {
+    fs.mkdirSync(path.join(root, 'skills', dir), { recursive: true });
+    fs.writeFileSync(path.join(root, 'skills', dir, 'SKILL.md'), content);
   }
-  assert.equal(status, 1);
-  assert.match(stderr, /skills\/bad-skill\/SKILL\.md: description ends with a newline/);
+  execFileSync('git', ['add', '--', 'skills'], { cwd: root });
+  fs.mkdirSync(path.join(root, 'scripts'));
+  const script = path.join(root, 'scripts', 'check-skill-frontmatter-anti-drift.mjs');
+  fs.copyFileSync(scriptPath, script);
+  fs.symlinkSync(path.join(repoRoot, 'node_modules'), path.join(root, 'node_modules'));
+  return { root, script };
+}
+
+function runCommand(entry, cwd) {
+  const result = spawnSync('node', [entry], { cwd, encoding: 'utf-8' });
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+const OFFENDING = frontmatter('name: demo-skill', 'description: "Ends badly.\\n"');
+
+test('the command exits 1 and names each offender on a synthetic offending tree', t => {
+  const { root } = commandTree(t, OFFENDING);
+  const result = runCommand('scripts/check-skill-frontmatter-anti-drift.mjs', root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /skills\/demo-skill\/SKILL\.md: description ends with a newline/);
+});
+
+test('the command exits 0 on a conforming tree', t => {
+  // The repository exemption must find the skill it names, so the tree carries that skill too.
+  const runner = frontmatter('name: claude-cli-runner', 'description: Runs a command-line program.');
+  const { root } = commandTree(t, GOOD, { 'claude-cli-runner': runner });
+  const result = runCommand('scripts/check-skill-frontmatter-anti-drift.mjs', root);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^OK: 2 skills\/\*\/SKILL\.md/);
+});
+
+test('the command still checks when it is started through a symlinked path', t => {
+  const { root, script } = commandTree(t, OFFENDING);
+  const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-skill-frontmatter-link-'));
+  t.after(() => fs.rmSync(linkDir, { recursive: true, force: true }));
+  const link = path.join(linkDir, 'check.mjs');
+  fs.symlinkSync(script, link);
+  const result = runCommand(link, linkDir);
+  assert.equal(result.status, 1, `stdout: ${result.stdout} stderr: ${result.stderr}`);
+  assert.match(result.stderr, /skills\/demo-skill\/SKILL\.md/);
+  assert.ok(root);
 });

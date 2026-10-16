@@ -9,8 +9,10 @@
 // frontmatter as YAML (not with line patterns, so quoting, folding and escapes are
 // resolved the way a loader resolves them) and fails when any of these hold:
 //
-//   - the file does not start with a `---` line on line 1, the block is never closed,
-//     it is not valid YAML, or it is not a mapping;
+//   - the file is not valid UTF-8, does not start with a `---` line on line 1, the block
+//     is never closed, it is not valid YAML, or it is not a mapping;
+//   - the block itself contains a `---` sequence: some loaders end the block at the first
+//     `---` they meet, wherever it stands, and silently read a truncated block;
 //   - `name` is missing or not a string, differs from the directory name, contains
 //     anything outside lowercase letters, digits and hyphens, is longer than 64
 //     characters, or contains a reserved word (`claude`, `anthropic`);
@@ -34,7 +36,7 @@
 //   node scripts/check-skill-frontmatter-anti-drift.mjs
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -51,12 +53,15 @@ export const RESERVED_SUBSTRINGS = ['claude', 'anthropic'];
 export const RESERVED_WORD_EXEMPTIONS = new Map([
   [
     'claude-cli-runner',
-    'The reserved-word restriction is enforced only when a skill is uploaded to the hosted ' +
-      'claude.ai product or packaged for the Skills API. This skill is installed through the ' +
-      'agent CLIs listed in packages/skills-market and is never uploaded there; its name states ' +
-      'which command-line program it wraps.',
+    'Maintainer decision: the reserved-word restriction matters for skills uploaded to the ' +
+      'hosted claude.ai product or packaged for the Skills API, which this repository does not ' +
+      'do. This skill is installed through the agent CLIs listed in packages/skills-market, ' +
+      'which load it under this name; the name states which command-line program it wraps.',
   ],
 ]);
+
+// A malformed byte sequence throws a TypeError instead of being replaced by U+FFFD.
+const strictUtf8 = new TextDecoder('utf-8', { fatal: true });
 
 const FENCE_LINE = /^---[ \t]*$/;
 const SKILL_FILE = /^skills\/([^/]+)\/SKILL\.md$/;
@@ -69,7 +74,7 @@ function describeType(value) {
 
 // Returns { text } with the raw frontmatter body, or { error }.
 export function extractFrontmatter(content) {
-  if (content.startsWith('﻿')) {
+  if (content.startsWith('\uFEFF')) {
     return { error: 'frontmatter does not start on line 1 (byte-order mark before the opening ---)' };
   }
   const lines = content.split(/\r?\n/);
@@ -125,7 +130,8 @@ function descriptionProblems(description) {
   if (/[\r\n]$/.test(description)) {
     problems.push(
       'description ends with a newline after YAML parsing ' +
-        '(block scalar without a strip indicator, or a quoted scalar ending in an escaped newline)',
+        '(block scalar without a strip indicator, or a quoted scalar ending in an escaped newline ' +
+        'or on an empty last line)',
     );
   }
   return problems;
@@ -136,19 +142,24 @@ export function checkSkillFile({ skillDir, content, exemptions = RESERVED_WORD_E
   const extracted = extractFrontmatter(content);
   if (extracted.error) return [extracted.error];
 
+  const problems = [];
+  if (extracted.text.includes('---')) {
+    problems.push('frontmatter block contains "---"; some loaders end the block at the first "---" they meet');
+  }
+
   let data;
   try {
     data = yaml.load(extracted.text, { schema: yaml.CORE_SCHEMA });
   } catch (error) {
     const firstLine = String(error?.message ?? error).split('\n')[0];
-    return [`frontmatter is not valid YAML: ${firstLine}`];
+    return [...problems, `frontmatter is not valid YAML: ${firstLine}`];
   }
-  if (data === null || data === undefined) return ['frontmatter is empty'];
+  if (data === null || data === undefined) return [...problems, 'frontmatter is empty'];
   if (typeof data !== 'object' || Array.isArray(data)) {
-    return [`frontmatter must be a mapping, parsed as ${describeType(data)}`];
+    return [...problems, `frontmatter must be a mapping, parsed as ${describeType(data)}`];
   }
 
-  const problems = [...nameProblems(data.name, skillDir, exemptions), ...descriptionProblems(data.description)];
+  problems.push(...nameProblems(data.name, skillDir, exemptions), ...descriptionProblems(data.description));
   for (const key of Object.keys(data)) {
     if (!PORTABLE_KEYS.includes(key)) {
       problems.push(`unsupported frontmatter key "${key}" (portable fields: ${PORTABLE_KEYS.join(', ')})`);
@@ -177,9 +188,11 @@ export function runCheck({
     if (!match) continue;
     let content;
     try {
-      content = readFileSync(path.join(repoRoot, file), 'utf-8');
+      content = strictUtf8.decode(readFileSync(path.join(repoRoot, file)));
     } catch (error) {
-      violations.push({ file, reason: `cannot be read: ${error.code ?? error.message}` });
+      const invalid = error.code === 'ERR_ENCODING_INVALID_ENCODED_DATA';
+      const reason = invalid ? 'is not valid UTF-8' : `cannot be read: ${error.code ?? error.message}`;
+      violations.push({ file, reason });
       continue;
     }
     scanned += 1;
@@ -204,10 +217,21 @@ export function runCheck({
   return { scanned, violations };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// The module URL is already symlink-resolved, so resolve the argument the same way:
+// otherwise a run through a symlinked path would skip the check and exit 0 silently.
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isMainModule()) {
   const { scanned, violations } = runCheck();
   if (violations.length === 0) {
-    console.log(`OK: ${scanned} skills/*/SKILL.md frontmatter blocks follow the portable skill format.`);
+    console.log(`OK: ${scanned} skills/*/SKILL.md frontmatter blocks pass the frontmatter rules (name, description, keys).`);
     process.exit(0);
   }
   console.error('DRIFT: skill frontmatter violates the portable skill format:');
@@ -219,5 +243,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   console.error(`(lowercase letters, digits, hyphens; at most ${NAME_MAX_LENGTH} characters; no reserved word).`);
   console.error(`description must be non-empty, at most ${DESCRIPTION_MAX_LENGTH} characters, and must not end with a newline`);
   console.error('(use a >- or |- block scalar, or a plain/quoted scalar without a trailing \\n).');
+  console.error('The block must not contain "---" and the file must be valid UTF-8.');
   process.exit(1);
 }
