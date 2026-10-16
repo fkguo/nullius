@@ -101,7 +101,8 @@ def _refused(data):
 def _run(tmp_path, data, *extra, raw=None):
     path = tmp_path / "numerical_reliability_matrix_v1.json"
     path.write_text(raw if raw is not None else json.dumps(data), encoding="utf-8")
-    return subprocess.run([sys.executable, str(CHECKER), str(path), *extra], capture_output=True, text=True)
+    # A hang (an accepted extreme value turned into a gigantic integer) must fail, not stall.
+    return subprocess.run([sys.executable, str(CHECKER), str(path), *extra], capture_output=True, text=True, timeout=60)
 
 
 # --- the passing baseline -------------------------------------------------------------------
@@ -502,6 +503,37 @@ def test_extreme_numeric_literals_are_refused_not_crashed(tmp_path, literal):
     assert proc.returncode == 2, proc.stdout + proc.stderr
     assert "Traceback" not in proc.stderr
     assert json.loads(proc.stdout)["result"] == "invalid_input"
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "1e1000000",                            # huge exponent: abs() would overflow
+        "1e-999999999999999999",                # nonzero far below the range: abs() would underflow to 0
+        "1.0000000000000000000000000001e300",   # just above the maximum: abs() would round to 1e300
+        "9.9999999999999999999999999999e-301",  # just below the minimum: abs() would round to 1e-300
+    ],
+)
+def test_range_check_is_exact_at_any_decimal_context(tmp_path, literal):
+    raw = json.dumps(_matrix(_row())).replace('"estimate": 0.001', '"estimate": ' + literal)
+    proc = _run(tmp_path, None, raw=raw)
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "Traceback" not in proc.stderr
+    assert "INVALID_ERROR_BUDGET" in proc.stdout
+
+
+@pytest.mark.parametrize(
+    "parse,lexeme",
+    [
+        (crm._parse_int, "1" * 400),
+        (crm._parse_float, "0." + "1" * 398),
+    ],
+)
+def test_numeric_literal_length_boundary(parse, lexeme):
+    assert len(lexeme) == 400
+    parse(lexeme)  # exactly at the limit: accepted
+    with pytest.raises(crm.InputError):
+        parse(lexeme + "1")  # one character over: refused
 
 
 def test_json_output_reports_findings(tmp_path):

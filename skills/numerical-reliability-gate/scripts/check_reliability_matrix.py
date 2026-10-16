@@ -164,8 +164,10 @@ def _is_number(value: Any) -> bool:
     number = _dec(value)
     if not number.is_finite():
         return False
-    size = abs(number)
-    return size == 0 or _MIN_MAGNITUDE <= size <= _MAX_MAGNITUDE
+    # copy_abs() is exact and ignores the decimal context; abs() would round to the context
+    # precision, overflow on a huge exponent, or underflow a tiny value to zero.
+    size = number.copy_abs()
+    return size.is_zero() or _MIN_MAGNITUDE <= size <= _MAX_MAGNITUDE
 
 
 def _in(value: Any, allowed: frozenset[str]) -> bool:
