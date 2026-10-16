@@ -43,6 +43,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 const SKILL_FILE = 'skills/numerical-reliability-gate/SKILL.md';
 const CONTRACT_FILE = 'skills/numerical-reliability-gate/references/contract.md';
+const PROVENANCE_FILE = 'skills/numerical-reliability-gate/references/provenance.md';
 const CI_FILE = '.github/workflows/ci.yml';
 
 const errors = [];
@@ -119,7 +120,7 @@ requireAll(`${SKILL_FILE} (G3)`, gateItem(SKILL_FILE, skill, 'G3'), [
 ]);
 
 // 3. The recorded failure mode that produced the G6 clause.
-requireAll(`${SKILL_FILE} (recorded failure modes)`, skill, [
+requireAll(`${PROVENANCE_FILE} (recorded failure modes)`, read(PROVENANCE_FILE), [
   ['stale rows left in the delivered table', '**stayed in the delivered table under a status caveat**'],
   ['stale figures still presented', 'figures rendered with the broken path were still presented as delivered'],
   ['recomputation-not-relabelling lesson', 'a correction upstream obliges *recomputation* downstream, not relabelling'],
