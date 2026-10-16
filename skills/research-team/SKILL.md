@@ -430,13 +430,19 @@ Required field groups of the full-tier contract, all machine-checked:
   `unit_seconds × units` (leave margin above that floor; the gate refuses a
   box below it as `TIME_BOX_BELOW_MEASURED_NEED`). **Declared**
   (`basis: "declared"`): a short workstream that launches no full-scale
-  computation gives a one-line `note` instead. When the box expires while
+  computation gives a one-line `note` instead, together with the explicit
+  top-level declaration `launches_full_scale_computation: false` (absent
+  fails closed); the two forms are mutually exclusive. When the box expires while
   the run is still advancing (checkpoint rows still landing), the
   coordinator may extend it **once**, as a contract amendment carrying
   `retry_of` with `exhausted_budget: "time_box_seconds"` and the projected
-  need from the measured rate as `measured_requirement` — the existing
-  strict-exceedance check then applies; a run that has stopped advancing is
-  wrapped up instead.
+  need from the measured rate as `measured_requirement`, and the measurement
+  itself as `progress` (`elapsed_seconds`, `completed_units`,
+  `total_units`) — the gate recomputes the projection from it
+  (`EXTENSION_BELOW_PROJECTED_NEED`) and applies the existing
+  strict-exceedance check; a run that has stopped advancing is wrapped up
+  instead. The once-only rule is the coordinator's: the gate sees one
+  contract revision at a time and cannot count earlier extensions.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the
   delivered task (the `research-harness` attempt semantics), **not**

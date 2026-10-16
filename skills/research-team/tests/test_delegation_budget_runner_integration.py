@@ -42,6 +42,7 @@ def _complete_contract() -> dict:
             "value": 1e-6,
             "anchor_note": "probe threshold: downstream check only resolves 1e-5",
         },
+        "launches_full_scale_computation": False,
         "time_box": {"seconds": 600, "basis": "declared", "note": "integration probe that launches no computation"},
         "max_attempts": 1,
         "scope_negative_list": ["no scope expansion of any kind in this probe"],

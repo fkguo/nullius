@@ -191,8 +191,10 @@ def test_explicit_contract_flag(tmp_path: Path) -> None:
 
 
 def _assert_passes(tmp_path: Path, contract: dict) -> None:
-    # Each call gets its own project directory so a pass after a fail is judged afresh.
-    sub = tmp_path / f"pass{len(list(tmp_path.glob('pass*')))}"
+    # Each call gets its own fresh project directory so a pass after a fail is judged afresh.
+    import uuid
+
+    sub = tmp_path / f"pass-{uuid.uuid4().hex}"
     sub.mkdir()
     proj = _make_project(sub, contracts={"c.json": contract})
     proc, verdict = _run_gate(proj)
@@ -344,25 +346,92 @@ def test_measured_time_box_with_fractional_unit_time_is_exact(tmp_path: Path) ->
     _assert_passes(tmp_path, contract)
 
 
-def test_declared_time_box_needs_a_note(tmp_path: Path) -> None:
+def _declared_contract() -> dict:
     contract = _complete_contract()
-    contract["time_box"] = {"seconds": 600, "basis": "declared"}
+    contract["launches_full_scale_computation"] = False
+    contract["time_box"] = {"seconds": 600, "basis": "declared", "note": "a symbolic check that launches no computation"}
+    return contract
+
+
+def test_declared_time_box_needs_a_note(tmp_path: Path) -> None:
+    contract = _declared_contract()
+    del contract["time_box"]["note"]
     _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX_NOTE")
-    contract["time_box"]["note"] = "a symbolic check that launches no computation"
-    _assert_passes(tmp_path, contract)
+    _assert_passes(tmp_path, _declared_contract())
+
+
+@pytest.mark.parametrize("launches", ["absent", None, 0, "false"])
+def test_declared_time_box_needs_an_explicit_false_launch_declaration(tmp_path: Path, launches: object) -> None:
+    contract = _declared_contract()
+    if launches == "absent":
+        del contract["launches_full_scale_computation"]
+    else:
+        contract["launches_full_scale_computation"] = launches
+    _assert_fails_with(tmp_path, contract, "MISSING_LAUNCH_DECLARATION")
+
+
+@pytest.mark.parametrize("field,value", [("unit_seconds", 60), ("units", 30), ("dry_run_ref", "x.log")])
+def test_declared_time_box_cannot_carry_measured_fields(tmp_path: Path, field: str, value: object) -> None:
+    contract = _declared_contract()
+    contract["time_box"][field] = value
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TIME_BOX")
+
+
+def test_measured_time_box_cannot_carry_a_note(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"]["note"] = "also declared"
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TIME_BOX")
+
+
+def test_huge_measured_need_keeps_its_label(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"].update({"unit_seconds": 10**400, "units": 10})
+    _assert_fails_with(tmp_path, contract, "TIME_BOX_BELOW_MEASURED_NEED")
+
+
+def _extension_contract(measured: object, progress: object) -> dict:
+    contract = _complete_contract()
+    contract["time_box"]["seconds"] = 10_000
+    contract["retry_of"] = {
+        "supersedes": "lane-scan-01 r1",
+        "exhausted_budget": "time_box_seconds",
+        "measured_requirement": measured,
+        "adjustment_note": "run was still advancing at its deadline; extended once from the measured rate",
+        "progress": progress,
+    }
+    return contract
+
+
+def test_extension_projection_is_recomputed_from_recorded_progress(tmp_path: Path) -> None:
+    # 1800 s elapsed for 10 of 30 units projects 5400 s; claiming 3000 s is refused.
+    progress = {"elapsed_seconds": 1800, "completed_units": 10, "total_units": 30}
+    _assert_fails_with(tmp_path, _extension_contract(3000, progress), "EXTENSION_BELOW_PROJECTED_NEED")
+    _assert_passes(tmp_path, _extension_contract(5400, progress))
+
+
+@pytest.mark.parametrize(
+    "progress",
+    [
+        {"elapsed_seconds": 0, "completed_units": 10, "total_units": 30},
+        {"elapsed_seconds": 1800, "completed_units": 0, "total_units": 30},
+        {"elapsed_seconds": 1800, "completed_units": 31, "total_units": 30},
+        "1800 s for 10 of 30",
+    ],
+)
+def test_malformed_extension_progress_fails(tmp_path: Path, progress: object) -> None:
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "MISSING_RETRY_FIELDS")
 
 
 def test_declared_time_box_contradicts_a_full_scale_launch(tmp_path: Path) -> None:
-    contract = _complete_contract()
+    contract = _declared_contract()
     contract["launches_full_scale_computation"] = True
-    contract["time_box"] = {"seconds": 600, "basis": "declared", "note": "short"}
     _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TIME_BOX")
 
 
 def test_unknown_time_box_field_fails_closed(tmp_path: Path) -> None:
     contract = _complete_contract()
     contract["time_box"]["guess_seconds"] = 100
-    _assert_fails_with(tmp_path, contract, "INVALID_TIME_BOX_BASIS")
+    _assert_fails_with(tmp_path, contract, "INVALID_TIME_BOX_FIELD")
 
 
 def test_missing_max_attempts_fails(tmp_path: Path) -> None:

@@ -41,7 +41,9 @@ delegated workstream, default location `<project_root>/team/delegations/`):
         dry_run_ref: optional pointer to the dry-run log
       declared (short workstreams that launch no full-scale computation):
         seconds, basis: "declared", note: one line stating why a dry-run
-        measurement is not warranted
+        measurement is not warranted, plus the top-level declaration
+        launches_full_scale_computation: false (absent fails closed)
+      The two forms are mutually exclusive; mixing their fields fails.
   - max_attempts: cap on "one last attempt" retries (>= 1)
   - scope_negative_list: non-empty list of expansions the executor must
       NOT undertake on its own initiative (e.g. infrastructure rewrites,
@@ -102,7 +104,11 @@ delegated workstream, default location `<project_root>/team/delegations/`):
                approach change of a retry that keeps the cap; a number or
                one line for unit_ceiling / other)
         adjustment_note: one line deriving THIS contract's budget from the
-               measurement (for exhausted max_attempts: what changed in the
+               measurement
+        progress: optional, for extending a run still advancing at its
+               deadline: { elapsed_seconds, completed_units, total_units };
+               when present the measured requirement must be at least
+               elapsed x total units / completed units (for exhausted max_attempts: what changed in the
                approach — more identical attempts is not an adjustment)
       Machine cross-check: where the contract carries the matching budget
       field (time_box.seconds, peak_memory_estimate.heap_limit_mb,
@@ -121,7 +127,8 @@ Falsification labels (all fail-closed):
   CONTRADICTORY_TOLERANCE_FIELDS, MISSING_TOLERANCE_ANCHOR,
   MISSING_TIME_BOX, MISSING_TIME_BOX_BASIS, INVALID_TIME_BOX_BASIS,
   MISSING_UNIT_SECONDS, MISSING_UNIT_COUNT, TIME_BOX_BELOW_MEASURED_NEED,
-  MISSING_TIME_BOX_NOTE, CONTRADICTORY_TIME_BOX, MISSING_MAX_ATTEMPTS,
+  MISSING_TIME_BOX_NOTE, CONTRADICTORY_TIME_BOX, MISSING_LAUNCH_DECLARATION,
+  INVALID_TIME_BOX_FIELD, EXTENSION_BELOW_PROJECTED_NEED, MISSING_MAX_ATTEMPTS,
   MISSING_SCOPE_NEGATIVE_LIST, MISSING_PEAK_MEMORY_ESTIMATE,
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
   HEAP_LIMIT_BELOW_DRY_RUN_PEAK, INVALID_MEMORY_MODE,
@@ -408,6 +415,18 @@ def _is_finite_positive_number(value: Any) -> bool:
     return False
 
 
+def _exact(value: Any) -> Fraction:
+    """The exact rational a JSON number denotes; a float maps to its shortest decimal, so
+    0.1 x 30 is exactly 3, not 3 plus binary rounding."""
+    return Fraction(repr(value)) if isinstance(value, float) else Fraction(value)
+
+
+def _fraction_str(value: Fraction) -> str:
+    """Format an exact rational without a float conversion that could overflow."""
+    whole = -((-value.numerator) // value.denominator)  # ceiling
+    return _decimal_str(whole) if value.denominator != 1 else _decimal_str(value.numerator)
+
+
 def _is_positive_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
@@ -552,7 +571,8 @@ def _validate_contract(contract: Any) -> list[str]:
         )
     else:
         basis = time_box.get("basis")
-        launches_full = contract.get("launches_full_scale_computation") is True
+        launches_value = contract.get("launches_full_scale_computation")
+        measured_only = {"unit_seconds", "units", "dry_run_ref"} & set(time_box)
         if "basis" not in time_box:
             issues.append(
                 "MISSING_TIME_BOX_BASIS: `time_box.basis` is required — \"measured\" "
@@ -560,6 +580,11 @@ def _validate_contract(contract: Any) -> list[str]:
                 "(a one-line `note` for a short workstream that launches no full-scale computation)"
             )
         elif basis == "measured":
+            if "note" in time_box:
+                issues.append(
+                    "CONTRADICTORY_TIME_BOX: a measured time box must not carry the declared "
+                    "form's `note` — pick one form, never both"
+                )
             unit_seconds = time_box.get("unit_seconds")
             units = time_box.get("units")
             if not _is_finite_positive_number(unit_seconds):
@@ -573,28 +598,38 @@ def _validate_contract(contract: Any) -> list[str]:
                     f"units the workstream runs (got {_decimal_str(units)})"
                 )
             if _is_finite_positive_number(unit_seconds) and _is_positive_int(units):
-                # The value as written (a float maps to its shortest decimal), so
-                # 0.1 s x 30 units is exactly 3 s, not 3 s plus binary rounding.
-                exact_unit = Fraction(repr(unit_seconds)) if isinstance(unit_seconds, float) else Fraction(unit_seconds)
-                need = exact_unit * units
+                need = _exact(unit_seconds) * units
                 if Fraction(time_box["seconds"]) < need:
                     issues.append(
                         "TIME_BOX_BELOW_MEASURED_NEED: `time_box.seconds` "
                         f"({_decimal_str(time_box['seconds'])}) is below the measured need "
-                        f"unit_seconds x units = {float(need):.6g} s; the box would kill the "
-                        "workstream before it can finish"
+                        f"unit_seconds x units (about {_fraction_str(need)} s); the box would kill "
+                        "the workstream before it can finish"
                     )
         elif basis == "declared":
+            if measured_only:
+                issues.append(
+                    "CONTRADICTORY_TIME_BOX: a declared time box must not carry the measured "
+                    f"form's fields {sorted(measured_only)} — pick one form, never both"
+                )
             if not _is_nonempty_single_line(time_box.get("note")):
                 issues.append(
                     "MISSING_TIME_BOX_NOTE: a declared time box needs a one-line `note` stating "
                     "why a dry-run measurement is not warranted"
                 )
-            if launches_full:
+            if launches_value is True:
                 issues.append(
                     "CONTRADICTORY_TIME_BOX: the contract declares "
                     "`launches_full_scale_computation: true` but its time box is declared, "
                     "not measured — a full-scale launch needs a measured time box"
+                )
+            elif launches_value is not False:
+                # Absent, null and every non-boolean fail here: the eligibility for the
+                # declared form is an explicit declaration, exactly as for declared_cap.
+                issues.append(
+                    "MISSING_LAUNCH_DECLARATION: a declared time box requires the top-level "
+                    "declaration `launches_full_scale_computation: false` "
+                    f"(got {launches_value!r})"
                 )
         else:
             issues.append(
@@ -604,7 +639,7 @@ def _validate_contract(contract: Any) -> list[str]:
         allowed = {"seconds", "basis", "unit_seconds", "units", "dry_run_ref", "note", "_note"}
         extra = sorted(set(time_box) - allowed)
         if extra:
-            issues.append(f"INVALID_TIME_BOX_BASIS: unknown `time_box` field(s) {extra}")
+            issues.append(f"INVALID_TIME_BOX_FIELD: unknown `time_box` field(s) {extra}")
 
     # max_attempts: cap on "one last attempt" retries.
     if not _is_positive_int(contract.get("max_attempts")):
@@ -936,6 +971,36 @@ def _validate_contract(contract: Any) -> list[str]:
                         "retry budget derives from the measurement plus margin, never a "
                         "repeat of the exhausted number"
                     )
+            # An extension of a run still advancing at its deadline may record the
+            # progress it was measured from; the gate then recomputes the projection
+            # (elapsed x total units / completed units) instead of trusting the scalar.
+            if "progress" in retry:
+                progress = retry["progress"]
+                elapsed = progress.get("elapsed_seconds") if isinstance(progress, dict) else None
+                completed = progress.get("completed_units") if isinstance(progress, dict) else None
+                total = progress.get("total_units") if isinstance(progress, dict) else None
+                if (
+                    dimension != "time_box_seconds"
+                    or not _is_finite_positive_number(elapsed)
+                    or not _is_positive_int(completed)
+                    or not _is_positive_int(total)
+                    or completed > total
+                ):
+                    issues.append(
+                        "MISSING_RETRY_FIELDS: `retry_of.progress` belongs to a time-box extension "
+                        "(`exhausted_budget: \"time_box_seconds\"`) and needs a finite positive "
+                        "`elapsed_seconds` and positive integers `completed_units` <= `total_units` "
+                        f"(got {progress!r})"
+                    )
+                elif _is_finite_positive_number(measured):
+                    projected = _exact(elapsed) * total / completed
+                    if _exact(measured) < projected:
+                        issues.append(
+                            "EXTENSION_BELOW_PROJECTED_NEED: `retry_of.measured_requirement` "
+                            f"({_decimal_str(measured)}) is below the need projected from the "
+                            f"recorded progress (about {_fraction_str(projected)} s = elapsed x "
+                            "total units / completed units)"
+                        )
             if dimension == "heap_limit_mb" and _is_finite_positive_number(measured):
                 heap_value = mem.get("heap_limit_mb") if isinstance(mem, dict) else None
                 if _is_finite_positive_number(heap_value) and heap_value <= measured:
