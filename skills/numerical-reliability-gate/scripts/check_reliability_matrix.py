@@ -27,9 +27,10 @@ unambiguous JSON object, or is not a version-1 matrix.
 from __future__ import annotations
 
 import argparse
+import decimal
 import json
-import math
 import sys
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -58,7 +59,7 @@ TOTAL_ERROR_RULES = frozenset({"linear_sum", "quadrature"})
 
 # A total error this many times smaller than the required accuracy is reported
 # as refinement carried past what the result needed.
-OVER_REFINEMENT_FACTOR = 1000.0
+OVER_REFINEMENT_FACTOR = Decimal(1000)
 
 
 class InputError(Exception):
@@ -84,7 +85,9 @@ def load_matrix(path: Path) -> dict[str, Any]:
     except (OSError, UnicodeDecodeError) as exc:
         raise InputError(f"cannot read {path}: {exc}") from exc
     try:
-        data = json.loads(text, object_pairs_hook=_unique_object, parse_constant=_reject_constant)
+        # Non-integer numbers are read as exact decimals, so sums of the values written in the
+        # file are exact (no binary rounding).
+        data = json.loads(text, object_pairs_hook=_unique_object, parse_constant=_reject_constant, parse_float=Decimal)
     except json.JSONDecodeError as exc:
         raise InputError(f"{path} is not valid JSON: {exc}") from exc
     if not isinstance(data, dict):
@@ -100,17 +103,26 @@ def load_matrix(path: Path) -> dict[str, Any]:
     return data
 
 
-# JSON integers are unbounded in Python; magnitudes beyond this are refused rather than
-# overflowing a float conversion.
-_MAX_MAGNITUDE = 1e300
+# Magnitudes beyond this are refused; everything accepted is handled in exact decimal
+# arithmetic with enough digits that sums and comparisons never round.
+_MAX_MAGNITUDE = Decimal("1e300")
+_DIGITS = 1000
+
+
+def _dec(value: Any) -> Decimal:
+    """The exact decimal a JSON number denotes (a Python float maps to its shortest repr)."""
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, int):
+        return Decimal(value)
+    return Decimal(repr(value))
 
 
 def _is_number(value: Any) -> bool:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
         return False
-    if isinstance(value, int):
-        return abs(value) <= _MAX_MAGNITUDE
-    return isinstance(value, float) and math.isfinite(value) and abs(value) <= _MAX_MAGNITUDE
+    number = _dec(value)
+    return number.is_finite() and abs(number) <= _MAX_MAGNITUDE
 
 
 def _in(value: Any, allowed: frozenset[str]) -> bool:
@@ -139,7 +151,7 @@ def _check_required_accuracy(row_id: str, row: dict[str, Any], findings: list[di
         return None
     if not _in(acc.get("kind"), ACCURACY_KINDS):
         problems.append(f"`kind` must be one of {sorted(ACCURACY_KINDS)}")
-    if not _is_number(acc.get("value")) or acc.get("value") <= 0:
+    if not _is_number(acc.get("value")) or _dec(acc.get("value")) <= 0:
         problems.append("`value` must be a finite positive number")
     extra = set(acc) - {"kind", "value", "uses"}
     if extra:
@@ -156,10 +168,10 @@ def _check_required_accuracy(row_id: str, row: dict[str, Any], findings: list[di
                 continue
             if not _in(use.get("source"), ACCURACY_SOURCES):
                 problems.append(f"{where}: `source` must be one of {sorted(ACCURACY_SOURCES)} (what the method can achieve is never a source)")
-            if not _is_number(use.get("value")) or use.get("value") <= 0:
+            if not _is_number(use.get("value")) or _dec(use.get("value")) <= 0:
                 problems.append(f"{where}: `value` must be a finite positive number")
             else:
-                use_values.append(use["value"])
+                use_values.append(_dec(use["value"]))
             if not _is_text(use.get("basis")):
                 problems.append(f"{where}: `basis` must be a non-empty one-line string")
             extra = set(use) - {"source", "value", "basis"}
@@ -168,7 +180,7 @@ def _check_required_accuracy(row_id: str, row: dict[str, Any], findings: list[di
     if problems:
         findings.append(_finding(row_id, "INVALID_REQUIRED_ACCURACY", "; ".join(problems)))
         return None
-    if acc["value"] != min(use_values):
+    if _dec(acc["value"]) != min(use_values):
         findings.append(_finding(row_id, "REQUIRED_ACCURACY_NOT_STRICTEST",
                                  f"`required_accuracy.value` {acc['value']} must equal the strictest use ({min(use_values)})"))
         return None
@@ -193,7 +205,7 @@ def _check_error_budget(row_id: str, row: dict[str, Any], findings: list[dict[st
         if not _is_text(entry.get("source")):
             problems.append(f"{where}: `source` must be a non-empty one-line string")
         estimate = entry.get("estimate", "missing")
-        if estimate is not None and (not _is_number(estimate) or estimate < 0):
+        if estimate is not None and (not _is_number(estimate) or _dec(estimate) < 0):
             problems.append(f"{where}: `estimate` must be a finite non-negative number or null")
         if not isinstance(entry.get("dominant"), bool):
             problems.append(f"{where}: `dominant` must be true or false")
@@ -208,10 +220,10 @@ def _check_error_budget(row_id: str, row: dict[str, Any], findings: list[dict[st
         findings.append(_finding(row_id, "DOMINANT_SOURCE_COUNT",
                                  f"exactly one `error_budget` entry must be marked dominant (found {len(dominant)})"))
         return None
-    top = dominant[0]["estimate"]
+    top = None if dominant[0]["estimate"] is None else _dec(dominant[0]["estimate"])
     if top is not None:
         larger = [entry["source"] for entry in budget
-                  if not entry["dominant"] and entry["estimate"] is not None and entry["estimate"] > top]
+                  if not entry["dominant"] and entry["estimate"] is not None and _dec(entry["estimate"]) > top]
         if larger:
             findings.append(_finding(row_id, "DOMINANT_NOT_LARGEST",
                                      f"the source marked dominant is smaller than {larger}; refinement must go to the largest error source"))
@@ -234,7 +246,7 @@ def _check_total_error(row_id: str, row: dict[str, Any], budget: list[dict[str, 
     rule = total.get("rule")
     if not _in(rule, TOTAL_ERROR_RULES):
         problems.append(f"`rule` must be one of {sorted(TOTAL_ERROR_RULES)}")
-    if not _is_number(total.get("value")) or total.get("value") < 0:
+    if not _is_number(total.get("value")) or _dec(total.get("value")) < 0:
         problems.append("`value` must be a finite non-negative number")
     if rule == "quadrature" and not _is_text(total.get("basis")):
         problems.append("a quadrature sum needs a one-line `basis` stating why the sources are independent")
@@ -249,16 +261,18 @@ def _check_total_error(row_id: str, row: dict[str, Any], budget: list[dict[str, 
         findings.append(_finding(row_id, "INVALID_TOTAL_ERROR",
                                  "a total error cannot be formed while a source is unestimated; set `total_error` to null"))
         return None
-    # A linear sum stays exact (no float conversion, so large integers keep their ordering);
-    # a quadrature sum uses hypot, which does not overflow for any accepted magnitude.
-    combined = sum(estimates) if rule == "linear_sum" else math.hypot(*[float(e) for e in estimates])
-    if total["value"] < combined * (1 - 1e-12):
+    # Exact decimal arithmetic: a linear sum of the written values is exact whatever mix of
+    # integers and decimals it holds, and a quadrature sum cannot overflow.
+    values = [_dec(e) for e in estimates]
+    combined = sum(values, Decimal(0)) if rule == "linear_sum" else sum((v * v for v in values), Decimal(0)).sqrt()
+    reported = _dec(total["value"])
+    if reported < combined * (1 - Decimal("1e-12")):
         findings.append(_finding(row_id, "TOTAL_ERROR_BELOW_ITS_RULE",
                                  f"`total_error.value` {total['value']} is smaller than the {rule} of the estimates ({combined:.6g})"))
         return None
-    # The stop rule uses whichever is larger, so the rounding allowance above can never
+    # The stop rule uses whichever is larger, so the allowance above can never
     # bring the total below what the estimates give.
-    return max(total["value"], combined)
+    return max(reported, combined)
 
 
 def _finding(row_id: str, code: str, message: str) -> dict[str, str]:
@@ -266,6 +280,13 @@ def _finding(row_id: str, code: str, message: str) -> dict[str, str]:
 
 
 def check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    with decimal.localcontext() as ctx:
+        ctx.prec = _DIGITS
+        ctx.traps[decimal.Inexact] = False
+        return _check(data)
+
+
+def _check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     findings: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -317,12 +338,12 @@ def check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, st
         total = _check_total_error(row_id, row, budget, reliable, findings)
         if accuracy is None or total is None:
             continue
-        if reliable and total > accuracy["value"]:
+        if reliable and total > _dec(accuracy["value"]):
             dominant = next(entry for entry in budget if entry["dominant"])
             findings.append(_finding(row_id, "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY",
                                      f"total error {total} exceeds the required accuracy {accuracy['value']}; the row is `unconverged`, "
                                      f"and the next refinement goes to the dominant source ({dominant['source']})"))
-        elif 0 < total * OVER_REFINEMENT_FACTOR < accuracy["value"]:
+        elif 0 < total * OVER_REFINEMENT_FACTOR < _dec(accuracy["value"]):
             warnings.append(_finding(row_id, "REFINED_PAST_REQUIRED_ACCURACY",
                                      f"total error {total} is more than {OVER_REFINEMENT_FACTOR:g} times below the "
                                      f"required accuracy {accuracy['value']}: refinement went past what the result needed"))

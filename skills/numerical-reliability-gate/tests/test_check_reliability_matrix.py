@@ -309,6 +309,50 @@ def test_large_integers_keep_their_exact_ordering():
     assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(understated))
 
 
+def test_mixed_integer_and_decimal_sums_stay_exact(tmp_path):
+    # 2**53 + 1 plus 0.0 must not round to 2**53 (in-process and from a JSON file).
+    row = _row(
+        required_accuracy=_acc(2**53),
+        error_budget=[
+            {"source": "grid", "estimate": 2**53 + 1, "dominant": True},
+            {"source": "order", "estimate": 0.0, "dominant": False},
+        ],
+        total_error={"rule": "linear_sum", "value": 2**53},
+    )
+    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(row))
+    proc = _run(tmp_path, _matrix(row))
+    assert proc.returncode == 1 and "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in proc.stdout
+
+
+def test_decimal_sums_hit_the_target_exactly(tmp_path):
+    # 0.1 + 0.2 is exactly 0.3 as written; binary floats would put it above 0.3.
+    row = _row(
+        required_accuracy=_acc(0.3),
+        error_budget=[
+            {"source": "grid", "estimate": 0.2, "dominant": True},
+            {"source": "order", "estimate": 0.1, "dominant": False},
+        ],
+        total_error={"rule": "linear_sum", "value": 0.3},
+    )
+    proc = _run(tmp_path, _matrix(row))
+    assert proc.returncode == 0, proc.stdout
+    # The same holds for values handed over in-process as Python floats.
+    assert _codes(_matrix(row)) == []
+
+
+def test_written_digits_beyond_binary_precision_are_kept(tmp_path):
+    # 0.30000000000000000001 exceeds 0.3 by 1e-20; a binary float would erase the excess.
+    row = _row(
+        required_accuracy=_acc(0.3),
+        error_budget=[{"source": "grid", "estimate": 0.3, "dominant": True}],
+        total_error={"rule": "linear_sum", "value": 0.3},
+    )
+    raw = json.dumps(_matrix(row)).replace('"estimate": 0.3', '"estimate": 0.30000000000000000001')
+    raw = raw.replace('"total_error": {"rule": "linear_sum", "value": 0.3}', '"total_error": {"rule": "linear_sum", "value": 0.30000000000000000001}')
+    proc = _run(tmp_path, None, raw=raw)
+    assert proc.returncode == 1 and "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in proc.stdout, proc.stdout
+
+
 def test_quadrature_of_large_accepted_estimates_does_not_overflow():
     budget = [
         {"source": "grid", "estimate": 1e200, "dominant": True},
@@ -478,7 +522,8 @@ def test_contract_example_matrix_satisfies_the_checker():
     for row in rows:
         if row["verdict"] == "reliable":
             for entry in row["cross_method"]:
-                for field in ("raw_input_provenance", "applicability", "known_defects", "diagnostic_limits"):
+                for field in ("method_diversity", "model_family", "execution_independence", "input_independence",
+                              "raw_input_provenance", "applicability", "known_defects", "diagnostic_limits"):
                     assert entry.get(field), (row["id"], entry["method"], field)
 
 

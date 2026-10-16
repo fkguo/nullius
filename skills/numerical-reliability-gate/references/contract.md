@@ -35,8 +35,8 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
         "uses": [
           { "source": "comparison_uncertainty", "value": 0.02,
             "basis": "compared against a competing model's value quoted with an uncertainty of 0.02" },
-          { "source": "display", "value": 0.025,
-            "basis": "quoted to one decimal (round half up); the value sits 0.03 from the rounding boundary 1.95, so the error must stay strictly inside it" }
+          { "source": "display", "value": 0.029,
+            "basis": "quoted to one decimal (round half up); 0.03 below the boundary 1.95, so the error stays strictly inside 0.03 — one unit of the next decimal inside it" }
         ]
       },
       "error_budget": [
@@ -56,11 +56,19 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       // G2 — independent-confirmation cross-check. >=2 independent evidence lanes; agree within tolerance.
       "cross_method": [
         { "method": "AAA continuation", "value": "1.920",
+          "method_diversity": "rational (barycentric) continuation; differs from the second lane's continued-fraction form",
+          "model_family": "one agent family built both lanes — model-family independence not established",
+          "execution_independence": "separately written routines, run in separate processes",
+          "input_independence": "both lanes read the frozen grid samples; neither saw the other's value before running",
           "raw_input_provenance": "the converged-grid samples, read directly from the run artifact",
           "applicability": "well conditioned for the node counts used; nodes stay away from the continuation's poles",
           "known_defects": "spurious low-chi2 wells at low node counts (G1 provenance) — excluded by the converged node count",
           "diagnostic_limits": "cannot resolve differences below the 0.009 spread to the second continuation" },
         { "method": "Thiele continuation", "value": "1.929",
+          "method_diversity": "continued-fraction continuation; differs from the first lane's barycentric form",
+          "model_family": "same agent family as the first lane — model-family independence not established",
+          "execution_independence": "separately written routine, separate process",
+          "input_independence": "frozen grid samples only; the first lane's value was withheld until both had run",
           "raw_input_provenance": "the same converged-grid samples, re-read by a separately written routine",
           "applicability": "stable in this node range; known to destabilize past the range used",
           "known_defects": "none found at this node count; checked against the AAA result above",
@@ -174,11 +182,19 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "mirage": false,
       "cross_method": [
         { "method": "argument-principle winding of D(z)", "value": "1",
+          "method_diversity": "a single contour integral of D'/D",
+          "model_family": "one agent family built both lanes — model-family independence not established",
+          "execution_independence": "production quadrature routine",
+          "input_independence": "the region and D(z) only; no expected count was given",
           "raw_input_provenance": "D(z) evaluated by the production evaluator on the contour samples",
           "applicability": "D analytic and pole-free in R1; no zero on or near the contour (see the invariant's preconditions)",
           "known_defects": "a contour passing close to a zero is under-resolved between samples — excluded by the min |D| bound below",
           "diagnostic_limits": "counts zeros, does not locate them" },
         { "method": "independent subdivision count: R1 split into four sub-rectangles, each winding evaluated by a separately written quadrature routine; the sub-counts sum to 1", "value": "1",
+          "method_diversity": "four sub-region integrals summed; a different contour geometry from the first lane",
+          "model_family": "same agent family as the first lane — model-family independence not established",
+          "execution_independence": "separately written quadrature routine, separate process",
+          "input_independence": "the region and D(z) only; the first lane's count was withheld",
           "raw_input_provenance": "D(z) re-evaluated on the sub-rectangle contours, including the new internal boundaries",
           "applicability": "valid only when no zero lies on or near an internal boundary — min |D| on the internal boundaries is 0.18",
           "known_defects": "none found; the sub-counts are each within 0.01 of an integer",
@@ -296,7 +312,8 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   a present (non-null) `invariant_check` or `method_precondition` value must be an object carrying a
   non-empty one-line `threshold_basis`.
   Checker: `python3 $SKILL_DIR/scripts/check_reliability_matrix.py numerical_reliability_matrix_v1.json`
-  (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings). It also
+  (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings). It reads
+  numbers as exact decimals, so a linear sum of the written values is exact. It also
   checks the matrix bookkeeping: `total`, `reliable` and `not_reliable` are required and must match the
   rows, and `recorded_value`/`recorded_setting` are present exactly on `reliable` rows.
 - `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob (resolution
