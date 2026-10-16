@@ -16,9 +16,9 @@ const OUTPUT_DIR_WRITE =
  * @nullius/shared tool-annotations.ts), alongside HEP_TOOL_RISK_LEVELS.
  * Re-exported sibling-provider tools keep their provider's hints.
  *
- * The arXiv sources inspire_detect_measurement_conflicts downloads are
- * cache bookkeeping: their paths are not returned. Tools that return such a
- * path (source_file) count it as a write.
+ * Tools that download paper sources into the arXiv source dir count as
+ * writes that may replace files: that dir is shared with arxiv_paper_source,
+ * which returns its paths to callers.
  */
 export const HEP_TOOL_HINTS: ToolBehaviourHintTable = {
   [T.HEP_HEALTH]: {
@@ -66,8 +66,10 @@ export const HEP_TOOL_HINTS: ToolBehaviourHintTable = {
   [T.INSPIRE_RESOLVE_CITEKEY]: { openWorld: true, reason: INSPIRE_READ },
   [T.INSPIRE_GRADE_EVIDENCE]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
   [T.INSPIRE_DETECT_MEASUREMENT_CONFLICTS]: {
+    destructive: true,
+    idempotent: true,
     openWorld: true,
-    reason: 'Queries INSPIRE and arxiv.org (sources go to the arXiv source cache), reads the local PDG database, may use sampling; returns its result inline.',
+    reason: 'Queries INSPIRE, downloads sources from arxiv.org into the arXiv source dir shared with arxiv_paper_source (replacing an earlier archive there), reads the local PDG database, may use sampling.',
   },
   [T.INSPIRE_CRITICAL_ANALYSIS]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
   [T.INSPIRE_CLASSIFY_REVIEWS]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },

@@ -41,10 +41,17 @@ describe('MCP annotations and titles', () => {
 
 describe('structuredContent', () => {
   it('mirrors the JSON text block of a result and is absent on errors', async () => {
+    // A delivery replay (project_delivery_read) carries the envelope object;
+    // the stored inner result keeps its original text-only form.
     const { adapter } = fixture();
     const result = await adapter.call('project_capabilities', {});
     expect(result.isError).not.toBe(true);
     expect(result.structuredContent).toEqual(JSON.parse(result.content[0]!.text));
+
+    // An orchestrator tool answered in the foreground: its text block is passed through.
+    const policy = await adapter.call('orch_policy_query', {});
+    expect(policy.isError, JSON.stringify(policy)).not.toBe(true);
+    expect(policy.structuredContent).toEqual(JSON.parse(policy.content[0]!.text));
 
     const failed = await adapter.call('project_file_read', { path: '../outside' });
     expect(failed.isError).toBe(true);
