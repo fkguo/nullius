@@ -104,12 +104,17 @@ delegated workstream, default location `<project_root>/team/delegations/`):
                approach change of a retry that keeps the cap; a number or
                one line for unit_ceiling / other)
         adjustment_note: one line deriving THIS contract's budget from the
-               measurement
-        progress: optional, for extending a run still advancing at its
-               deadline: { elapsed_seconds, completed_units, total_units };
-               when present the measured requirement must be at least
-               elapsed x total units / completed units (for exhausted max_attempts: what changed in the
+               measurement (for exhausted max_attempts: what changed in the
                approach — more identical attempts is not an adjustment)
+        progress: REQUIRED for exhausted_budget "time_box_seconds":
+               { elapsed_seconds, completed_units, total_units } with
+               0 <= completed_units < total_units; the measured requirement
+               must be at least elapsed x total / completed (or the elapsed
+               time itself when no unit completed)
+        kind: optional "advancing_extension" for a run still advancing at
+               its deadline; then progress.earlier { elapsed_seconds,
+               completed_units } from an earlier check must be strictly
+               below the current values (a stalled run is wrapped up)
       Machine cross-check: where the contract carries the matching budget
       field (time_box.seconds, peak_memory_estimate.heap_limit_mb,
       max_attempts), the new budget must STRICTLY EXCEED a numeric measured
@@ -128,7 +133,8 @@ Falsification labels (all fail-closed):
   MISSING_TIME_BOX, MISSING_TIME_BOX_BASIS, INVALID_TIME_BOX_BASIS,
   MISSING_UNIT_SECONDS, MISSING_UNIT_COUNT, TIME_BOX_BELOW_MEASURED_NEED,
   MISSING_TIME_BOX_NOTE, CONTRADICTORY_TIME_BOX, MISSING_LAUNCH_DECLARATION,
-  INVALID_TIME_BOX_FIELD, EXTENSION_BELOW_PROJECTED_NEED, MISSING_MAX_ATTEMPTS,
+  INVALID_TIME_BOX_FIELD, TIME_BOX_RETRY_BELOW_PROGRESS, EXTENSION_NOT_ADVANCING,
+  MISSING_MAX_ATTEMPTS,
   MISSING_SCOPE_NEGATIVE_LIST, MISSING_PEAK_MEMORY_ESTIMATE,
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
   HEAP_LIMIT_BELOW_DRY_RUN_PEAK, INVALID_MEMORY_MODE,
@@ -422,9 +428,12 @@ def _exact(value: Any) -> Fraction:
 
 
 def _fraction_str(value: Fraction) -> str:
-    """Format an exact rational without a float conversion that could overflow."""
-    whole = -((-value.numerator) // value.denominator)  # ceiling
-    return _decimal_str(whole) if value.denominator != 1 else _decimal_str(value.numerator)
+    """Six significant digits of an exact rational, without a float conversion that could overflow."""
+    import decimal
+
+    with decimal.localcontext() as ctx:
+        ctx.prec = 12
+        return f"{decimal.Decimal(value.numerator) / decimal.Decimal(value.denominator):.6g}"
 
 
 def _is_positive_int(value: Any) -> bool:
@@ -971,36 +980,70 @@ def _validate_contract(contract: Any) -> list[str]:
                         "retry budget derives from the measurement plus margin, never a "
                         "repeat of the exhausted number"
                     )
-            # An extension of a run still advancing at its deadline may record the
-            # progress it was measured from; the gate then recomputes the projection
-            # (elapsed x total units / completed units) instead of trusting the scalar.
-            if "progress" in retry:
-                progress = retry["progress"]
+            # A time-box re-budget carries the progress it was measured from, and the gate
+            # recomputes the need instead of trusting the scalar: elapsed x total / completed
+            # when units completed, else the elapsed time itself (a censored lower bound).
+            # A run still advancing at its deadline is extended with kind
+            # "advancing_extension" and an earlier observation proving the advance.
+            kind = retry.get("kind")
+            if kind is not None and kind != "advancing_extension":
+                issues.append(
+                    "MISSING_RETRY_FIELDS: `retry_of.kind` is optional and, when present, must be "
+                    f'the exact string "advancing_extension" (got {kind!r})'
+                )
+            if kind == "advancing_extension" and dimension != "time_box_seconds":
+                issues.append(
+                    "MISSING_RETRY_FIELDS: an advancing extension re-budgets the time box — "
+                    '`exhausted_budget` must be "time_box_seconds"'
+                )
+            if "progress" in retry and dimension != "time_box_seconds":
+                issues.append(
+                    "MISSING_RETRY_FIELDS: `retry_of.progress` belongs to a time-box re-budget "
+                    '(`exhausted_budget: "time_box_seconds"`)'
+                )
+            if dimension == "time_box_seconds":
+                progress = retry.get("progress")
                 elapsed = progress.get("elapsed_seconds") if isinstance(progress, dict) else None
                 completed = progress.get("completed_units") if isinstance(progress, dict) else None
                 total = progress.get("total_units") if isinstance(progress, dict) else None
+                completed_ok = isinstance(completed, int) and not isinstance(completed, bool) and completed >= 0
                 if (
-                    dimension != "time_box_seconds"
-                    or not _is_finite_positive_number(elapsed)
-                    or not _is_positive_int(completed)
+                    not _is_finite_positive_number(elapsed)
+                    or not completed_ok
                     or not _is_positive_int(total)
-                    or completed > total
+                    or completed >= total
                 ):
                     issues.append(
-                        "MISSING_RETRY_FIELDS: `retry_of.progress` belongs to a time-box extension "
-                        "(`exhausted_budget: \"time_box_seconds\"`) and needs a finite positive "
-                        "`elapsed_seconds` and positive integers `completed_units` <= `total_units` "
+                        "MISSING_RETRY_FIELDS: a time-box re-budget records `retry_of.progress` with a "
+                        "finite positive `elapsed_seconds` and integers 0 <= `completed_units` < "
+                        "`total_units` — work must remain, and the gate recomputes the need from it "
                         f"(got {progress!r})"
                     )
-                elif _is_finite_positive_number(measured):
-                    projected = _exact(elapsed) * total / completed
-                    if _exact(measured) < projected:
+                else:
+                    bound = _exact(elapsed) * total / completed if completed > 0 else _exact(elapsed)
+                    if _is_finite_positive_number(measured) and _exact(measured) < bound:
                         issues.append(
-                            "EXTENSION_BELOW_PROJECTED_NEED: `retry_of.measured_requirement` "
-                            f"({_decimal_str(measured)}) is below the need projected from the "
-                            f"recorded progress (about {_fraction_str(projected)} s = elapsed x "
-                            "total units / completed units)"
+                            "TIME_BOX_RETRY_BELOW_PROGRESS: `retry_of.measured_requirement` "
+                            f"({_decimal_str(measured)}) is below the need the recorded progress gives "
+                            f"(about {_fraction_str(bound)} s: elapsed x total units / completed units, "
+                            "or the elapsed time when no unit completed)"
                         )
+                    if kind == "advancing_extension":
+                        earlier = progress.get("earlier")
+                        e_elapsed = earlier.get("elapsed_seconds") if isinstance(earlier, dict) else None
+                        e_completed = earlier.get("completed_units") if isinstance(earlier, dict) else None
+                        if (
+                            not _is_finite_positive_number(e_elapsed)
+                            or not (isinstance(e_completed, int) and not isinstance(e_completed, bool) and e_completed >= 0)
+                            or not _exact(e_elapsed) < _exact(elapsed)
+                            or not e_completed < completed
+                        ):
+                            issues.append(
+                                "EXTENSION_NOT_ADVANCING: an advancing extension records "
+                                "`retry_of.progress.earlier` {elapsed_seconds, completed_units} from an "
+                                "earlier check, with both strictly below the current values — a run "
+                                f"whose completed count did not grow is stalled, not slow (got {earlier!r})"
+                            )
             if dimension == "heap_limit_mb" and _is_finite_positive_number(measured):
                 heap_value = mem.get("heap_limit_mb") if isinstance(mem, dict) else None
                 if _is_finite_positive_number(heap_value) and heap_value <= measured:

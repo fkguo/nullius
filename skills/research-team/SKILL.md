@@ -436,12 +436,15 @@ Required field groups of the full-tier contract, all machine-checked:
   the run is still advancing (checkpoint rows still landing), the
   coordinator may extend it **once**, as a contract amendment carrying
   `retry_of` with `exhausted_budget: "time_box_seconds"` and the projected
-  need from the measured rate as `measured_requirement`, and the measurement
+  need from the measured rate as `measured_requirement`, the measurement
   itself as `progress` (`elapsed_seconds`, `completed_units`,
-  `total_units`) — the gate recomputes the projection from it
-  (`EXTENSION_BELOW_PROJECTED_NEED`) and applies the existing
-  strict-exceedance check; a run that has stopped advancing is wrapped up
-  instead. The once-only rule is the coordinator's: the gate sees one
+  `total_units`; required on every time-box re-budget, with work remaining),
+  and `kind: "advancing_extension"` with an earlier observation
+  `progress.earlier` showing the completed count grew — the gate recomputes
+  the projection from it (`TIME_BOX_RETRY_BELOW_PROGRESS`), refuses a run
+  that did not advance (`EXTENSION_NOT_ADVANCING`) and applies the
+  existing strict-exceedance check; a run that has stopped advancing is
+  wrapped up instead. The once-only rule is the coordinator's: the gate sees one
   contract revision at a time and cannot count earlier extensions.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the
