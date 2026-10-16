@@ -56,7 +56,7 @@ Skill 源码面与分发面是分离的：
 - `skills/` 存放 checked-in 的 skill 源码与手册。
 - Julia 计算程序包用 [`julia-package`](../skills/julia-package/SKILL.md) 检查接口、数值契约和包开发规范，用 [`julia-perf`](../skills/julia-perf/SKILL.md) 检查计算内核及可复现的性能证据。
 - `packages/skills-market` 是 installer / distribution control plane；它不意味着这些 skill 已经预装到某个 client runtime 中。
-- `research-harness` 是已进入 market 的 external research project 薄入口 skill。它故意不对 `research-team`、`markdown-hygiene` 或 `hep-mcp` 声明硬 package 依赖；这些能力仍由 host client 独立提供或安装。
+- `research-harness` 是已进入 market 的 external research project 薄入口 skill。它的 market 条目在 `depends_on` 中声明了 `research-team`、`markdown-hygiene` 等 skill pack（安装时默认一并安装，传 `--no-deps` 可跳过），并把 `hep-mcp` 作为非 skill 依赖：安装器仅给出 preflight 警告（只有 `--strict-deps` 才硬失败）；这些能力仍由 host client 独立提供或安装。
 
 项目的非 surface 层保证 — Nullius **不是**什么、它主动防御哪些 agent 失败模式（M1–M7 + 长对话漂移）、这些保证如何被 anti-drift CI 机器强制、以及哪些借鉴概念被考虑后明确丢弃 — 见 [`docs/POSITIONING_zh.md`](./POSITIONING_zh.md)。
 
@@ -202,7 +202,7 @@ authority, research-team as the milestone executor, and fold stable results back
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
 Promote a complete immutable report through project_index.md#Main research report,
 then run: nullius report-validate
-Stamp each run's code origin at creation with: nullius trace stamp <run_id>
+Stamp each run's code origin at creation with: nullius trace stamp <run_dir>
 Retry a resultless crash under the same run id with: nullius trace retry <run_dir>
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
 Register headline results with: nullius result set-current <result-id> --run <run_id> --artifact <path>

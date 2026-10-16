@@ -1,4 +1,4 @@
-# @hep-research/pdg-mcp
+# @nullius/pdg-mcp
 
 English | [中文](./README_zh.md)
 
@@ -23,7 +23,7 @@ Design principles:
 - `PDG_DATA_DIR`: local data directory (default: `<HEP_DATA_DIR>/pdg` when `HEP_DATA_DIR` is set; otherwise `~/.nullius/hep-mcp/pdg`)
   - artifacts directory: `$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`: PDG artifact cache TTL in hours (`0/off` disables; cleaned on startup and periodically; default 24)
-- `PDG_TOOL_MODE`: tool exposure mode (`standard` by default; `full` may expose more tools in the future)
+- `PDG_TOOL_MODE`: tool exposure mode (`standard` by default; `full` additionally exposes `pdg_batch`)
 - `PDG_SQLITE_MAX_STDOUT_BYTES`: max sqlite3 stdout per query (default 50MB)
 - `PDG_SQLITE_CONCURRENCY`: sqlite3 concurrency limit (default 4)
 
@@ -93,7 +93,7 @@ Key outputs:
 Derived width:
 
 - if `width` is requested and PDG has no width but provides lifetime, set `allow_derived=true`
-- returns `derived.width_from_lifetime` with source locator and constants (`Γ = ħ / τ`)
+- returns `property.derived` (`kind: "width_from_lifetime"`) with the source locator (`from.pdg_locator`) and constants (`Γ = ħ / τ`)
 
 ### 4) `pdg_get`
 

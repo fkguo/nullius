@@ -12,7 +12,7 @@ Historical HEP run directories (`runs/<run_id>/` under a HEP data root) and pape
 
 ## Aggregated providers
 
-`hep-mcp` re-exposes a curated subset of the bounded provider MCP atoms (`arxiv-mcp`, `openalex-mcp`, `hepdata-mcp`, `pdg-mcp`, `zotero-mcp`) under `hep_*` namespaces. Zotero aggregation is gated by `HEP_ENABLE_ZOTERO` (set to `0` to hide `hep_import_from_zotero` and friends); the other providers are always included when present.
+`hep-mcp` re-exposes the bounded provider MCP atoms (`arxiv-mcp`, `openalex-mcp`, `hepdata-mcp`, `pdg-mcp`, `zotero-mcp`) under their own tool names (`arxiv_*`, `openalex_*`, `hepdata_*`, `pdg_*`, `zotero_*`), with the same `standard`/`full` exposure as in the provider packages. Zotero aggregation is gated by `HEP_ENABLE_ZOTERO` (set to `0` to hide `hep_import_from_zotero` and friends); the other providers are always included when present.
 
 The live tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE` (`standard`, `full`). Exact counts live in the generated category and status docs, not in this README — see the drift lock below.
 

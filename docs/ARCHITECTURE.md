@@ -54,7 +54,7 @@ Moving or copying the runtime does not make a Nullius development checkout eligi
 | Control-plane MCP/operator surface | `orch_*` | Canonical public MCP/operator counterpart of the same control plane |
 | Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`; persists `.nullius/state.json#/plan` and derives `.nullius/plan.md`. `research_brainstorm` is the lightweight planning-only recipe variant that emits a `next_contract` handoff without starting heavier workflows |
 | Agent project harness skill | `research-harness` | Market-listed thin skill for Codex / Claude Code / OpenCode to recover project truth, route execution to `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`, and close out verification or handoff |
-| Experimental runtime bridge | `idea_mcp` | `idea_campaign_*` on explicit external data roots; node posterior/lifecycle/grounding-audit/card-revision updates, generation-pack import (`node.import_generated`), and posterior-based `rank.compute` / `node.promote` stay inside the `idea-engine` runtime contract |
+| Experimental runtime bridge | `idea-mcp` | `idea_campaign_*` on explicit external data roots; node posterior/lifecycle/grounding-audit/card-revision updates, generation-pack import (`node.import_generated`), and posterior-based `rank.compute` / `node.promote` stay inside the `idea-engine` runtime contract |
 | Current most mature domain MCP front door | `@nullius/hep-mcp` | Literature search exports and identifier/Zotero mappings into a caller-chosen `output_dir`, and provider-local composition |
 | Provider-local atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded provider operators that remain MCP-first |
 
@@ -121,7 +121,6 @@ The generic lifecycle package writes to real external project roots:
 Key files:
 
 - `packages/orchestrator/src/state-manager.ts`
-- `packages/orchestrator/src/ledger-writer.ts`
 - `packages/orchestrator/src/orch-tools/run-read-model.ts`
 - `packages/orchestrator/src/computation/approval.ts`
 
