@@ -49,7 +49,7 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-skill-tool-name-anti-drift.mjs
 
-      - name: Check governance sync (AGENTS.md ↔ CLAUDE.md)
+      - name: Check governance sync (CLAUDE.md imports AGENTS.md)
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-governance-sync.mjs
 
