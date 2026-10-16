@@ -22,6 +22,7 @@ Build an inspectable graph layer on top of already deep-read literature notes. T
 3. Validate the graph before rendering:
 
 ```bash
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/literature-graph-builder" ] && echo "$r/skills/literature-graph-builder" && break; done || true)}"
 python3 "$SKILL_DIR/scripts/bin/validate_literature_graph.py" --graph path/to/literature_graph.json --project-root .
 ```
 

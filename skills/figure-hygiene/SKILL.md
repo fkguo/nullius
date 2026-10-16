@@ -18,6 +18,12 @@ Use this skill before delivering scientific results figures or tables, including
 
 Data fidelity, the label-economy floor, the anti-pattern list, and render-then-verify are **correctness**: they apply to every figure, in every context, and have no aesthetic content. Colour, typography, chart choice, and layout are **guidance**: strong defaults that a deliberate, stated alternative may override. Individual guidance rules that state a perceptual or factual invariant — semantic-zero centring of diverging maps, CVD safety, leader-line anchoring — still bind even inside guidance sections.
 
+Script paths below are relative to `$SKILL_DIR`. Set it if the host does not provide it:
+
+```bash
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/figure-hygiene" ] && echo "$r/skills/figure-hygiene" && break; done || true)}"
+```
+
 ## Data Fidelity
 
 - **Excluded rows.** A row marked excluded or flagged in the source data is either omitted entirely or drawn with a visually distinct open/hatched marker named in the key. It never enters a summary statistic plotted alongside the included rows.

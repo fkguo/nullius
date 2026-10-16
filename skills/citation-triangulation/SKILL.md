@@ -140,6 +140,7 @@ so in the run notes.
    performs no network calls and sees only the JSON it is fed):
 
    ```bash
+   SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/citation-triangulation" ] && echo "$r/skills/citation-triangulation" && break; done || true)}"
    python3 "$SKILL_DIR/scripts/bin/triangulate_citation.py" blocks.json \
      --out-json artifacts/citation_triangulation/smith2021.json \
      --out-md artifacts/citation_triangulation/smith2021.md
