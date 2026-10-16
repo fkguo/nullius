@@ -35,8 +35,8 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
         "uses": [
           { "source": "comparison_uncertainty", "value": 0.02,
             "basis": "compared against a competing model's value quoted with an uncertainty of 0.02" },
-          { "source": "display", "value": 0.05,
-            "basis": "quoted to one decimal in the summary table (half the last digit)" }
+          { "source": "display", "value": 0.03,
+            "basis": "quoted to one decimal in the summary table; the value sits 0.03 from the nearest rounding boundary" }
         ]
       },
       "error_budget": [
@@ -95,7 +95,9 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       //   "residual_def": "‖[P,O]ψ‖/‖Oψ‖ (or true-operator ‖Oψ−λψ‖/‖Oψ‖ for a projected eigenvalue)",
       //   "production_setting": "<the setting that produced recorded_value>",
       //   "tested_setting": "<MUST equal production_setting>",
-      //   "residual": 1.3e-14, "threshold": 1e-10, "command": "<one-command repro>", "passed": true }
+      //   "residual": 1.3e-14, "threshold": 1e-10,
+      //   "threshold_basis": "<one line: what the threshold must detect, or how a residual of that size propagates into the quantity>",
+      //   "command": "<one-command repro>", "passed": true }
       "method_precondition": null,
 
       // G8 — reference-number reproduction. null unless the result CLAIMS to match a published value;
@@ -144,19 +146,16 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "recorded_value": "1",
       "recorded_setting": "rectangle Re[1.28,1.46] x Im[-0.18,-0.055] on the principal branch",
       "required_accuracy": {
-        "kind": "absolute", "value": 0.5,
+        "kind": "absolute", "value": 0.25,
         "uses": [
-          { "source": "downstream_sensitivity", "value": 0.5,
-            "basis": "an integer count; any winding error below 0.5 leaves the rounded count unchanged" }
+          { "source": "downstream_sensitivity", "value": 0.25,
+            "basis": "an integer count: the rounded count changes only near 0.5, so 0.25 is the decision margin" }
         ]
       },
       "error_budget": [
         { "source": "contour sampling", "estimate": 0.002, "dominant": true }
       ],
       "total_error": { "rule": "linear_sum", "value": 0.002 },
-      // The invariant's own |raw_winding - round| < 0.05 below is a DIAGNOSTIC threshold, not a tolerance
-      // on the count: it is set by what it must detect (a contour passing too close to a zero), so it is
-      // stricter than the 0.5 required accuracy and still blocks.
       "refinement": [
         { "setting": "contour samples = 512", "value": "0.991" },
         { "setting": "contour samples = 2048", "value": "0.998" }
@@ -165,10 +164,10 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "mirage": false,
       "cross_method": [
         { "method": "argument-principle winding of D(z)", "value": "1" },
-        { "method": "sign-change scan of the characteristic determinant", "value": "1" }
+        { "method": "independent subdivision count: R1 split into four sub-rectangles, each winding evaluated by a separately written quadrature routine; the sub-counts sum to 1", "value": "1" }
       ],
       "methods_agree": true,
-      "tolerance": "|raw_winding - round| < 0.05",
+      "tolerance": "integer counts equal",
       // G3 invariant — record the semantics, not just a boolean (an auditor must see WHAT was counted).
       "invariant_check": {
         "kind": "argument-principle winding number",
@@ -181,6 +180,10 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
         "raw_winding": 0.998,
         "rounded_count": 1,
         "integer_residual": 0.002,
+        // A DIAGNOSTIC threshold, stricter than the 0.25 required accuracy and still blocking: it carries
+        // its rationale in `threshold_basis` (G0).
+        "integer_residual_threshold": 0.05,
+        "threshold_basis": "the distance from the nearest integer is the contour quadrature's own error indicator, held an order of magnitude inside the 0.25 decision margin so the error estimate behind the count can be trusted; the near-contour hazard is bounded separately by min |D| on the contour (0.21) against the evaluator's error and the sample spacing",
         "passed": true
       },
       "regression_anchor": null,
@@ -261,7 +264,9 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   estimate; the dominant source is where the next refinement goes. `total_error` is
   `{ "rule", "value" }` (plus `"basis"` for quadrature): `rule` is `linear_sum` (the default) or
   `quadrature` (a one-line `basis` stating why the sources are independent is then required), and
-  `value` is not smaller than that rule applied to the estimates. `total_error` may be `null` only on a
+  `value` is not smaller than that rule applied to the estimates; the stop rule compares the larger of
+  the reported value and the recomputed rule with the required accuracy, so a rounding allowance can
+  never reduce the total below what the estimates give. `total_error` may be `null` only on a
   non-`reliable` row. A `reliable` row requires every estimate to be numeric and the total error to be
   at or below the required accuracy; a row claiming `reliable` whose total error is above it is
   `unconverged` instead. A total error more than three orders of magnitude below the required accuracy
@@ -269,7 +274,9 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   `tolerance` placed on the quantity itself is derived from the required accuracy, and a stricter one is
   recorded in `notes` as informational and does not block the verdict; a diagnostic threshold (a
   residual, an invariant's integer residual, a precondition) is set by what it must detect or by how
-  its defect propagates, carries that rationale, and keeps blocking.
+  its defect propagates, carries that rationale, and keeps blocking. The rationale is machine-readable:
+  a present `invariant_check` or `method_precondition` object carries a non-empty one-line
+  `threshold_basis`.
   Checker: `python3 $SKILL_DIR/scripts/check_reliability_matrix.py numerical_reliability_matrix_v1.json`
   (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings). It also
   checks the matrix bookkeeping: `total`, `reliable` and `not_reliable` are required and must match the

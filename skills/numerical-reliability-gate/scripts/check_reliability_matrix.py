@@ -56,7 +56,7 @@ ACCURACY_KINDS = frozenset({"absolute", "relative"})
 ACCURACY_SOURCES = frozenset({"display", "downstream_sensitivity", "comparison_uncertainty"})
 TOTAL_ERROR_RULES = frozenset({"linear_sum", "quadrature"})
 
-# A dominant error this many times smaller than the required accuracy is reported
+# A total error this many times smaller than the required accuracy is reported
 # as refinement carried past what the result needed.
 OVER_REFINEMENT_FACTOR = 1000.0
 
@@ -100,8 +100,17 @@ def load_matrix(path: Path) -> dict[str, Any]:
     return data
 
 
+# JSON integers are unbounded in Python; magnitudes beyond this are refused rather than
+# overflowing a float conversion.
+_MAX_MAGNITUDE = 1e300
+
+
 def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return abs(value) <= _MAX_MAGNITUDE
+    return isinstance(value, float) and math.isfinite(value) and abs(value) <= _MAX_MAGNITUDE
 
 
 def _in(value: Any, allowed: frozenset[str]) -> bool:
@@ -239,12 +248,15 @@ def _check_total_error(row_id: str, row: dict[str, Any], budget: list[dict[str, 
         findings.append(_finding(row_id, "INVALID_TOTAL_ERROR",
                                  "a total error cannot be formed while a source is unestimated; set `total_error` to null"))
         return None
-    combined = sum(estimates) if rule == "linear_sum" else math.sqrt(sum(e * e for e in estimates))
+    floats = [float(e) for e in estimates]
+    combined = sum(floats) if rule == "linear_sum" else math.sqrt(sum(e * e for e in floats))
     if total["value"] < combined * (1 - 1e-12):
         findings.append(_finding(row_id, "TOTAL_ERROR_BELOW_ITS_RULE",
                                  f"`total_error.value` {total['value']} is smaller than the {rule} of the estimates ({combined:.6g})"))
         return None
-    return total["value"]
+    # The stop rule uses whichever is larger, so the rounding allowance above can never
+    # bring the total below what the estimates give.
+    return max(float(total["value"]), combined)
 
 
 def _finding(row_id: str, code: str, message: str) -> dict[str, str]:
@@ -283,6 +295,13 @@ def check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, st
             if verdict is not None and not reliable and row.get(field) is not None:
                 findings.append(_finding(row_id, "RECORDED_FIELD_MISMATCH",
                                          f"only a `reliable` row may carry a `{field}`; every other row stays a labeled candidate"))
+
+        for block in ("invariant_check", "method_precondition"):
+            value = row.get(block)
+            if value is not None and (not isinstance(value, dict) or not _is_text(value.get("threshold_basis"))):
+                findings.append(_finding(row_id, "DIAGNOSTIC_WITHOUT_BASIS",
+                                         f"a present `{block}` carries a one-line `threshold_basis`: what its threshold must detect, "
+                                         "or how a defect of that size propagates into the quantity"))
 
         accuracy = _check_required_accuracy(row_id, row, findings)
         budget = _check_error_budget(row_id, row, findings)

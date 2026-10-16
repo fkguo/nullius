@@ -62,7 +62,7 @@ Apply the checks that fit the quantity; a result is **reliable** only when every
 Each check names its own minimum disconfirming test — never accept a number because it "looks reasonable".
 G0 comes first because it sets how far every later check is run.
 
-- **G0 — Required accuracy first; refine only the dominant error; stop when it is met.** Before any
+- **G0 — Required accuracy first; refine only the dominant error; stop when the total meets it.** Before any
   refinement, write down the **required accuracy** of the quantity and where it comes from. List every
   use the quantity serves — the digits it will be displayed with (about half the last displayed digit,
   tighter when the value sits near a rounding boundary), how far a downstream conclusion moves when the
@@ -84,8 +84,8 @@ G0 comes first because it sets how far every later check is run.
   result out of the record. A **diagnostic threshold** is different: a residual, an invariant's integer
   residual, a conservation or symmetry check, or a method precondition is set by what it must detect
   or by how its defect propagates into the quantity, and stays blocking where that is what it takes to
-  bound the quantity's error or to validate the method. It carries a one-line rationale of that kind;
-  G0 never demotes it, and G3/G7/G9 keep their thresholds. When the required accuracy is not yet known,
+  bound the quantity's error or to validate the method. It carries a one-line rationale of that kind, recorded in
+  the matrix as `threshold_basis`; G0 never demotes it, and G3/G7/G9 keep their thresholds. When the required accuracy is not yet known,
   the first deliverable is that accuracy and its source, not more digits.
 - **G1 — Discretization convergence (mirage check).** Vary *every* resolution/size knob independently —
   integration grid, continuation/interpolation node count, step size, contour density, sample count,

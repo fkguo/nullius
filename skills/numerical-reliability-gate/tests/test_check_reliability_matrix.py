@@ -283,6 +283,39 @@ def test_refinement_far_past_the_target_warns_without_failing(tmp_path):
     assert crm.check(_matrix(zero)) == ([], [])
 
 
+def test_rounding_allowance_cannot_reverse_the_verdict():
+    # A reported total a hair below its rule (inside the rounding allowance) must not let a
+    # total that truly exceeds the target pass: the stop rule uses the recomputed value.
+    big = 1_000_000_000_000
+    row = _row(
+        required_accuracy=_acc(999_999_999_999.75),
+        error_budget=[{"source": "grid", "estimate": big, "dominant": True}],
+        total_error={"rule": "linear_sum", "value": 999_999_999_999.5},
+    )
+    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in _codes(_matrix(row))
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"required_accuracy": _acc(10**400)},
+        {"error_budget": [{"source": "grid", "estimate": 10**400, "dominant": True}]},
+        {"total_error": {"rule": "linear_sum", "value": 10**400}},
+    ],
+)
+def test_oversized_integers_are_findings_not_crashes(overrides):
+    assert _codes(_matrix(_row(**overrides)))
+
+
+@pytest.mark.parametrize("block", ["invariant_check", "method_precondition"])
+def test_diagnostic_threshold_needs_a_machine_readable_basis(block):
+    without = {"passed": True, "threshold": 1e-10}
+    assert "DIAGNOSTIC_WITHOUT_BASIS" in _codes(_matrix(_row(**{block: without})))
+    assert "DIAGNOSTIC_WITHOUT_BASIS" in _codes(_matrix(_row(**{block: "passed"})))
+    with_basis = dict(without, threshold_basis="a residual of that size moves the quantity by less than 1e-4")
+    assert _codes(_matrix(_row(**{block: with_basis}))) == []
+
+
 # --- matrix bookkeeping ----------------------------------------------------------------------
 
 
@@ -404,6 +437,11 @@ def test_contract_example_matrix_satisfies_the_checker():
     assert all("required_accuracy" in r and "error_budget" in r and "total_error" in r for r in rows)
     assert any(len(r["required_accuracy"]["uses"]) > 1 for r in rows)
     assert any(e["estimate"] is None for r in rows for e in r["error_budget"])
+    # The example demonstrates a diagnostic threshold stricter than its row's required accuracy,
+    # carrying its machine-readable basis.
+    diagnostic = [r for r in rows if isinstance(r.get("invariant_check"), dict)]
+    assert diagnostic and all(r["invariant_check"].get("threshold_basis") for r in diagnostic)
+    assert any(r["invariant_check"]["integer_residual_threshold"] < r["required_accuracy"]["value"] for r in diagnostic)
 
 
 def test_contract_example_with_g0_removed_fails():

@@ -96,7 +96,7 @@ if (skill !== null) {
   }
 }
 requireAll(`${SKILL_FILE} (G0)`, gateItem(SKILL_FILE, skill, 'G0'), [
-  ['G0 heading', 'Required accuracy first; refine only the dominant error; stop when it is met.**'],
+  ['G0 heading', 'Required accuracy first; refine only the dominant error; stop when the total meets it.**'],
   ['required accuracy written down first', 'write down the **required accuracy** of the quantity and where it comes from'],
   ['every use, strictest governs', 'List every use the quantity serves'],
   ['strictest use', 'and take the **strictest** of them'],
@@ -113,6 +113,7 @@ requireAll(`${SKILL_FILE} (G0)`, gateItem(SKILL_FILE, skill, 'G0'), [
   ['stricter quantity tolerances do not block', 'may be kept as an informational record but may not block acceptance'],
   ['diagnostic thresholds keep blocking', 'stays blocking where that is what it takes to bound the quantity\'s error or to validate the method'],
   ['G0 never demotes diagnostics', 'G0 never demotes it, and G3/G7/G9 keep their thresholds'],
+  ['diagnostic rationale recorded', 'recorded in the matrix as `threshold_basis`'],
   ['over-tight gate is a defect', '**an over-tight gate is a defect, just as a loose one is**'],
   ['unknown target comes first', 'the first deliverable is that accuracy and its source, not more digits'],
 ]);
@@ -145,6 +146,9 @@ requireAll(CONTRACT_FILE, read(CONTRACT_FILE), [
   ['reliable needs total within target', 'A `reliable` row requires every estimate to be numeric and the total error to be at or below the required accuracy'],
   ['quantity tolerances informational when stricter', 'a stricter one is recorded in `notes` as informational and does not block the verdict'],
   ['diagnostic thresholds keep blocking', 'carries that rationale, and keeps blocking'],
+  ['diagnostic rationale machine-readable', 'a present `invariant_check` or `method_precondition` object carries a non-empty one-line `threshold_basis`'],
+  ['rounding allowance cannot lower the total', 'the stop rule compares the larger of the reported value and the recomputed rule with the required accuracy'],
+  ['example diagnostic carries its basis', '"threshold_basis": "the distance from the nearest integer is the contour quadrature'],
   ['example carries total_error', '"total_error": {'],
   ['example carries required_accuracy', '"required_accuracy": {'],
   ['example carries error_budget', '"error_budget": ['],
@@ -158,6 +162,8 @@ requireAll(CHECKER_FILE, read(CHECKER_FILE), [
   ['total above target finding', 'TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY'],
   ['total understated finding', 'TOTAL_ERROR_BELOW_ITS_RULE'],
   ['strictest-use finding', 'REQUIRED_ACCURACY_NOT_STRICTEST'],
+  ['diagnostic-basis finding', 'DIAGNOSTIC_WITHOUT_BASIS'],
+  ['stop rule uses the larger total', 'return max(float(total["value"]), combined)'],
   ['dominant must be largest finding', 'DOMINANT_NOT_LARGEST'],
   ['over-refinement warning', 'REFINED_PAST_REQUIRED_ACCURACY'],
   ['allowed accuracy sources', 'ACCURACY_SOURCES = frozenset({"display", "downstream_sensitivity", "comparison_uncertainty"})'],
@@ -166,6 +172,8 @@ requireAll(CHECKER_TESTS, read(CHECKER_TESTS), [
   ['contract example is checked', 'def test_contract_example_matrix_satisfies_the_checker'],
   ['aggregate-error counterexample test', 'def test_stop_rule_uses_the_total_error_not_only_the_dominant_source'],
   ['strictest-use test', 'def test_required_accuracy_is_the_strictest_use'],
+  ['rounding-allowance test', 'def test_rounding_allowance_cannot_reverse_the_verdict'],
+  ['diagnostic-basis test', 'def test_diagnostic_threshold_needs_a_machine_readable_basis'],
 ]);
 
 // 6. The research-team prompts carry the stop-at-required-accuracy instruction.
