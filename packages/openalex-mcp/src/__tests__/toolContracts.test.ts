@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { getToolSpecs, getTools, handleToolCall, type ToolExposureMode, type ToolSpec } from '../tools/index.js';
-import { findRequiredKeyMismatches } from '@nullius/shared';
+import { findBudgetBoundMismatches, findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../tools/mcpSchema.js';
 
 function stableStringify(value: unknown): string {
@@ -96,6 +96,16 @@ describe('Tool inputSchema required keys', () => {
       const spec = specs.get(def.name);
       if (!spec) return [`[${def.name}] no tool spec`];
       return findRequiredKeyMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
+  });
+
+  it.each<ToolExposureMode>(['standard', 'full'])('budget fields publish the bounds their parser applies (%s)', mode => {
+    const specs = new Map(getToolSpecs(mode).map(spec => [spec.name, spec]));
+    const issues = getTools(mode).flatMap(def => {
+      const spec = specs.get(def.name);
+      if (!spec) return [`[${def.name}] no tool spec`];
+      return findBudgetBoundMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
     });
     expect(issues).toEqual([]);
   });

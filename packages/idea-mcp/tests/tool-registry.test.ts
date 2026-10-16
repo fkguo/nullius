@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findRequiredKeyMismatches } from '@nullius/shared';
+import { findBudgetBoundMismatches, findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/mcp-input-schema.js';
 import { IDEA_TOOLS } from '../src/tool-registry.js';
 import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
@@ -193,6 +193,13 @@ describe('idea-mcp inputSchema required keys', () => {
     expect(IDEA_TOOLS.length).toBeGreaterThan(0);
     const issues = IDEA_TOOLS.flatMap(tool =>
       findRequiredKeyMismatches(tool.schema, zodToMcpInputSchema(tool.schema)).map(issue => `[${tool.name}] ${issue}`),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('budget fields publish the bounds their parser applies', () => {
+    const issues = IDEA_TOOLS.flatMap(tool =>
+      findBudgetBoundMismatches(tool.schema, zodToMcpInputSchema(tool.schema)).map(issue => `[${tool.name}] ${issue}`),
     );
     expect(issues).toEqual([]);
   });
