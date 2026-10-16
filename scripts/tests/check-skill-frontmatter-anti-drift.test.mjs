@@ -324,7 +324,7 @@ function commandTree(t, skillContent, extraSkills = {}) {
 }
 
 function runCommand(entry, cwd, nodeArgs = []) {
-  const result = spawnSync('node', [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
+  const result = spawnSync(process.execPath, [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
