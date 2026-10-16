@@ -410,8 +410,8 @@ def _extension_contract(measured: object, progress: object, kind: object = "adva
 
 
 _ADVANCING = {
-    "elapsed_seconds": 1800, "completed_units": 10, "total_units": 30,
-    "earlier": {"elapsed_seconds": 1200, "completed_units": 6},
+    "elapsed_seconds": 1800, "completed_units": 10, "total_units": 30, "row": 12,
+    "earlier": {"elapsed_seconds": 1200, "completed_units": 6, "row": 11},
     "probe_log": "artifacts/runs/scan/checkpoint.probe.jsonl",
 }
 
@@ -441,7 +441,32 @@ def test_time_box_rebudget_must_name_its_kind(tmp_path: Path, kind: object) -> N
 
 def test_advancing_extension_names_its_probe_log(tmp_path: Path) -> None:
     progress = {k: v for k, v in _ADVANCING.items() if k != "probe_log"}
-    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "EXTENSION_NOT_ADVANCING")
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "MISSING_EXTENSION_PROBE_REFERENCE")
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [(None, 11), (12, None), (11, 11), (11, 12), (0, 11), (True, 11)],
+)
+def test_advancing_extension_locates_both_observations(tmp_path: Path, rows: tuple) -> None:
+    current, earlier = rows
+    progress = dict(_ADVANCING, earlier=dict(_ADVANCING["earlier"]))
+    for target, value in ((progress, current), (progress["earlier"], earlier)):
+        if value is None:
+            target.pop("row", None)
+        else:
+            target["row"] = value
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "MISSING_EXTENSION_PROBE_REFERENCE")
+
+
+def test_slowing_run_is_sized_from_its_latest_interval(tmp_path: Path) -> None:
+    # 9 units by 100 s, then 1 unit in the next 1700 s: the whole-run average projects 5400 s,
+    # the latest interval projects 1800 + 20 x 1700 = 35800 s. The extension must cover the latter.
+    progress = dict(_ADVANCING, earlier={"elapsed_seconds": 100, "completed_units": 9, "row": 11})
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "TIME_BOX_RETRY_BELOW_PROGRESS")
+    contract = _extension_contract(35800, progress)
+    contract["time_box"]["seconds"] = 40_000
+    _assert_passes(tmp_path, contract)
 
 
 def test_completed_run_cannot_be_extended(tmp_path: Path) -> None:

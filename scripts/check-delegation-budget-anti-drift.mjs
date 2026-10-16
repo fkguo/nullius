@@ -98,6 +98,7 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['declared launch declaration label', 'MISSING_LAUNCH_DECLARATION'],
   ['time-box re-budget projection label', 'TIME_BOX_RETRY_BELOW_PROGRESS'],
   ['extension advancing label', 'EXTENSION_NOT_ADVANCING'],
+  ['extension probe reference label', 'MISSING_EXTENSION_PROBE_REFERENCE'],
   ['max-attempts falsification label', 'MISSING_MAX_ATTEMPTS'],
   ['scope-negative-list falsification label', 'MISSING_SCOPE_NEGATIVE_LIST'],
   ['peak-memory falsification label', 'MISSING_PEAK_MEMORY_ESTIMATE'],
@@ -357,6 +358,7 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['extension projection recomputed', 'the projection (`TIME_BOX_RETRY_BELOW_PROGRESS`), refuses an extension'],
   ['kind and progress required on time-box re-budgets', 'progress with work remaining; a run wrapped up at its deadline is'],
   ['what the gate cannot see', 'two observations are the last checks before the deadline (the'],
+  ['latest-interval projection', 'latest interval\'s rate (elapsed + remaining units × the time per unit'],
 
   ['max attempts field', '`max_attempts`'],
   ['scope negative list field', '`scope_negative_list`'],
@@ -388,7 +390,7 @@ requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['censored-boundary rationale', 'censored lower bound'],
   ['no-identical-exhaustion clause', 'never a chain of identical exhaustions'],
   ['advancing run at deadline is a decision point', '**A run still advancing at its deadline is a decision point, not an automatic wrap-up.**'],
-  ['extension from the measured rate', 'projected need = elapsed time × total units ÷ completed units'],
+  ['extension from the measured rate', 'projected need = the larger of elapsed time × total units ÷ completed units and elapsed time + remaining units × the time per unit over the latest interval'],
   ['fresh observations per extension', 'Every extension needs fresh observations taken since the previous one'],
 ]);
 requireAll('skills/review-swarm/SKILL.md', read('skills/review-swarm/SKILL.md'), [
@@ -453,6 +455,8 @@ requireAll(TESTS_FILE, testsText, [
   ['stalled run test', 'test_stalled_run_is_not_an_advancing_extension'],
   ['kind required test', 'test_time_box_rebudget_must_name_its_kind'],
   ['probe log test', 'test_advancing_extension_names_its_probe_log'],
+  ['slowing run test', 'test_slowing_run_is_sized_from_its_latest_interval'],
+  ['observation rows test', 'test_advancing_extension_locates_both_observations'],
   ['explicit numeric mode positive control', 'test_explicit_numeric_tolerance_mode_passes'],
   ['numeric-zero negative control', 'test_numeric_zero_tolerance_still_fails'],
   ['exact-predicate positive control', 'test_exact_predicate_tolerance_mode_passes'],

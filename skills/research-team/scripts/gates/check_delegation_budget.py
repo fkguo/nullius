@@ -115,9 +115,11 @@ delegated workstream, default location `<project_root>/team/delegations/`):
                "rebudget_after_wrap_up" (the run was wrapped up and is
                re-dispatched) or "advancing_extension" (the run was still
                advancing at its deadline); the latter needs
-               progress.earlier { elapsed_seconds, completed_units } strictly
-               below the current values and progress.probe_log naming the
-               log both observations come from. The gate checks the numbers
+               progress.earlier { elapsed_seconds, completed_units, row }
+               strictly below the current values, progress.row, and
+               progress.probe_log naming the log both rows come from; its
+               measured requirement must also cover elapsed + remaining
+               units x the time per unit over the latest interval. The gate checks the numbers
                are consistent; that they are the last checks before the
                deadline is attested by the coordinator and checkable by a
                reviewer from the probe log. Each extension needs fresh
@@ -141,6 +143,7 @@ Falsification labels (all fail-closed):
   MISSING_UNIT_SECONDS, MISSING_UNIT_COUNT, TIME_BOX_BELOW_MEASURED_NEED,
   MISSING_TIME_BOX_NOTE, CONTRADICTORY_TIME_BOX,
   INVALID_TIME_BOX_FIELD, TIME_BOX_RETRY_BELOW_PROGRESS, EXTENSION_NOT_ADVANCING,
+  MISSING_EXTENSION_PROBE_REFERENCE,
   MISSING_MAX_ATTEMPTS,
   MISSING_SCOPE_NEGATIVE_LIST, MISSING_PEAK_MEMORY_ESTIMATE,
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
@@ -1044,13 +1047,24 @@ def _validate_contract(contract: Any) -> list[str]:
                             "or the elapsed time when no unit completed)"
                         )
                     if kind == "advancing_extension":
-                        if not _is_nonempty_single_line(progress.get("probe_log")):
-                            issues.append(
-                                "EXTENSION_NOT_ADVANCING: an advancing extension names the probe log "
-                                "its two observations come from (`retry_of.progress.probe_log`), so a "
-                                "reviewer can confirm they are the last checks before the deadline"
-                            )
+                        # The two observations must be locatable in the probe log, so a
+                        # reviewer can confirm they are the last checks before the deadline.
                         earlier = progress.get("earlier")
+                        row = progress.get("row")
+                        e_row = earlier.get("row") if isinstance(earlier, dict) else None
+                        if (
+                            not _is_nonempty_single_line(progress.get("probe_log"))
+                            or not _is_positive_int(row)
+                            or not _is_positive_int(e_row)
+                            or not e_row < row
+                        ):
+                            issues.append(
+                                "MISSING_EXTENSION_PROBE_REFERENCE: an advancing extension names the "
+                                "probe log (`retry_of.progress.probe_log`) and the rows of both "
+                                "observations in it (`progress.row`, `progress.earlier.row`, the earlier "
+                                "row first), so a reviewer can confirm they are the last checks before "
+                                "the deadline"
+                            )
                         e_elapsed = earlier.get("elapsed_seconds") if isinstance(earlier, dict) else None
                         e_completed = earlier.get("completed_units") if isinstance(earlier, dict) else None
                         if (
@@ -1061,10 +1075,26 @@ def _validate_contract(contract: Any) -> list[str]:
                         ):
                             issues.append(
                                 "EXTENSION_NOT_ADVANCING: an advancing extension records "
-                                "`retry_of.progress.earlier` {elapsed_seconds, completed_units} from an "
-                                "earlier check, with both strictly below the current values — a run "
-                                f"whose completed count did not grow is stalled, not slow (got {earlier!r})"
+                                "`retry_of.progress.earlier` {elapsed_seconds, completed_units, row} from "
+                                "an earlier check, with elapsed time and completed count strictly below "
+                                "the current values — a run whose completed count did not grow is "
+                                f"stalled, not slow (got {earlier!r})"
                             )
+                        elif _is_finite_positive_number(measured):
+                            # A run that slowed down is sized from its latest rate, not only its
+                            # whole-run average: remaining units x the time per unit over the last
+                            # interval, added to the elapsed time.
+                            interval = _exact(elapsed) - _exact(e_elapsed)
+                            recent = _exact(elapsed) + (total - completed) * interval / (completed - e_completed)
+                            if _exact(measured) < recent:
+                                issues.append(
+                                    "TIME_BOX_RETRY_BELOW_PROGRESS: `retry_of.measured_requirement` "
+                                    f"({_decimal_str(measured)}) is below the need projected from the "
+                                    f"latest interval (about {_fraction_str(recent)} s = elapsed + "
+                                    "remaining units x the time per unit between the two observations); "
+                                    "an extension covers the larger of the whole-run and latest-interval "
+                                    "projections"
+                                )
             if dimension == "heap_limit_mb" and _is_finite_positive_number(measured):
                 heap_value = mem.get("heap_limit_mb") if isinstance(mem, dict) else None
                 if _is_finite_positive_number(heap_value) and heap_value <= measured:
