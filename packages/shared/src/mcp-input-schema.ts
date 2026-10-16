@@ -19,10 +19,9 @@ import { z, toJSONSchema } from 'zod';
  * undefined); a tool schema wraps such a property in `.optional()`. The shared
  * budget helpers (`optionalBudgetInt` / `optionalBudgetNumber`) do this
  * themselves, and their bounds are published from the `__mcpBudget` metadata
- * below, which a `.describe()` or `.meta()` called directly on the helper's
- * result does not keep. `findRequiredKeyMismatches` checks the rule against
- * the parser, and the MCP packages' tool contract tests run it over the tools
- * they expose.
+ * below. `findRequiredKeyMismatches` checks the required-key rule and
+ * `findBudgetBoundMismatches` the published bounds, both against the parser;
+ * the MCP packages' tool contract tests run them over the tools they expose.
  */
 export function zodToMcpInputSchema(schema: z.ZodType<any, any>): Record<string, unknown> {
   const jsonSchema = toJSONSchema(schema, {
