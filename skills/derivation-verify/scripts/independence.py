@@ -6,8 +6,10 @@ observed work and fail closed on absent or incomplete assessments.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
+import re
 from pathlib import Path
 
 _OBSERVATION_AUTHORITY = object()
@@ -59,19 +61,80 @@ def occurs_in(span: str, text) -> bool:
     return isinstance(span, str) and isinstance(text, str) and _same_line_endings(span) in _same_line_endings(text)
 
 
+_OBJECT_START = re.compile(r'\{[ \t\n\r]*["}]')
+
+
+_ANSWER_KEYS = ("canonical_answer", "derivation_summary")
+
+
+def _holds(value, selected: dict) -> bool:
+    """Whether a decoded JSON value is the selected object or contains it at any depth."""
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if item == selected:
+            return True
+        pending.extend(item.values() if isinstance(item, dict) else item if isinstance(item, list) else ())
+    return False
+
+
+@functools.lru_cache(maxsize=256)
+def _text_outside_answer_json(raw: str) -> tuple[str, ...]:
+    """Assistant text around the answer-shaped JSON objects, line endings normalised.
+
+    Removed are every copy of the selected object and every other decodable JSON object with a
+    canonical_answer or derivation_summary key (drafts, wrappers, near-copies), so no answer
+    object's summary, confidence, answer or JSON-quoted derivation is part of this text. If the
+    selected object cannot be located, nothing is returned."""
+    from run_multi_backend import extract_json
+    selected = extract_json(raw, prefer_keys={"canonical_answer"})
+    if not isinstance(selected, dict):
+        return ()
+    text, decoder = _same_line_endings(raw), json.JSONDecoder()
+    parts, cursor, located = [], 0, False
+    # A JSON object opens with a key or closes at once; other braces (e.g. LaTeX) are skipped
+    # without a decode attempt, which would otherwise make long outputs quadratic.
+    found = _OBJECT_START.search(text)
+    while found:
+        i = found.start()
+        try:
+            value, end = decoder.raw_decode(text, i)
+        except (ValueError, RecursionError):
+            value, end = None, i + 1
+        if value == selected or (isinstance(value, dict) and any(key in value for key in _ANSWER_KEYS)):
+            located = located or _holds(value, selected)
+            parts.append(text[cursor:i])
+            cursor = end
+        else:
+            end = i + 1
+        found = _OBJECT_START.search(text, end)
+    if not located:
+        return ()
+    return tuple(parts) + (text[cursor:],)
+
+
 def quoted_in_derivation(span: str, d: dict, closure: str | None = None) -> bool:
-    """A span quotes original derivation material when it occurs in the complete context (or the
-    given closure built from it) or in the structured derivation as read. When the context is the
-    raw output, that derivation sits inside it in JSON quoting (newlines, quotes and non-ASCII
-    escaped), so a faithful multi-line quote of the readable field would otherwise never match.
+    """A span quotes original derivation material when it occurs in the given closure (input and
+    execution evidence) or, for the other evidence, in the derivation context; in both cases also
+    when it occurs in the structured derivation as read.
+
+    When the context is the raw output (assistant text outside the selected JSON object), the
+    derivation context for quoting is the text outside every answer-shaped JSON object: their
+    fields, such as the navigation-only summary, are not derivation steps. Inside the raw output the structured
+    derivation is JSON-quoted (newlines, quotes and non-ASCII escaped), so it is quoted as read.
     Line endings (CRLF, CR, LF) are not content and compare equal.
     valid_derivation_transport requires the structured field to equal the one parsed from that raw
     output before any lane counts."""
     body = derivation_body(d)
-    if occurs_in(span, body if closure is None else closure):
-        return True
     structured = d.get("derivation")
-    return runtime_observed(d) and isinstance(structured, str) and structured != body and occurs_in(span, structured)
+    separate = runtime_observed(d) and isinstance(structured, str) and structured != body
+    if closure is not None:
+        texts = (closure,)
+    else:
+        texts = _text_outside_answer_json(body) if separate else (body,)
+    if any(occurs_in(span, text) for text in texts):
+        return True
+    return separate and occurs_in(span, structured)
 
 
 AXES = ("input", "execution", "construction", "applicability", "diagnostic")

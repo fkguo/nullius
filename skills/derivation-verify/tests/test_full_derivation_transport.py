@@ -131,9 +131,9 @@ MULTILINE_STEPS = 'Begin complete derivation.\nStep A: the raw operands are "17"
 PREFIX = 'Working notes before the JSON: raw operands only.\n'
 
 
-def prefixed_lane_runner(spans, *, risk=False, derivation=MULTILINE_STEPS):
+def prefixed_lane_runner(spans, *, risk=False, derivation=MULTILINE_STEPS, raw=None):
     """Lane output holds text outside its JSON object; the examiner quotes the given spans."""
-    raw = PREFIX + json.dumps(verdict(derivation))
+    raw = raw or PREFIX + json.dumps(verdict(derivation))
     def run(model, system, prompt, tag):
         if 'compare' in tag:
             report = assessed_comparison({'majority_answer': '42', 'majority_size': 2, 'majority_indices': [0, 1],
@@ -177,6 +177,92 @@ def test_quotes_outside_original_lane_material_still_refuse_when_output_holds_te
         row = verify({**CLAIM, 'requires_method_diversity': True}, _risk_with_span(span, bad))
         assert not row['converged'] and not row['method_risk_satisfied'], bad
 
+
+
+
+BODY_AXES = ('construction', 'applicability', 'diagnostic')
+ALL_AXES = ('input', 'execution') + BODY_AXES
+
+
+def test_selected_json_fields_other_than_derivation_cannot_supply_body_quotes():
+    obj = json.dumps(verdict(MULTILINE_STEPS))
+    step = MULTILINE_STEPS.split('\n', 1)[1]
+    closing = 'Closing remark: exact integers, no rounding.'
+    outputs = {'prefix': PREFIX + obj, 'trailing': obj + '\n' + closing,
+               'repeated copy': PREFIX + obj + '\nRepeated:\n' + obj}
+    # The navigation summary, other fields of the selected object, or a quote running into it never count.
+    refused = ('Navigation only', '"confidence": "high"', '"canonical_answer": "42"', PREFIX + '{"canonical_answer"')
+    for name, raw in outputs.items():
+        for bad in refused:
+            for axis in BODY_AXES:
+                spans = {a: step for a in ALL_AXES}
+                spans[axis] = bad
+                row = verify(CLAIM, prefixed_lane_runner(spans, raw=raw))
+                assert not row['converged'] and row['independent_confirmations'] == 0, (name, bad, axis)
+        risk = verify({**CLAIM, 'requires_method_diversity': True}, _risk_with_span(step, 'Navigation only', raw=raw))
+        assert not risk['converged'] and not risk['method_risk_satisfied'], name
+        # Steps outside the object and the structured derivation as read still count.
+        outside = PREFIX.strip() if name != 'trailing' else closing
+        for good in (outside, step):
+            row = verify(CLAIM, prefixed_lane_runner({a: good for a in ALL_AXES}, raw=raw))
+            assert row['converged'] and row['independent_confirmations'] == 2, (name, good)
+        risk = verify({**CLAIM, 'requires_method_diversity': True}, _risk_with_span(step, outside, raw=raw))
+        assert risk['converged'] and risk['method_risk_satisfied'], name
+    # Text on the two sides of the object is never joined into a quote that the output does not contain.
+    raw = PREFIX + obj + '\n' + closing
+    stitched = PREFIX + '\n' + closing
+    assert stitched not in raw
+    for axis in BODY_AXES:
+        spans = {a: step for a in ALL_AXES}
+        spans[axis] = stitched
+        row = verify(CLAIM, prefixed_lane_runner(spans, raw=raw))
+        assert not row['converged'] and row['independent_confirmations'] == 0, axis
+
+
+
+def test_other_answer_shaped_json_objects_cannot_supply_body_quotes():
+    final = verdict(MULTILINE_STEPS)
+    step = MULTILINE_STEPS.split('\n', 1)[1]
+    draft = json.dumps({**final, 'confidence': 'low', 'derivation_summary': 'Draft navigation summary.'})
+    cases = {
+        'draft before final': (PREFIX + draft + '\n' + json.dumps(final), ['Draft navigation summary.', '"confidence": "low"']),
+        'wrapper with summary': (PREFIX + json.dumps({'derivation_summary': 'Wrapper navigation summary.', 'payload': final}),
+                                 ['Wrapper navigation summary.', '"payload"']),
+        'stray summary object': (PREFIX + json.dumps({'derivation_summary': 'Stray summary object.'}) + '\n' + json.dumps(final),
+                                 ['Stray summary object.']),
+        'answer-only draft, fenced final': (
+            PREFIX + json.dumps({'canonical_answer': '42', 'derivation': 'Draft-only step text.', 'confidence': 'low'})
+            + '\n```json\n' + json.dumps(final) + '\n```', ['Draft-only step text.', '"confidence": "low"']),
+    }
+    for name, (raw, refused) in cases.items():
+        for bad in refused:
+            for axis in BODY_AXES:
+                spans = {a: step for a in ALL_AXES}
+                spans[axis] = bad
+                row = verify(CLAIM, prefixed_lane_runner(spans, raw=raw))
+                assert not row['converged'] and row['independent_confirmations'] == 0, (name, bad, axis)
+            risk = verify({**CLAIM, 'requires_method_diversity': True}, _risk_with_span(step, bad, raw=raw))
+            assert not risk['converged'] and not risk['method_risk_satisfied'], (name, bad)
+        # Text outside every answer-shaped object and the structured derivation still count,
+        # also when the selected object sits inside an excluded wrapper.
+        for good in (PREFIX.strip(), step):
+            row = verify(CLAIM, prefixed_lane_runner({a: good for a in ALL_AXES}, raw=raw))
+            assert row['converged'] and row['independent_confirmations'] == 2, (name, good)
+    # A wrapper without either key is other assistant text, not an answer object.
+    raw = PREFIX + json.dumps({'note': 'Wrapper note without answer keys.', 'result': final})
+    row = verify(CLAIM, prefixed_lane_runner({a: 'Wrapper note without answer keys.' for a in ALL_AXES}, raw=raw))
+    assert row['converged'] and row['independent_confirmations'] == 2
+    row = verify(CLAIM, prefixed_lane_runner({a: 'Navigation only' for a in ALL_AXES}, raw=raw))
+    assert not row['converged']
+
+
+def test_input_and_execution_keep_the_complete_transport_closure():
+    step = MULTILINE_STEPS.split('\n', 1)[1]
+    for axis in ('input', 'execution'):
+        spans = {a: step for a in ALL_AXES}
+        spans[axis] = 'Navigation only'
+        row = verify(CLAIM, prefixed_lane_runner(spans))
+        assert row['converged'] and row['independent_confirmations'] == 2, axis
 
 
 def test_crlf_prose_outside_json_matches_a_quote_written_with_plain_newlines():
@@ -232,8 +318,8 @@ def test_navigation_summary_alone_cannot_supply_derivation_quotes():
     assert not row['converged'] and not row['method_risk_satisfied']
 
 
-def _risk_with_span(span, bad):
-    run = prefixed_lane_runner({a: span for a in ('input', 'execution', 'construction', 'applicability', 'diagnostic')}, risk=True)
+def _risk_with_span(span, bad, raw=None):
+    run = prefixed_lane_runner({a: span for a in ('input', 'execution', 'construction', 'applicability', 'diagnostic')}, risk=True, raw=raw)
     def wrapped(model, system, prompt, tag):
         text = run(model, system, prompt, tag)
         if 'compare' in tag:
