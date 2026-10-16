@@ -440,7 +440,12 @@ Required field groups of the full-tier contract, all machine-checked:
   `measured_requirement`, and the measurement as `progress`
   (`elapsed_seconds`, `completed_units`, `total_units`, an `earlier`
   observation showing the completed count grew, the `row` of each
-  observation, and the `probe_log` both rows come from). The projected need
+  observation — 1-based physical line numbers in the `probe_log`, one
+  observation per line, the earlier row immediately before the current one
+  (`EXTENSION_ROWS_NOT_ADJACENT` otherwise) — and `previous_extension_row`,
+  the current row the previous extension used, 0 for the first: both rows
+  must come after it (`EXTENSION_OBSERVATIONS_NOT_FRESH`), so an extension
+  cannot reuse the observations an earlier one already used). The projected need
   is the larger of the whole-run rate (elapsed × total ÷ completed) and the
   latest interval's rate (elapsed + remaining units × the time per unit
   between the two observations), so a run that slowed down is not cut short
@@ -455,9 +460,11 @@ Required field groups of the full-tier contract, all machine-checked:
   the existing strict-exceedance check. What the gate cannot see: whether
   the two observations are the last checks before the deadline (the
   coordinator attests it; a reviewer confirms it from the probe log), and
-  how many extensions came before (it reads one contract revision). Each
-  extension therefore needs fresh observations since the previous one; a
-  run that has stopped advancing is wrapped up instead.
+  whether `previous_extension_row` is the row the previous extension really
+  used (it reads one contract revision, so the value is the coordinator's
+  record; it catches an extension that reuses old observations, not a false
+  entry). There is no fixed number of extensions; a run that has stopped
+  advancing is wrapped up instead.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the
   delivered task (the `research-harness` attempt semantics), **not**

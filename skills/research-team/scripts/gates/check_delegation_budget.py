@@ -117,8 +117,12 @@ delegated workstream, default location `<project_root>/team/delegations/`):
                advancing at its deadline); the latter needs
                progress.earlier { elapsed_seconds, completed_units, row }
                strictly below the current values, progress.row, and
-               progress.probe_log naming the log both rows come from; its
-               measured requirement must also cover elapsed + remaining
+               progress.probe_log naming the log both rows come from (rows
+               are 1-based physical line numbers, one observation per line;
+               the earlier row is the line just before the current one); and
+               progress.previous_extension_row, the current row the previous
+               extension used (0 for the first), which both rows must follow;
+               its measured requirement must also cover elapsed + remaining
                units x the time per unit over the latest interval. The gate checks the numbers
                are consistent; that they are the last checks before the
                deadline is attested by the coordinator and checkable by a
@@ -143,7 +147,8 @@ Falsification labels (all fail-closed):
   MISSING_UNIT_SECONDS, MISSING_UNIT_COUNT, TIME_BOX_BELOW_MEASURED_NEED,
   MISSING_TIME_BOX_NOTE, CONTRADICTORY_TIME_BOX,
   INVALID_TIME_BOX_FIELD, TIME_BOX_RETRY_BELOW_PROGRESS, EXTENSION_NOT_ADVANCING,
-  MISSING_EXTENSION_PROBE_REFERENCE,
+  MISSING_EXTENSION_PROBE_REFERENCE, EXTENSION_ROWS_NOT_ADJACENT,
+  EXTENSION_OBSERVATIONS_NOT_FRESH,
   MISSING_MAX_ATTEMPTS,
   MISSING_SCOPE_NEGATIVE_LIST, MISSING_PEAK_MEMORY_ESTIMATE,
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
@@ -1052,18 +1057,46 @@ def _validate_contract(contract: Any) -> list[str]:
                         earlier = progress.get("earlier")
                         row = progress.get("row")
                         e_row = earlier.get("row") if isinstance(earlier, dict) else None
-                        if (
-                            not _is_nonempty_single_line(progress.get("probe_log"))
-                            or not _is_positive_int(row)
-                            or not _is_positive_int(e_row)
-                            or not e_row < row
-                        ):
+                        previous_row = progress.get("previous_extension_row")
+                        references_ok = (
+                            _is_nonempty_single_line(progress.get("probe_log"))
+                            and _is_positive_int(row)
+                            and _is_positive_int(e_row)
+                            and e_row < row
+                        )
+                        if not references_ok:
                             issues.append(
                                 "MISSING_EXTENSION_PROBE_REFERENCE: an advancing extension names the "
                                 "probe log (`retry_of.progress.probe_log`) and the rows of both "
-                                "observations in it (`progress.row`, `progress.earlier.row`, the earlier "
-                                "row first), so a reviewer can confirm they are the last checks before "
+                                "observations in it (`progress.row`, `progress.earlier.row`: 1-based "
+                                "physical line numbers, one observation per line, the earlier row "
+                                "first), so a reviewer can confirm they are the last checks before "
                                 "the deadline"
+                            )
+                        elif e_row != row - 1:
+                            # The latest interval is the one between the two newest observations;
+                            # skipping lines can hide a stall in between.
+                            issues.append(
+                                "EXTENSION_ROWS_NOT_ADJACENT: the earlier observation must be the line "
+                                f"immediately before the current one (got rows {e_row} and {row}); "
+                                "comparing non-adjacent lines can skip over an interval in which the "
+                                "run stalled"
+                            )
+                        if previous_row is None or not (
+                            isinstance(previous_row, int) and not isinstance(previous_row, bool) and previous_row >= 0
+                        ):
+                            issues.append(
+                                "EXTENSION_OBSERVATIONS_NOT_FRESH: an advancing extension records "
+                                "`retry_of.progress.previous_extension_row`, the current row the previous "
+                                "extension used (0 for the first extension), so both observations "
+                                f"can be checked to be newer (got {previous_row!r})"
+                            )
+                        elif references_ok and not e_row > previous_row:
+                            issues.append(
+                                "EXTENSION_OBSERVATIONS_NOT_FRESH: both observations must come after the "
+                                f"row the previous extension used ({previous_row}); reusing older "
+                                f"observations (earlier row {e_row}) does not show the run advanced since "
+                                "that extension"
                             )
                         e_elapsed = earlier.get("elapsed_seconds") if isinstance(earlier, dict) else None
                         e_completed = earlier.get("completed_units") if isinstance(earlier, dict) else None

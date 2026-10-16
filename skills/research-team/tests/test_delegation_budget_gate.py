@@ -413,6 +413,7 @@ _ADVANCING = {
     "elapsed_seconds": 1800, "completed_units": 10, "total_units": 30, "row": 12,
     "earlier": {"elapsed_seconds": 1200, "completed_units": 6, "row": 11},
     "probe_log": "artifacts/runs/scan/checkpoint.probe.jsonl",
+    "previous_extension_row": 0,
 }
 
 
@@ -457,6 +458,33 @@ def test_advancing_extension_locates_both_observations(tmp_path: Path, rows: tup
         else:
             target["row"] = value
     _assert_fails_with(tmp_path, _extension_contract(5400, progress), "MISSING_EXTENSION_PROBE_REFERENCE")
+
+
+def test_non_adjacent_rows_cannot_skip_a_stall(tmp_path: Path) -> None:
+    # Rows 10 (1200 s, 6 units), 11 (1500 s, 10 units), 12 (1800 s, 10 units): the last interval
+    # stalled. Comparing row 10 with row 12 would hide it; the earlier row must be row 11.
+    progress = dict(_ADVANCING, row=12, earlier={"elapsed_seconds": 1200, "completed_units": 6, "row": 10})
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "EXTENSION_ROWS_NOT_ADJACENT")
+
+
+@pytest.mark.parametrize("previous", ["absent", None, -1, True, "0"])
+def test_advancing_extension_records_the_previous_extension_row(tmp_path: Path, previous: object) -> None:
+    progress = dict(_ADVANCING)
+    if previous == "absent":
+        del progress["previous_extension_row"]
+    else:
+        progress["previous_extension_row"] = previous
+    _assert_fails_with(tmp_path, _extension_contract(5400, progress), "EXTENSION_OBSERVATIONS_NOT_FRESH")
+
+
+def test_repeated_extension_cannot_reuse_older_observations(tmp_path: Path) -> None:
+    # The previous extension used row 12; copying its observations (rows 11 and 12) again fails,
+    # and so does a pair whose earlier row is the previous extension's row.
+    _assert_fails_with(tmp_path, _extension_contract(5400, dict(_ADVANCING, previous_extension_row=12)),
+                       "EXTENSION_OBSERVATIONS_NOT_FRESH")
+    _assert_fails_with(tmp_path, _extension_contract(5400, dict(_ADVANCING, previous_extension_row=11)),
+                       "EXTENSION_OBSERVATIONS_NOT_FRESH")
+    _assert_passes(tmp_path, _extension_contract(5400, dict(_ADVANCING, previous_extension_row=10)))
 
 
 def test_slowing_run_is_sized_from_its_latest_interval(tmp_path: Path) -> None:
