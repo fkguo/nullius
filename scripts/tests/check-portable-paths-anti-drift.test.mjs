@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { formatReport, scanContent, scanRepository, sensitiveFileName } from '../check-portable-paths-anti-drift.mjs';
 
 const homePath = user => ['', 'Users', user, 'project'].join('/');
 const privateUser = 'private-researcher-37';
 const syntheticToken = () => 'ghp_' + 'A1b2C3d4E5f6'.repeat(3);
+const scriptPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'check-portable-paths-anti-drift.mjs');
 
 function repository(t) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-privacy-gate-'));
@@ -120,4 +122,58 @@ test('does not hide ASCII leaks in binary files or UTF-16LE text', t => {
   repo.write('unknown-format.blob', Buffer.from('\0' + homePath(privateUser)));
   repo.write('windows.txt', Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(homePath(privateUser), 'utf16le')]));
   assert.deepEqual(scanRepository(repo.root).violations.map(item => item.file), ['unknown-format.blob', 'windows.txt']);
+});
+
+// A throwaway git tree with one offending file and a copy of the script, so the command scans
+// that tree and not the real repository.
+function commandTree(t) {
+  const repo = repository(t);
+  repo.write('notes.md', homePath(privateUser));
+  repo.add('notes.md');
+  fs.mkdirSync(path.join(repo.root, 'scripts'));
+  const script = path.join(repo.root, 'scripts', 'check-portable-paths-anti-drift.mjs');
+  fs.copyFileSync(scriptPath, script);
+  const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-privacy-gate-link-'));
+  t.after(() => fs.rmSync(linkDir, { recursive: true, force: true }));
+  return { ...repo, script, linkDir };
+}
+
+function runCommand(entry, cwd, nodeArgs = []) {
+  const result = spawnSync(process.execPath, [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+test('the command exits 1 on an offending tree, from a relative and from an absolute start', t => {
+  const tree = commandTree(t);
+  for (const [entry, cwd] of [['scripts/check-portable-paths-anti-drift.mjs', tree.root], [tree.script, tree.linkDir]]) {
+    const result = runCommand(entry, cwd);
+    assert.equal(result.status, 1, `${entry}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stderr, /"notes\.md":1 \[machine-home-path\]/);
+  }
+});
+
+test('the command still checks when it is started through a symlinked path', t => {
+  const tree = commandTree(t);
+  const fileLink = path.join(tree.linkDir, 'check.mjs');
+  fs.symlinkSync(tree.script, fileLink);
+  const throughFile = runCommand(fileLink, tree.linkDir);
+  assert.equal(throughFile.status, 1, `${throughFile.stdout}${throughFile.stderr}`);
+  assert.match(throughFile.stderr, /"notes\.md":1 \[machine-home-path\]/);
+
+  const linkedRoot = path.join(tree.linkDir, 'tree');
+  fs.symlinkSync(tree.root, linkedRoot);
+  const entry = path.join(linkedRoot, 'scripts', 'check-portable-paths-anti-drift.mjs');
+  for (const nodeArgs of [[], ['--preserve-symlinks-main']]) {
+    const throughDirectory = runCommand(entry, tree.linkDir, nodeArgs);
+    assert.equal(throughDirectory.status, 1, `${nodeArgs.join(' ')}: ${throughDirectory.stdout}${throughDirectory.stderr}`);
+    assert.match(throughDirectory.stderr, /"notes\.md":1 \[machine-home-path\]/);
+  }
+});
+
+test('importing the module neither runs the check nor fails when argv[1] names no file', t => {
+  const tree = commandTree(t);
+  const code = `await import(${JSON.stringify(pathToFileURL(tree.script).href)})`;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code, 'no-such-file'], { cwd: tree.root, encoding: 'utf-8' });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(result.stdout + result.stderr, '');
 });

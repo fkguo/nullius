@@ -10,8 +10,12 @@ export * from './tool-names.js';
 // Tool risk classification (H-11a)
 export * from './tool-risk.js';
 
+// MCP tool annotations derived from the risk classification
+export * from './tool-annotations.js';
+
 // MCP inputSchema conversion
 export { zodToMcpInputSchema } from './mcp-input-schema.js';
+export { findRequiredKeyMismatches } from './mcp-required-keys.js';
 
 // Sampling routing metadata (NEW-RT-07)
 export * from './sampling-metadata.js';
@@ -172,3 +176,6 @@ export {
 } from './integrity-receipt.js';
 
 export { canonicalProjectPath, assertExternalProjectRoot, respellUnderDirectory } from './project-root.js';
+
+// Entry-point guard that sees through symlinked start paths (bin links, symlinked checkouts).
+export { isMainModule } from './entry-guard.js';

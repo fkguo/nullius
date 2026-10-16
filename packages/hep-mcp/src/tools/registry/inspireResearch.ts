@@ -41,6 +41,7 @@ import {
 export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   {
     name: INSPIRE_PARSE_LATEX,
+    title: 'Parse paper LaTeX',
     tier: 'consolidated',
     exposure: 'standard',
     description:
@@ -115,6 +116,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_GRADE_EVIDENCE,
+    title: 'Grade claim evidence',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -127,6 +129,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_DETECT_MEASUREMENT_CONFLICTS,
+    title: 'Detect measurement conflicts',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -139,6 +142,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_CRITICAL_ANALYSIS,
+    title: 'Critical paper analysis',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -151,6 +155,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_CLASSIFY_REVIEWS,
+    title: 'Classify review papers',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -163,6 +168,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_THEORETICAL_CONFLICTS,
+    title: 'Theoretical conflicts map',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -175,6 +181,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_TOPIC_ANALYSIS,
+    title: 'INSPIRE topic analysis',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -188,6 +195,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_NETWORK_ANALYSIS,
+    title: 'Citation network analysis',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -201,6 +209,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_FIND_CONNECTIONS,
+    title: 'Find paper connections',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -214,6 +223,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_TRACE_ORIGINAL_SOURCE,
+    title: 'Trace original source',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
@@ -227,6 +237,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_PAPER_SOURCE,
+    title: 'INSPIRE paper source',
     tier: 'consolidated',
     exposure: 'standard',
     description: `Unified paper source access tool (network). Modes: urls/content/metadata/auto (downloads arXiv sources/PDFs and optionally extracts).
@@ -330,6 +341,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
   },
   {
     name: INSPIRE_FIND_CROSSOVER_TOPICS,
+    title: 'Find crossover topics',
     tier: 'advanced',
     exposure: 'full',
     description:
@@ -342,6 +354,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
   },
   {
     name: INSPIRE_ANALYZE_CITATION_STANCE,
+    title: 'Citation stance analysis',
     tier: 'advanced',
     exposure: 'full',
     description:
@@ -359,6 +372,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
   },
   {
     name: INSPIRE_CLEANUP_DOWNLOADS,
+    title: 'Clean up downloads',
     tier: 'advanced',
     exposure: 'full',
     description:
@@ -371,6 +385,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
   },
   {
     name: INSPIRE_VALIDATE_BIBLIOGRAPHY,
+    title: 'Validate bibliography',
     tier: 'advanced',
     exposure: 'full',
     description:

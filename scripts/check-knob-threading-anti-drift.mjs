@@ -42,6 +42,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 const SKILL_FILE = 'skills/numerical-reliability-gate/SKILL.md';
 const CONTRACT_FILE = 'skills/numerical-reliability-gate/references/contract.md';
+const PROVENANCE_FILE = 'skills/numerical-reliability-gate/references/provenance.md';
 const CI_FILE = '.github/workflows/ci.yml';
 
 const errors = [];
@@ -111,7 +112,7 @@ requireAll(`${SKILL_FILE} (G2)`, gateItem(SKILL_FILE, skill, 'G2'), [
 ]);
 
 // 3. The recorded failure modes that produced both clauses.
-requireAll(`${SKILL_FILE} (recorded failure modes)`, skill, [
+requireAll(`${PROVENANCE_FILE} (recorded failure modes)`, read(PROVENANCE_FILE), [
   ['ladder-ran-one-setting-twice evidence', 'silently **ran one setting twice**'],
   ['bit-identical values exposed it', 'anomalously bit-identical values were the only thing that exposed it'],
   ['arbitrary-resolution consequence', 'would have certified an arbitrary resolution as converged'],

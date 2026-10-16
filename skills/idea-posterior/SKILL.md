@@ -62,74 +62,9 @@ Lindley–Jeffreys section referenced below. Never run `gaia sdk` inside an
 argument-graph package: `gaia-sdk/` is regenerable authoring help, not graph
 source, and must not be duplicated per idea.
 
-### Optional static browser renderer
+Read [`references/renderer.md`](references/renderer.md) when rendering `docs/detailed-reasoning.html`, installing its toolchain or debugging its generation (the `Optional static browser renderer` section, moved there verbatim).
 
-The posterior does not depend on presentation rendering. A browser-readable
-`docs/detailed-reasoning.html` additionally uses established generation-time
-tools: [Pandoc](https://pandoc.org/) parses Markdown and emits native MathML;
-[Mermaid CLI](https://github.com/mermaid-js/mermaid-cli) renders each
-Pandoc-identified `mermaid` block to static SVG; pinned
-[nh3](https://github.com/messense/nh3) sanitizes the resulting HTML through
-the Rust Ammonia library. The renderer carries the exact nh3 dependency in
-PEP 723 metadata, and [uv](https://docs.astral.sh/uv/guides/scripts/) creates
-that isolated environment automatically. uv is the bootstrapper; Pandoc and
-Mermaid CLI are the only host presentation renderers. Install uv, Pandoc, and
-`mmdc`, then verify the self-bootstrapping entry point:
-
-```bash
-uv run --script scripts/render_detailed_reasoning.py --help
-pandoc --version
-mmdc --version
-```
-
-The page begins with an evidence-to-conclusion view reconstructed from the
-compiled IR: concrete recorded evidence, the authored likelihood rationale,
-the structural criterion or intermediate claim being updated, and the unique
-exported conclusion. Lowering paths appear before supporting paths. Generic
-criterion sentences remain legal as structural hypotheses, but the page never
-uses them as their own explanation. Any retained Gaia diagram is labelled a
-generative probability-model graph: its arrows run from hypothesis to possible
-evidence, not in the reader's evidence-flow direction.
-
-The validated toolchain is uv 0.6.3, Pandoc 3.6.4, Mermaid CLI 11.9.0, and
-nh3 0.3.6. The renderer records fixed tool names and normalized version tokens
-in its manifest, never version-banner text or resolved executable paths. No
-hash or tool metadata appears in the reader-facing page. uv, Pandoc, and
-Mermaid CLI are optional external subprocesses, not bundled or linked into
-nullius; the output page contains no runtime library or CDN dependency. Their
-checked licenses are uv
-[MIT](https://github.com/astral-sh/uv/blob/0.6.3/LICENSE-MIT) or
-[Apache-2.0](https://github.com/astral-sh/uv/blob/0.6.3/LICENSE-APACHE),
-[Pandoc GPL-2.0-or-later](https://github.com/jgm/pandoc/blob/3.6.4/COPYING.md),
-[Mermaid CLI MIT](https://github.com/mermaid-js/mermaid-cli/blob/11.9.0/LICENSE),
-and [nh3 MIT](https://github.com/messense/nh3/blob/v0.3.6/LICENSE). Generated
-bytes can vary across browser-render tool versions, so byte identity is
-claimed only for the same inputs and recorded toolchain, not across machines
-with different versions.
-
-### Moving between machines (synced projects)
-
-Research projects are routinely synced across machines; everything this
-skill writes is designed to survive that, provided one rule is respected:
-**environments are machine-local, references are project-relative.**
-
-- `gaia_package_ref` values are `project://` references resolved against
-  the project root, so posteriors in the idea store stay auditable on
-  every machine the project lands on. If a reference does not resolve
-  (the package was moved or deleted after the write), re-run
-  `run_infer_and_extract.py` on the package to produce a fresh posterior
-  and reference — the `#sha256:` pin tells you whether the graph is still
-  the same one.
-- Virtual environments must NOT ride the sync: `.gaia-venv/` and each
-  package's `.venv/` contain machine-specific binaries. Exclude them from
-  the sync tool, and rebuild on the new machine: the recipe above
-  recreates `.gaia-venv`; a package's own environment re-syncs
-  automatically from its pinned `pyproject.toml` on the next gaia run (or
-  explicitly with `uv sync --python 3.12` inside the package).
-- If the project is also a git repository, prefer syncing it as a
-  repository (push/pull) over letting a file-level sync service copy
-  `.git/` — concurrent file-sync of repository internals can corrupt
-  them.
+Read [`references/sync.md`](references/sync.md) when a project containing graph packages is synced to or opened on another machine (the `Moving between machines` section, moved there verbatim).
 
 ## Admission gate — before any graph is built
 
@@ -630,28 +565,7 @@ stage fails.
    Mermaid block, the renderer preserves that source path and continues to
    require exactly one exported-root marker across the upstream diagrams.
 
-   The interactive graph has one visible-probability formatter: three decimal
-   places on the initial canvas and in every JavaScript-created tooltip or
-   detail panel. The page embeds
-   `argument_graph_reader_surface_contract_v1`, which names the initial canvas,
-   edge tooltip, node detail panel, and expanded legend as covered reader
-   states. The contract also inventories the current button, form-control, and
-   expandable IDs, including surfaces created after an interaction. Browser
-   acceptance accumulates both live inventories after every exercised state
-   and rejects anonymous controls or expandables. The current renderer has no
-   filter control, so adding a control requires the contract and event-driven
-   coverage to name every filtered state before the new control is accepted.
-   The same rule applies to any future expandable reader text.
-
-   Static source or initial-DOM inspection is only a quick drift check. It
-   cannot support a claim that all visible values comply, because click,
-   pointer, filter, and expansion handlers can create new text after load.
-   Acceptance therefore executes the generated page in a browser, triggers a
-   node click, edge tooltip, and legend expansion, and checks the resulting
-   visible text against the embedded formatter contract. A different renderer
-   is outside this renderer's evidence: its validator must provide equivalent
-   interaction-state evidence or fail closed rather than inheriting this
-   page's result.
+   Read [`references/graph-reader-surface.md`](references/graph-reader-surface.md) when changing or accepting the argument-graph reader surface (visible-probability formatter, reader-surface contract, interaction-state evidence) (the reader-surface paragraphs, moved there verbatim).
 
    Each card's detail panel links to the exact case-preserving node fragment
    in the HTML page. The renderer accepts only Gaia's explicit empty anchor
@@ -679,22 +593,7 @@ stage fails.
    }
    ```
 
-   `run_infer_and_extract.py` performs the browser-render order automatically.
-   If `detailed-reasoning.md` is intentionally edited or enriched later, use
-   the standalone renderer and preserve this order:
-
-   ```bash
-   uv run --script scripts/render_detailed_reasoning.py --package <package>
-   python3 scripts/render_argument_graph.py \
-     --package <package> --project-root <project_root>
-   ```
-
-   In words: edit or sync Markdown, regenerate detailed HTML and its manifest,
-   then regenerate the argument graph. An edited Markdown file immediately
-   invalidates the old HTML link; callers never hand-write a checksum or
-   manifest. Missing uv, Pandoc, or Mermaid CLI, a failed PEP 723 environment,
-   or any failed rendering stage removes or withholds the HTML authority, so
-   the argument graph remains usable but exposes no broken deep-dive link.
+   Read [`references/renderer.md`](references/renderer.md) when `detailed-reasoning.md` was edited by hand and the HTML and graph must be regenerated in the right order (the standalone-renderer order, moved there verbatim).
 
    `gaia_package_ref` is machine-portable by construction: research
    projects sync across machines, so the reference names the package
@@ -708,18 +607,7 @@ stage fails.
    binds graph structure and exported-root metadata in one reference. A later
    recompile that changes either yields a visibly different reference.
 
-   **Migration for packages and references created before this contract:** set
-   `__all__ = ["worth"]` in the package module, replace all six scaffold claim
-   sentences with idea-specific research propositions, prefix every substantive
-   literal `infer()` explanation with `reader_reasoning:`, and add
-   `evidence_family` plus `correlation_model` declarations to every
-   `observe()` rationale before its trailing anchor. Merge every correlated or
-   redundant family into one composite observation and one likelihood-bearing
-   path, then re-run
-   `run_infer_and_extract.py`. Old references used Gaia's
-   narrower internal hash and are intentionally rejected by current
-   writeback; re-extraction emits the complete-artifact pin and refreshes the
-   render bindings.
+   Read [`references/migration.md`](references/migration.md) when writeback rejects an older `#sha256:` reference or a package predates the current contract (the migration paragraph, moved there verbatim).
 
 3. **Write the posterior back to the idea store.**
 
@@ -837,49 +725,7 @@ negative novelty claims. Missing matrix, missing critique search, or missing
 reviewer gate means the report is provisional and cannot support allocation
 eligibility.
 
-**Every anchor in the report is rendered as a link, not bare text.** An anchor
-earns its place only if a reader can reach it in one click:
-
-- A resolvable URI (a literature record, preprint, DOI, or dataset record) is
-  written as a Markdown link to that URI — carried through verbatim from the
-  grounding report's `evidence_uris`, never downgraded to a plain identifier
-  string.
-- Repo-local artifact links are written as Markdown targets that resolve from
-  the report file's own directory, never as absolute local paths or local-file
-  URLs. Do not hand-write project-root-looking targets such as
-  `ideas/gaia/<slug>-gaia/argument-graph.html` inside a report stored under
-  `artifacts/<campaign>/`: standard Markdown will resolve that as
-  `artifacts/<campaign>/ideas/...`. Let the normalizer compute the correct
-  report-relative target, such as
-  `../../ideas/gaia/<slug>-gaia/argument-graph.html`
-  from `artifacts/<campaign>/posterior_report_v1.md`, or `posterior.json` for
-  a sibling artifact in the same directory. The posterior's `gaia_package_ref`
-  keeps its `project://...#sha256:` pin intact in machine artifacts — the pin
-  is what ties the reference to the exact compiled graph — while the human
-  Markdown link is just the click target.
-- Bare or backticked local file paths and literature identifiers in reports are
-  not allowed as plain text. File mentions must be Markdown links; arXiv, DOI,
-  and INSPIRE recid mentions must link to their source records. Use fenced code
-  blocks only for commands or literal snippets, not as a way to present a report
-  artifact/source path.
-- Before committing or sharing a Codex-readable report, normalize the
-  human-facing posterior display and repo-local links with:
-
-  ```bash
-  python3 skills/idea-posterior/scripts/normalize_report_posteriors.py \
-    <report.md>
-  python3 skills/idea-posterior/scripts/normalize_report_links.py \
-    --project-root <project_root> <report.md>
-  ```
-  Use the same command with `--check` in gates or writeback preflight; it fails
-  if a local Markdown link is still unnormalized, broken, absolute-local, or
-  otherwise not clickable from the report file's location.
-- The `anchor: <...>` notes echoed into the report follow the same rule: a
-  resolvable reference inside an anchor note is a link.
-
-A report that names a source or artifact without a link has failed its one job
-— the reachability question below cannot then be answered without the very
-re-search the report existed to save.
+Read [`references/report-links.md`](references/report-links.md) when writing or checking `posterior_report_v1.md` (every anchor as a link, report-relative targets, the two normalizers) (the anchor-link rules, moved there verbatim).
 
 ## Portfolio status report — one page across all ideas
 
@@ -925,24 +771,7 @@ inputs. The extraction script's static scan stops mechanical slips
 extracted at all; everything it cannot decide statically it hands to the
 reviewer.
 
-**Scan boundary.** The static scan is a review aid, not a security
-boundary. It is designed to catch accidental and casual discipline breaks —
-an off-grade likelihood pair, a missing anchor note, a grade written through
-a variable, a statement aliased and called indirectly, a strong-grade
-`downstream_reach` update missing its domain list — including the near
-variants of those (an alias built from a module attribute such as
-`i = lang.infer`, a reach claim identified by its `title="downstream_reach"`
-rather than its variable name, a domains clause pushed inside the trailing
-anchor note). It does **not** promise to catch deliberately obfuscated
-authoring: code that hides a statement behind `exec`/`eval`, computed or
-dynamically built attribute names, a wrapper re-bound through a non-Load
-context, or runtime dispatch can defeat any static reader and is out of the
-scan's guarantee by design. Those cases are the human reviewer's
-responsibility, backed by version-controlled history. Chasing ever-deeper
-static evasions is unbounded and is not attempted; the scan is held to the
-accidental-and-casual bar above, and substance — whether an anchor is true,
-a grade appropriate, a set of domains genuinely independent — is always the
-reviewer's call.
+Read [`references/scan-boundary.md`](references/scan-boundary.md) when reviewing a graph or stating what the extraction script's static scan does and does not cover (the `Scan boundary` paragraph, moved there verbatim).
 
 - Run `gaia review calibration`: it ranks claims by the shift between prior
   and posterior. Large-shift claims are where wrong grades do the most

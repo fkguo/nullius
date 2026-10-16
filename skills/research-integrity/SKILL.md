@@ -644,369 +644,9 @@ sweep before building. Not machine-enforceable — it is an explicit pre-flight
 step; the `research-team` *Reuse-or-deviate gate* makes the reuse-or-record
 obligation reviewable at convergence.
 
-## Extraction / transcription fidelity (gate it; not a gate-exempt "reading task")
+Read [`references/transcription-fidelity.md`](references/transcription-fidelity.md) when you transcribe a source into a deep-read or extraction note, restate a source's equations, values or conventions, or review such a note (the `Extraction / transcription fidelity` section and its failure checklist, moved there verbatim).
 
-A **source-extraction / transcription note** — a deep-read / knowledge-base note
-that transcribes equations, numeric values, source locators (line / section /
-equation / table / figure / page pointers), and term-by-term mappings onto a
-consuming artifact (code or data) from a primary source — is a **gateable
-artifact**, not a gate-exempt "reading task." Its primary observable is **fidelity
-to the source**: every quoted equation, value, locator, and claimed mapping must
-match the primary source. Relying on such a note for a central claim, or folding it
-into a durable artifact, without gating its fidelity is the failure this guards.
-
-This is **not** a new receipt mode. It is a **cross-cutting fidelity check that
-augments M2 and M3**; record it under the modes it touches — typically **M2**
-(equation / locator / mapping / inference fidelity) and **M3** (numeric value +
-factor fidelity) — so the machine receipt modes stay within `M1`–`M7`, with no new
-mode introduced.
-
-**The transcription / extraction failure checklist.** Walk every item against the
-source, not against the note:
-
-- **(a) equation misquote** — a sign, coefficient or factor, operator, index or
-  subscript, relation operator or interval endpoint, numerator/denominator
-  placement, exponent, prime, function argument, or integration limit has drifted
-  from the source equation.
-- **(b) wrong numeric value** — a transposed digit, the wrong table row / column, or
-  the wrong reported uncertainty.
-- **(c) wrong / stale locator** — a pointer (line / section / equation / page) that
-  does not point to the claimed content.
-- **(d) stale / wrong mapping to the consuming artifact** — the note cites a symbol,
-  function, file, or type in the consuming code / data that is wrong or no longer
-  exists.
-- **(e) false "verbatim"** — a quote labeled verbatim when whitespace, markup,
-  primes, dummy-variable names, or notation were silently normalized. A
-  mathematically harmless rename still belongs in the normalized layer, not the
-  literal layer, because it can make a faithful source formula look defective.
-- **(f) inference-as-source** — a cross-source or derived inference presented as a
-  direct statement of the cited source.
-- **(g) silent factor drop** — notation using a reduced / normalized / unit argument
-  where the full object is meant, dropping a magnitude or degree factor.
-- **(h) correlated-input agreement** — several reviewers agree because they were all
-  given the same faulty extraction, prior verdict, expected classification, or proposed
-  correction. A search/evidence record that already contains the desired adjudication
-  is also answer-bearing input, even when its filename says "evidence." Cross-model
-  agreement does not remove this shared-input dependence.
-- **(i) bibliographic-relation conflation** — two works with similar authors, year,
-  title, or part numbering are treated as the same series, predecessor, erratum, or
-  companion without checking the primary paper's own preamble/references and independent
-  catalog identities. Correct metadata for each paper does not by itself prove the
-  relationship asserted between them.
-- **(j) stale pre-correction source** — a formula or claim is transcribed faithfully
-  from the main publication but a later erratum, corrigendum, revised version,
-  retraction, expression of concern, or explicit author correction is not searched
-  or applied. Literal agreement with superseded text is not fidelity to the corrected
-  scientific record.
-- **(k) context-stripped extraction** — a formula is copied without the neighboring
-  domain, boundary-value, branch, sheet, convention, or definition statements needed
-  to decide what it means. Reviewers then import a familiar default condition and can
-  agree on a derivation of a different analytic object. A source packet is not closed
-  merely because it contains every displayed equation named in the question.
-- **(l) source-layer contamination** — a manually prepared file presented as primary
-  source text already contains the transcriber's abbreviation, dummy-variable rewrite,
-  interpretation, inferred integration range, or expected answer. Candidate withholding
-  then hides the note but not the answer-bearing source preparation. Record whether the
-  bytes are direct original text or a visual transcription; for the latter, require a
-  separate page/crop provenance record and an independently documented visual comparison.
-  A file hash proves which contaminated bytes were reviewed, not that they match the page.
-- **(m) coverage overclaim** — selected load-bearing equations were checked, but the
-  note or verdict claims that every formula in a paper or section was verified. An
-  exhaustive claim requires a locator inventory of every displayed equation and every
-  adjacent formula-like condition in the declared scope, each with an explicit status.
-  Unlisted auxiliary formulas, intermediate definitions, and prose inequalities remain
-  unchecked even when the central derivation passes.
-- **(n) stale review verdict** — a reviewer returned a clean verdict for one set of
-  bytes, but the candidate, source, correction record, context, or assembled packet was
-  edited afterward and the old verdict was applied to the new version. A filename and a
-  prior READY/PASS are not provenance. Bind every accepted verdict to the exact reviewed
-  SHA-256 set; any mismatch makes it `STALE` until the complete current artifact or the
-  complete delta from the reviewed hash is independently re-reviewed.
-- **(o) source-error laundering** — a printed source item appears wrong, but the note
-  silently substitutes a mathematically preferred expression and presents it as literal
-  source text; or the note faithfully transcribes the source and then treats that fidelity
-  as proof that the printed item is scientifically correct. `checked-none-found` means no
-  published correction was located, not that the source was certified error-free.
-
-**Minimum disconfirming check.** Run a **line-by-line comparison of the note against
-the primary source with "do not trust the note"** — a falsification gate, not a
-confirmation read. Separate each checked item into: (1) literal source text, (2)
-normalized transcription, (3) symbol dictionary, and (4) derived mapping/inference.
-Verify them in that order and localize the first divergent token or mapping step.
-Before accepting the literal layer, verify and record the source's correction status.
-If a correction exists, compare both the printed item and the correction, identify the
-affected items exactly, and carry the corrected form into normalization and derivation.
-Before deriving, enumerate the source-side conditions the derivation needs and verify
-that their exact neighboring text is present. If a domain, boundary-value prescription,
-branch, sheet, convention, or definition is absent, mark the step uncheckable rather
-than filling it from a standard but possibly inapplicable convention.
-
-For each literal formula, perform a token-class sweep over signs, coefficients or
-factors, operators, indices or subscripts, relation operators or interval endpoints,
-numerator/denominator placement, exponents, primes, function arguments, and integration
-limits. Compare prose conditions and displayed domains as separate source items. If the
-conclusion claims complete-paper or complete-section coverage, require the
-formula-and-condition inventory described in failure mode (m); otherwise state that the
-pass was selective.
-
-When two independent visual reads disagree, return to the original page pixels. If a
-lossless crop still cannot decide the token, record `AMBIGUOUS` rather than choosing by
-majority, typographic expectation, algebraic convenience, or the formula's anticipated
-meaning. Mathematical consistency may motivate a separate derived interpretation, but
-it cannot upgrade an unresolved literal glyph.
-
-When a printed item is suspected to be wrong without a published correction, maintain two
-explicit tracks. The literal track records `PRINTED_FORM` and its source-fidelity verdict.
-The scientific track records `SCIENTIFIC_STATUS`, any `PROPOSED_CORRECTION`, the independent
-evidence and counterchecks, and the downstream policy. Never overwrite the literal track.
-Before using a proposed correction, run at least two blind independent derivations from
-the definitions, conventions, domain, and neighboring premises while withholding both the
-printed disputed expression and the proposed replacement. Compare those outputs with the
-printed and proposed forms only afterward. Audit premise provenance and exclude every later
-equation, summary, numerical target, or constraint that depends on the disputed item; using
-its downstream consequence as an input is circular confirmation. Agreement can justify
-`independently_supported_correction`; it cannot justify `published_correction` or
-`author_confirmed_correction` without those distinct records. If the correction is not
-unique or the premises are insufficient, retain `unresolved_source_error` and block silent
-downstream choice. For an empirical or reported numerical item that cannot be derived,
-replace the derivation lanes by independent reproduction from the underlying data,
-calculation, or measurement. A later source that simply repeats the printed item does not
-count as an independent reproduction. For a non-derivable convention, label, or prose
-statement, seek independent primary records, internal definitional closure, subsequent
-author clarification, or direct author confirmation. If those records do not decide the
-issue uniquely, retain `unresolved_source_error`; repetition or citation count is not a
-vote on correctness.
-
-When the note will carry a central claim — a claim downstream conclusions rest on —
-obtain at least one **candidate-withheld extraction**: a fresh reader receives the persisted
-source plus only a neutral locator/question list, not the candidate note, prior verdict,
-or proposed answer. (A note without a central claim needs only the candidate-visible
-literal comparison; the two-pass machinery is for load-bearing transcriptions.) A note
-whose claim later becomes one a conclusion rests on owes the candidate-withheld
-extraction at that promotion moment, before the conclusion is folded — centrality is
-re-judged when the note's role changes, not only when the note is written. Use the `review-swarm` `source-extraction` role so candidate artifacts,
-diffs, and additional context are rejected by packet construction; separately inspect the
-request for answer anchoring because neutrality is not machine-decidable. Then run the
-candidate-visible literal comparison. Record method diversity, model-family diversity, execution independence and candidate/prior-verdict visibility separately. Same-family independent construction may count; family diversity alone does not establish input/framing independence.
-
-Run the comparison through the gate harness (`review-swarm`'s source-fidelity reviewer),
-**re-reviewing after every fix** because a correction can introduce a fresh defect. The
-confirmation round may review the exact delta from the previously reviewed hashes (the
-option the freshness discipline below already grants) when the fix is localized; escalate
-to the full artifact when the fix reaches surface the panel never reviewed. In
-feedback rounds, provide the suspected discrepancy and source locator as a hypothesis;
-do not supply the desired corrected expression as a premise. Declare convergence only
-when the source-localized checks agree — never by majority vote or self-pronouncement.
-(`derivation-verify` re-derives whether a re-derivable result is mathematically
-correct — a *separate* axis that does not check fidelity to the source; use it in
-addition to, never instead of, the literal comparison.)
-
-Immediately before folding a verdict into a durable conclusion, recompute the hashes of
-the target and every answer-bearing review input. For `review_one.py` runs, execute
-`<nullius-root>/skills/review-swarm/scripts/bin/verify_review_freshness.py` with
-`--review-dir <out-dir>` and require `status: FRESH`; the `review_one.py` entry also
-performs this check when its reviewer returns. Direct `run_multi_task.py` runs do not
-acquire this manifest merely by using `review-swarm`; they need an equivalent externally
-recorded hash check before closeout.
-`STALE`, missing, unreadable, or invalid inputs are fail-closed states. Preserve the
-historical model verdict, but do not count it toward current convergence. Any edit after
-the final freshness check invalidates that check and requires another exact-delta or
-full-artifact review.
-
-For PDF or scanned primary sources, include a direct visual comparison with the
-rendered source page or a lossless page crop. OCR and `pdftotext` are discovery
-aids, not formula-fidelity evidence. A text-only reviewer may certify note-to-excerpt
-agreement only after a PDF/image-capable reader has certified excerpt-to-page
-agreement and recorded the original-page and crop hashes.
-
-For a publication correction-chain claim, persist the indexes/identifiers searched and
-their result. The source-review entry must reject `checked-none-found` or
-`checked-corrections-included` unless `--correction-search-evidence` is supplied; a bare
-status flag is not evidence that the publication record was checked.
-
-**Tools that help.** `claim-grounding` is the active execution of this check for the
-quote / value / locator items — it fetches the cited source and records a span-backed
-verdict, downgrading any "substantiated" verdict that carries no verbatim source span.
-`deep-literature-review` is the producer discipline that fills the note from the
-source and runs this gate before handoff; persist the fetched primary source to a
-stable, auditable location so the reviewer reads exactly the bytes that were
-transcribed. `review-swarm` is the cross-family literal-comparison harness.
-
-## Reference-reproduction fidelity (a "matches a published value" claim is computed, not asserted)
-
-A result reported as **reproducing / matching / agreeing with** a published reference
-value is making a **quantitative** claim, not a citation: the deliverable is the
-agreement itself. Three distinct verification dimensions fail silently here even after a
-multi-round correctness / methodology / honesty gate has passed — because that gate
-checks whether the implementation matches the derived **form**, not whether the result's
-**number** matches the literature number it claims, nor whether the model being solved
-**is** the source's model:
-
-- **D1 — quantitative reproduction of the reference number.** The failure mode is a
-  match asserted only *qualitatively* — "same order of magnitude", "same sign", "of the
-  right scale" — while the claimed observable was **never computed on a comparable state /
-  regime / configuration and compared to the published value numerically**. *Minimum
-  disconfirming check:* compute the claimed observable on the comparable regime the
-  reference used (or the nearest reachable one, recorded as such) and compare numbers;
-  where the claim is term-level, compare **term by term**, since a net total can agree
-  while individual contributions are suppressed or sign-flipped. **An order-of-magnitude
-  same-direction discrepancy, or a sign reversal, is a finding — not a pass.** A "matches
-  in scale" claim with no computed comparison is ungrounded; treat it as an undisclosed
-  gap, not a confirmation.
-- **D2 — independent cross-check that did not silently lapse.** The failure mode is an
-  established independent cross-validation pattern **silently lapsing**, or a
-  structurally **different-model** engine / a degenerate-or-limit regime being **presented
-  as validation**. *Minimum disconfirming check:* confirm any cross-validation evaluates
-  the *same* model with an independently constructed and executed check; if the only reachable alternative engine
-  implements a structurally different model (or the check holds only in a limit), **label
-  it as a different-model / limit-regime comparison and record the absence of an
-  apples-to-apples check as an explicit stated limitation** — never let the prior
-  cross-check pattern quietly disappear and never let the different-model check stand in
-  for it. Independent confirmation requires at least two evidence lanes independently constructed or derived and executed from a neutral question and raw inputs. Record method diversity, model-family diversity, execution independence and input independence separately. Same or similar methods, the same algorithm name, matching hashes or shared legitimate libraries do not by themselves disqualify a lane. Agent names, seeds, reworded prompts, copied answers and simple reruns of the original implementation do not establish independence. Different methods with contaminated input framing still fail. A fresh assessor must substantively inspect the actual steps, method preconditions, known defects and diagnostic power with exact source spans and reasons; a self-filled no-defect checkbox is insufficient. Missing, rejected, stale or non-diagnostic evidence does not count. Keep an explicit project-specific different-method risk requirement when that requirement tests a known shared failure mode.
-
-- **D3 — model-transcription identity (the declared model IS the source's model).** The
-  failure mode is reading internal verification as external fidelity: the convergence
-  ladder, independent discretizations, and regression anchors certify only that the
-  implementation solves its *declared* model correctly — every internal route shares the
-  model definition, so none of them can see a mistranscribed element. D3 binds exactly
-  the claims that assert the source's *own prescription* was solved or reproduced; a
-  comparison that does not assert the source's prescription — against a structurally
-  different model (D2's different-model labeling), or against measured/experimental
-  data, which is a measurement comparison rather than a model reproduction — is not a
-  D3 failure. *Minimum disconfirming check:* for each such claim, produce an exact
-  element-level embedding of the source's prescription into the current framework (a
-  frame map) with an elementwise identity test over the transcription, plus an
-  as-printed run of the source's exact prescription used as a falsification
-  instrument — the source's numbers are candidates to test against, never input
-  truths to calibrate to. When the source prints no
-  complete prescription, record the as-printed run as unavailable — a stated
-  limitation, never a silent skip. (The note-layer counterpart is the *Extraction /
-  transcription fidelity* checklist above; D3 gates the *implemented* model — a clean
-  source-note does not certify the implementation.)
-
-This is **not a new receipt mode.** It is a cross-cutting check that **augments M3** (the
-cited / compared number) and **M5b** (when the result's own validity *is* the claimed
-match) — and, for D3, **M6** (the model actually solved is not the one the reproduction
-narrative describes); record it under those modes so the machine receipt set stays within
-`M1`–`M7`, with no new mode introduced.
-
-**Tools that help.** `numerical-reliability-gate` **G8** is the active gate — compute the
-claimed observable on the comparable regime and compare, with an order-of-magnitude or
-sign discrepancy returning `reference_mismatch`; its **G2** carries the D2
-structural-independence honesty (a different-model or limit-regime check is labeled as
-such or its absence recorded, never a cross-check pass) and the D3 transcription axis
-(the shared-model-definition clause: frame map, elementwise transcription identity,
-as-printed falsification run). `claim-grounding` routes a
-"reproduces / matches a published value" claim to that computation rather than grounding
-it by quoting the published number. `review-swarm`'s **reference-reproduction reviewer**
-is the role that recomputes the claimed observable on the comparable state instead of
-statically reading the assertion.
-
-## Post-correction impact accounting (every affected cell measured, never argued from position)
-
-After an upstream defect is found and fixed, the durable record owes a **defect impact
-map**: an enumeration of every downstream artifact — quoted numbers, table rows,
-figures, stored grids — whose inputs intersect the affected domain, with each cell's
-status **measured** as immune (an exact identity), bounded (a deviation measured, and
-small against its use's stated tolerance), or superseded (recomputed). Two failure
-shapes pass silently:
-
-- **(a) position-argued negligibility** — a cell declared negligible from its
-  *position* in the domain ("the defect is mildest there"). A downstream response can
-  amplify a mild upstream deviation (near a resonance or steep feature), so the
-  mildest-affected zone can be largest in effect and needs its own probe, not an
-  exemption.
-- **(b) superseded values left quotable** — pre-fix stored values that remain quotable
-  after the fix, so a superseded number travels on as current truth.
-
-**Minimum disconfirming check.** For each still-quoted number downstream of the fix,
-produce its measured immune/bounded status from the impact map — each probe paired
-with an identity control (a point whose expected outcome is strict identity) that
-passed; a probe whose control fails counts as no measurement — or the post-fix
-recomputation that superseded it (superseded stored values marked do-not-quote where
-they live), or a demonstration that its inputs lie wholly outside the affected domain.
-A number with none of the three is an unmeasured claim: do not cross the boundary.
-
-This is **not a new receipt mode**: record it under **M3** (a quoted number's validity)
-and **M5** (an artifact of a since-fixed defect treated as a result). The active gate is
-`numerical-reliability-gate` **G6** — after a correction, recompute downstream, never
-relabel — which carries the defect impact map and its identity controls; the
-display-side counterpart is `figure-hygiene`'s fail-closed substitution rule.
-
-## Validation-chain validity (a "validated" claim names its reference, its layer, and a rejected alternative)
-
-A result defended as "validated" / "cross-checked" / "reduces to a known object" is only as good as
-the gate that says so. Three failure shapes pass silently, each observed in practice:
-
-- **(a) circular reference** — the gate's reference object was derived under (or reverse-engineered
-  from) the very assumption the gate is now trusted to test; the comparison is A-against-A and
-  passes indefinitely while the shared assumption is wrong.
-- **(b) stripped comparison** — the check compares in a simplified limit/mode in which all competing
-  hypotheses collapse to the same object, so it cannot discriminate the disputed structure no matter
-  how precisely it agrees.
-- **(c) layer / path transfer** — a validation of one layer (e.g. a denominator/singularity
-  skeleton) or of a sibling reference implementation is cited as support for an orthogonal layer
-  (an operator/numerator structure) or for a production path that never invokes the validated code.
-
-**Minimum disconfirming check.** For each load-bearing "validated" claim crossing the boundary,
-record: (1) the provenance of the gate's reference and why it is independent of the assumption
-under test; (2) that the comparison retains the disputed degree of freedom; (3) at least one
-**negative control** — a known-wrong variant the gate demonstrably rejects, with its failure margin
-(a gate that has never rejected anything is unproven); (4) which layer and which code path the
-validation covers, stated next to the claim. A gate failing any of these does not discharge the
-check — the "validated" status is void and the result reverts to a labeled candidate.
-
-This is **not a new receipt mode**: record it under **M1** (the gate is code/reasoning that passed
-its author's self-review) and **M5** (a gate-pass artifact treated as a genuine confirmation). The
-active gate is `numerical-reliability-gate` **G9** (verdict `circular_validation`), which also
-carries the negative-control bonus: the failure *pattern* of the wrong variants localizes errors
-that symbolic review alone does not reach.
-
-## Accelerated / heuristic fast-path honesty (a fast path that can be wrong is scoped, not guaranteed)
-
-A **fast / optimized computational path** that is a *heuristic* — one whose *local* success certificate
-does not entail the *global* answer (the archetype: a fixed-start Krylov/subspace iteration for a
-dominant eigenvalue/quantity, where a small residual certifies *an* eigenpair, **not** that it is the
-dominant one, so a target mode nearly orthogonal to the deterministic start is silently missed) — is
-correct only under a **precondition**, and three failures pass silently even after a correctness /
-methodology gate has accepted the implementation:
-
-- **(a) false guarantee** — a docstring / comment / README states a correctness the method does not
-  deliver ("never returns a wrong value", "always finds the dominant mode"). The claim is false as
-  written **even if the wrong output never arises in the actual production use**, and a later caller will
-  lean on it in a regime where it fails.
-- **(b) asserted, not validated, precondition** — the condition under which the fast path equals the
-  unconditional answer is *assumed* to hold for the production input rather than *demonstrated* there (a
-  structural argument plus a fast ≡ exact cross-check — at the production setting if affordable, else on
-  the largest affordable production-regime cases with the extrapolation gap recorded).
-- **(c) no escape hatch** — the slow-but-provably-correct path (a dense/direct solve, an exhaustive
-  enumeration) is not retained and auto-selected where it is cheap, so there is no unconditional fallback.
-
-**Minimum disconfirming check.** For each load-bearing fast / heuristic path crossing the boundary: (1)
-*try to construct one input that breaks its stated guarantee* — if you can (for a fixed-start heuristic
-you almost always can), narrow the guarantee to the precondition that actually holds and document the
-failure mode (that it can return a wrong value, and how such an input is built); (2) confirm the
-precondition is **validated at (or as near as feasible to) the production setting**, not asserted; (3) confirm the unconditional path
-exists and is auto-selected where affordable. An adversarial counterexample that never arises in the
-production use is refuting the **claim**, not the result — answer with honest scoping (narrow the claim,
-document the blind spot, keep the escape hatch, validate the real use), never by rewording to fake a
-guarantee, tuning a seed/parameter to hide the case, or chasing an impossible cheap *universal* guarantee.
-Where a fundamental limit exists (e.g. no fixed-start Krylov/subspace method certifies global dominance —
-so a global guarantee needs a whole-operator routine, canonically a full dense eigensolve or another
-globally certified path), state it rather than pretend it away.
-
-This is **not a new receipt mode**: record the false guarantee (a) under **M1** (here M1 covers a stated
-guarantee / documentation claim, not only a code bug — code, reasoning, or a claimed guarantee that passed
-its author's self-review) and the production-setting precondition (b) under **M5b** — with M5b's
-production-scale requirement discharged by the **structural argument about the real (production)
-operator**, the fast ≡ exact cross-check on smaller affordable cases serving only as *corroboration* (gap
-recorded), never as the smaller-scale-only evidence M5b rightly rejects (absent a production-scale
-structural argument, an exact-infeasible precondition is simply **unvalidated** → `overclaimed_heuristic`).
-The missing-escape-hatch failure (c) has no M-mode analogue and is carried by the active gate
-`numerical-reliability-gate` **G10** (verdict `overclaimed_heuristic`) directly. G10 complements
-`numerical-reliability-gate` **G3**, which says to prefer a robust invariant *instead of* the heuristic
-where that is affordable — G10 governs the case where the heuristic is deliberately kept as a performance
-fast path.
+Read [`references/numerical-claim-checks.md`](references/numerical-claim-checks.md) when a result starts claiming to match a published value, an upstream fix changes results already recorded, a claim is defended as validated, or a heuristic fast path is accepted (the `Reference-reproduction fidelity`, `Post-correction impact accounting`, `Validation-chain validity` and `Accelerated / heuristic fast-path honesty` sections, moved there verbatim).
 
 ## Pre-approval ritual
 
@@ -1048,6 +688,69 @@ status receipt (the oldest ten itemized; the rest via
 `nullius decision list`) until a later
 `nullius decision record "<answer>" --resolves <id>` closes them —
 recording an unrelated decision leaves the pending entry open.
+
+## Recording the check
+
+For the *narrative* record — read by the next agent or human — record
+the check inline in the response or notebook entry, in the order:
+
+1. Which modes you checked, by `Mx` number.
+2. For each checked mode: the specific disconfirming check you ran
+   and what it returned. Quote tool calls and their results where the
+   check is provider-graph-backed.
+3. Modes you explicitly judged not applicable, with a one-sentence
+   reason. Structurally inapplicable modes may share **one consolidated
+   line** ("M2/M4/M6 not applicable: no citations, no literature claims,
+   no methodology narrative in this boundary") — a per-mode paragraph
+   restating the obvious informs nobody and taxes every round that
+   carries it. The consolidation covers wording only: the judgment that
+   a mode is inapplicable is still made per mode, per boundary.
+
+For the *machine* record that gates `nullius approve` (see below),
+run `nullius integrity-record` after the narrative is written:
+
+The current v1 machine receipt accepts M1–M7 only. Record M8 in the
+narrative at its pre-computation trigger; do not pass M8 to `--modes`
+or `--skip` until the receipt schema explicitly supports it.
+
+```bash
+nullius integrity-record \
+  --approval-id <approval_id> \
+  --modes M3,M5,M6 \
+  --notes "<terse summary of what was checked and the headline finding>" \
+  --skip M1:no\ code\ change,M2:no\ new\ citations
+```
+
+`--modes` is the comma-separated list of `Mx` you actually walked.
+`--skip` is an optional comma-separated list of `Mx:reason` for modes
+you judged not applicable. `--notes` is short prose (max 500 chars) —
+durable detail still belongs in the narrative record above; the
+receipt is just the boundary-time machine artifact.
+
+The receipt is appended to `.nullius/integrity_log.jsonl` and
+checked by `nullius approve <approval_id>` (and the `orch_run_approve`
+MCP tool) before granting. Without a matching receipt the approval
+fails closed with `INTEGRITY_RECEIPT_REQUIRED`. This is the same
+fail-closed pattern as the `HARNESS_INVOCATION_REQUIRED` anchor gate —
+the *existence* of the receipt is machine-enforced, the *content* of
+your check is your judgment.
+
+Skip semantics for environments that need to bypass the gate (e.g.
+historical project replay): `NULLIUS_INTEGRITY_VERIFY=skip`.
+`NODE_ENV=test` skips by default to keep existing test suites green.
+
+## Recovery from a caught failure
+
+If a check surfaces a failure, do not cross the boundary. Fix it,
+then re-walk the affected modes only. Re-run `nullius
+integrity-record` for the same `approval_id` — the latest receipt
+wins, the prior entry stays in the JSONL for audit. The fix gets a
+brief note in the narrative record so the next reader can see what
+was caught and what was changed.
+
+The integrity check is owed to the next agent who will read your
+work — including future-you in a new conversation — not to the
+current task's deadline.
 
 ## Integration with adjacent skills
 
@@ -1126,66 +829,3 @@ discipline obligation, captured here as a mode rather than as a tool.
 
 PDG-drift is the leading HEP-bound candidate tracked separately for
 future work, not part of this skill's initial scope.
-
-## Recording the check
-
-For the *narrative* record — read by the next agent or human — record
-the check inline in the response or notebook entry, in the order:
-
-1. Which modes you checked, by `Mx` number.
-2. For each checked mode: the specific disconfirming check you ran
-   and what it returned. Quote tool calls and their results where the
-   check is provider-graph-backed.
-3. Modes you explicitly judged not applicable, with a one-sentence
-   reason. Structurally inapplicable modes may share **one consolidated
-   line** ("M2/M4/M6 not applicable: no citations, no literature claims,
-   no methodology narrative in this boundary") — a per-mode paragraph
-   restating the obvious informs nobody and taxes every round that
-   carries it. The consolidation covers wording only: the judgment that
-   a mode is inapplicable is still made per mode, per boundary.
-
-For the *machine* record that gates `nullius approve` (see below),
-run `nullius integrity-record` after the narrative is written:
-
-The current v1 machine receipt accepts M1–M7 only. Record M8 in the
-narrative at its pre-computation trigger; do not pass M8 to `--modes`
-or `--skip` until the receipt schema explicitly supports it.
-
-```bash
-nullius integrity-record \
-  --approval-id <approval_id> \
-  --modes M3,M5,M6 \
-  --notes "<terse summary of what was checked and the headline finding>" \
-  --skip M1:no\ code\ change,M2:no\ new\ citations
-```
-
-`--modes` is the comma-separated list of `Mx` you actually walked.
-`--skip` is an optional comma-separated list of `Mx:reason` for modes
-you judged not applicable. `--notes` is short prose (max 500 chars) —
-durable detail still belongs in the narrative record above; the
-receipt is just the boundary-time machine artifact.
-
-The receipt is appended to `.nullius/integrity_log.jsonl` and
-checked by `nullius approve <approval_id>` (and the `orch_run_approve`
-MCP tool) before granting. Without a matching receipt the approval
-fails closed with `INTEGRITY_RECEIPT_REQUIRED`. This is the same
-fail-closed pattern as the `HARNESS_INVOCATION_REQUIRED` anchor gate —
-the *existence* of the receipt is machine-enforced, the *content* of
-your check is your judgment.
-
-Skip semantics for environments that need to bypass the gate (e.g.
-historical project replay): `NULLIUS_INTEGRITY_VERIFY=skip`.
-`NODE_ENV=test` skips by default to keep existing test suites green.
-
-## Recovery from a caught failure
-
-If a check surfaces a failure, do not cross the boundary. Fix it,
-then re-walk the affected modes only. Re-run `nullius
-integrity-record` for the same `approval_id` — the latest receipt
-wins, the prior entry stays in the JSONL for audit. The fix gets a
-brief note in the narrative record so the next reader can see what
-was caught and what was changed.
-
-The integrity check is owed to the next agent who will read your
-work — including future-you in a new conversation — not to the
-current task's deadline.

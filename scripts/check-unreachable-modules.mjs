@@ -44,7 +44,7 @@
 //   node scripts/check-unreachable-modules.mjs --report   also list every other package's count
 //   node scripts/check-unreachable-modules.mjs --report --verbose   ...and name the modules
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -348,7 +348,20 @@ export function runCheck({ repoRoot = scriptRepoRoot, enforced = ENFORCED_PACKAG
   return { failed, lines };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Resolve both sides through symlinks (the module URL is already resolved unless node runs
+// with --preserve-symlinks-main): otherwise a run through a symlinked path would skip the
+// check and exit 0 silently.
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(modulePath);
+  } catch {
+    return path.resolve(process.argv[1]) === modulePath;
+  }
+}
+
+if (isMainModule()) {
   const args = new Set(process.argv.slice(2));
   const { failed, lines } = runCheck({ report: args.has('--report'), verbose: args.has('--verbose') });
   for (const line of lines) (failed ? console.error : console.log)(`[unreachable-modules] ${line}`);

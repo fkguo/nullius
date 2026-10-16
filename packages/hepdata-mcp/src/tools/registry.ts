@@ -7,7 +7,9 @@ import {
   HEPDATA_DOWNLOAD,
   upstreamError,
   writeBytesAtomicDurable,
+  toolAnnotationsFor,
 } from '@nullius/shared';
+import { HEPDATA_TOOL_HINTS, HEPDATA_TOOL_RISK_LEVELS } from './annotations.js';
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import * as client from '../api/client.js';
 import { getArtifactsDir, getDataDir, ensureDir } from '../data/dataDir.js';
@@ -28,6 +30,8 @@ export type ToolExposure = 'standard' | 'full';
 
 export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, any>> {
   name: string;
+  /** Human-readable display name. */
+  title?: string;
   description: string;
   exposure: ToolExposure;
   zodSchema: TSchema;
@@ -41,6 +45,7 @@ export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, a
 export const TOOL_SPECS: ToolSpec[] = [
   {
     name: HEPDATA_SEARCH,
+    title: 'Search HEPData records',
     exposure: 'standard',
     description: `Search HEPData for experimental measurement records (network). At least one condition required.
 
@@ -80,6 +85,7 @@ Returns total count and list of records with hepdata_id for use with hepdata_get
 
   {
     name: HEPDATA_GET_RECORD,
+    title: 'HEPData record',
     exposure: 'standard',
     description: `Get HEPData record metadata and data table list (network). Requires hepdata_id from hepdata_search.
 
@@ -91,6 +97,7 @@ Each entry in data_tables has: table_id (pass directly to hepdata_get_table), na
 
   {
     name: HEPDATA_GET_TABLE,
+    title: 'HEPData table values',
     exposure: 'standard',
     description: `Get numerical data from a HEPData table (network). Requires table_id from hepdata_get_record.
 
@@ -110,6 +117,7 @@ For heavy/binary formats (root, yoda, yoda1, yoda.h5) or a whole-submission arch
 
   {
     name: HEPDATA_DOWNLOAD,
+    title: 'Download HEPData submission',
     exposure: 'standard',
     description: `Download a complete HEPData submission to local artifacts (network, writes files, requires _confirm: true).
 
@@ -194,7 +202,9 @@ export function getToolSpecs(mode: ToolExposureMode = 'standard'): ToolSpec[] {
 export function getTools(mode: ToolExposureMode = 'standard') {
   return getToolSpecs(mode).map(spec => ({
     name: spec.name,
+    title: spec.title,
     description: spec.description,
     inputSchema: zodToMcpInputSchema(spec.zodSchema),
+    annotations: toolAnnotationsFor(spec.name, HEPDATA_TOOL_RISK_LEVELS, HEPDATA_TOOL_HINTS),
   }));
 }

@@ -15,7 +15,7 @@ describe('zodToMcpInputSchema', () => {
     expect(zodToMcpInputSchema(schema)).toMatchObject({
       type: 'object',
       additionalProperties: false,
-      required: ['q', 'limit'],
+      required: ['q'],
       properties: {
         q: { type: 'string', minLength: 1 },
         limit: { type: 'integer', minimum: 1, maximum: 25 },

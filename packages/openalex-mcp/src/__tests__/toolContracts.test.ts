@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { getToolSpecs, getTools, handleToolCall, type ToolExposureMode, type ToolSpec } from '../tools/index.js';
+import { findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../tools/mcpSchema.js';
 
 function stableStringify(value: unknown): string {
@@ -83,5 +84,57 @@ describe('Tool registry contracts', () => {
       return { ...d, inputSchema: { type: 'object', properties: {}, required: [] } };
     });
     expect(() => assertToolContracts(specs, defs)).toThrow(/inputSchema drift/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MCP annotations, titles and structuredContent
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MCP annotations and titles', () => {
+  it('every listed tool carries a non-empty title and all four boolean hints', () => {
+    const issues: string[] = [];
+    for (const tool of getTools('full')) {
+      if (typeof tool.title !== 'string' || tool.title.trim() === '') issues.push(`${tool.name}: missing title`);
+      const annotations = tool.annotations as unknown as Record<string, unknown> | undefined;
+      for (const hint of ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint']) {
+        if (typeof annotations?.[hint] !== 'boolean') issues.push(`${tool.name}: ${hint} is not a boolean`);
+      }
+    }
+    expect(issues).toEqual([]);
+  });
+});
+
+describe('structuredContent', () => {
+  it('mirrors the JSON text block of an object result and is absent otherwise', async () => {
+    const spec = getToolSpecs('full').find(s => s.name === 'openalex_get')!;
+    const original = spec.handler;
+    try {
+      spec.handler = (async () => ({ id: 'x', nested: { values: [1, 2] }, skipped: undefined })) as typeof spec.handler;
+      const res = await handleToolCall('openalex_get', { id: 'W123' }, 'full');
+      expect(res.isError).not.toBe(true);
+      expect(res.structuredContent).toBeDefined();
+      expect(res.structuredContent).toEqual(JSON.parse(res.content[0]!.text));
+
+      spec.handler = (async () => [1, 2]) as typeof spec.handler;
+      const arrayRes = await handleToolCall('openalex_get', { id: 'W123' }, 'full');
+      expect(arrayRes.structuredContent).toBeUndefined();
+    } finally {
+      spec.handler = original;
+    }
+  });
+});
+
+describe('Tool inputSchema required keys', () => {
+  it.each<ToolExposureMode>(['standard', 'full'])('required lists exactly the keys whose omission fails to parse (%s)', mode => {
+    const specs = new Map(getToolSpecs(mode).map(spec => [spec.name, spec]));
+    const defs = getTools(mode);
+    expect(defs.length).toBeGreaterThan(0);
+    const issues = defs.flatMap(def => {
+      const spec = specs.get(def.name);
+      if (!spec) return [`[${def.name}] no tool spec`];
+      return findRequiredKeyMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
   });
 });

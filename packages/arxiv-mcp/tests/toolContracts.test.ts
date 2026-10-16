@@ -3,13 +3,15 @@ import {
   TOOL_SPECS,
   getTools,
   getToolSpec,
+  getToolSpecs,
   ArxivIdSchema,
   ArxivSearchSchema,
   ArxivPaperSourceSchema,
   normalizeArxivId,
+  type ToolExposureMode,
 } from '../src/tools/registry.js';
 import { handleToolCall } from '../src/tools/dispatcher.js';
-import { ARXIV_SEARCH, ARXIV_GET_METADATA, ARXIV_PAPER_SOURCE } from '@nullius/shared';
+import { ARXIV_SEARCH, ARXIV_GET_METADATA, ARXIV_PAPER_SOURCE, findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,5 +236,57 @@ describe('Category validation', () => {
       query: 'test',
       categories: ['HEP-PH'],
     })).toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MCP annotations, titles and structuredContent
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MCP annotations and titles', () => {
+  it('every listed tool carries a non-empty title and all four boolean hints', () => {
+    const issues: string[] = [];
+    for (const tool of getTools('full')) {
+      if (typeof tool.title !== 'string' || tool.title.trim() === '') issues.push(`${tool.name}: missing title`);
+      const annotations = tool.annotations as unknown as Record<string, unknown> | undefined;
+      for (const hint of ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint']) {
+        if (typeof annotations?.[hint] !== 'boolean') issues.push(`${tool.name}: ${hint} is not a boolean`);
+      }
+    }
+    expect(issues).toEqual([]);
+  });
+});
+
+describe('structuredContent', () => {
+  it('mirrors the JSON text block of an object result and is absent otherwise', async () => {
+    const spec = getToolSpecs('full').find(s => s.name === ARXIV_GET_METADATA)!;
+    const original = spec.handler;
+    try {
+      spec.handler = (async () => ({ id: 'x', nested: { values: [1, 2] }, skipped: undefined })) as typeof spec.handler;
+      const res = await handleToolCall(ARXIV_GET_METADATA, { arxiv_id: '2301.01234' }, 'full');
+      expect(res.isError).not.toBe(true);
+      expect(res.structuredContent).toBeDefined();
+      expect(res.structuredContent).toEqual(JSON.parse(res.content[0]!.text));
+
+      spec.handler = (async () => [1, 2]) as typeof spec.handler;
+      const arrayRes = await handleToolCall(ARXIV_GET_METADATA, { arxiv_id: '2301.01234' }, 'full');
+      expect(arrayRes.structuredContent).toBeUndefined();
+    } finally {
+      spec.handler = original;
+    }
+  });
+});
+
+describe('Tool inputSchema required keys', () => {
+  it.each<ToolExposureMode>(['standard', 'full'])('required lists exactly the keys whose omission fails to parse (%s)', mode => {
+    const specs = new Map(TOOL_SPECS.map(spec => [spec.name, spec]));
+    const defs = getTools(mode);
+    expect(defs.length).toBeGreaterThan(0);
+    const issues = defs.flatMap(def => {
+      const spec = specs.get(def.name);
+      if (!spec) return [`[${def.name}] no tool spec`];
+      return findRequiredKeyMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
   });
 });

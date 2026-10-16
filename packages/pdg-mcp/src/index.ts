@@ -2,17 +2,17 @@
 
 import './utils/stdioHygiene.js';
 
-import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { isMainModule } from '@nullius/shared';
 
 import { getTools, handleToolCall, type ToolExposureMode } from './tools/index.js';
 import { cleanupOldPdgArtifacts } from './artifactTtl.js';
+import { SERVER_INSTRUCTIONS } from './serverInstructions.js';
 
 const TOOL_MODE: ToolExposureMode = process.env.PDG_TOOL_MODE === 'full' ? 'full' : 'standard';
 
@@ -25,6 +25,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
+    instructions: SERVER_INSTRUCTIONS,
   }
 );
 
@@ -50,16 +51,6 @@ async function main() {
   console.error('[pdg-mcp] Server started');
 }
 
-const isExecutedAsScript = (() => {
-  try {
-    const entryPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
-    const modulePath = fileURLToPath(import.meta.url);
-    return entryPath === modulePath;
-  } catch {
-    return false;
-  }
-})();
-
-if (isExecutedAsScript) {
+if (isMainModule(import.meta.url)) {
   main().catch(console.error);
 }

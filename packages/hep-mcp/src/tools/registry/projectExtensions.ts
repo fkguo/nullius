@@ -6,6 +6,7 @@ export const RAW_PROJECT_EXTENSION_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   ...HEPDATA_MCP_TOOL_SPECS.map(
     (spec): Omit<ToolSpec, 'riskLevel'> => ({
       name: spec.name,
+      title: spec.title,
       tier: 'consolidated',
       exposure: spec.exposure,
       description: String(spec.description ?? '').trim(),
@@ -16,6 +17,7 @@ export const RAW_PROJECT_EXTENSION_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   ...ARXIV_TOOL_SPECS.map(
     (spec): Omit<ToolSpec, 'riskLevel'> => ({
       name: spec.name,
+      title: spec.title,
       tier: 'consolidated',
       exposure: spec.exposure,
       description: String(spec.description ?? '').trim(),

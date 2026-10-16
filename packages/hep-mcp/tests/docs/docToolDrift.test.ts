@@ -155,7 +155,7 @@ describe('Docs tool drift guard', () => {
   it('keeps historical index blocks distinct from current navigation ownership', () => {
     for (const file of ['README.md', 'docs/QUICKSTART.md', 'docs/ARCHITECTURE.md',
       'docs/PROJECT_STATUS.md', 'packages/orchestrator/README.md',
-      'skills/research-harness/SKILL.md', 'skills/research-team/SKILL.md']) {
+      'skills/research-harness/SKILL.md', 'skills/research-team/references/run-layout.md']) {
       const text = readText(root, file);
       expect(text, file).toContain('`PROJECT_INDEX_AUTO` blocks are historical, unmaintained');
       expect(text, file).toContain('neither parses nor updates them');

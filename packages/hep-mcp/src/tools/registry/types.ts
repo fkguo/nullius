@@ -25,6 +25,8 @@ export interface ToolHandlerContext {
 
 export interface ToolSpec<TSchema extends z.ZodType<any, any> = z.ZodType<any, any>> {
   name: string;
+  /** Human-readable display name. */
+  title?: string;
   description: string;
   tier: ToolTier;
   intent?: string;

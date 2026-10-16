@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { invalidParams, McpError, redact, verifyHarnessInvocationMarker } from '@nullius/shared';
+import { invalidParams, McpError, redact, structuredContentOf, verifyHarnessInvocationMarker } from '@nullius/shared';
 import type { ToolExposureMode } from './registry.js';
 import { getToolSpec, isToolExposed } from './registry.js';
 import { isStateTouchingOpenalexMcp } from './state-touch-classification.js';
@@ -56,7 +56,7 @@ export async function handleToolCall(
   args: Record<string, unknown>,
   mode: ToolExposureMode = 'standard',
   _ctx?: ToolCallContext,
-): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
+): Promise<{ content: { type: string; text: string }[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
   try {
     // P3-C (redesigned 2026-05-23): event-driven anchor verification.
     // openalex-mcp standalone classifier: all tools are NO_STATE_TOUCH per
@@ -75,7 +75,8 @@ export async function handleToolCall(
     const parsedArgs = parseToolArgs(name, spec.zodSchema, args);
     const result = await spec.handler(parsedArgs as never);
     const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-    return { content: [{ type: 'text', text }] };
+    const structuredContent = structuredContentOf(result);
+    return { content: [{ type: 'text', text }], ...(structuredContent ? { structuredContent } : {}) };
   } catch (err) {
     return formatToolError(err);
   }

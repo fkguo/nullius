@@ -4,6 +4,7 @@ import type { ToolSpec } from './types.js';
 
 const RAW_PDG_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = PDG_MCP_TOOL_SPECS.map(spec => ({
   name: spec.name,
+  title: spec.title,
   tier: 'consolidated',
   exposure: spec.exposure,
   description: (() => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/mcp-input-schema.js';
 import { IDEA_TOOLS } from '../src/tool-registry.js';
 import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
@@ -184,5 +185,15 @@ describe('B-10 regression — destructive tool gate', () => {
     const pauseSchema = zodToMcpInputSchema(getTool('idea_campaign_pause').schema) as Record<string, unknown>;
     const pauseRequired = pauseSchema.required as string[];
     expect(pauseRequired).not.toContain('_confirm');
+  });
+});
+
+describe('idea-mcp inputSchema required keys', () => {
+  it('required lists exactly the keys whose omission fails to parse', () => {
+    expect(IDEA_TOOLS.length).toBeGreaterThan(0);
+    const issues = IDEA_TOOLS.flatMap(tool =>
+      findRequiredKeyMismatches(tool.schema, zodToMcpInputSchema(tool.schema)).map(issue => `[${tool.name}] ${issue}`),
+    );
+    expect(issues).toEqual([]);
   });
 });

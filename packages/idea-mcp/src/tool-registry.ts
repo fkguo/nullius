@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SHORT_ID_JSON_PATTERN } from '@nullius/shared';
+import { SHORT_ID_JSON_PATTERN, type ToolBehaviourHintTable } from '@nullius/shared';
 
 const NonEmptyString = z.string().min(1);
 // Handle ids (seed_id, campaign_id, …) are short ids, not UUIDs. The regex emits
@@ -85,6 +85,8 @@ export type IdeaToolRiskLevel = 'read' | 'write' | 'destructive';
 
 export interface IdeaToolDef {
   name: string;
+  /** Human-readable display name. */
+  title?: string;
   description: string;
   schema: z.ZodTypeAny;
   rpcMethod: string;
@@ -100,6 +102,7 @@ export interface IdeaToolDef {
 const RAW_IDEA_TOOLS: IdeaToolDef[] = [
   {
     name: 'idea_campaign_init',
+    title: 'Create idea campaign',
     description: 'Create a new idea campaign using the live charter/seed/budget contract.',
     schema: z.object({
       charter: CampaignCharterSchema,
@@ -114,6 +117,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
   },
   {
     name: 'idea_campaign_status',
+    title: 'Idea campaign status',
     description: 'Get the current status of an idea campaign.',
     schema: z.object({ campaign_id: ShortIdString }).strict(),
     rpcMethod: 'campaign.status',
@@ -121,6 +125,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
   },
   {
     name: 'idea_campaign_topup',
+    title: 'Top up campaign budget',
     description: 'Add budget to an existing campaign without creating a new runtime authority path.',
     schema: z.object({
       campaign_id: ShortIdString,
@@ -133,6 +138,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
   },
   {
     name: 'idea_campaign_pause',
+    title: 'Pause idea campaign',
     description: 'Pause an active or budget-exhausted campaign.',
     schema: z.object({
       campaign_id: ShortIdString,
@@ -145,6 +151,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
   },
   {
     name: 'idea_campaign_resume',
+    title: 'Resume idea campaign',
     description: 'Resume a paused or early-stopped campaign when budget remains.',
     schema: z.object({
       campaign_id: ShortIdString,
@@ -155,6 +162,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
   },
   {
     name: 'idea_campaign_complete',
+    title: 'Complete idea campaign',
     description: 'Mark a campaign complete and close further campaign mutation.',
     schema: z.object({
       campaign_id: ShortIdString,
@@ -211,3 +219,27 @@ function applyRiskLevelToSchema(spec: IdeaToolDef): IdeaToolDef {
 }
 
 export const IDEA_TOOLS: IdeaToolDef[] = RAW_IDEA_TOOLS.map(applyRiskLevelToSchema);
+
+const IDEMPOTENCY_KEY_REASON =
+  'Writes the local idea store; a repeat with the same idempotency_key and arguments returns the stored result.';
+
+/**
+ * Behaviour hints behind the listed MCP annotations, alongside each tool's
+ * riskLevel (rules in @nullius/shared tool-annotations.ts). The engine runs
+ * in-process on the local store, so no tool reaches the network.
+ */
+export const IDEA_TOOL_HINTS: ToolBehaviourHintTable = {
+  idea_campaign_init: { idempotent: true, openWorld: false, reason: IDEMPOTENCY_KEY_REASON },
+  idea_campaign_status: { openWorld: false, reason: 'Reads the campaign from the local idea store.' },
+  // topup/pause/resume rewrite the campaign's budget and status in place
+  // (topup can also resume an exhausted campaign); riskLevel stays 'write'
+  // so no _confirm gate is added.
+  idea_campaign_topup: { destructive: true, idempotent: true, openWorld: false, reason: `Updates budget and status in place. ${IDEMPOTENCY_KEY_REASON}` },
+  idea_campaign_pause: { destructive: true, idempotent: true, openWorld: false, reason: `Updates status in place. ${IDEMPOTENCY_KEY_REASON}` },
+  idea_campaign_resume: { destructive: true, idempotent: true, openWorld: false, reason: `Updates status in place. ${IDEMPOTENCY_KEY_REASON}` },
+  idea_campaign_complete: {
+    idempotent: true,
+    openWorld: false,
+    reason: 'Sets the terminal completed state in the local idea store; a repeat with the same idempotency_key and arguments returns the stored result.',
+  },
+};

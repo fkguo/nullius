@@ -27,6 +27,7 @@ const RAW_ZOTERO_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = ZOTERO_INTEGRATION_
   ? [
       {
         name: HEP_IMPORT_FROM_ZOTERO,
+    title: 'Map Zotero items to INSPIRE',
         tier: 'core',
         exposure: 'standard',
         description:
@@ -50,6 +51,7 @@ const RAW_ZOTERO_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = ZOTERO_INTEGRATION_
       ...ZOTERO_MCP_TOOL_SPECS.map(
         (spec): Omit<ToolSpec, 'riskLevel'> => ({
           name: spec.name,
+          title: spec.title,
           tier: 'consolidated',
           exposure: spec.exposure,
           description: (() => {
