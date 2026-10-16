@@ -1,6 +1,6 @@
 ---
 name: research-team
-description: "Use when a research milestone (theory or computation) needs executed, reproducible work whose results are independently reviewed before being trusted. Milestone-based research-team workflow for theory+computation projects with reproducible artifacts, independent parallel workstreams (default: host-native subagents; configurable), and a strict convergence gate.\n"
+description: "Use when a research milestone (theory or computation) needs executed, reproducible work whose results are independently reviewed before being trusted. Milestone-based research-team workflow for theory+computation projects with reproducible artifacts, independent parallel workstreams (default: host-native subagents; configurable), and a strict convergence gate."
 ---
 
 # Research Team (Lean Entry)

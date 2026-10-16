@@ -88,7 +88,9 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --auditor-backend gemini --auditor-model <GEMINI_MODEL>
 ```
 
-Writer/auditor backends: `--writer-backend` / `--auditor-backend` accept any of `{claude, gemini, codex, opencode, kimi}` (defaults writer=`claude`, auditor=`gemini`). The auditor pass is independent — prefer a family OTHER than the writer's for genuine cross-family review. `--fallback-auditor` and `--secondary-deep-verify-backend` accept the same set. Each backend auto-resolves its `<family>-cli-runner`; `--auditor-model <GEMINI_MODEL>` is a placeholder — omit it to track the backend CLI's configured default.
+Writer/auditor backends: `--writer-backend` / `--auditor-backend` accept any of `{claude, gemini, codex, opencode, kimi}` (defaults writer=`claude`, auditor=`gemini`). The auditor pass is independent — prefer a family OTHER than the writer's for genuine cross-family review. `--fallback-auditor` and `--secondary-deep-verify-backend` accept the same set. Each backend auto-resolves its `<family>-cli-runner` beside this skill.
+
+With `--run-models` (and no `--dry-run`), both `--writer-model` and `--auditor-model` are required: the script exits with status 2 if either is missing or empty. `<GEMINI_MODEL>` above is a placeholder; replace every `<MODEL>`-style placeholder with a real model name or alias before running. Every `--run-models` run also needs `claude-cli-runner` and `gemini-cli-runner` installed beside this skill (or passed with `--claude-runner` / `--gemini-runner`), whichever backends you select, plus the runner skill of any other family you choose.
 
 Common optional flags:
 - `--max-rounds 2` (allow one repair cycle after the first audit)

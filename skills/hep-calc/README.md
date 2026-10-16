@@ -22,6 +22,7 @@ runs, and you can run them yourself for reproducibility and debugging.
 ## Requirements
 
 - `python3` — reporting, extraction, comparison
+- PyYAML for that `python3` — every run imports it to read the job file; check with `python3 -c "import yaml"`
 - `wolframscript` + Mathematica packages (FeynCalc / FeynArts / FormCalc; FeynRules mode also needs FeynRules)
 - `julia` + `LoopTools.jl` — only when the numeric stage is enabled
 - `latexpand` — only for multi-file LaTeX flattening in `model_build`

@@ -166,7 +166,7 @@ may replace a reference one:
 Primary entry point:
 
 ```bash
-SKILL_DIR=/absolute/path/to/julia-perf
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/julia-perf" ] && echo "$r/skills/julia-perf" && break; done || true)}"
 julia --project="$SKILL_DIR/scripts" "$SKILL_DIR/scripts/run_perf.jl" \
   --config /absolute/path/to/project/perf-config.toml \
   --out-dir /absolute/path/to/project/performance/reference \

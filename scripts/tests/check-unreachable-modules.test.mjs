@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ENFORCED_PACKAGES, runCheck, scanPackage } from '../check-unreachable-modules.mjs';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const scriptPath = path.join(repoRoot, 'scripts', 'check-unreachable-modules.mjs');
 
 function workspace(t) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-unreachable-modules-'));
@@ -208,4 +211,80 @@ test('negative control: an orphan planted in a copy of each enforced package fai
     }
     assert.equal(runCheck({ repoRoot: ws.base, enforced }).failed, false);
   }
+});
+
+// The compiler package the script itself would borrow: the first workspace package that resolves it.
+function resolveCompiler() {
+  const packagesDir = path.join(repoRoot, 'packages');
+  for (const name of fs.readdirSync(packagesDir).sort()) {
+    const manifest = path.join(packagesDir, name, 'package.json');
+    if (!fs.existsSync(manifest)) continue;
+    try {
+      return path.dirname(createRequire(manifest).resolve('typescript/package.json'));
+    } catch {
+      // try the next package
+    }
+  }
+  throw new Error('typescript is not resolvable from any packages/*/package.json');
+}
+
+// A throwaway tree holding a copy of the script and no enforced package: every enforced package
+// is then reported as missing, so a command that really runs exits 1 with FAIL lines, while one
+// that skips its check exits 0 with no output. The script borrows typescript from the first
+// packages/*/package.json that resolves it, so one stub package links the real compiler.
+function commandTree(t) {
+  const ws = workspace(t);
+  fs.mkdirSync(path.join(ws.base, 'scripts'));
+  const script = path.join(ws.base, 'scripts', 'check-unreachable-modules.mjs');
+  fs.copyFileSync(scriptPath, script);
+  const compilerDir = resolveCompiler();
+  ws.write('packages/compiler-host/package.json', '{}\n');
+  fs.mkdirSync(path.join(ws.base, 'packages', 'compiler-host', 'node_modules'), { recursive: true });
+  fs.symlinkSync(compilerDir, path.join(ws.base, 'packages', 'compiler-host', 'node_modules', 'typescript'));
+  const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-unreachable-modules-link-'));
+  t.after(() => fs.rmSync(linkDir, { recursive: true, force: true }));
+  return { ...ws, script, linkDir };
+}
+
+function runCommand(entry, cwd, nodeArgs = []) {
+  const result = spawnSync(process.execPath, [...nodeArgs, entry], { cwd, encoding: 'utf-8' });
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+const firstEnforced = Object.keys(ENFORCED_PACKAGES)[0];
+const missingPackageLine = new RegExp(`\\[unreachable-modules\\] FAIL ${firstEnforced}: enforced package has no package\\.json`);
+
+test('the command exits 1 when a check fails, from a relative and from an absolute start', t => {
+  const tree = commandTree(t);
+  for (const [entry, cwd] of [['scripts/check-unreachable-modules.mjs', tree.base], [tree.script, tree.linkDir]]) {
+    const result = runCommand(entry, cwd);
+    assert.equal(result.status, 1, `${entry}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stderr, missingPackageLine);
+  }
+});
+
+test('the command still checks when it is started through a symlinked path', t => {
+  const tree = commandTree(t);
+  const fileLink = path.join(tree.linkDir, 'check.mjs');
+  fs.symlinkSync(tree.script, fileLink);
+  const throughFile = runCommand(fileLink, tree.linkDir);
+  assert.equal(throughFile.status, 1, `${throughFile.stdout}${throughFile.stderr}`);
+  assert.match(throughFile.stderr, missingPackageLine);
+
+  const linkedRoot = path.join(tree.linkDir, 'tree');
+  fs.symlinkSync(tree.base, linkedRoot);
+  const entry = path.join(linkedRoot, 'scripts', 'check-unreachable-modules.mjs');
+  for (const nodeArgs of [[], ['--preserve-symlinks-main']]) {
+    const throughDirectory = runCommand(entry, tree.linkDir, nodeArgs);
+    assert.equal(throughDirectory.status, 1, `${nodeArgs.join(' ')}: ${throughDirectory.stdout}${throughDirectory.stderr}`);
+    assert.match(throughDirectory.stderr, missingPackageLine);
+  }
+});
+
+test('importing the module neither runs the check nor fails when argv[1] names no file', t => {
+  const tree = commandTree(t);
+  const code = `await import(${JSON.stringify(pathToFileURL(tree.script).href)})`;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code, 'no-such-file'], { cwd: tree.base, encoding: 'utf-8' });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(result.stdout + result.stderr, '');
 });

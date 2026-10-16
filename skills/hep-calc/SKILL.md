@@ -1,6 +1,6 @@
 ---
 name: hep-calc
-description: "General-purpose HEP calculation reproduction/audit runner that orchestrates Mathematica (FeynCalc/FeynArts/FormCalc/LoopTools/FeynRules) and/or Julia (LoopTools.jl). Supports: compute-only runs, LaTeX value auditing, auto-generation of Feynman diagrams + one-loop (unrenormalized) amplitudes (FeynRules→FeynArts→(optional)FormCalc), optional LaTeX-driven model_build scaffolding (agent-provided rewrite rules), and auditable out_dir + optional research-team sync.\n"
+description: "General-purpose HEP calculation reproduction/audit runner that orchestrates Mathematica (FeynCalc/FeynArts/FormCalc/LoopTools/FeynRules) and/or Julia (LoopTools.jl). Supports: compute-only runs, LaTeX value auditing, auto-generation of Feynman diagrams + one-loop (unrenormalized) amplitudes (FeynRules→FeynArts→(optional)FormCalc), optional LaTeX-driven model_build scaffolding (agent-provided rewrite rules), and auditable out_dir + optional research-team sync."
 ---
 
 # hep-calc
@@ -228,7 +228,7 @@ bash scripts/check_env.sh --json /tmp/hep_calc_env.json  # runs also write meta/
 ```
 
 Core requirements:
-- `python3` (reporting, extraction, comparison)
+- `python3` (reporting, extraction, comparison) with PyYAML importable (`python3 -c "import yaml"`); every run imports it to read the job file
 - `wolframscript` + Mathematica packages (FeynCalc/FeynArts/FormCalc; auto_qft also needs FeynRules for FeynRules mode)
 - `julia` + `using LoopTools` (only if numeric stage enabled)
 

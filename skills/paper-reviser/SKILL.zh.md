@@ -84,7 +84,9 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --auditor-backend gemini --auditor-model <GEMINI_MODEL>
 ```
 
-写手/审核后端：`--writer-backend` / `--auditor-backend` 可取 `{claude, gemini, codex, opencode, kimi}` 中任一（默认 writer=`claude`、auditor=`gemini`）。审核是独立环节——优先选与写手**不同家族**以获得真正的跨家族评审；`--fallback-auditor`、`--secondary-deep-verify-backend` 同此集合。各后端自动解析对应 `<family>-cli-runner`；`--auditor-model <GEMINI_MODEL>` 是占位符,省略则用该后端 CLI 的默认模型。
+写手/审核后端：`--writer-backend` / `--auditor-backend` 可取 `{claude, gemini, codex, opencode, kimi}` 中任一（默认 writer=`claude`、auditor=`gemini`）。审核是独立环节——优先选与写手**不同家族**以获得真正的跨家族评审；`--fallback-auditor`、`--secondary-deep-verify-backend` 同此集合。各后端在本技能旁自动解析对应的 `<family>-cli-runner`。
+
+使用 `--run-models`（且未加 `--dry-run`）时 `--writer-model` 与 `--auditor-model` 都必须给出：任一缺失或为空，脚本以状态码 2 退出。上面的 `<GEMINI_MODEL>` 是占位符；运行前须把所有 `<MODEL>` 类占位符换成真实的模型名或别名。无论选择哪些后端，每次 `--run-models` 运行都要求本技能旁已安装 `claude-cli-runner` 与 `gemini-cli-runner`（或用 `--claude-runner` / `--gemini-runner` 指定），另外所选其他家族的 runner 技能也须安装。
 
 常用参数：
 - `--max-rounds 2`：允许 1 次“审核→修复→复审”的回合
