@@ -58,8 +58,11 @@ domain boundary — see §2.
 
 ### M1–M7: pre-approval discipline
 
-Seven recurring AI research failure modes documented at
-[`skills/research-integrity/SKILL.md`](../skills/research-integrity/SKILL.md):
+Seven recurring AI research failure modes, the first seven of the eight
+documented at
+[`skills/research-integrity/SKILL.md`](../skills/research-integrity/SKILL.md)
+(the eighth, M8 reinvention_over_available_reuse, is walked before heavy
+computation and is not part of the machine receipt):
 
 - **M1** implementation_bug_passing_self_review
 - **M2** hallucinated_citation
@@ -114,8 +117,11 @@ the recommended re-anchor flow.
 
 A discipline that lives only in `SKILL.md` files erodes silently. Every
 guarantee below has a CI script that fails the build if the discipline
-slips. The full inventory, all wired into
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
+slips. The locks behind the guarantees above are listed here; the other
+`scripts/check-*.mjs` locks are wired into the same workflow,
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml), with one exception
+(`check-orchestrator-package-freshness.mjs` runs from the hep-mcp package
+scripts):
 
 | Anti-drift script | What it locks | What it catches |
 | --- | --- | --- |

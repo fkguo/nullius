@@ -17,7 +17,7 @@
 | orchestrator policy-tool family | `@nullius/orchestrator` | Read-only policy inspection for approval/operation gates |
 | orchestrator fleet-tool family | `@nullius/orchestrator` | Queue and worker coordination for the per-project fleet substrate |
 | `hep_inspire_*` / `hep_import_from_zotero` | `@nullius/hep-mcp` | Search exports and identifier mappings written into a caller-chosen `output_dir` inside the project; hep-mcp keeps no runs of its own |
-| `inspire_*` / `hepdata_*` / `openalex_*` / `arxiv_*` | provider packages | Network/data retrieval and literature analysis |
+| `inspire_*` / `hepdata_*` / `openalex_*` / `arxiv_*` | `@nullius/hep-mcp` (`inspire_*`); provider packages (`hepdata_*` / `openalex_*` / `arxiv_*`) | Network/data retrieval and literature analysis |
 | `pdg_*` | `@nullius/pdg-mcp` | PDG offline lookups |
 | `zotero_*` | `@nullius/zotero-mcp` | Zotero Local API integration |
 
@@ -33,7 +33,7 @@
 | `orch_run_stage_idea` | `write` | Stage IdeaHandoffC2 artifacts into the run's own directory, `<project_root>/artifacts/runs/<run_id>` |
 | `orch_run_stage_content` | `write` | Stage generic writing/review content into the run's own directory and return a `rep://runs/.../artifact/...` staging URI; loop-owned draft/review tasks may attach task-scoped provenance so completion and downstream review refresh can fail closed on missing outputs |
 | `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and a run-local `computation/manifest.json`, requiring a supplied `method_spec` with files and `run_card`; missing methods are refused before executable artifacts are written |
-| `orch_run_execute_manifest` | `destructive` | Execute an approved run-local `computation_manifest_v1` from the run's own directory |
+| `orch_run_execute_manifest` | `destructive` | Execute a run-local `computation_manifest_v1` from the run's own directory; when the A3 `compute_runs` gate is enabled by policy (default off) it first returns an approval request and runs only once that approval is granted |
 | `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
 | `orch_run_record_proposal_decision` | `write` | Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into `.nullius/proposal_decisions_v1.json` |
 | `orch_run_record_verification` | `write` | Execute one checker under a runtime environment allowlist and record adjacent production snapshots plus the checker's request-bound self-reported matching observations; `passed` does not prove actual reads or complete dependencies |
@@ -60,7 +60,7 @@
 |---|---|---|
 | `orch_fleet_enqueue` | `write` | Enqueue a known run into the per-project fleet queue |
 | `orch_fleet_claim` | `write` | Claim the next queued run or a specific queued run |
-| `orch_fleet_adjudicate_stale_claim` | `write` | Manually settle a stale claimed queue item |
+| `orch_fleet_adjudicate_stale_claim` | `write` | Manually settle a claimed queue item the operator judges stale (guarded by expected claim and owner ids and a required note) |
 | `orch_fleet_reassign_claim` | `write` | Reassign a currently claimed queue item to a different worker |
 | `orch_fleet_release` | `write` | Release or settle a claimed queue item |
 | `orch_fleet_status` | `read` | Aggregate read-only fleet visibility across project roots |
@@ -79,12 +79,12 @@ interface OrchProjectScopedParams {
 }
 ```
 
-Run-scoped tools then add `run_id` when they target a known run. Approval-resolution tools additionally require:
+Run-scoped tools then add `run_id` when they target a known run. The exception is `orch_fleet_status`, which takes a list `project_roots` instead of `project_root`. Approval-resolution tools additionally require `approval_id`; `orch_run_approve` also requires the packet digest:
 
 ```typescript
 interface ApprovalResolutionParams {
   approval_id: string;
-  approval_packet_sha256: string;
+  approval_packet_sha256?: string; // required by orch_run_approve only
 }
 ```
 
@@ -99,7 +99,7 @@ Fleet tools operate on queue items and worker ids rather than on artifact ids or
 | Layer | Responsibility | Implemented by |
 |---|---|---|
 | **Run-infra / control plane** | State transitions, approval gates, checkpointed agent runtime, project-root queueing, worker liveness, export summaries | `@nullius/orchestrator` via `orch_*` |
-| **Strategy / domain execution** | Evidence retrieval, plan resolution, literature search exports, literature analysis, domain packs, measurement-tension checks | `hep_*`, `inspire_*`, `openalex_*`, `pdg_*`, `zotero_*`, etc. |
+| **Strategy / domain execution** | Evidence retrieval, literature search exports, literature analysis, domain packs, measurement-tension checks | `hep_*`, `inspire_*`, `openalex_*`, `pdg_*`, `zotero_*`, etc. |
 
 ### 2.2 Invariants
 
@@ -119,7 +119,7 @@ Agent / operator
   ├──► orch_run_stage_idea(project_root, run_dir, handoff_path, ...) → stage idea artifacts into the run directory
   ├──► orch_run_stage_content(project_root, run_dir, content_type, ...) → stage generic writing/review artifacts
   ├──► orch_run_plan_computation(...)                   → compile staged idea into execution plan + run-local manifest
-  ├──► orch_run_execute_manifest(...)                   → execute approved run-local computation manifest
+  ├──► orch_run_execute_manifest(...)                   → execute run-local computation manifest (after A3 approval when that gate is enabled)
   ├──► orch_run_progress_followups(...)                 → advance one feedback/literature or writing/review continuation
   ├──► orch_run_record_proposal_decision(...)           → record local decision memory for the current proposal
   ├──► orch_run_record_verification(...)                → record adjacent snapshots plus checker self-reported matching observations
@@ -130,7 +130,7 @@ Agent / operator
   ├──► orch_run_approve(...) or orch_run_reject(...)    → resolve approval
   ├──► orch_run_execute_agent(...)                      → bounded orchestrator runtime
   ├──► orch_fleet_enqueue(...) / orch_fleet_worker_poll(...) → queue-backed orchestration
-  └──► orch_run_export(project_root)                    → portable summary/artifact listing
+  └──► orch_run_export(project_root, _confirm)                  → portable summary/artifact listing
 ```
 
 ---
@@ -154,7 +154,7 @@ Agent / operator
 **Mitigations**:
 - `orch_*` writes are constrained to the orchestration workspace rather than arbitrary domain artifact roots.
 - State and ledger writes remain under `.nullius/`.
-- `orch_run_status` is read-only and can be used to verify recovery state after interruptions.
+- `orch_run_status` changes no run state (it only refreshes the harness invocation marker) and can be used to verify recovery state after interruptions.
 - `orch_run_execute_agent` persists run-scoped checkpoints instead of treating transient transcript state as the sole authority.
 
 ### 3.3 Queue misuse / stale claims
@@ -162,9 +162,9 @@ Agent / operator
 **Threat**: a worker disappears while holding a queue item, or an operator silently steals ownership.
 
 **Mitigations**:
-- `orch_fleet_worker_heartbeat` and `orch_fleet_worker_poll` keep liveness explicit.
+- `orch_fleet_worker_heartbeat` and `orch_fleet_worker_poll` keep worker liveness explicit; only poll renews claim leases.
 - `orch_fleet_adjudicate_stale_claim` and `orch_fleet_reassign_claim` require expected claim/owner ids plus operator notes.
-- `orch_fleet_release` is the explicit settlement surface; the system does not assume silent takeover semantics.
+- `orch_fleet_release` is the explicit settlement surface; claims carry a lease (default 60 seconds), and `orch_fleet_worker_poll` renews the polling worker's own leases and requeues expired ones from any worker (ledger event `fleet_claim_auto_released`), so the only takeover without an operator note is lease expiry.
 
 ### 3.4 Unauthorized destructive operations
 
@@ -193,8 +193,10 @@ For the higher-conclusion boundary:
 - `orch_run_approve` retains a generic future complete-closure consumer, but it is not reachable from current validation bindings.
 - `orch_run_status` / `orch_run_export` are the read surfaces for the current run's local outcome-facing `final_conclusions_v1` seam; no separate public read tool is introduced in this slice.
 
-Current live approval producers include:
-- `orch_run_execute_manifest` for A3 compute execution
+Current live approval producers are:
+- `orch_run_plan_computation` and `orch_run_execute_manifest` for A3 compute execution (only when the `compute_runs` gate is enabled by policy; default off)
+
+Tools that record local results and create no approval:
 - `orch_run_record_proposal_decision` for local proposal lifecycle closure without a second approval family
 - `orch_run_record_verification` for adjacent production snapshots, absolute declared external refs, runtime/checker identity, logs, and checker self-reported matching observations. A recorded pass does not prove actual output reads, negative-control execution, semantic independence, or complete dependencies.
 - `orch_run_request_final_conclusions` for the exactly-one-subject A5 consumer, currently fail-closed as `unavailable` because dependency closure is literal incomplete
@@ -222,6 +224,7 @@ No domain pack should grow a second queue authority around the same project-root
 ```
 orch://runs/<run_id>                → run lifecycle / read-model root
 orch://runs/<run_id>/approvals/<id> → approval record pointer
+orch://runs/<run_id>/artifact/<artifact_path> → run artifact pointer
 orch://runs/export                  → export summary pointer
 ```
 
