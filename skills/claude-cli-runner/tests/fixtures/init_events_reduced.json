@@ -102,12 +102,12 @@
   "plugins": [
    {
     "name": "some-plugin",
-    "path": "/home/operator/.claude/plugins/cache/some-plugin",
+    "path": "/home/user/.claude/plugins/cache/some-plugin",
     "source": "some-plugin@some-marketplace"
    },
    {
     "name": "some-plugin",
-    "path": "/home/operator/.claude/plugins/cache/some-plugin",
+    "path": "/home/user/.claude/plugins/cache/some-plugin",
     "source": "some-plugin@some-marketplace"
    },
    {
@@ -127,7 +127,7 @@
    }
   ],
   "memory_paths": {
-   "auto": "/home/operator/.claude/projects/-work-project/memory/"
+   "auto": "/home/user/.claude/projects/-work-project/memory/"
   }
  },
  "safe_mode": {
@@ -173,12 +173,12 @@
   "plugins": [
    {
     "name": "some-plugin",
-    "path": "/home/operator/.claude/plugins/cache/some-plugin",
+    "path": "/home/user/.claude/plugins/cache/some-plugin",
     "source": "some-plugin@some-marketplace"
    },
    {
     "name": "some-plugin",
-    "path": "/home/operator/.claude/plugins/cache/some-plugin",
+    "path": "/home/user/.claude/plugins/cache/some-plugin",
     "source": "some-plugin@some-marketplace"
    },
    {
