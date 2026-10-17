@@ -357,7 +357,11 @@ def verify_capture_observation(budget_path: Path | None, report_path: Path, inpu
     _validate_context_tokens(expected_context_tokens)
     if not isinstance(input_sha256, list) or len(input_sha256) != 2 or any(not isinstance(h, str) or len(h) != 64 or any(c not in "0123456789abcdef" for c in h) for h in input_sha256):
         raise ValueError("unavailable: invalid complete original request hashes")
-    observation = json.loads(Path(str(report_path) + ".runtime-observation.json").read_text(encoding="utf-8"))
+    sidecar = Path(str(report_path) + ".runtime-observation.json")
+    try:
+        observation = json.loads(sidecar.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ValueError(f"unavailable: runtime observation missing: {sidecar}") from None
     if not isinstance(observation, dict) or not isinstance(observation.get("payload"), dict) or not isinstance(observation.get("hmac_sha256"), str):
         raise ValueError("unavailable: absent runtime capture observation")
     payload = observation["payload"]

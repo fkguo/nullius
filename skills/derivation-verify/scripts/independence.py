@@ -113,10 +113,10 @@ def _text_outside_answer_json(raw: str) -> tuple[str, ...]:
     return tuple(parts) + (text[cursor:],)
 
 
-def quoted_in_derivation(span: str, d: dict, closure: str | None = None) -> bool:
-    """A span quotes original derivation material when it occurs in the given closure (input and
-    execution evidence) or, for the other evidence, in the derivation context; in both cases also
-    when it occurs in the structured derivation as read.
+def quoted_in_derivation(span: str, d: dict, closure: tuple[str, ...] | None = None) -> bool:
+    """A span quotes original derivation material when it occurs in one of the given closure texts
+    (input and execution evidence, see source_material) or, for the other evidence, in the
+    derivation context; in both cases also when it occurs in the structured derivation as read.
 
     When the context is the raw output (assistant text outside the selected JSON object), the
     derivation context for quoting is the text outside every answer-shaped JSON object: their
@@ -129,7 +129,7 @@ def quoted_in_derivation(span: str, d: dict, closure: str | None = None) -> bool
     structured = d.get("derivation")
     separate = runtime_observed(d) and isinstance(structured, str) and structured != body
     if closure is not None:
-        texts = (closure,)
+        texts = closure
     else:
         texts = _text_outside_answer_json(body) if separate else (body,)
     if any(occurs_in(span, text) for text in texts):
@@ -159,9 +159,9 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
         )) or a.get("unresolved_defects") != []:
             continue
         evidence = a.get("evidence")
-        source = source_material(derivations[i])
-        if not isinstance(evidence, dict) or not isinstance(source, str):
+        if not isinstance(evidence, dict):
             continue
+        source = source_material(derivations[i])
         valid = True
         for axis in AXES:
             item = evidence.get(axis)
@@ -190,9 +190,41 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
                   and derivations[i]["execution_id"] and ids.count(derivations[i]["execution_id"]) == 1)
 
 
-def source_material(d: dict) -> str:
-    """Complete observed lane material; reproduction packets already contain full source text."""
-    return derivation_body(d) + "\n" + json.dumps(d.get("transport", {}), ensure_ascii=False, sort_keys=True) + "\n" + str(d.get("derivation_summary", ""))
+def packet_transport(d: dict):
+    """The lane's transport as the comparator packet carries it: when derivation_context carries the
+    raw output, raw_output is not repeated and raw_output_given_as names the field holding it."""
+    transport = d.get("transport")
+    if not isinstance(transport, dict):
+        return transport
+    context = derivation_body(d)
+    if context != d.get("derivation") and transport.get("raw_output") == context:
+        return {**{k: v for k, v in transport.items() if k != "raw_output"}, "raw_output_given_as": "derivation_context"}
+    return transport
+
+
+def _string_values(value) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [text for item in value.values() for text in _string_values(item)]
+    if isinstance(value, list):
+        return [text for item in value for text in _string_values(item)]
+    return []
+
+
+def source_material(d: dict) -> tuple[str, ...]:
+    """Texts an input/execution span may quote verbatim: the complete original context, the navigation
+    summary, and the observed transport record both as the comparator packet encodes it (JSON with
+    sorted keys, byte-identical to the packet) and as the decoded string values of the full record.
+    The packet never repeats these as one concatenated field."""
+    context = derivation_body(d)
+    texts = [context, str(d.get("derivation_summary", "")),
+             json.dumps(packet_transport(d), ensure_ascii=False, sort_keys=True), *_string_values(d.get("transport"))]
+    if context != d.get("derivation") and (d.get("transport") or {}).get("raw_output") == context:
+        # The packet shows the raw output only as derivation_context; its JSON-escaped form, as it would
+        # read inside the transport, is quotable exactly as for a lane whose transport shows raw_output.
+        texts.append(json.dumps(context, ensure_ascii=False)[1:-1])
+    return tuple(texts)
 
 
 def valid_derivation_transport(d: dict) -> bool:
