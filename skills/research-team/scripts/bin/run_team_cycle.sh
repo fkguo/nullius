@@ -1855,7 +1855,8 @@ if [[ "${MEMBER_B_SYSTEM_CLAUDE_FROM_CONFIG}" -eq 1 && -n "${MEMBER_B_SYSTEM_CLA
   MEMBER_B_SYSTEM_CLAUDE="${PROJECT_ROOT}/${MEMBER_B_SYSTEM_CLAUDE}"
 fi
 
-LOCAL_CLAUDE_RUNNER="${PROJECT_ROOT}/scripts/run_claude.sh"
+# shellcheck source=../lib/resolve_local_claude_runner.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/resolve_local_claude_runner.sh"
 LOCAL_GEMINI_RUNNER="${PROJECT_ROOT}/scripts/run_gemini.sh"
 LOCAL_CODEX_RUNNER="${PROJECT_ROOT}/scripts/run_codex.sh"
 

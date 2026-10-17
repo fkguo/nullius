@@ -3,6 +3,15 @@ set -euo pipefail
 
 # Claude CLI runner: one-shot (--print) with retries and file-based prompts.
 # Vendored copy for project-local use.
+#
+# research-team-claude-runner: context-excluded v1
+# (marker read by run_team_cycle.sh / run_draft_cycle.sh: a project copy without it predates the
+# context exclusion and is not used; see research-team RUNBOOK, "Refreshing the Claude runner copy")
+#
+# The lane carries only its own request: --safe-mode keeps the CLI login but loads no user/project
+# CLAUDE.md or AGENTS.md, no auto memory, no plugins, hooks or skills; the git status snapshot
+# (commit subjects of the operator's checkout) is switched off as well.
+export CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1
 
 MODEL=""
 SYSTEM_PROMPT_FILE=""
@@ -168,12 +177,12 @@ while true; do
   set +e
   if [[ -n "${MODEL}" ]]; then
     # shellcheck disable=SC2086
-    claude --print --no-session-persistence --model "${MODEL}" --tools ${TOOLS} \
+    claude --print --safe-mode --no-session-persistence --model "${MODEL}" --tools ${TOOLS} \
       --system-prompt "${SYSTEM_PROMPT}" \
       "${PROMPT}" >"${tmp_stdout}" 2>"${tmp_stderr}"
   else
     # shellcheck disable=SC2086
-    claude --print --no-session-persistence --tools ${TOOLS} \
+    claude --print --safe-mode --no-session-persistence --tools ${TOOLS} \
       --system-prompt "${SYSTEM_PROMPT}" \
       "${PROMPT}" >"${tmp_stdout}" 2>"${tmp_stderr}"
   fi
