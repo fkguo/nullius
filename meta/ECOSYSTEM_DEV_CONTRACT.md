@@ -452,8 +452,8 @@ pnpm --filter @nullius/hep-mcp test -- tests/docs/docToolDrift.test.ts
 **规则**: `.nullius/ledger.jsonl` 是追加式历史，由 `StateManager.appendLedger()` / `saveStateWithLedger()` / `transitionStatus()`（`packages/orchestrator/src/state-manager.ts`）写入。`event_type` 是开放词表，不设封闭枚举，但必须满足：
 
 1. 非空、形如 `^[a-z][a-z0-9_]*$` 的标识符（`assertLedgerEventType()` 在写入前校验）；`transitionStatus()` 在调用方未给名时写 `status_<run_status>`。
-2. 运行状态只能由读模型 `deriveLedgerStatusFromOperatorEvent()`（`packages/orchestrator/src/operator-read-model-summary.ts`）识别的事件名推导；未识别的事件保持前一状态，并由 `orch_run_list` 以 `LEDGER_EVENT_UNMAPPED` 报告，不得静默丢弃。
-3. 新增会影响运行状态推导、或被其他包（如 `project-mcp`）读取的事件名，必须同时加入上述读模型映射及其测试。
+2. 运行状态只能由读模型 `deriveLedgerStatusFromOperatorEvent()`（`packages/orchestrator/src/operator-read-model-summary.ts`）识别的事件名推导；带 `run_id` 的未识别事件保持前一状态，并由 `orch_run_list` 以 `LEDGER_EVENT_UNMAPPED` 报告，不得静默丢弃。
+3. 每个随 `transitionStatus()` 改变 `run_status` 的事件名，以及被其他包（如 `project-mcp`）读取的事件名，都必须在上述读模型映射及其测试中有对应分支（`tests/ledger-status-derivation.test.ts` 逐名核对）。
 
 **CI 验证**:
 ```bash
@@ -686,7 +686,7 @@ make codegen-check
 
 ### REL-01: 发布偏差防护
 
-**规则**: 创建 release tag 前，必须在干净检出上通过 `make release`。它依次执行：(1) `pnpm -r build`；(2) `make codegen-check`（SYNC-06：`packages/shared/src/generated/`、`meta/generated/python/` 重生成后无 diff）；(3) `meta/scripts/check_version_sync.sh` 与 `node scripts/check-version-consistency.mjs`（所有包版本一致）；(4) `pnpm --filter @nullius/hep-mcp catalog` 后 `tool_catalog.{standard,full}.json` 无 diff（SYNC-02）；(5) `node scripts/check-skill-tool-name-anti-drift.mjs`（技能引用的工具名与运行时注册表一致）。tag 必须指向通过以上全部检查的提交。`hep_health.tool_catalog_hash` 是客户端可钉住的运行时自检值，不是发布门。
+**规则**: 创建 release tag 前，必须在干净检出上通过 `make release`。它依次执行：(1) `pnpm -r build`；(2) `make codegen-check`（SYNC-06：`packages/shared/src/generated/`、`meta/generated/python/` 重生成后无 diff）；(3) `meta/scripts/check_version_sync.sh` 与 `node scripts/check-version-consistency.mjs`（所有包版本一致）；(4) `pnpm --filter @nullius/hep-mcp catalog` 后 `tool_catalog.{standard,full}.json` 无 diff（SYNC-02）；(5) `node scripts/check-skill-tool-name-anti-drift.mjs`（技能 `SKILL.md` 引用的工具名存在于 `packages/shared/src/tool-names.ts` 与 `packages/hep-mcp/src/tool-names.ts` 的常量清单中）。`make release` 是打 tag 前在本地执行的门，不随每次 CI 运行；tag 必须指向通过以上全部检查的提交。`hep_health.tool_catalog_hash` 是客户端可钉住的运行时自检值，不是发布门。
 
 **CI 验证**:
 ```bash
@@ -805,7 +805,7 @@ grep -rn 'except:\s*pass\|except\s.*:\s*pass' --include='*.py' \
 
 **规则**:
 
-1. **源代码全英文**: 所有源代码、注释、变量名、commit message、PR description 使用英文
+1. **源代码全英文**: 所有源代码、注释、变量名、commit message、PR description 使用英文。机器检查的范围是 `packages/*/src` 下的 `.ts`/`.py`；`skills/` 下的脚本与模板、测试、包内 `scripts/` 可含中文（面向中文使用者的提示词与文档匹配模式）
 2. **用户手册英文优先**: 英文文件为 canonical source；中文版是翻译产物，与英文文件同目录、以 `_zh` 后缀命名（`README.md` ↔ `docs/README_zh.md`，`docs/POSITIONING.md` ↔ `docs/POSITIONING_zh.md`；技能 references 用 `.zh.md`），在英文文本定稿后生成或更新。不设 `docs/en/`、`docs/zh/` 目录
 3. **架构文档**: `AGENTS.md`, `ECOSYSTEM_DEV_CONTRACT.md` 等内部架构文档保持当前语言 (中文)，不受本规则约束
 
@@ -825,7 +825,7 @@ node scripts/check-source-language-anti-drift.mjs
 
 ### PLUG-01: 独立发布能力
 
-**规则**: 以下核心组件必须设计为可独立发布的 npm package，零 Nullius 内部依赖：
+**规则**: 以下核心组件必须设计为可独立发布的 npm package：安装任一组件都不得拖进 monorepo 的其余部分（orchestrator、hep-mcp、project-contracts 等）；允许的内部依赖只有约束 1 列出的叶子包：
 
 | 组件 | npm scope | 对标 | 独立价值 |
 |---|---|---|---|
@@ -840,8 +840,10 @@ node scripts/check-source-language-anti-drift.mjs
 
 **CI 验证**:
 ```bash
-# 三个可发布包的 @nullius/* 依赖白名单 + shared 保持叶子包
+# 三个可发布包的 @nullius/* 依赖白名单（dependencies / optionalDependencies / peerDependencies，含 npm: 别名）+ shared 保持叶子包且非 private
 node scripts/check-publishable-package-deps-anti-drift.mjs
+# shared 与全仓同版本由版本锁覆盖（CI 已运行）
+node scripts/check-version-consistency.mjs
 ```
 
 **违规行为**: **fail-closed** — 引入内部依赖阻断 CI

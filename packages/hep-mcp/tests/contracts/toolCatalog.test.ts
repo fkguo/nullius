@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { ToolExposureMode } from '../../src/tools/registry.js';
 
@@ -15,12 +15,18 @@ const MODES: ToolExposureMode[] = ['standard', 'full'];
 
 type Catalog = typeof import('../../src/tools/utils/toolCatalog.js');
 let catalogModule: Catalog;
+const originalZoteroFlag = process.env.HEP_ENABLE_ZOTERO;
 
 beforeAll(async () => {
   // The registry reads HEP_ENABLE_ZOTERO at module load; the catalog lists the
   // full inventory, so pin the flag before the first import of the registry.
   process.env.HEP_ENABLE_ZOTERO = '1';
   catalogModule = await import('../../src/tools/utils/toolCatalog.js');
+});
+
+afterAll(() => {
+  if (originalZoteroFlag === undefined) delete process.env.HEP_ENABLE_ZOTERO;
+  else process.env.HEP_ENABLE_ZOTERO = originalZoteroFlag;
 });
 
 describe('SYNC-02: checked-in tool catalog matches the runtime registry', () => {
