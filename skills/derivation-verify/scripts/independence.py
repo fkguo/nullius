@@ -190,16 +190,172 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
                   and derivations[i]["execution_id"] and ids.count(derivations[i]["execution_id"]) == 1)
 
 
+_STREAM_SUFFIX = ".events.jsonl"
+_TERMINAL_SUFFIX = ".events.result.json"
+# Stream event kinds that hold only bookkeeping (session start, token counters, rate limits).
+_BOOKKEEPING_EVENTS = {"system", "rate_limit_event"}
+# Event fields that identify or time an event; every other top-level field stays in the packet.
+_EVENT_ENVELOPE = {"type", "message", "session_id", "uuid", "parent_tool_use_id", "timestamp", "request_id", "thinking_duration_ms"}
+_DELTA_FIELDS = {"text_delta": "text", "thinking_delta": "thinking", "input_json_delta": "partial_json"}
+STREAM_NOT_SHOWN = ("event envelopes, ids, usage and token counters, empty thinking blocks and thinking "
+                    "signatures; the complete file is identified by ref")
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _slice_of(text, shipped: tuple[tuple[str, str], ...]):
+    """A reference to the exact slice of a shipped field equal to text, or None. str.find is exact
+    code-point matching, so the returned slice is equal to text by construction of the search."""
+    if not isinstance(text, str) or not text:
+        return None
+    for name, value in shipped:
+        start = value.find(text)
+        if start >= 0:
+            return {"given_in": name, "start": start, "end": start + len(text), "sha256": _sha256(text)}
+    return None
+
+
+def _stream_blocks(text: str, shipped: tuple[tuple[str, str], ...]) -> list:
+    """The content blocks of a captured stream in emission order. A text block, the streamed text of a
+    block and the terminal result text are replaced by a reference to the slice of a shipped field
+    they equal; every other content (tool use and results, thinking text, synthetic messages, extra
+    event fields, unrecognized lines) stays verbatim. Bookkeeping in STREAM_NOT_SHOWN is not shown."""
+    blocks, streamed, message_id = [], {}, None
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            event = None
+        kind = event.get("type") if isinstance(event, dict) else None
+        if kind in _BOOKKEEPING_EVENTS:
+            continue
+        if kind == "stream_event" and isinstance(event.get("event"), dict):
+            inner = event["event"]
+            step = inner.get("type")
+            if step == "message_start":
+                message_id = (inner.get("message") or {}).get("id")
+                continue
+            if step in ("content_block_stop", "message_delta", "message_stop"):
+                continue
+            if step == "content_block_start" and isinstance(inner.get("content_block"), dict):
+                entry = {"source": "stream", "block": {k: v for k, v in inner["content_block"].items() if k != "signature"}}
+                streamed[(message_id, inner.get("index"))] = entry
+                blocks.append(entry)
+                continue
+            delta = inner.get("delta") if step == "content_block_delta" else None
+            entry = streamed.get((message_id, inner.get("index")))
+            if isinstance(delta, dict) and delta.get("type") == "signature_delta" and entry is not None:
+                continue
+            field = _DELTA_FIELDS.get(delta.get("type")) if isinstance(delta, dict) else None
+            if entry is not None and field and isinstance(delta.get(field), str):
+                block = entry["block"]
+                block[field] = (block.get(field) if isinstance(block.get(field), str) else "") + delta[field]
+                continue
+        elif kind in ("assistant", "user") and isinstance(event.get("message"), dict):
+            content = event["message"].get("content")
+            content = [{"type": "text", "text": content}] if isinstance(content, str) else content
+            if isinstance(content, list):
+                for item in content:
+                    block = {k: v for k, v in item.items() if k != "signature"} if isinstance(item, dict) else item
+                    blocks.append({"source": kind, "block": block})
+                extra = {k: v for k, v in event.items() if k not in _EVENT_ENVELOPE}
+                if extra:
+                    blocks.append({"source": kind, "event_fields": extra})
+                continue
+        elif kind == "result":
+            blocks.append({"source": "result", "block": {k: event[k] for k in ("subtype", "is_error", "stop_reason", "result") if k in event}})
+            continue
+        blocks.append({"source": "unrecognized_line", "line": line})
+    shown, tool_inputs = [], {b["block"].get("id"): b["block"].get("input") for b in blocks
+                              if isinstance(b.get("block"), dict) and b["source"] == "assistant" and b["block"].get("type") == "tool_use"}
+    for entry in blocks:
+        block = entry.get("block")
+        if isinstance(block, dict):
+            if block.get("type") == "thinking" and not block.get("thinking"):
+                continue
+            block = dict(block)
+            for field in ("text", "result"):
+                ref = _slice_of(block.get(field), shipped)
+                if ref is not None:
+                    block[field] = ref
+            partial = block.get("partial_json")
+            if entry["source"] == "stream" and isinstance(partial, str) and block.get("id") in tool_inputs:
+                try:
+                    same = json.loads(partial) == tool_inputs[block["id"]]
+                except ValueError:
+                    same = False
+                if same:
+                    block["partial_json"] = {"decodes_to_input_of_tool_use": block["id"]}
+            entry = {**entry, "block": block}
+        shown.append(entry)
+    return shown
+
+
+def _terminal_event(stream_text):
+    lines = [line for line in (stream_text or "").splitlines() if line.strip()]
+    try:
+        event = json.loads(lines[-1]) if lines else None
+    except ValueError:
+        return None
+    return event if isinstance(event, dict) and event.get("type") == "result" else None
+
+
+@functools.lru_cache(maxsize=64)
+def _carried_record(path: str, text: str, ref_json: str, shipped: tuple[tuple[str, str], ...], stream_text):
+    """How one captured record enters the packet; every by-reference form is proven here, at assembly.
+    The reference must identify these exact bytes (sha256 and size), otherwise the record stays inline."""
+    ref = json.loads(ref_json)
+    data = text.encode("utf-8")
+    identified = isinstance(ref, dict) and ref.get("sha256") == hashlib.sha256(data).hexdigest() and ref.get("size") == len(data)
+    if identified:
+        for name, value in shipped:
+            if text == value:
+                return {"carried": "by_reference", "ref": ref, "proven": f"bytes equal {name}"}
+        terminal = _terminal_event(stream_text) if path.endswith(_TERMINAL_SUFFIX) else None
+        if terminal is not None and text == json.dumps(terminal, indent=2) + "\n":
+            return {"carried": "by_reference", "ref": ref,
+                    "proven": f"bytes equal the terminal event of {Path(path).name[:-len(_TERMINAL_SUFFIX)]}{_STREAM_SUFFIX} written with indent 2"}
+        if path.endswith(_STREAM_SUFFIX):
+            return {"carried": "content_blocks", "ref": ref, "not_shown": STREAM_NOT_SHOWN,
+                    "blocks": _stream_blocks(text, shipped)}
+    return {"carried": "inline", "content": text}
+
+
 def packet_transport(d: dict):
-    """The lane's transport as the comparator packet carries it: when derivation_context carries the
-    raw output, raw_output is not repeated and raw_output_given_as names the field holding it."""
+    """The lane's transport as the comparator packet carries it. When derivation_context carries the
+    raw output, raw_output is not repeated and raw_output_given_as names the field holding it.
+    captured_records are carried per record (see _carried_record): by reference when the bytes are
+    proven equal to a shipped field or to the stream's terminal event, as content blocks for a stream
+    (text blocks by reference to the slice of a shipped field they equal), otherwise inline verbatim."""
     transport = d.get("transport")
     if not isinstance(transport, dict):
         return transport
+    shown = dict(transport)
     context = derivation_body(d)
-    if context != d.get("derivation") and transport.get("raw_output") == context:
-        return {**{k: v for k, v in transport.items() if k != "raw_output"}, "raw_output_given_as": "derivation_context"}
-    return transport
+    raw = transport.get("raw_output")
+    raw_field = "transport.raw_output"
+    if context != d.get("derivation") and raw == context:
+        del shown["raw_output"]
+        shown["raw_output_given_as"] = raw_field = "derivation_context"
+    captured = transport.get("captured_records")
+    if isinstance(captured, dict) and captured:
+        shipped = tuple((name, value) for name, value in ((raw_field, raw), ("derivation", d.get("derivation")))
+                        if isinstance(value, str) and value)
+        refs = {ref.get("path"): ref for ref in transport.get("artifact_refs", []) if isinstance(ref, dict)}
+        carried = {}
+        for path, text in captured.items():
+            if not isinstance(text, str):
+                carried[path] = {"carried": "inline", "content": text}
+                continue
+            stream = captured.get(path[:-len(_TERMINAL_SUFFIX)] + _STREAM_SUFFIX) if path.endswith(_TERMINAL_SUFFIX) else None
+            carried[path] = _carried_record(path, text, json.dumps(refs.get(path), sort_keys=True), shipped,
+                                            stream if isinstance(stream, str) else None)
+        shown["captured_records"] = carried
+    return shown
 
 
 def _string_values(value) -> list[str]:
@@ -213,13 +369,15 @@ def _string_values(value) -> list[str]:
 
 
 def source_material(d: dict) -> tuple[str, ...]:
-    """Texts an input/execution span may quote verbatim: the complete original context, the navigation
-    summary, and the observed transport record both as the comparator packet encodes it (JSON with
-    sorted keys, byte-identical to the packet) and as the decoded string values of the full record.
-    The packet never repeats these as one concatenated field."""
+    """Texts an input/execution span may quote verbatim, exactly those the comparator can read: the
+    complete original context, the navigation summary, and the transport record as the packet carries
+    it, both encoded (JSON with sorted keys, byte-identical to the packet) and as its decoded string
+    values. Captured content carried by reference is not quotable from the packet; it equals a slice of
+    a shipped field and is quoted through that field. The packet never repeats these as one field."""
     context = derivation_body(d)
+    shown = packet_transport(d)
     texts = [context, str(d.get("derivation_summary", "")),
-             json.dumps(packet_transport(d), ensure_ascii=False, sort_keys=True), *_string_values(d.get("transport"))]
+             json.dumps(shown, ensure_ascii=False, sort_keys=True), *_string_values(shown)]
     if context != d.get("derivation") and (d.get("transport") or {}).get("raw_output") == context:
         # The packet shows the raw output only as derivation_context; its JSON-escaped form, as it would
         # read inside the transport, is quotable exactly as for a lane whose transport shows raw_output.
