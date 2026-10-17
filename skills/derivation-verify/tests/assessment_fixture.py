@@ -61,6 +61,6 @@ def lane_entries(prompts):
         if marker in prompt and (LANE_REQUEST in prompt or "candidate derivations with recorded" in prompt):
             entries, _ = json.JSONDecoder().raw_decode(prompt.split(marker, 1)[1])
             assert len(entries) == 1 or LANE_REQUEST not in prompt
-            for entry in entries:
-                found.setdefault(entry["index"], entry)
+            for k, entry in enumerate(entries):  # the single request names indices by position
+                found.setdefault(entry.get("index", k), entry)
     return [found[i] for i in sorted(found)]

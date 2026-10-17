@@ -86,7 +86,7 @@ def test_actual_current_capacity_binds_complete_original_request_and_report(tmp_
     # Lanes that fit one request together are compared in that single request, as before.
     packet=(tmp_path/'current/compare_j0_claude/prompt.txt').read_text()
     decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
-    assert [d['index'] for d in decoded]==[0,1] and all(d['derivation']==SUMMARY for d in decoded)
+    assert len(decoded)==2 and all('index' not in d and d['derivation']==SUMMARY for d in decoded)
     assert cmp['request_capacity']['comparison_form']=='single_request'
 
 REFUSAL_REASONS={'over-window':'observed request usage exceeds configured token window',

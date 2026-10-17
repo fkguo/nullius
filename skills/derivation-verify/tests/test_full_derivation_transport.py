@@ -32,12 +32,12 @@ def runner(*, missing_steps=False, risk=None, failed=False):
             parsed = assessed_comparison(payload, prompt)
             if risk is not None and 'FULL_DERIVATION_RECORDS_JSON:\n' in prompt:
                 ds, _ = json.JSONDecoder().raw_decode(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
-                parsed['method_risk_assessments'] = [{'indices': [e['index'] for e in ds], 'addresses_shared_failure': risk, 'methods_distinct': risk,
+                parsed['method_risk_assessments'] = [{'indices': [e.get('index', k) for k, e in enumerate(ds)], 'addresses_shared_failure': risk, 'methods_distinct': risk,
                     'risk': 'Both use the same addition rule; a shared operand-transcription error must be independently diagnosed.',
                     'method_analysis': 'The frozen actual derivations show whether separate raw-operand checks address that failure; hint wording is irrelevant.',
                     'evidence': [{'index': i, 'source_span': d['derivation'],
                                  'reason': 'The actual lane steps, rather than its requested route name, determine what shared failure is addressed.'}
-                                 for i, d in zip((e['index'] for e in ds), ds)]}]
+                                 for i, d in zip((e.get('index', k) for k, e in enumerate(ds)), ds)]}]
             return json.dumps(parsed)
         out = verdict()
         if missing_steps:
