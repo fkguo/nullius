@@ -33,7 +33,7 @@ FAKE = r'''import json, os, sys
 from pathlib import Path
 sys.stdin.read()
 with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as fp:
-    fp.write(json.dumps(sys.argv[1:]) + "\n")
+    fp.write(json.dumps(sys.argv[1:] + ["ENV_GIT=" + os.environ.get("CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS", "")]) + "\n")
 init = os.environ.get("FAKE_INIT")
 text = "four"
 def emit(obj):
@@ -64,7 +64,8 @@ def _run(tmp_path: Path, *args: str, init: dict | None = None) -> tuple[subproce
     (tmp_path / "prompt.txt").write_text("What is 2+2?\n", encoding="utf-8")
     out = tmp_path / "out.txt"
     log = tmp_path / "calls.jsonl"
-    env = {**os.environ, "PATH": f"{bindir}:{os.environ.get('PATH', '')}", "FAKE_LOG": str(log)}
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"}
+    env = {**env, "PATH": f"{bindir}:{os.environ.get('PATH', '')}", "FAKE_LOG": str(log)}
     if init is not None:
         env["FAKE_INIT"] = json.dumps(init)
     proc = subprocess.run(
@@ -85,10 +86,11 @@ def _record(out: Path, name: str) -> dict:
 def test_runner_starts_every_lane_in_safe_mode_by_default(tmp_path: Path) -> None:
     proc, out, calls = _run(tmp_path)
     assert proc.returncode == 0, proc.stderr
-    assert len(calls) == 1 and "--safe-mode" in calls[0]
+    assert len(calls) == 1 and "--safe-mode" in calls[0] and "ENV_GIT=1" in calls[0]
     assert out.read_text(encoding="utf-8") == "four\n"
     declared = _record(out, "context_sources.json")
-    assert declared["hermetic"] is True and declared["mechanism"] == "--safe-mode"
+    assert declared["hermetic"] is True and declared["mechanism"].startswith("--safe-mode")
+    assert declared["not_measured"] and declared["excluded_by_documentation"]
     assert any("auto memory" in item for item in declared["excluded"])
     assert any("AGENTS.md" in item for item in declared["excluded"])
     assert any("user-level" in item for item in declared["excluded"])
@@ -98,7 +100,7 @@ def test_runner_starts_every_lane_in_safe_mode_by_default(tmp_path: Path) -> Non
 def test_operator_context_is_loaded_only_on_explicit_request_and_recorded(tmp_path: Path) -> None:
     proc, out, calls = _run(tmp_path, "--load-operator-context")
     assert proc.returncode == 0, proc.stderr
-    assert "--safe-mode" not in calls[0]
+    assert "--safe-mode" not in calls[0] and "ENV_GIT=" in calls[0]
     declared = _record(out, "context_sources.json")
     assert declared["hermetic"] is False and declared["excluded"] == []
 
@@ -129,6 +131,7 @@ def test_live_lane_reporting_operator_memory_is_rejected_not_retried(tmp_path: P
     assert len(calls) == 1, "a lane that loaded operator memory would load it again; no retry"
     assert "operator memory entered the lane" in proc.stderr
     assert not out.exists() and Path(str(out) + ".not-hermetic").read_text(encoding="utf-8") == "four"
+    assert not Path(str(out) + ".partial").exists(), "the rejected answer must not stay at OUT.partial"
     observed = _record(out, "attempt_1.context_observed.json")
     assert observed["verdict"] == "not_hermetic" and observed["memory_paths"]
 
@@ -147,8 +150,25 @@ def test_operator_mode_records_memory_without_rejecting(tmp_path: Path) -> None:
     assert observed["verdict"] == "not_required" and observed["memory_paths"]
 
 
-def test_reduced_real_init_events_separate_hermetic_from_operator_lanes() -> None:
-    """The safe-mode init event lists no memory and no operator- or plugin-provided skill or agent."""
+def _observe(tmp_path: Path, init: dict, mode: str, exit_code: int) -> tuple[int, dict]:
+    events = tmp_path / f"{mode}-{exit_code}.jsonl"
+    events.write_text(json.dumps(init) + "\n", encoding="utf-8")
+    out = tmp_path / f"{mode}-{exit_code}.observed.json"
+    proc = subprocess.run([sys.executable, str(CONTEXT_SOURCES), "observe", "--mode", mode, "--events", str(events),
+                           "--exit-code", str(exit_code), "--out", str(out)], capture_output=True, text=True, check=False)
+    return proc.returncode, json.loads(out.read_text(encoding="utf-8"))
+
+
+def test_reduced_real_init_events_separate_hermetic_from_operator_lanes(tmp_path: Path) -> None:
+    """The safe-mode init event lists no memory and no operator- or plugin-provided skill or agent,
+    and the observation check accepts it while rejecting the operator-context event, also after a
+    failed attempt."""
+    assert _observe(tmp_path, FIXTURE["safe_mode"], "hermetic", 0)[0] == 0
+    for code in (0, 65):
+        rc, observed = _observe(tmp_path, FIXTURE["operator"], "hermetic", code)
+        assert rc == NOT_HERMETIC and observed["verdict"] == "not_hermetic"
+    rc, observed = _observe(tmp_path, FIXTURE["safe_mode"], "hermetic", 0)
+    assert observed["skills"] == sorted(FIXTURE["safe_mode"]["skills"])
     safe, operator = FIXTURE["safe_mode"], FIXTURE["operator"]
     assert "memory_paths" not in safe and operator["memory_paths"]["auto"]
     for listing in ("skills", "agents"):

@@ -147,6 +147,8 @@ CONTEXT_MODE="operator"
 if [[ "${HERMETIC}" -eq 1 ]]; then
   CONTEXT_ARGS=(--safe-mode)
   CONTEXT_MODE="hermetic"
+  # The git status snapshot can carry commit subjects of the operator's checkout.
+  export CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1
 fi
 
 # Session semantics: the runner's default contract is a CLEAN-ROOM one-shot (claude
@@ -230,7 +232,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     echo "Strict MCP config: disabled (--no-strict-mcp-config)"
   fi
   if [[ "${HERMETIC}" -eq 1 ]]; then
-    echo "Operator context: excluded (--safe-mode: no user/project CLAUDE.md, AGENTS.md, auto memory, plugins, hooks, skills)"
+    echo "Operator context: excluded (--safe-mode, CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1: no user/project CLAUDE.md, AGENTS.md, auto memory, plugins, hooks, skills, git status snapshot)"
   else
     echo "Operator context: loaded (--load-operator-context; lane is not hermetic)"
   fi
@@ -304,6 +306,8 @@ policy_args=(--timeout-secs "${TIMEOUT_SECS}" --expected-secs "${EXPECTED_SECS}"
 if [[ "${LIVE_CAPTURE}" -eq 1 ]]; then policy_args+=(--capture); fi
 python3 "${PROCESS_BUDGET}" init --state "${BUDGET_STATE}" --max-attempts "${MAX_RETRIES}" \
   "${policy_args[@]}" --prompt-file "${PROMPT_FILE}" --system-file "${SYSTEM_PROMPT_FILE}" --out "${OUT}"
+# A rejected answer from an earlier run must not sit beside this run's result.
+rm -f "${OUT}.not-hermetic" "${OUT}.not-hermetic.partial"
 context_declare_args=(--mode "${CONTEXT_MODE}")
 if [[ "${LIVE_CAPTURE}" -eq 1 ]]; then context_declare_args+=(--live-capture); fi
 python3 "${CONTEXT_SOURCES}" declare "${context_declare_args[@]}" --out "${TRACE_RUN_DIR}/context_sources.json"
@@ -433,6 +437,7 @@ classify_deterministic_failure() {
         'no such file or directory' \
         'usage:' \
         'unrecognized argument' \
+        'unknown option' \
         'invalid value' \
         'not eligible' \
         'not currently available in your location' \
@@ -491,6 +496,7 @@ while true; do
     if [[ "${observe_code}" -ne 0 ]]; then
       # Keep the evidence, but never leave a rejected lane's answer where a result is read.
       if [[ -e "${OUT}" ]]; then mv -f "${OUT}" "${OUT}.not-hermetic"; fi
+      if [[ -e "${OUT}.partial" ]]; then mv -f "${OUT}.partial" "${OUT}.not-hermetic.partial"; fi
       exit "${observe_code}"
     fi
     if [[ "${code}" -eq 0 ]]; then exit 0; fi

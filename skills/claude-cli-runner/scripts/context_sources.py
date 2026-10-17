@@ -26,18 +26,33 @@ from pathlib import Path
 SCHEMA = "claude_lane_context_sources_v1"
 NOT_HERMETIC = 78
 
+# Measured with marker files under --safe-mode (claude 2.1.287): each of these reached the lane without
+# the flag and none did with it.
 EXCLUDED = [
-    "user-level instruction files (CLAUDE.md and rules in the CLI config directory)",
-    "CLAUDE.md, CLAUDE.local.md and AGENTS.md of the working directory and its parents",
-    "auto memory (MEMORY.md and topic files of the project)",
+    "user-level instruction file (CLAUDE.md in the CLI config directory)",
+    "CLAUDE.md and AGENTS.md of the working directory and its parents, including the home directory",
+    "CLAUDE.md of a subdirectory after a file there is read",
+    "auto memory (MEMORY.md of the project)",
+    "skills and agents of user-installed plugins and of the user's skill directory",
+]
+# Stated by the CLI documentation for --safe-mode or by the environment variable set with it, not
+# measured here.
+EXCLUDED_BY_DOCUMENTATION = [
+    "CLAUDE.local.md and user-level rules files",
     "managed-policy CLAUDE.md",
-    "installed plugins, hooks, skills, custom commands and agents, output styles, MCP servers",
+    "user and project hooks, custom commands, output styles, MCP servers",
+    "git status snapshot and built-in git workflow instructions (CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1)",
 ]
 ADMITTED = [
     "the request's own system prompt (--system-prompt)",
     "the request's own prompt (stdin)",
     "the CLI environment block (working directory, platform, model, date)",
+    "the CLI's agent identity line",
     "account identity attached by the CLI login (e-mail address)",
+]
+NOT_MEASURED = [
+    "managed-policy settings and policy-configured hooks (the CLI states they still apply)",
+    "whether a default model, env block or apiKeyHelper in the user's settings still applies",
 ]
 
 
@@ -50,8 +65,11 @@ def declare(args: argparse.Namespace) -> int:
     record = {
         "schema": SCHEMA,
         "hermetic": hermetic,
-        "mechanism": "--safe-mode" if hermetic else "none (--load-operator-context)",
+        "mechanism": "--safe-mode, CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1" if hermetic
+        else "none (--load-operator-context)",
         "excluded": EXCLUDED if hermetic else [],
+        "excluded_by_documentation": EXCLUDED_BY_DOCUMENTATION if hermetic else [],
+        "not_measured": NOT_MEASURED if hermetic else [],
         "admitted": ADMITTED if hermetic else ADMITTED + ["all operator context the CLI loads by default"],
         "per_call_observation": "init event memory_paths (live capture only)" if args.live_capture
         else "unavailable without live capture",
@@ -75,6 +93,12 @@ def _init_event(events: Path) -> dict | None:
     return None
 
 
+def _names(init: dict | None, key: str) -> list[str] | None:
+    if init is None or not isinstance(init.get(key), list):
+        return None
+    return sorted(str(v.get("name") if isinstance(v, dict) else v) for v in init[key])
+
+
 def observe(args: argparse.Namespace) -> int:
     init = _init_event(Path(args.events))
     memory = init.get("memory_paths") if init is not None else None
@@ -84,8 +108,11 @@ def observe(args: argparse.Namespace) -> int:
         "schema": SCHEMA,
         "init_event_seen": init is not None,
         "memory_paths": loaded_memory,
-        "plugins": sorted(str(p.get("name")) for p in init.get("plugins", []) if isinstance(p, dict))
-        if init is not None and isinstance(init.get("plugins"), list) else None,
+        # The init event lists installed plugins even when --safe-mode loads none of them; the skills
+        # and agents it lists are what the lane could actually use.
+        "plugins_installed": _names(init, "plugins"),
+        "skills": _names(init, "skills"),
+        "agents": _names(init, "agents"),
         "hermetic_required": args.mode == "hermetic",
     }
     failure = None

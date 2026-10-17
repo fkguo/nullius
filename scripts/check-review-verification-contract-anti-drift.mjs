@@ -227,6 +227,7 @@ requireAll('skills/claude-cli-runner/SKILL.md', read('skills/claude-cli-runner/S
 requireAll('skills/claude-cli-runner/scripts/run_claude.sh', read('skills/claude-cli-runner/scripts/run_claude.sh'), [
   ['safe mode is the default context', 'HERMETIC=1'],
   ['safe mode flag', 'CONTEXT_ARGS=(--safe-mode)'],
+  ['git snapshot dropped', 'export CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1'],
   ['flag reaches the real invocation', '"${CONTEXT_ARGS[@]+"${CONTEXT_ARGS[@]}"}"'],
   ['declared sources record', 'declare "${context_declare_args[@]}"'],
   ['observed init-event check', '"${CONTEXT_SOURCES}" observe'],

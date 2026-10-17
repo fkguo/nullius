@@ -643,9 +643,12 @@ from real contamination events that voided otherwise-clean review rounds:
   Those files routinely record the conclusion under test or the author's initial judgment, and their
   style rules change the lane's language. Anything a lane legitimately needs belongs in its own request.
   The Claude runner enforces this by default (`--safe-mode`; `claude-cli-runner` SKILL.md, **Context
-  sources**) and records the allowed sources per invocation in `OUT.attempts/run.*/context_sources.json`,
-  plus the observed init-event check under live capture. Other backends' runners do not yet record this;
-  their lanes carry no such attestation.
+  sources**) and records the allowed sources per invocation in `context_sources.json` of the attempt
+  directory (`OUT.attempts/run.*/` unless a trace directory is given), plus the observed init-event check
+  under live capture; a rejected lane has `runner_failure_reason: not_hermetic`, class `configuration`,
+  and is not counted as a backend outage. Other backends' runners, and the project-local Claude runner
+  copy that the research-team workflow installs, do not yet exclude or record this; their lanes carry no
+  such attestation.
 - **Seal the independent phase from the first round (sealed-derivation protocol).** Whenever a
   review both (i) derives or recomputes a target quantity and (ii) will afterwards read the
   candidate, run the sealed-derivation protocol from round one: the reviewer receives only the
