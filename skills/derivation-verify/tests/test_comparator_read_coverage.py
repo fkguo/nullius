@@ -411,3 +411,23 @@ def test_per_call_usage_takes_the_larger_of_start_and_delta_and_refuses_an_empty
     assert calls == [{'input_tokens': 150005, 'output_tokens': 900}]
     with pytest.raises(ValueError, match='reports no input usage'):
         request_capacity._per_call_usage(stream({'output_tokens': 1}, {'input_tokens': 0, 'output_tokens': 900}))
+
+
+def test_lane_and_pair_requests_read_as_reviewing_a_written_document():
+    # Live calls with the earlier wording ("complete original material", "content_blocks for a live stream ... thinking
+    # blocks and thinking signatures", "copied reasoning") were stopped by the provider's reasoning-extraction safeguard
+    # on their first model call. The per-lane and per-pair requests ask for a written assessment of a written derivation;
+    # every requirement stays (complete reading, assessment after the last Read, spans from the returned lines).
+    entry = {'index': 0, 'family': 'some-family', 'canonical_answer': '42', 'derivation': 'Step 1: 17 + 25 = 42.'}
+    parts = {i: [{'path': f'/frozen/lane-{i}.part-001-of-001.txt', 'sha256': '0' * 64, 'size': 1, 'lines': 1}] for i in (0, 1)}
+    claim = {**CLAIM, 'requires_method_diversity': True}
+    texts = {'lane system': mb._ASSESS_SYSTEM, 'pair system': mb._RISK_SYSTEM,
+             'lane inline': mb._assess_prompt('ctx', claim, entry), 'lane files': mb._assess_prompt('ctx', claim, entry, parts),
+             'pair files': mb._risk_prompt('ctx', claim, [entry, {**entry, 'index': 1}], parts)}
+    for name, text in texts.items():
+        found = re.findall(r'(?i)thinking|reasoning|live stream|emission order|original material|original output|complete original', text)
+        assert not found, (name, found)
+    files = texts['lane files']
+    for kept in ('Open every listed part with the Read tool', 'every line of every listed file was shown to you by the Read tool',
+                 'write the assessment in your last message, after the last Read', 'answer_support {supports_canonical_answer:boolean'):
+        assert kept in files, kept

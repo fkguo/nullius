@@ -223,6 +223,7 @@ requireAll('skills/derivation-verify/tests/test_comparator_read_coverage.py', re
   ['answer support witness', 'def test_split_lane_counts_only_when_its_body_supports_its_stated_answer'],
   ['returned line number binding mutation', "'shifted-numbers': 'a returned line differs from the frozen bytes'"],
   ['spans checked against what was read witness', 'def test_spans_are_checked_against_exactly_what_the_comparator_read'],
+  ['lane and pair requests phrased as reviewing a written document witness', 'def test_lane_and_pair_requests_read_as_reviewing_a_written_document'],
 ]);
 requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', read('skills/derivation-verify/tests/test_native_workflow_transport.mjs'), [
   ['native packet copy count witness', 'async function checkPacketCopies('],

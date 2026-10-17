@@ -907,13 +907,13 @@ _COMBINED_SYSTEM = (
     "Include independence_assessments and method_risk_assessments as required by the user prompt. No prose outside the json block."
 )
 _ASSESS_SYSTEM = (
-    "You are an impartial assessor of ONE candidate derivation of a claim, given its complete original material. "
-    "Read all of it before judging. Output ONLY a single fenced ```json block with the key \"independence_assessments\": "
+    "You review one written derivation of a claim, supplied as a document. "
+    "Read the whole document before writing your assessment. Output ONLY a single fenced ```json block with the key \"independence_assessments\": "
     "an array holding exactly one assessment, for the lane index named in the user prompt. No prose outside the json block."
 )
 _RISK_SYSTEM = (
-    "You are an impartial assessor of a declared shared failure mode across TWO candidate derivations of a claim, given both "
-    "complete original materials. Read all of it before judging. Output ONLY a single fenced ```json block with the key "
+    "You review a declared shared failure mode across two written derivations of a claim, supplied as documents. "
+    "Read both documents completely before writing your assessment. Output ONLY a single fenced ```json block with the key "
     "\"method_risk_assessments\": an array holding exactly one assessment, for the index pair named in the user prompt. "
     "No prose outside the json block."
 )
@@ -960,19 +960,19 @@ def _encoded(value) -> str:
 
 
 _MATERIAL_RULES = (
-    "Read the COMPLETE original derivations and runtime-observed requests, raw outputs and execution records. "
-    "The structured derivation field is unchanged; transport.raw_output is the exact original assistant output. "
+    "Read the complete written derivation together with its recorded request, recorded output text and run records. "
+    "The structured derivation field is unchanged; transport.raw_output is the recorded output text exactly as returned. "
     "derivation_context is present only when that output holds assistant text outside the selected JSON object; it is then that complete "
-    "original output, and the lane's transport marks raw_output_given_as=derivation_context instead of repeating the same bytes. "
+    "recorded output text, and the lane's transport marks raw_output_given_as=derivation_context instead of repeating the same bytes. "
     "transport.captured_records states for each captured file how it is carried: inline (content verbatim), by_reference "
-    "(ref = path, sha256, size, with the equality proven at assembly), or content_blocks for a live stream: its content in "
-    "emission order, where a text value given as {equals, sha256} is exactly the complete named shipped field (proven equal at "
-    "assembly) and every other block and field is verbatim; only ids, timestamps, usage, cost and timing counters, status, "
-    "token-counter and rate-limit events, stream markers, empty thinking blocks and thinking signatures are not shown. "
+    "(ref = path, sha256, size, with the equality proven at assembly), or content_blocks for a run's event log: its entries in "
+    "recorded order, where a text value given as {equals, sha256} is exactly the complete named shipped field (proven equal at "
+    "assembly) and every other entry and field is verbatim; only bookkeeping is not shown (ids, timestamps, usage, cost and "
+    "timing counters, status, counter and rate-limit entries, start/stop markers, empty blocks and opaque signature fields). "
     "Check whether earlier text contains necessary steps, contradictions, repetitions or unrelated commentary. "
     "Do not assume all text is a derivation, or that one selected JSON field contains every necessary step. "
     "If the JSON already contains the complete derivation, retain that contract and substantively explain coverage of earlier text. "
-    "Summaries, author assertions of freshness and labels cannot substitute for original material. "
+    "Summaries, author assertions of freshness and labels cannot substitute for the written material itself. "
 )
 
 
@@ -987,13 +987,14 @@ def _material_section(entries: list[dict], frozen: Optional[dict] = None) -> str
         lines.append(f"lane #{entry['index']}: {len(parts)} part files; joined, they are this lane's record encoded as one JSON object")
         lines += [f"  {f['path']} (sha256 {f['sha256']}, {f['size']} bytes, {f['lines']} lines)" for f in parts]
     return "\n".join(lines) + (
-        "\n\nThis material does not fit one request, so it is frozen on disk (bytes and sha256 fixed before you started). "
-        "Use the Read tool on every listed part file and have every line of every part returned to you, from the first to the last "
-        "(a part fits one Read call; offset and limit are allowed when every line is still returned). Join all lines of all parts of "
-        "a lane, in the listed order, with NOTHING between them: a cut follows each \\n escape and falls at most every "
-        f"{WRAP_CHARS} characters, never inside an escape. Only what the Read tool returned to you counts as read; a verdict counts "
-        "only when every byte of every listed file was returned, so read everything before judging and give the verdict in your "
-        "final message, after the last read. Use no other file and no other tool as a substitute.\n\n")
+        "\n\nThis document is too long for one message, so it is stored on disk as the part files listed above, whose bytes "
+        "and sha256 were fixed before you started. Open every listed part with the Read tool so that each line of each part is "
+        "shown to you, from the first line to the last (one Read call holds a part; offset and limit are fine as long as every line "
+        "is shown). The parts are consecutive pieces of one JSON text: put the lines of all parts of a lane together in the listed "
+        "order with nothing between them (a piece ends after each \\n escape or after at most "
+        f"{WRAP_CHARS} characters, never inside an escape). The assessment is used only if every line of every listed file was "
+        "shown to you by the Read tool, so finish reading all parts first and write the assessment in your last message, after the "
+        "last Read. Do not use other files or tools instead.\n\n")
 
 
 def _assess_prompt(ctx: str, c: dict, entry: dict, frozen: Optional[dict] = None) -> str:
@@ -1007,10 +1008,11 @@ def _assess_prompt(ctx: str, c: dict, entry: dict, frozen: Optional[dict] = None
         "It has booleans input_independent, execution_independent, construction_independent, method_applicable, diagnostic; "
         "unresolved_defects (array); observed_method (source-grounded description, not the hint); evidence with input, execution, "
         "construction, applicability, diagnostic. Each entry quotes an exact source_span plus a substantive reason: construction/applicability/diagnostic MUST quote, when derivation_context is present, its text OUTSIDE every answer-shaped JSON object (the selected one and any other decodable JSON object with a canonical_answer or derivation_summary key, e.g. drafts or wrappers), or the COMPLETE structured derivation body as read; the fields of those objects are never derivation steps; input/execution may also quote the transport record exactly as shown (request, raw_output, invocation, captured_records) or any of its decoded string values, or derivation_summary. "
-        "The equivalence of answers is judged elsewhere from canonical answers alone, so state here whether this lane's actual steps arrive at "
-        "its stated canonical_answer: answer_support {supports_canonical_answer:boolean, source_span (the concluding steps, quoted under the "
-        "construction rule), reason}; false when the steps reach a different result, contradict it or do not reach it. "
-        "Reject absent original steps/transport, failed invocations, copied reasoning, original-code reruns, contaminated inputs, "
+        "Equivalence between answers is decided elsewhere from the stated answers only, so say here whether the written steps of this "
+        "derivation arrive at its stated canonical_answer: answer_support {supports_canonical_answer:boolean, source_span (the concluding "
+        "steps as written, quoted under the construction rule), reason}; false when the written steps reach a different result, "
+        "contradict it or do not reach it. "
+        "Reject missing written steps or records, failed invocations, text copied from another lane, reruns of the original code, contaminated inputs, "
         "known relevant defects and non-diagnostic checks. Same/similar methods, same family and shared legitimate libraries alone do not reject. "
         "Missing material is unavailable, never approval."
     )
