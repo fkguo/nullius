@@ -100,8 +100,9 @@ def test_complete_original_material_and_observed_requests_are_not_truncated():
                 for e in a['evidence'].values(): e['source_span'] = original[:200]
             return json.dumps(report)
         return json.dumps(verdict(original))
-    # Two complete 14.6 kB lanes fit the default window: the request carries no
-    # byte-identical copies of a lane's original text beyond what span checks need.
+    # Two complete 14.6 kB lanes fit the default window once original_assistant_output
+    # and a derivation_context equal to the derivation are left out of the request; each
+    # lane's text still appears four times (derivation, raw output, twice in assessment_source).
     assert verify(CLAIM, run)['converged']
     packet, _ = json.JSONDecoder().raw_decode(seen[0].split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
     assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']
