@@ -647,9 +647,11 @@ from real contamination events that voided otherwise-clean review rounds:
   directory (`OUT.attempts/run.*/` unless a trace directory is given), plus the observed init-event check
   under live capture; a rejected lane has `runner_failure_reason: not_hermetic`, class `configuration`,
   and is not counted as a backend outage (it still triggers fallback; a lane recovered on another backend
-  carries no hermetic record). Other backends' runners, and the project-local Claude runner
-  copy that the research-team workflow installs, do not yet exclude or record this; their lanes carry no
-  such attestation.
+  carries no hermetic record). The project-local Claude runner copy that the research-team
+  workflow installs (`scripts/run_claude.sh`) applies the same exclusion but does not write the record;
+  a copy made before the exclusion existed is replaced by the shared runner for the run (with a warning)
+  until it is refreshed (research-team RUNBOOK, **Refreshing the Claude runner copy**). Other backends'
+  runners do not yet exclude or record this; their lanes carry no such attestation.
 - **Seal the independent phase from the first round (sealed-derivation protocol).** Whenever a
   review both (i) derives or recomputes a target quantity and (ii) will afterwards read the
   candidate, run the sealed-derivation protocol from round one: the reviewer receives only the
