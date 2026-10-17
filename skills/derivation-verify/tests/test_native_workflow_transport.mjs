@@ -205,13 +205,13 @@ console.log('10 invalid claim-control cases rejected before host dispatch; liter
 // no other field repeats it (assessment_source is no longer shipped). Input/execution spans may come from
 // the derivation, the summary, or the transport record as encoded or as decoded values; construction may not.
 const PACKET_ANCHOR = 'PACKET_COPY_ANCHOR'
-async function packetRun(spans) {
+async function packetRun(spans, reply = {}) {
   let packet = null
   const body = 'Read raw operands 17 and 25; expand 25=20+5, add 17+20=37 then 37+5=42; exact integers detect a one-unit error.\n' + 'Original intermediate step.\n'.repeat(50) + PACKET_ANCHOR
   const claim = { id: 'packet', statement: 'Compute the sum of raw integers 17 and 25.', report_format: 'integer' }
   const agent = async (prompt, options) => {
     // The summary carries a quote and a newline: JSON-escaped inside raw_output, so only the summary source matches it.
-    if (options.label.startsWith('verify:')) return { canonical_answer: '42', derivation: body, derivation_summary: 'Navigation "summary"\nonly', confidence: 'high' }
+    if (options.label.startsWith('verify:')) return { canonical_answer: '42', derivation: body, derivation_summary: 'Navigation "summary"\nonly', confidence: 'high', ...reply }
     packet = { text: prompt, records: JSON.parse(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n')[1].split('\n\n')[0]) }
     return { majority_answer: '42', majority_size: 2, majority_indices: [0, 1], adjudicated_matches_majority: true, all_equivalent: true,
       outliers: 'none', correct_answer_adjudicated: '42', method_risk_assessments: [],
@@ -234,6 +234,18 @@ async function checkPacketCopies() {
   assert.equal(packet.text.split(PACKET_ANCHOR).length - 1, 2 * packet.records.length)
 }
 await checkPacketCopies()
+// The native host protocol observes no capture stream: agent() returns one object. The packet's transport
+// therefore holds exactly the runtime-owned request and raw output, and carries no captured_records to
+// inline or reference, even when the reply claims a capture of its own.
+async function checkNativeCapturedRecords() {
+  const { row, packet } = await packetRun(() => ({}), { transport: { captured_records: { 'attempt_1.events.jsonl': '{"type":"result"}' } } })
+  assert.equal(row.converged, true)
+  for (const record of packet.records) {
+    assert.deepEqual(Object.keys(record.transport).sort(), ['execution_id', 'exit_code', 'raw_output', 'request'])
+    assert.deepEqual(Object.fromEntries(Object.entries(record).map(([k, v]) => [k, JSON.stringify(v).split(PACKET_ANCHOR).length - 1]).filter(([, n]) => n > 0)), { derivation: 1, transport: 1 })
+  }
+}
+await checkNativeCapturedRecords()
 async function checkSpanSources(axis, pick, converged) {
   const { row } = await packetRun(d => ({ [axis]: pick(d) }))
   assert.equal(row.converged, converged, `${axis}: ${converged ? 'accepted' : 'refused'}`)
@@ -244,4 +256,4 @@ await checkSpanSources('input', d => d.transport.request.prompt, true)          
 await checkSpanSources('execution', d => 'text in no lane material at all', false)
 await checkSpanSources('construction', d => d.derivation_summary, false)                 // body only for the scientific axes
 await checkSpanSources('construction', d => d.transport.request.prompt, false)
-console.log('1 native packet copy-count case and 6 input/execution span-source cases passed.')
+console.log('1 native packet copy-count case, 1 native no-capture transport case and 6 input/execution span-source cases passed.')

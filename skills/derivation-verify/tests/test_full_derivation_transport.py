@@ -1,4 +1,5 @@
 """Protocol witnesses for actual gate consumers; mocked semantics are not scientific reviews."""
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -154,41 +155,261 @@ def test_comparator_packet_repeats_lane_text_only_inside_transport():
     assert prompt.count(ANCHOR) == 2 * len(packet)
 
 
-def test_packet_assembly_adds_no_copy_beyond_captured_records(tmp_path):
-    # With live capture on, transport.captured_records carry the stream files verbatim (assistant
-    # snapshot, text deltas, result event and its sidecar), so the output is repeated as emitted.
-    # Packet assembly must add nothing beyond derivation and transport.raw_output to those copies.
+SESSION = '00000000-0000-4000-8000-000000000000'
+
+
+def live_stream(raw, *, tool=False, alter_delta=False, extra=False):
+    """Events shaped like a real Claude CLI live capture of a 12 kB lane, reduced to generic content.
+    The real capture had 972 events and 348 kB: an init event, 76 thinking-token counters, 77 thinking
+    deltas with no text, a 34 kB thinking signature sent as a delta and repeated in the snapshot,
+    805 text deltas of about 15 characters, the text snapshot and the result event. With tool=True a
+    tool_use block and its tool_result are added; alter_delta changes one byte of one text delta; extra
+    adds content a stream can carry besides the output: a tool list in init, a compaction record, a
+    synthetic user message, an orphan delta, a malformed line and result errors and denials."""
+    ids = iter(range(10 ** 6))
+    def env(event, display=False):
+        event.update(session_id=SESSION, parent_tool_use_id=None, uuid=f'{next(ids):08x}-0000-4000-8000-000000000000')
+        if display:
+            event['thinking_display'] = 'updates'
+        return event
+    def stream(inner, display=False):
+        return env({'type': 'stream_event', 'event': inner}, display)
+    signature = ''
+    while len(signature) < 34000:
+        signature += hashlib.sha256(signature.encode()).hexdigest()
+    usage = {'input_tokens': 2, 'cache_creation_input_tokens': 11410, 'output_tokens': 8, 'service_tier': 'standard'}
+    message = {'model': 'some-model', 'id': 'msg_generic', 'type': 'message', 'role': 'assistant', 'stop_reason': None, 'usage': usage}
+    events = [env({'type': 'system', 'subtype': 'init', 'cwd': '/work', 'tools': [], 'mcp_servers': [], 'model': 'some-model',
+                   'slash_commands': [f'generic-skill-{i}' for i in range(200)], 'apiKeySource': 'none',
+                   **({'tools': ['WebSearch', 'Bash']} if extra else {})}),
+              env({'type': 'system', 'subtype': 'status', 'status': 'requesting'}),
+              stream({'type': 'message_start', 'message': {**message, 'content': []}}),
+              stream({'type': 'content_block_start', 'index': 0, 'content_block': {'type': 'thinking', 'thinking': '', 'signature': ''}}, True)]
+    for k in range(77):
+        events.append(env({'type': 'system', 'subtype': 'thinking_tokens', 'estimated_tokens': 50 * (k + 1), 'estimated_tokens_delta': 50}))
+        events.append(stream({'type': 'content_block_delta', 'index': 0, 'delta': {'type': 'thinking_delta', 'thinking': '', 'estimated_tokens': 50 * (k + 1)}}, True))
+    events += [stream({'type': 'content_block_delta', 'index': 0, 'delta': {'type': 'signature_delta', 'signature': signature}}),
+               env({'type': 'assistant', 'message': {**message, 'content': [{'type': 'thinking', 'thinking': '', 'signature': signature}]}, 'request_id': 'req_generic'}),
+               stream({'type': 'content_block_stop', 'index': 0}),
+               stream({'type': 'content_block_start', 'index': 1, 'content_block': {'type': 'text', 'text': ''}})]
+    pieces = [raw[i:i + 15] for i in range(0, len(raw), 15)]
+    if alter_delta:
+        pieces[3] = pieces[3][:-1] + ('X' if pieces[3][-1] != 'X' else 'Y')
+    events += [stream({'type': 'content_block_delta', 'index': 1, 'delta': {'type': 'text_delta', 'text': piece}}) for piece in pieces]
+    events += [env({'type': 'assistant', 'message': {**message, 'content': [{'type': 'text', 'text': raw}]}, 'request_id': 'req_generic'}),
+               stream({'type': 'content_block_stop', 'index': 1})]
+    if tool:
+        events += [env({'type': 'assistant', 'message': {**message, 'content': [{'type': 'tool_use', 'id': 'toolu_generic', 'name': 'Bash', 'input': {'command': 'python3 check.py'}}]}}),
+                   env({'type': 'user', 'message': {'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': 'toolu_generic', 'content': TOOL_OUTPUT}]}})]
+    if extra:
+        events += [env({'type': 'system', 'subtype': 'compact_boundary', 'compact_metadata': {'trigger': 'auto', 'pre_tokens': 150000}}),
+                   env({'type': 'user', 'message': {'role': 'user', 'content': [{'type': 'text', 'text': SYNTHETIC}]}, 'isSynthetic': True}),
+                   env({'type': 'assistant', 'message': {**message, 'content': [{'type': 'text', 'text': PARTIAL}]}}),
+                   env({'type': 'user', 'message': {'role': 'user', 'content': [{'type': 'text', 'text': raw}]}}),
+                   stream({'type': 'content_block_delta', 'index': 7, 'delta': {'type': 'text_delta', 'text': 'orphan fragment'}}),
+                   {**stream({'type': 'content_block_start', 'index': 9, 'content_block': {'type': 'text', 'text': ''}}), 'parent_tool_use_id': 'toolu_sub'},
+                   {**stream({'type': 'content_block_delta', 'index': 9, 'delta': {'type': 'text_delta', 'text': SUBAGENT_TEXT}}), 'parent_tool_use_id': 'toolu_sub'},
+                   '{"type": "stream_event", truncated line']
+    events += [stream({'type': 'message_delta', 'delta': {'stop_reason': 'max_tokens' if extra else 'end_turn'}, 'usage': usage}),
+               stream({'type': 'message_stop'}),
+               {'type': 'rate_limit_event', 'rate_limit_info': {'status': 'allowed'}, 'session_id': SESSION, 'uuid': 'ffffffff-0000-4000-8000-000000000000'},
+               {'type': 'result', 'subtype': 'success', 'is_error': False, 'duration_ms': 148000, 'num_turns': 1, 'result': raw,
+                'stop_reason': 'end_turn', 'session_id': SESSION, 'total_cost_usd': 0.5, 'usage': usage, 'uuid': 'eeeeeeee-0000-4000-8000-000000000000',
+                'modelUsage': {'some-model': {'inputTokens': 2, 'outputTokens': 17887, 'costUSD': 0.5, 'contextWindow': 1000000}},
+                **({'errors': ['tool denied'], 'permission_denials': [{'tool_name': 'WebSearch'}]} if extra else {})}]
+    return events, signature
+
+
+SYNTHETIC = 'Original step 7: preserve this exact evidence.'  # occurs inside the lane output
+SUBAGENT_TEXT = 'subagent reply streamed without a snapshot'
+PARTIAL = 'Original step 9: preserve this exact evidence.'    # an assistant text that is only part of the output
+TOOL_OUTPUT = 'check.py: residual of the rearranged identity is exactly zero for all 64 sampled points'
+
+
+class LiveCapture:
+    """Runner adapter that writes the stream and its terminal sidecar where the CLI runner puts them."""
+    def __init__(self, root, raw, sidecar=None, **shape):
+        self.root, self.raw, self.sidecar, self.shape, self.invocations, self.signature = root, raw, sidecar, shape, {}, None
+    def __call__(self, spec, system, prompt, tag):
+        d = self.root / tag; d.mkdir()
+        out = d / 'out.txt'; out.write_text(self.raw, encoding='utf-8')
+        capture = Path(str(out) + '.attempts') / 'run.current'; capture.mkdir(parents=True)
+        events, self.signature = live_stream(self.raw, **self.shape)
+        (capture / 'attempt_1.events.jsonl').write_text(''.join((e if isinstance(e, str) else json.dumps(e, separators=(',', ':'))) + '\n' for e in events), encoding='utf-8')
+        sidecar = json.dumps(events[-1], indent=2) + '\n'
+        (capture / 'attempt_1.events.result.json').write_text(self.sidecar(sidecar) if self.sidecar else sidecar, encoding='utf-8')
+        (capture / 'attempt_1.events.progress.json').write_text(json.dumps({'capture_health': 'observable', 'event_count': len(events)}, indent=2) + '\n', encoding='utf-8')
+        self.invocations[tag] = {'exit_code': 0, 'output': str(out)}
+        return self.raw
+
+
+def carried(d, record, suffix):
+    path = next(p for p in d['transport']['captured_records'] if p.endswith(suffix))
+    return path, record['transport']['captured_records'][path]
+
+
+def text_values(blocks):
+    return [b['block'][f] for b in blocks if isinstance(b.get('block'), dict) for f in ('text', 'result') if f in b['block']]
+
+
+def test_live_capture_stream_is_carried_as_content_blocks_and_two_lanes_fit(tmp_path):
+    # A live stream repeats the output in its snapshot, deltas, result event and sidecar, and wraps
+    # every delta in an event envelope: one realistic stream alone is larger than the default window.
+    # The packet shows its content; every text value of the lane's own output is a reference to
+    # transport.raw_output, proven equal to it at assembly, the sidecar goes by reference as the
+    # re-serialized terminal event, and event bookkeeping and the thinking signature are not shown.
     raw = json.dumps(verdict(LONG_ORIGINAL))
-    class Captured:
-        def __init__(self):
-            self.invocations = {}
-        def __call__(self, spec, system, prompt, tag):
-            d = tmp_path / tag; d.mkdir()
-            out = d / 'out.txt'; out.write_text(raw, encoding='utf-8')
-            capture = Path(str(out) + '.attempts') / 'run.current'; capture.mkdir(parents=True)
-            events = [{'type': 'stream_event', 'event': {'type': 'content_block_delta', 'delta': {'type': 'text_delta', 'text': raw[:80]}}},
-                      {'type': 'assistant', 'message': {'id': 'm1', 'content': [{'type': 'text', 'text': raw}]}},
-                      {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': raw}]
-            (capture / 'attempt_1.events.jsonl').write_text('\n'.join(json.dumps(e) for e in events) + '\n', encoding='utf-8')
-            (capture / 'attempt_1.events.result.json').write_text(json.dumps(events[-1]), encoding='utf-8')
-            self.invocations[tag] = {'exit_code': 0, 'output': str(out)}
-            return raw
-    ds, prompt, packet = packet_for(raw, run=Captured())
+    run = LiveCapture(tmp_path, raw)
+    ds, prompt, packet = packet_for(raw, run=run)
     assert all(mb.valid_derivation_transport(d) for d in ds)
     for record, d in zip(packet, ds):
-        captured = d['transport']['captured_records']
-        assert len(captured) == 2 and all(Path(p).name.startswith('attempt_1.events') for p in captured)
-        in_captured = sum(text.count(ANCHOR) for text in captured.values())
-        assert in_captured == 3  # snapshot, result event, result sidecar (the delta holds only a prefix)
-        assert record['transport']['captured_records'] == captured  # verbatim, not rewritten
-        assert copies_per_field(record) == {'derivation': 1, 'transport': 1 + in_captured}
-        assert not {'assessment_source', 'original_assistant_output', 'derivation_context'} & set(record)
-    assert prompt.count(ANCHOR) == len(packet) * (2 + 3)
-    # Measured with this minimal capture: about 166 kB for two 14.6 kB lanes (the exact figure
-    # depends on the temporary path lengths inside captured_records), above the default
-    # 159,040-byte window; about 339 kB with ten copies per record while assessment_source was
-    # still shipped. Fitting the live-capture path needs a decision on how captured records
-    # travel; not asserted here.
+        refs = {ref['path']: ref for ref in d['transport']['artifact_refs']}
+        path, stream = carried(d, record, '.events.jsonl')
+        assert len(d['transport']['captured_records'][path].encode('utf-8')) > mb.request_budgets()['context_bytes']
+        assert stream['carried'] == 'content_blocks' and stream['ref'] == refs[path] and set(refs[path]) == {'path', 'sha256', 'size'}
+        values = text_values(stream['blocks'])
+        assert len(values) == 3  # streamed text, text snapshot, terminal result
+        for value in values:
+            assert value == {'equals': 'transport.raw_output', 'sha256': hashlib.sha256(raw.encode()).hexdigest()}
+        assert not any(b['block'].get('type') == 'thinking' for b in stream['blocks'] if 'block' in b)
+        path, sidecar = carried(d, record, '.events.result.json')
+        assert sidecar == {'carried': 'by_reference', 'ref': refs[path],
+                           'proven': 'bytes equal the terminal event of attempt_1.events.jsonl written with indent 2'}
+        path, progress = carried(d, record, '.events.progress.json')
+        assert progress == {'carried': 'inline', 'content': d['transport']['captured_records'][path]}
+        assert copies_per_field(record) == {'derivation': 1, 'transport': 1}
+    assert prompt.count(ANCHOR) == 2 * len(packet)
+    assert run.signature not in prompt and SESSION not in prompt and '-0000-4000-8000-' not in prompt
+    # Two complete 14.6 kB lanes with realistic live capture fit the default window, with margin.
+    assert mb.validate_request_bytes(mb._COMPARE_SYSTEM, prompt, mb.request_budgets()) <= 0.6 * mb.request_budgets()['context_bytes']
+
+
+
+def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_output(tmp_path):
+    # Everything a stream holds besides ids, timing/usage/cost counters, status/token/rate-limit events,
+    # stream markers, empty thinking and signatures stays visible: the tool list and model of the lane,
+    # a compaction record, stop reasons, result errors and permission denials, which models served it,
+    # a synthetic user message and an assistant text that is only part of the output (both verbatim
+    # although their text occurs inside the lane output), a user message that repeats the whole output
+    # (verbatim: only the lane's own messages are referenced), a streamed subagent block with no snapshot
+    # (its parent_tool_use_id shown), the context window in modelUsage, an orphan delta and a malformed line.
+    raw = json.dumps(verdict(LONG_ORIGINAL))
+    run = LiveCapture(tmp_path, raw, extra=True)
+    ds, prompt, packet = packet_for(raw, run=run)
+    assert SYNTHETIC in raw
+    for record, d in zip(packet, ds):
+        _, stream = carried(d, record, '.events.jsonl')
+        blocks = stream['blocks']
+        init = next(b['event_fields'] for b in blocks if b.get('event_fields', {}).get('subtype') == 'init')
+        assert init['tools'] == ['WebSearch', 'Bash'] and init['model'] == 'some-model'
+        assert any(b.get('event_fields', {}).get('subtype') == 'compact_boundary' for b in blocks)
+        assert {'source': 'stream', 'message_delta': {'stop_reason': 'max_tokens'}} in blocks
+        assert {'source': 'user', 'block': {'type': 'text', 'text': SYNTHETIC}} in blocks
+        assert {'source': 'user', 'event_fields': {'isSynthetic': True}} in blocks
+        assert {'source': 'assistant', 'block': {'type': 'text', 'text': PARTIAL}} in blocks  # part of a field is not equality
+        assert {'source': 'user', 'block': {'type': 'text', 'text': raw}} in blocks  # user text is never the lane's output
+        assert {'source': 'stream', 'block': {'type': 'text', 'text': SUBAGENT_TEXT}, 'event_fields': {'parent_tool_use_id': 'toolu_sub'}} in blocks
+        assert {'source': 'unrecognized_line', 'line': '{"type": "stream_event", truncated line'} in blocks
+        assert any(b['source'] == 'unrecognized_line' and 'orphan fragment' in b['line'] for b in blocks)
+        result = next(b['block'] for b in blocks if b['source'] == 'result')
+        assert result['errors'] == ['tool denied'] and result['permission_denials'] == [{'tool_name': 'WebSearch'}]
+        assert result['modelUsage'] == {'some-model': {'contextWindow': 1000000}} and result['num_turns'] == 1
+        assert not {'session_id', 'uuid', 'usage', 'total_cost_usd', 'duration_ms'} & set(result)
+        assert not any(b.get('event_fields', {}).get('subtype') in ('status', 'thinking_tokens') for b in blocks)
+    # The unrecognized orphan delta line keeps its envelope verbatim; recognized events show none.
+    assert run.signature not in prompt and prompt.count(SESSION) == len(packet)
+
+
+def test_captured_content_not_proven_equal_to_a_shipped_field_stays_inline(tmp_path):
+    # One altered byte in one text delta: the streamed text no longer equals a shipped field and is
+    # shown verbatim, while the snapshot and result text keep their references. Tool use
+    # and tool results are content the packet does not otherwise hold and stay verbatim. A sidecar
+    # that differs from the terminal event by one byte, or whose reference does not identify the
+    # captured bytes, stays inline.
+    raw = json.dumps(verdict(LONG_ORIGINAL))
+    altered = lambda text: text.replace('"num_turns": 1', '"num_turns": 2')
+    ds, prompt, packet = packet_for(raw, run=LiveCapture(tmp_path, raw, sidecar=altered, tool=True, alter_delta=True))
+    assert all(mb.valid_derivation_transport(d) for d in ds)
+    for record, d in zip(packet, ds):
+        _, stream = carried(d, record, '.events.jsonl')
+        assert stream['carried'] == 'content_blocks'
+        streamed, snapshot, result = text_values(stream['blocks'])
+        assert isinstance(streamed, str) and streamed != raw and len(streamed) == len(raw)
+        assert isinstance(snapshot, dict) and isinstance(result, dict)
+        blocks = [b['block'] for b in stream['blocks'] if 'block' in b]
+        assert {'type': 'tool_use', 'id': 'toolu_generic', 'name': 'Bash', 'input': {'command': 'python3 check.py'}} in blocks
+        assert {'type': 'tool_result', 'tool_use_id': 'toolu_generic', 'content': TOOL_OUTPUT} in blocks
+        path, sidecar = carried(d, record, '.events.result.json')
+        assert sidecar == {'carried': 'inline', 'content': d['transport']['captured_records'][path]}
+        # raw_output, the altered streamed text and the altered sidecar's result field
+        assert copies_per_field(record) == {'derivation': 1, 'transport': 3}
+    # A reference that does not identify the captured bytes proves nothing: the record stays inline.
+    d = ds[0]
+    path = next(p for p in d['transport']['captured_records'] if p.endswith('.events.jsonl'))
+    stale = {**d, 'transport': {**d['transport'], 'artifact_refs': [
+        {**ref, 'sha256': '0' * 64} if ref['path'] == path else ref for ref in d['transport']['artifact_refs']]}}
+    assert mb.packet_transport(stale)['captured_records'][path] == {'carried': 'inline', 'content': d['transport']['captured_records'][path]}
+
+
+def test_captured_text_is_referenced_only_to_a_field_spans_can_quote(tmp_path):
+    # With additional assistant text the raw output is the context and the structured derivation is
+    # not an input/execution source, so a captured record equal only to the derivation stays inline,
+    # while one equal to the raw output goes by reference to derivation_context.
+    raw = 'Working notes before the JSON.\n' + json.dumps(verdict(LONG_ORIGINAL))
+    ds, _, _ = packet_for(raw, run=LiveCapture(tmp_path, raw), lanes=1)
+    d = ds[0]
+    extra = {}
+    for name, text in (('derivation-copy.log', d['derivation']), ('raw-copy.log', raw)):
+        path = tmp_path / name; path.write_text(text, encoding='utf-8')
+        extra[str(path)] = {'path': str(path), 'sha256': hashlib.sha256(text.encode()).hexdigest(), 'size': len(text.encode())}
+    transport = {**d['transport'], 'captured_records': {**d['transport']['captured_records'], **{p: Path(p).read_text() for p in extra}},
+                 'artifact_refs': d['transport']['artifact_refs'] + list(extra.values())}
+    shown = mb.packet_transport(mb.observe_runtime_derivation({**d, 'transport': transport}))['captured_records']
+    derivation_copy, raw_copy = (shown[p] for p in extra)
+    assert derivation_copy == {'carried': 'inline', 'content': d['derivation']}
+    assert raw_copy == {'carried': 'by_reference', 'ref': extra[next(p for p in extra if p.endswith('raw-copy.log'))], 'proven': 'bytes equal derivation_context'}
+
+
+def test_live_capture_request_above_the_window_is_refused_not_truncated(tmp_path):
+    # Carriage changes what is shown, never the capacity rule: a request whose inline captured
+    # content exceeds the window is refused before the comparator runs, and nothing is cut.
+    raw = json.dumps(verdict(LONG_ORIGINAL))
+    global TOOL_OUTPUT
+    saved, TOOL_OUTPUT = TOOL_OUTPUT, 'log line kept verbatim\n' * 4000
+    try:
+        ds, prompt, packet = packet_for(raw, run=LiveCapture(tmp_path, raw, tool=True))
+    finally:
+        TOOL_OUTPUT = saved
+    assert all('log line kept verbatim\n' * 4000 in json.dumps(r, ensure_ascii=False) or 'log line kept verbatim\\n' * 4000 in json.dumps(r, ensure_ascii=False) for r in packet)
+    called = []
+    run = lambda *a: called.append(a) or ''
+    cmp, n_ok = mb._compare(CLAIM, 'Only raw inputs, no expected answer.', ds, ['host'] * len(ds), ['claude/opus'], run, tag='compare')
+    assert n_ok == 0 and called == [] and not cmp['majority_indices']
+    assert cmp['request_capacity']['judges'][0]['reason'] == 'unavailable: complete original request exceeds configured byte budget; no truncation'
+
+
+def test_input_execution_spans_quote_captured_content_only_as_the_packet_shows_it(tmp_path):
+    # Captured text carried by reference is quoted through the shipped field it equals; content kept
+    # inline is quoted through the inline block; bookkeeping the packet does not show, and text in no
+    # lane material, are refused.
+    raw = json.dumps(verdict(LONG_ORIGINAL))
+    run = LiveCapture(tmp_path, raw, tool=True, alter_delta=True)
+    ds, prompt, packet = packet_for(raw, run=run)
+    pieces = [raw[i:i + 15] for i in range(0, len(raw), 15)]
+    altered_piece = pieces[3][:-1] + ('X' if pieces[3][-1] != 'X' else 'Y')
+    base = assessments(ds)
+    for span, ok in (('Original step 150: preserve this exact evidence.', True),   # by reference, via raw_output
+                     (TOOL_OUTPUT, True),                                          # inline tool_result block
+                     ('"stop_reason": "end_turn"', True),                          # result field as encoded
+                     (pieces[2] + altered_piece, True),                            # inline altered streamed text
+                     (run.signature[:64], False),                                  # thinking signature, not shown
+                     (SESSION, False),                                             # event envelope, not shown
+                     ('not in any lane material', False)):
+        aa = json.loads(json.dumps(base))
+        for a in aa:
+            a['evidence']['input']['source_span'] = span
+            a['evidence']['execution']['source_span'] = span
+        assert (mb.assessed_indices(ds, aa) == [0, 1]) is ok, span
 
 
 def test_input_execution_spans_match_packet_transport_encoding_and_decoded_values():

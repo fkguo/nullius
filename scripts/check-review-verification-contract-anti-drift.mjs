@@ -166,17 +166,27 @@ requireAll('skills/derivation-verify/references/contract.md', read('skills/deriv
   ['transport quoting limited to input/execution', 'only input and execution may also quote the observed `transport` record'],
   ['lane text carried once as derivation and once in transport', 'once as the structured `derivation` field and once as `transport.raw_output`'],
   ['no other packet field adds a copy of lane text', 'no other packet field adds a copy'],
-  ['captured stream records stay verbatim', 'stay verbatim and therefore contain the output again'],
+  ['captured record carried by reference only on a proven equality', 'only when packet assembly proves the bytes equal a shipped field'],
+  ['live stream carried as content blocks with proven text slices', 'proven equal to at assembly, and every other block and field'],
+  ['captured content quoted only as the packet shows it', 'Input and execution spans quote captured content only as the packet shows it'],
+  ['refusal above the window, never truncation', 'a request that still exceeds it is refused, never truncated'],
 ]);
 // The copy count per packet record is pinned by offline witnesses in both executors; prose alone erodes.
 requireAll('skills/derivation-verify/tests/test_full_derivation_transport.py', read('skills/derivation-verify/tests/test_full_derivation_transport.py'), [
   ['per-record copy count witness', 'def test_comparator_packet_repeats_lane_text_only_inside_transport'],
-  ['captured-records copy accounting witness', 'def test_packet_assembly_adds_no_copy_beyond_captured_records'],
+  ['live-capture content-block carriage witness', 'def test_live_capture_stream_is_carried_as_content_blocks_and_two_lanes_fit'],
+  ['unproven captured content stays inline witness', 'def test_captured_content_not_proven_equal_to_a_shipped_field_stays_inline'],
+  ['live-capture refusal above the window witness', 'def test_live_capture_request_above_the_window_is_refused_not_truncated'],
+  ['stream view omits only bookkeeping witness', 'def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_output'],
+  ['captured text referenced only to a quotable field witness', 'def test_captured_text_is_referenced_only_to_a_field_spans_can_quote'],
+  ['captured-content span sources witness', 'def test_input_execution_spans_quote_captured_content_only_as_the_packet_shows_it'],
+  ['live-capture two-lane margin assertion', "assert mb.validate_request_bytes(mb._COMPARE_SYSTEM, prompt, mb.request_budgets()) <= 0.6 * mb.request_budgets()['context_bytes']"],
   ['two-lane fixture under the default window assertion', "assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']"],
 ]);
 requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', read('skills/derivation-verify/tests/test_native_workflow_transport.mjs'), [
   ['native packet copy count witness', 'async function checkPacketCopies('],
   ['native input/execution span sources witness', 'await checkSpanSources('],
+  ['native no-capture transport witness', 'await checkNativeCapturedRecords()'],
 ]);
 
 if (errors.length > 0) {
