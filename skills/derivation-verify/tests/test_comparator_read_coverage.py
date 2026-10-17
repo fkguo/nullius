@@ -159,7 +159,8 @@ class ReadingComparator:
         calls = [e['event']['usage'] for e in events if e.get('type') == 'stream_event' and e['event'].get('type') == 'message_delta']
         terminal = {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': report,
                     'usage': {k: sum(u[k] for u in calls) for k in usage}}
-        if material_dir is None and self.mutation == 'usage-over-window':
+        single = 'candidate derivations with recorded model-family metadata' in prompt
+        if material_dir is None and (self.mutation == 'usage-over-window' or (self.mutation == 'single-over-window' and single)):
             terminal['usage'] = {**terminal['usage'], 'cache_read_input_tokens': self.request_budgets['context_tokens']}
         if material_dir is None and self.mutation == 'no-usage':
             terminal.pop('usage')
@@ -198,12 +199,13 @@ class ReadingComparator:
         return report
 
 
-def compare(tmp_path, monkeypatch, mutation=None, ds=None, budgets=None):
+def compare(tmp_path, monkeypatch, mutation=None, ds=None, budgets=None, live_capture=True, comparator='claude/opus'):
     monkeypatch.setattr(runtime, '_authority_dir', lambda: tmp_path / 'host-authority')
     if ds is None:
         ds, budgets = long_lanes(tmp_path), budgets or FILE_BUDGET
     run = ReadingComparator(tmp_path, mutation, budgets)
-    cmp, n_ok = mb._compare(CLAIM, 'Only raw inputs, no expected answer.', ds, ['host'] * len(ds), ['claude/opus'], run, tag='compare')
+    run.live_capture = live_capture
+    cmp, n_ok = mb._compare(CLAIM, 'Only raw inputs, no expected answer.', ds, ['host'] * len(ds), [comparator], run, tag='compare')
     return ds, cmp, n_ok, run
 
 
@@ -221,7 +223,8 @@ def test_per_lane_requests_each_carry_one_complete_lane(tmp_path, monkeypatch):
     assert n_ok == 1 and cmp['request_capacity']['comparison_form'] == 'single_request' and list(run.prompts) == ['compare_j0_claude']
     ds = medium_lanes(3)
     (tmp_path / 'b').mkdir()
-    _, cmp, n_ok, run = compare(tmp_path / 'b', monkeypatch, ds=ds, budgets=SPLIT_BUDGET)
+    # Without observed usage the single request cannot hold lanes above the byte budget, so they are split.
+    _, cmp, n_ok, run = compare(tmp_path / 'b', monkeypatch, ds=ds, budgets=SPLIT_BUDGET, live_capture=False)
     assert len(mb._combined_prompt('Only raw inputs, no expected answer.', CLAIM, ds, ['host'] * 3).encode()) > SPLIT_BUDGET['context_bytes']
     assert n_ok == 1 and mb.claim_status(cmp, ds, ['host'] * 3)[0] and cmp['request_capacity']['comparison_form'] == 'per_lane'
     lanes = lane_requests(cmp)
@@ -255,13 +258,13 @@ def test_split_lane_counts_only_when_its_body_supports_its_stated_answer(tmp_pat
                     a['answer_support'] = {**a['answer_support'], **support}
             return out
         monkeypatch.setattr(ReadingComparator, '_reply', reply)
-        _, cmp, n_ok, _ = compare(sub, monkeypatch, ds=ds, budgets=SPLIT_BUDGET)
+        _, cmp, n_ok, _ = compare(sub, monkeypatch, ds=ds, budgets=SPLIT_BUDGET, live_capture=False)
         assert cmp['request_capacity']['comparison_form'] == 'per_lane' and n_ok == 1, name
         assert cmp['independence_assessments'] == [] and not mb.claim_status(cmp, ds, ['host', 'host'])[0], name
         monkeypatch.setattr(ReadingComparator, '_reply', original)
     sub = tmp_path / 'supported'; sub.mkdir()
     supported = medium_lanes(2)
-    _, cmp, n_ok, _ = compare(sub, monkeypatch, ds=supported, budgets=SPLIT_BUDGET)
+    _, cmp, n_ok, _ = compare(sub, monkeypatch, ds=supported, budgets=SPLIT_BUDGET, live_capture=False)
     assert [a['index'] for a in cmp['independence_assessments']] == [0, 1] and mb.claim_status(cmp, supported, ['host', 'host'])[0]
 
 
@@ -511,3 +514,33 @@ def test_a_span_joining_passages_with_an_ellipsis_is_not_a_quote():
             a['evidence']['construction']['source_span'] = span
         assert (mb.assessed_indices(ds, aa) == [0, 1]) is ok
     assert mb._CONTIGUOUS_SPAN.startswith('Every source_span is one contiguous exact copy of text as read')
+
+
+
+def test_single_request_above_the_byte_budget_holds_every_lane_on_observed_usage(tmp_path, monkeypatch):
+    # When every judge observes usage, lanes above the byte budget stay together in the single request, the
+    # form in which one reader compares every body; it counts on observed usage within the window.
+    ds = medium_lanes(2)
+    _, cmp, n_ok, run = compare(tmp_path, monkeypatch, ds=ds, budgets=SPLIT_BUDGET)
+    request = cmp['request_capacity']['judges'][0]['requests']
+    assert [(r['kind'], r['carried'], r['status']) for r in request] == [('combined', 'inline_observed', 'completed')]
+    assert len(run.prompts['compare_j0_claude'].encode()) > SPLIT_BUDGET['context_bytes']
+    assert cmp['request_capacity']['comparison_form'] == 'single_request' and n_ok == 1 and mb.claim_status(cmp, ds, ['host', 'host'])[0]
+
+
+def test_single_request_over_the_window_falls_back_to_lanes_assessed_one_per_request(tmp_path, monkeypatch):
+    ds = medium_lanes(2)
+    _, cmp, n_ok, run = compare(tmp_path, monkeypatch, 'single-over-window', ds=ds, budgets=SPLIT_BUDGET)
+    attempt = cmp['request_capacity']['single_request_attempt'][0]['requests']
+    assert attempt[0]['kind'] == 'combined' and 'exceeds configured token window' in attempt[0]['reason']
+    assert cmp['request_capacity']['comparison_form'] == 'per_lane' and n_ok == 1 and mb.claim_status(cmp, ds, ['host', 'host'])[0]
+
+
+@pytest.mark.parametrize('case', ['non-claude', 'no-live-capture'])
+def test_material_above_the_byte_budget_is_refused_before_dispatch_when_usage_cannot_be_observed(tmp_path, monkeypatch, case):
+    ds = long_lanes(tmp_path)
+    _, cmp, n_ok, run = compare(tmp_path, monkeypatch, ds=ds, budgets=mb.request_budgets(),
+                                live_capture=case != 'no-live-capture', comparator='codex/some-model' if case == 'non-claude' else 'claude/opus')
+    lanes = lane_requests(cmp)
+    assert n_ok == 0 and run.prompts == {}
+    assert len(lanes) == 2 and all(r['carried'] == 'inline_observed' and 'observes no token usage' in r['reason'] for r in lanes)

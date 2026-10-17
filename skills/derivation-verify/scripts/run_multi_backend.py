@@ -1302,7 +1302,7 @@ def _aggregate_judges(verdicts: list, n_derivations: int, derivations: Optional[
 INLINE_BYTES_PER_TOKEN = 4
 
 
-def _plan_requests(c, ctx, derivations, families, budgets, material_root):
+def _plan_requests(c, ctx, derivations, families, budgets, material_root, single_observed: bool = False):
     """Every comparator request of one comparison, decided before any comparator starts. When every lane fits
     one request, that single request holds every lane's complete material (clustering, recomputation, every
     assessment and any method risk in one context, as before). Otherwise there is a joint
@@ -1321,6 +1321,11 @@ def _plan_requests(c, ctx, derivations, families, budgets, material_root):
                  "mode": "inline", "prompt": combined}]
     except ValueError:
         pass
+    # Above the byte budget the single request still holds every lane when every judge observes token usage;
+    # _compare falls back to the split form only when its observed usage exceeds the window.
+    if single_observed and len((_COMBINED_SYSTEM + combined).encode("utf-8")) <= INLINE_BYTES_PER_TOKEN * budgets["context_tokens"]:
+        return [{"kind": "combined", "lanes": tuple(range(len(derivations))), "system": _COMBINED_SYSTEM,
+                 "mode": "inline_observed", "prompt": combined}]
     entries = [_lane_entry(d, families[i], i) for i, d in enumerate(derivations)]
     plans = [{"kind": "joint", "lanes": (), "system": _COMPARE_SYSTEM, "mode": "inline",
               "prompt": _joint_prompt(ctx, c, derivations, families)}]
@@ -1352,7 +1357,7 @@ def _plan_requests(c, ctx, derivations, families, budgets, material_root):
     return plans
 
 
-def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, tag: str) -> tuple:
+def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, tag: str, allow_single_observed: bool = True) -> tuple:
     """Run the comparator PANEL (>=1 model families) and meta-aggregate. When every lane fits one request, each
     judge makes that single request holding every lane, as before. Otherwise each judge makes one joint request
     (equivalence + independent recomputation over the canonical answers) and one assessment request per lane
@@ -1372,7 +1377,10 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
     if reader is not None and receipts is not None and work_dir is not None:
         Path(work_dir).mkdir(parents=True, exist_ok=True)
         material_root = Path(tempfile.mkdtemp(prefix=tag.replace("/", "__") + ".material-", dir=work_dir)).resolve()
-    plans = _plan_requests(c, ctx, derivations, families, budgets, material_root)
+    live_capture = getattr(run, "live_capture", getattr(owner, "live_capture", True)) is not False
+    observes_usage = lambda spec: receipts is not None and live_capture and family_of(spec) == "claude"
+    plans = _plan_requests(c, ctx, derivations, families, budgets, material_root,
+                           single_observed=allow_single_observed and all(observes_usage(spec) for spec in comparators))
     if material_root is not None and not any(p["mode"] == "files" for p in plans):
         material_root.rmdir()
     evidence = [{"tag": f"{tag}_j{j}_{roster_family_of(spec)}", "model": spec, "requests": []} for j, spec in enumerate(comparators)]
@@ -1381,7 +1389,7 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
     def _unreadable(spec, plan):
         """Why this judge cannot be shown a request's material completely, decided before dispatch."""
         if plan["mode"] == "inline_observed":
-            if receipts is None or family_of(spec) != "claude":
+            if not observes_usage(spec):
                 return (NOT_READ + ": the complete material is above the conservative byte budget and this runner "
                         "observes no token usage that could show it fitted the window; nothing is truncated")
             return None
@@ -1517,6 +1525,12 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
         verdicts.append({**joint,
             "independence_assessments": [a for k, plan in enumerate(plans) if plan["kind"] == "lane" for a in (own.get(k) or [])],
             "method_risk_assessments": [r for k, plan in enumerate(plans) if plan["kind"] == "pair" for r in (own.get(k) or [])]})
+    if plans[0]["kind"] == "combined" and plans[0]["mode"] == "inline_observed" and all(
+            "exceeds configured token window" in str(judge["requests"][0].get("reason", "")) for judge in evidence):
+        # The single request did not fit by observed usage: compare again in the split form, keeping this record.
+        cmp, n_ok = _compare(c, ctx, derivations, families, comparators, run, tag=tag + "_split", allow_single_observed=False)
+        cmp["request_capacity"]["single_request_attempt"] = evidence
+        return cmp, n_ok
     cmp, n_ok = _aggregate_judges(verdicts, len(derivations), derivations)
     cmp["assessment_input_sha256"] = hashlib.sha256(json.dumps(derivations, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     # comparison_form says whether one request held every lane, or lanes were assessed one per request; in
@@ -1802,7 +1816,7 @@ def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
     if hasattr(run, "request_budgets") or hasattr(owner, "request_budgets"):
         tracked_run.request_budgets = getattr(run, "request_budgets", getattr(owner, "request_budgets", {}))
     # Comparators reading frozen lane material keep the runner's file-reading call and record directory.
-    for name in ("run_reading", "work_dir"):
+    for name in ("run_reading", "work_dir", "live_capture"):
         if hasattr(run, name) or hasattr(owner, name):
             setattr(tracked_run, name, getattr(run, name, getattr(owner, name, None)))
 
