@@ -32,14 +32,17 @@ def observation(tmp_path, usage=None, compact=False, *, system="neutral", prompt
     budget = {"status":"completed", "runner_exit_code":0,
         "input_sha256":[hashlib.sha256(x.encode()).hexdigest() for x in (system,prompt)],
         "attempts":[{"status":"exited", "exit_code":0}]}
-    event = {"type": "result", "is_error": False, "usage": usage or {}, "result": "original model result"}
+    event = {"type": "result", "subtype": "success", "is_error": False, "usage": usage or {}, "result": "original model result"}
+    # A compacted capture still ends in its terminal result event: the result
+    # sidecar is reconstructed from the stream and must agree with it.
+    stream = (json.dumps({"type": "system", "subtype": "compact_boundary"}) + "\n" if compact else "") + json.dumps(event) + "\n"
     script = run / "observed_fixture_runner.py"
     script.write_text('from pathlib import Path\nimport json\n'
         + f'capture=Path({str(capture)!r});capture.mkdir(parents=True)\n'
         + f'Path({str(output)!r}).write_text("original model result")\n'
         + f'(capture/"budget.json").write_text({json.dumps(budget)!r})\n'
         + f'(capture/"attempt_1.events.result.json").write_text({json.dumps(event)!r})\n'
-        + f'(capture/"attempt_1.events.jsonl").write_text({(json.dumps({"type":"system","subtype":"compact_boundary"}) if compact else json.dumps(event))!r}+"\\n")\n')
+        + f'(capture/"attempt_1.events.jsonl").write_text({stream!r})\n')
     process = run_multi_task._run_with_timeout([sys.executable,str(script),'--system-prompt-file',str(system_path),'--prompt-file',str(prompt_path),'--out',str(output)],timeout_secs=10, context_tokens=context_tokens)
     assert process['exit_code'] == 0
     (run / "meta.json").write_text(json.dumps({"agents": [{"success": True, "out": str(output), "capture_receipt": str(receipt)}]}))
