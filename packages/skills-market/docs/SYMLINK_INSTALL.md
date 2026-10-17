@@ -140,7 +140,7 @@ The symlink route does not create skill-local Python environments.
 If you need a skill-local `.venv` for an opted-in skill such as `hep-calc`, use the Python installer route instead:
 
 ```bash
-python3 scripts/install_skill.py --platform codex --package hep-calc
+python3 scripts/install_skill.py --platform codex --source-root /absolute/path/to/nullius --package hep-calc
 ```
 
 This M-15 first slice only covers Python isolation inside `skills-market`; it does not add Node/TS runtime isolation or compatibility/export mirror changes.

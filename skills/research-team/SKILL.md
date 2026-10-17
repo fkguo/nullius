@@ -147,7 +147,7 @@ the full default check, whose structural scope includes every current result.
   logs are executor evidence; the parent run holds the origin stamp.
 - **Stamp the run at creation (mandatory where the project has a nullius
   launcher)**: immediately after creating `artifacts/runs/<run_id>/`, run
-  `nullius trace stamp <run_id>` from the project root. The stamp binds the
+  `nullius trace stamp artifacts/runs/<run_id>` from the project root. The stamp binds the
   run to the exact code state that will produce its results (commit, snapshot
   of uncommitted tracked edits, untracked-file caveats) — recorded at run
   time, when the binding is exact, instead of reconstructed later, when it

@@ -99,7 +99,7 @@ authority, research-team as the milestone executor, and fold stable results back
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
 Promote a complete immutable report through project_index.md#Main research report,
 then run: nullius report-validate
-Stamp each run's code origin at creation with: nullius trace stamp <run_id>
+Stamp each run's code origin at creation with: nullius trace stamp <run_dir>
 Retry a resultless crash under the same run id with: nullius trace retry <run_dir>
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
 Register headline results with: nullius result set-current <result-id> --run <run_id> --artifact <path>

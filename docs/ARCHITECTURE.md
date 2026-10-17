@@ -121,7 +121,6 @@ The generic lifecycle package writes to real external project roots:
 Key files:
 
 - `packages/orchestrator/src/state-manager.ts`
-- `packages/orchestrator/src/ledger-writer.ts`
 - `packages/orchestrator/src/orch-tools/run-read-model.ts`
 - `packages/orchestrator/src/computation/approval.ts`
 

@@ -1,4 +1,4 @@
-# @hep-research/pdg-mcp
+# @nullius/pdg-mcp
 
 [English](./README.md) | 中文
 
@@ -23,7 +23,7 @@
 - `PDG_DATA_DIR`：本地数据目录（默认：若设置了 `HEP_DATA_DIR` 则为 `<HEP_DATA_DIR>/pdg`；否则 `~/.nullius/hep-mcp/pdg`）
   - artifacts 目录为：`$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`：PDG artifacts 缓存 TTL（小时；`0/off` 禁用；启动时 + 周期性清理；默认 24）
-- `PDG_TOOL_MODE`：工具暴露模式（`standard` 默认；`full` 时可暴露更多工具，若未来添加）
+- `PDG_TOOL_MODE`：工具暴露模式（`standard` 默认；`full` 时额外暴露 `pdg_batch`）
 - `PDG_SQLITE_MAX_STDOUT_BYTES`：限制 sqlite3 单次输出（默认 50MB）
 - `PDG_SQLITE_CONCURRENCY`：sqlite3 并发上限（默认 4）
 
@@ -93,7 +93,7 @@
 派生宽度：
 
 - 当请求 `width` 且 PDG 未给出宽度，但存在寿命 `lifetime` 时，可设置 `allow_derived=true`
-- 返回 `derived.width_from_lifetime`，并提供来源 locator 与常数信息（`Γ = ħ / τ`）
+- 返回 `property.derived`（`kind: "width_from_lifetime"`），并提供来源 locator（`from.pdg_locator`）与常数信息（`Γ = ħ / τ`）
 
 ### 4) `pdg_get`
 

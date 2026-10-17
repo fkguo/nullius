@@ -15,7 +15,7 @@ Native computation binds an enabled A3 approval to the current manifest, scripts
 - `pnpm -r build` ✅
 - `pnpm -r test` ✅ (13 packages; orchestrator 1525 passed + 10 skipped, hep-mcp 664 + 4 skipped, shared 565, project-mcp 31)
 - `pnpm -r lint` ✅
-- all 27 `scripts/check-*.mjs` locks ✅ (the 20 `pnpm check:*` entries plus the CI-only scripts; package-freshness runs inside the hep-mcp build)
+- all 27 `scripts/check-*.mjs` locks ✅ (the 20 `pnpm check:*` entries plus the CI-only scripts; package-freshness runs inside the hep-mcp build); current main has 28 and 21 since the skill-frontmatter lock was added
 - CI pytest groups (project-contracts, research-team, idea-posterior, citation-triangulation, figure-hygiene, idea-generation, literature-to-package, research-harness, review-swarm) ✅
 - `pnpm --filter @nullius/hep-mcp docs:tool-counts:check` ✅
 - `standard=52`, `full=58` (tool counts are kept in sync with the live registry by `docs:tool-counts:sync`, not frozen at the baseline above)
