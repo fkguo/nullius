@@ -17,6 +17,8 @@ class AssistantText:
         self.terminal = None
         self.error_seen = False
         self.identities = {}
+        self.last_started = {}
+        self.provider_stops = []
 
     def _message(self, identity):
         if not isinstance(identity, str) or not identity:
@@ -74,15 +76,27 @@ class AssistantText:
                 raise CompleteTextError("multiple different terminal results")
             self.terminal = record
             self.error_seen |= record.get("is_error") is not False
+            if record.get("stop_reason") == "refusal":
+                self.provider_stops.append("result")
         if kind == "assistant":
             message = record.get("message")
             if not isinstance(message, dict) or not isinstance(message.get("content"), list):
                 raise CompleteTextError("invalid assistant snapshot")
             mid = message.get("id")
             self._message(mid)
+            if message.get("stop_reason") == "refusal":
+                self.provider_stops.append(mid)
+            # A snapshot may carry only the block(s) just completed (Claude Code sends one
+            # snapshot per block: thinking, then text, under one message id). When the stream
+            # has started blocks of this message, the snapshot ends at the latest started block.
+            content = message["content"]
+            last = self.last_started.get(mid)
+            offset = 0 if last is None else last + 1 - len(content)
+            if offset < 0:
+                raise CompleteTextError("assistant snapshot has more blocks than the stream started")
             updates = []
-            for index, item in enumerate(message["content"]):
-                block = self._block(mid, index)
+            for position, item in enumerate(content):
+                block = self._block(mid, offset + position)
                 if not isinstance(item, dict) or not isinstance(item.get("type"), str) or not item["type"]:
                     raise CompleteTextError("invalid assistant block type")
                 if block["kind"] not in (None, item["type"]):
@@ -94,6 +108,10 @@ class AssistantText:
                 text = item.get("text")
                 if not isinstance(text, str):
                     raise CompleteTextError("non-text assistant block")
+                if offset and not block["delta"] and text:
+                    # Real per-block snapshots follow their block's deltas; one arriving before any
+                    # delta could belong to an earlier block and would be counted twice.
+                    raise CompleteTextError("snapshot precedes its stream deltas")
                 prior = block["snapshot"]
                 if prior is not None and not (prior.startswith(text) or text.startswith(prior)):
                     raise CompleteTextError("assistant snapshot changed non-prefix text")
@@ -135,6 +153,8 @@ class AssistantText:
                 self._text(candidate)  # Refuse before altering retained content.
                 block["delta"] = text
             block["kind"] = kind
+            index = event["index"]
+            self.last_started[self.active] = max(self.last_started.get(self.active, index), index)
         elif typ == "content_block_delta":
             delta = event.get("delta", {})
             if not isinstance(delta, dict):
@@ -153,6 +173,10 @@ class AssistantText:
                 candidate = {**block, "delta": block["delta"] + delta["text"]}
                 self._text(candidate)
                 block.update(candidate)
+        elif typ == "message_delta":
+            delta = event.get("delta")
+            if isinstance(delta, dict) and delta.get("stop_reason") == "refusal":
+                self.provider_stops.append(self.active)
         elif typ == "content_block_stop":
             self._block(self.active, event.get("index"))["stopped"] = True
         elif typ == "message_stop":
@@ -180,6 +204,10 @@ class AssistantText:
         terminal = self.terminal
         if exit_code != 0 or self.error_seen or not terminal or terminal.get("subtype") != "success" or terminal.get("is_error") is not False:
             raise CompleteTextError("unsuccessful or incomplete invocation")
+        if self.provider_stops:
+            # The withheld remainder of a stopped response is unknown; a continuation the CLI
+            # appends after the stop is not the requested output either.
+            raise CompleteTextError("provider safeguard stopped a response")
         if self.active is not None:
             raise CompleteTextError("unfinished assistant message")
         original = terminal.get("result")

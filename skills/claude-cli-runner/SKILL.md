@@ -83,11 +83,14 @@ timestamps, capture health and process/provider status, never reasoning text. Re
 event identity and payload do not advance the counters; distinct event identities with repeated text
 do advance. Without event identity, identical text deltas are retained as separate observed increments.
 Heartbeats do not advance the counters. Text is collected by message identity and content-block index,
-in original order, with snapshots and deltas reconciled without duplication. Incompatible block types
+in original order, with snapshots and deltas reconciled without duplication. A snapshot that carries only
+the block(s) just completed (one snapshot per block, e.g. thinking then text) is aligned to end at the
+latest block the stream started. Incompatible block types
 or text refuse completion while retaining prior partial text. `OUT` contains the complete assistant
 text, including earlier messages; tool and thinking blocks stay in raw events. Exit 0, a successful
 terminal record matching the complete text or final text message, and completed text blocks are required.
-Partial text never completes a review contract.
+A response the provider's safeguards stopped (stop_reason `refusal`) never completes, even when the CLI
+continues once afterwards and exits 0. Partial text never completes a review contract.
 
 `--expected-secs` (default `1200`) is a soft estimate only. `--timeout-secs` defaults to `0` (no hard
 budget); any explicit positive value is a hard total cap across attempts and backoff, unaffected by
