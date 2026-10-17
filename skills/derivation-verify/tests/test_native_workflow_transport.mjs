@@ -8,7 +8,9 @@ const execute = new AsyncFunction('args', 'agent', 'parallel', 'phase', 'log', s
 const axes = ['input','execution','construction','applicability','diagnostic']
 async function check(kind, requireRisk = false) {
   let calls = []
-  const complete = 'Raw operands are 17 and 25. Independently expand 25=20+5, add 17+20=37 then add 5=42. Exact integers have no rounding error; a one-unit mismatch is detectable.\n' + 'Original intermediate step.\n'.repeat(200) + 'FULL_FINAL_ANCHOR'
+  const plain = 'Raw operands are 17 and 25. Independently expand 25=20+5, add 17+20=37 then add 5=42. Exact integers have no rounding error; a one-unit mismatch is detectable.\n' + 'Original intermediate step.\n'.repeat(200) + 'FULL_FINAL_ANCHOR'
+  // CRLF lanes are quoted with plain newlines: only line endings may differ from the original.
+  const complete = kind.startsWith('crlf-') ? plain.replace(/\n/g, '\r\n') : plain
   const claim = { id: 'anonymous', statement: 'Compute the sum of raw integers 17 and 25.', report_format: 'integer', method0: 'name one', method1: 'different name', requires_method_diversity: requireRisk }
   const agent = async (prompt, options) => {
     calls.push({ prompt, options })
@@ -29,6 +31,12 @@ async function check(kind, requireRisk = false) {
       input_independent: kind !== 'polluted', execution_independent: true, construction_independent: true,
       method_applicable: true, diagnostic: true, unresolved_defects: [],
       evidence: Object.fromEntries(axes.map(k => [k, { source_span: d.derivation?.slice(0, 200) || 'author claims fresh', reason: 'The mock source examiner inspects the complete raw operands and actual lane steps for ' + k }])) }))
+    if (kind.startsWith('crlf-')) assessment.forEach(a => axes.forEach(k => {
+      const quote = plain.slice(0, 200)
+      assert(quote.includes('\n') && !complete.includes(quote))
+      a.evidence[k].source_span = kind === 'crlf-altered' ? quote.replace('5=42', '5=43')
+        : kind === 'crlf-spacing' ? quote.replace('Raw operands are', 'Raw  operands are') : quote
+    }))
     if (kind.startsWith('metadata-')) {
       const axis = kind.slice('metadata-'.length)
       assessment.forEach(a => { a.evidence[axis].source_span = claim.statement })
@@ -36,16 +44,16 @@ async function check(kind, requireRisk = false) {
     if (kind === 'transport-anchors-allowed') assessment.forEach(a => {
       a.evidence.input.source_span = claim.statement; a.evidence.execution.source_span = claim.statement
     })
-    const risk = requireRisk ? [{indices: [0,1], addresses_shared_failure: true, methods_distinct: kind === 'risk-accepted',
+    const risk = requireRisk ? [{indices: [0,1], addresses_shared_failure: true, methods_distinct: ['risk-accepted','crlf-accepted'].includes(kind),
       risk: 'Operand mistranscription is a known shared failure to diagnose with independently inspected inputs.',
       method_analysis: 'Two actual raw-operand constructions independently inspect the input and address the declared shared failure.',
-      evidence: packet.map((d,index) => ({index,source_span: d.derivation,reason:'The actual raw-operand steps explain this diagnostic independently of route names.'}))}] : []
+      evidence: packet.map((d,index) => ({index,source_span: kind.startsWith('crlf-') ? plain : d.derivation,reason:'The actual raw-operand steps explain this diagnostic independently of route names.'}))}] : []
     return { majority_answer: '42', majority_size: packet.length, majority_indices: packet.map((_,i)=>i),
       all_equivalent: true, adjudicated_matches_majority: true, correct_answer_adjudicated: '42', outliers: 'none',
       independence_assessments: assessment, method_risk_assessments: risk }
   }
   const result = await execute({context:'Neutral raw inputs only.',max_iter:0,claims:[claim]},agent,fs=>Promise.all(fs.map(f=>f())),()=>{},()=>{})
-  assert.equal(result.matrix[0].converged, ['accepted','risk-accepted','transport-anchors-allowed'].includes(kind))
+  assert.equal(result.matrix[0].converged, ['accepted','risk-accepted','transport-anchors-allowed','crlf-accepted'].includes(kind))
   if (!result.matrix[0].converged) {
     assert.equal(result.matrix[0].agreed_answer, null)
     assert.equal(result.matrix[0].adjudicated_correct, null)
@@ -61,6 +69,11 @@ await check('polluted')
 await check('failed')
 await check('missing')
 console.log('6 Native script host-protocol behavior cases passed; installed Workflow platform unavailable.')
+await check('crlf-accepted')
+await check('crlf-accepted', true)
+await check('crlf-altered')
+await check('crlf-spacing')
+console.log('4 line-ending quote cases passed; only CRLF/CR/LF may differ from the original.')
 
 // Scope completeness: a successful sibling cannot hide an unavailable original claim.
 // These execute the real script, independently of the six single-claim protocol cases above.

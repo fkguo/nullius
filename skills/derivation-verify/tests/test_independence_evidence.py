@@ -50,6 +50,25 @@ def test_construction_quote_cannot_be_supplied_by_shared_source():
     assert assessed_indices([d], [record]) == [0]
 
 
+
+def test_construction_body_quote_compares_line_endings_as_equal():
+    from independence import assessed_indices
+    for ending in ("\r\n", "\r"):
+        d = lane(0)
+        d["construction_body"] = ending.join(("total = 0", "for value in values: total += value", ""))
+        record = assessment(0, d)
+        record["evidence"]["construction"]["source_span"] = "total = 0\nfor value in values: total += value"
+        assert assessed_indices([d], [record]) == [0], repr(ending)
+        record["evidence"]["construction"]["source_span"] = "total = 0\nfor value in values: total -= value"
+        assert assessed_indices([d], [record]) == [], repr(ending)
+        record["evidence"]["construction"]["source_span"] = "\n"
+        assert assessed_indices([d], [record]) == [], repr(ending)
+        # Other whitespace is content (indentation can carry structure) and must match exactly.
+        for changed in ("total = 0\nfor value in values:  total += value", "total = 0\n  for value in values: total += value"):
+            record["evidence"]["construction"]["source_span"] = changed
+            assert assessed_indices([d], [record]) == [], (repr(ending), changed)
+
+
 @pytest.mark.parametrize("case,expected", [
     ("same_method_independent", True), ("similar_method_independent", True),
     ("different_method_polluted", False), ("original_code_rerun", False),

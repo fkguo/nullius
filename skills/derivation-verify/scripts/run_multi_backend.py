@@ -879,13 +879,30 @@ def _tiebreak_prompt(ctx: str, c: dict, method: str, prior: list[dict]) -> str:
 def _compare_prompt(ctx: str, c: dict, derivations: list[dict], families: list[str]) -> str:
     listing = "\n".join(f'[#{i}] (family={families[i]}) canonical_answer="{d["canonical_answer"]}" | {d["derivation_summary"]}'
                         for i, d in enumerate(derivations))
-    packet = [{**d, "family": families[i], "assessment_source": source_material(d), "derivation_context": derivation_body(d)} for i, d in enumerate(derivations)]
+    # Byte-identical copies only consume the request budget: original_assistant_output equals
+    # transport.raw_output; derivation_context appears only when it differs from the structured
+    # derivation, and then the lane's transport names it instead of repeating the same raw output.
+    # assessment_source stays the exact closure that input/execution spans are checked against.
+    packet = []
+    for i, d in enumerate(derivations):
+        entry = {k: v for k, v in d.items() if k != "original_assistant_output"}
+        entry.update(family=families[i], assessment_source=source_material(d))
+        context = derivation_body(d)
+        if context != d.get("derivation"):
+            entry["derivation_context"] = context
+            transport = d.get("transport")
+            if isinstance(transport, dict) and transport.get("raw_output") == context:
+                entry["transport"] = {**{k: v for k, v in transport.items() if k != "raw_output"},
+                                      "raw_output_given_as": "derivation_context"}
+        packet.append(entry)
     return (
         f"{ctx}\n\nClaim:\n{c['statement']}\nExpected canonical format: {c['report_format']}\n\n"
         f"{len(derivations)} candidate derivations with recorded model-family metadata:\n{listing}\n\n"
         "FULL_DERIVATION_RECORDS_JSON:\n" + json.dumps(packet, ensure_ascii=False) + "\n\n"
         "Read the COMPLETE original derivations and runtime-observed requests, raw outputs and execution records. "
-        "The structured derivation field is unchanged; derivation_context also preserves any other original assistant text. "
+        "The structured derivation field is unchanged; transport.raw_output is the exact original assistant output. "
+        "derivation_context is present only when that output holds assistant text outside the selected JSON object; it is then that complete "
+        "original output, and the lane's transport marks raw_output_given_as=derivation_context instead of repeating the same bytes. "
         "Check whether earlier text contains necessary steps, contradictions, repetitions or unrelated commentary. "
         "Do not assume all text is a derivation, or that one selected JSON field contains every necessary step. "
         "If the JSON already contains the complete derivation, retain that contract and substantively explain coverage of earlier text. "
@@ -894,12 +911,12 @@ def _compare_prompt(ctx: str, c: dict, derivations: list[dict], families: list[s
         "majority_answer must be an exact canonical_answer representative from its majority_indices; no empty or unenumerated cluster can converge. "
         "Each has booleans input_independent, execution_independent, construction_independent, method_applicable, diagnostic; "
         "unresolved_defects (array); observed_method (source-grounded description, not the hint); evidence with input, execution, "
-        "construction, applicability, diagnostic. Each entry quotes an exact source_span plus a substantive reason: construction/applicability/diagnostic MUST quote the COMPLETE derivation_context itself (structured body when no additional text); input/execution may quote assessment_source including actual transport. "
+        "construction, applicability, diagnostic. Each entry quotes an exact source_span plus a substantive reason: construction/applicability/diagnostic MUST quote, when derivation_context is present, its text OUTSIDE every answer-shaped JSON object (the selected one and any other decodable JSON object with a canonical_answer or derivation_summary key, e.g. drafts or wrappers), or the COMPLETE structured derivation body as read; the fields of those objects are never derivation steps; input/execution may quote assessment_source including actual transport. "
         "Reject absent original steps/transport, failed invocations, copied reasoning, original-code reruns, contaminated inputs, "
         "known relevant defects and non-diagnostic checks. Same/similar methods, same family and shared legitimate libraries alone do not reject. "
         f"Explicit method risk required: {c.get('requires_method_diversity') is True}. Declared risk: {c.get('method_diversity_risk', 'assess shared failure modes substantively')}. "
         "Provide method_risk_assessments: array of {indices:[i,j], addresses_shared_failure:boolean, methods_distinct:boolean (actual mechanisms, never hint labels), risk:string, method_analysis:string, "
-        "evidence:[{index,source_span,reason} from each COMPLETE derivation BODY, not request/metadata]}. Approval must explain with both actual derivations why the declared shared "
+        "evidence:[{index,source_span,reason} from each lane's derivation_context text outside every decodable answer-shaped JSON object when present or its COMPLETE structured derivation BODY as read, never fields of those objects, request or metadata]}. Approval must explain with both actual derivations why the declared shared "
         "failure mode is independently tested or avoided through substantively distinct mechanisms; differently named hints or rewordings do not establish orthogonality. "
         "Missing material or unsupported risk assessment is unavailable, never approval."
     )
