@@ -60,7 +60,7 @@ const VERDICT = {
   properties: {
     canonical_answer: { type: 'string', description: 'the single canonical result in the exact requested format' },
     derivation_summary: { type: 'string', description: 'Optional navigation summary, never assessment evidence by itself' },
-    derivation: { type: 'string', description: 'COMPLETE original derivation, all steps, premises, applicability/limits and actual computation source/output if used; no sentence limit or truncation' },
+    derivation: { type: 'string', description: 'the full written derivation, as in a paper appendix: every mathematical step stated explicitly, premises, applicability/limits and actual computation source/output if used; not abbreviated' },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
   },
   required: ['canonical_answer', 'derivation', 'confidence'],
@@ -100,7 +100,7 @@ const COMPARE = {
 }
 
 function vPrompt(c, method) {
-  return `${CTX}\nBLIND TASK (do NOT assume the answer; derive it from scratch):\n${c.statement}\n\n${method || ''}\n\nOUTPUT: canonical_answer in EXACTLY this format: ${c.report_format}. Give derivation with COMPLETE original steps, conventions, raw input, method applicability and diagnostic limits; no sentence limit or truncation. If you used computation, include complete source and actual records, never invent execution. A short derivation_summary may help navigation but is not the evidence. Give confidence.`
+  return `${CTX}\nBLIND TASK (do NOT assume the answer; derive it from scratch):\n${c.statement}\n\n${method || ''}\n\nOUTPUT: canonical_answer in EXACTLY this format: ${c.report_format}. Give derivation as the full written derivation, as it would appear in a paper appendix: every mathematical step stated explicitly, with conventions, raw input, method applicability and diagnostic limits; do not abbreviate it. If you used computation, include complete source and actual records, never invent execution. A short derivation_summary may help navigation but is not the evidence. Give confidence.`
 }
 function stringValues(value) {
   if (typeof value === 'string') return [value]

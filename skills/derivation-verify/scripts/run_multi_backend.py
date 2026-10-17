@@ -877,8 +877,9 @@ def claim_status(cmp: dict, derivations: list[dict], families: list[str],
 # --------------------------------------------------------------------------------------
 _DERIVE_SYSTEM = (
     "Derive the requested result blindly from the neutral question and raw inputs. Do not assume any answer. "
-    "Return ONLY one JSON object with canonical_answer, derivation (COMPLETE original steps, all premises, "
-    "conventions, applicability and diagnostic limits; no sentence limit or truncation), derivation_summary "
+    "Return ONLY one JSON object with canonical_answer, derivation (the full written derivation, as it would "
+    "appear in a paper appendix: every mathematical step stated explicitly, with all premises, conventions, "
+    "applicability and diagnostic limits; do not abbreviate it), derivation_summary "
     "(optional navigation summary), confidence (high|medium|low), and checkable_form (strict sympy expression "
     "or empty for non-algebraic answers). Include complete computation source and actual output if used; "
     "say unavailable when actual execution records are unavailable. Never invent execution or provenance."
@@ -1086,6 +1087,53 @@ def _joint_prompt(ctx: str, c: dict, derivations: list[dict], families: list[str
 # --------------------------------------------------------------------------------------
 RunFn = Callable[[str, str, str, str], Optional[str]]
 
+# A provider safeguard stop is a refusal of this request, not an empty derivation and not an
+# infrastructure failure. The CLI reports it as stop_reason "refusal" in the stream and, when it
+# gives up, as an "API Error: ... safeguards flagged this message ... Details: `[code]`" text.
+_PROVIDER_STOP_TEXT = re.compile(r"safeguards flagged this message")
+_PROVIDER_STOP_DETAIL = re.compile(r"Details:\s*`?\[(\w+)\]")
+
+
+def provider_stop(raw: Optional[str] = None, attempts: Optional[Path] = None) -> Optional[dict]:
+    """Return the provider refusal recorded in returned text or captured stream records, else None."""
+    texts, stopped, details = [], False, set()
+    if isinstance(raw, str) and not parse_derivation(raw):
+        texts.append(raw)  # a returned derivation is never read as an error message
+    for path in sorted(attempts.glob("run.*/*")) if attempts is not None else []:
+        try:
+            body = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue
+        if path.suffix == ".log":  # error and stderr logs; answer text files are not scanned
+            texts.append(body)
+            continue
+        if path.suffix != ".jsonl":
+            continue
+        for line in body.splitlines():
+            try:
+                record = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(record, dict):
+                continue
+            event = record.get("event") if record.get("type") == "stream_event" else None
+            delta = event.get("delta") if isinstance(event, dict) else None
+            message = record.get("message") if record.get("type") == "assistant" else None
+            for carrier in (delta, message, record if record.get("type") == "result" else None):
+                if isinstance(carrier, dict) and carrier.get("stop_reason") == "refusal":
+                    stopped = True
+                    category = (carrier.get("stop_details") or {}).get("category") if isinstance(carrier.get("stop_details"), dict) else None
+                    if isinstance(category, str) and category:
+                        details.add(category)
+            if record.get("type") == "result" and record.get("is_error") and isinstance(record.get("result"), str):
+                texts.append(record["result"])
+    lines = [line.strip() for t in texts for line in t.splitlines() if _PROVIDER_STOP_TEXT.search(line)]
+    if not stopped and not lines:
+        return None
+    details |= {m for t in texts if _PROVIDER_STOP_TEXT.search(t) for m in _PROVIDER_STOP_DETAIL.findall(t)}
+    return {"stop_reason": "provider_refusal", "details": sorted(details),
+            "message": lines[0] if lines else None}
+
 
 class MultiTaskRunner:
     def __init__(self, *, runner_path: Path, work_dir: Path, timeout: int, tools: bool,
@@ -1146,6 +1194,11 @@ class MultiTaskRunner:
             self.invocations[tag] = {"exit_code": proc.returncode, "model": spec, "stdout": proc.stdout, "stderr": proc.stderr,
                                      "system": str(sysf), "prompt": str(promptf), "output": str(outf),
                                      "work_dir": str(d), "meta": str(d / "meta.json")}
+            # Checked before the exit code: after a stop the CLI may continue once and exit 0.
+            stop = provider_stop(attempts=Path(str(outf) + ".attempts"))
+            if stop:
+                self.invocations[tag]["provider_stop"] = stop
+                return None
             if proc.returncode != 0:
                 return None
         except (subprocess.TimeoutExpired, OSError):
@@ -1328,6 +1381,7 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
                                          f"_lane{plan['lanes'][0]}" if plan["kind"] == "lane" else f"_pair{plan['lanes'][0]}-{plan['lanes'][1]}")
         record = {"kind": plan["kind"], "lanes": list(plan["lanes"]), "tag": call_tag, "carried": plan["mode"]}
         system, prompt = plan["system"], plan["prompt"]
+        raw = None
         try:  # one request's failure must drop to None, not abort the panel (ex.map re-raises)
             reason = _unreadable(spec, plan)
             if reason is None and j in hopeless:
@@ -1337,6 +1391,9 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
             if plan["mode"] == "files":
                 validate_request_bytes(system, prompt, budgets)
                 raw = reader(spec, system, prompt, call_tag, plan["directory"])
+                # The CLI's stop message carries no JSON; a verdict may quote lane text that mentions it.
+                if isinstance(raw, str) and "{" not in raw and provider_stop(raw):
+                    raise ValueError("unavailable: provider safeguard stopped the comparator")
                 invocation = receipts.get(call_tag, {})
                 capacity = validate_request_capacity(system, prompt, invocation, budgets,
                     expected_working_directory=str(plan["directory"]), usage_per_call=True)
@@ -1360,6 +1417,8 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
                     raise ValueError("unavailable: host comparator request exceeds conservative token window")
                 working_directory = str(Path.cwd().resolve())
                 raw = run(spec, system, prompt, call_tag)
+                if isinstance(raw, str) and "{" not in raw and provider_stop(raw):
+                    raise ValueError("unavailable: provider safeguard stopped the comparator")
                 if receipts is not None:
                     invocation = receipts.get(call_tag, {})
                     capacity = validate_request_capacity(system, prompt, invocation, budgets,
@@ -1387,7 +1446,10 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
             record.update(status="completed", capacity=capacity)
             return j, k, parsed
         except Exception as exc:
-            record.update(status="unavailable", reason=str(exc))
+            receipts_now = getattr(run, "invocations", getattr(owner, "invocations", None))
+            stop = (receipts_now.get(call_tag, {}).get("provider_stop") if isinstance(receipts_now, dict) else None) or (
+                provider_stop(raw) if isinstance(raw, str) and "{" not in raw else None)
+            record.update(status="provider_refusal", **stop) if stop else record.update(status="unavailable", reason=str(exc))
             return j, k, None
         finally:
             evidence[j]["requests"].append(record)
@@ -1401,9 +1463,12 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
         judge["requests"].sort(key=lambda r: order.index((r["kind"], r["lanes"])))
         own = {k: parsed for jj, k, parsed in results if jj == j}
         joint = own.get(0)
-        unavailable = [r["reason"] for r in judge["requests"] if r["status"] != "completed"]
-        judge.update(status="unavailable" if unavailable else "completed",
+        unavailable = [r["reason"] for r in judge["requests"] if r["status"] == "unavailable"]
+        refused = [r for r in judge["requests"] if r["status"] == "provider_refusal"]
+        judge.update(status="provider_refusal" if refused else "unavailable" if unavailable else "completed",
                      capacity=judge["requests"][0].get("capacity"))
+        if refused:
+            judge.update({k: v for k, v in refused[0].items() if k not in ("kind", "lanes", "tag", "carried", "status")})
         if unavailable:
             judge["reason"] = "; ".join(dict.fromkeys(unavailable))
         if not isinstance(joint, dict):
@@ -1426,15 +1491,21 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
     return cmp, n_ok
 
 
-def _execute_derivation(run, spec, system, prompt, tag):
+def _execute_derivation(run, spec, system, prompt, tag, refusals: Optional[list] = None):
     raw = run(spec, system, prompt, tag)
+    owner = getattr(run, "__self__", None)
+    invocations = getattr(run, "invocations", getattr(owner, "invocations", None))
+    invocation = invocations.get(tag, {}) if isinstance(invocations, dict) else {}
+    stop = invocation.get("provider_stop") or provider_stop(raw)
+    if stop:
+        # Recorded as a refusal of this lane; it never enters the derivations or their families.
+        if refusals is not None:
+            refusals.append({"execution_id": tag, "model": spec, "family": roster_family_of(spec), **stop})
+        return None
     result = parse_derivation(raw)
     if not result:
         return None
     request = {"system": system, "prompt": prompt}
-    owner = getattr(run, "__self__", None)
-    invocations = getattr(run, "invocations", getattr(owner, "invocations", None))
-    invocation = invocations.get(tag, {}) if isinstance(invocations, dict) else {}
     # Real adapters must furnish their observed successful process receipt. An injected host RunFn
     # has the documented str=success / None=terminal-failure interface and is tested separately.
     exit_code = invocation.get("exit_code") if invocations is not None else 0
@@ -1471,7 +1542,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
         return {"claim": c.get("id"), "status": "unavailable", "verification": "invalid_claim_controls",
                 "converged": False, "independent_confirmations": 0, "cross_family_confirmations": 0,
                 "judges": 0, "native_seeded": 0, "native_dropped": [], "families": [],
-                "total_derivations": 0, "derivation_records": [], "iterate_rounds": 0,
+                "total_derivations": 0, "derivation_records": [], "provider_refusals": [], "iterate_rounds": 0,
                 "agreed_answer": None, "adjudicated_correct": None, "adjudicated_matches_majority": False,
                 "independence_evidence": {"accepted_evidence_indices": []},
                 "failure_reason": "Invalid claim control types: " + ", ".join(invalid), "outliers": None}
@@ -1479,6 +1550,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     derivations: list[dict] = []
     families: list[str] = []
     used: list[str] = []
+    refusals: list[dict] = []
 
     # External native records remain readable but cannot supply runtime-owned observation.
     # Unverifiable records are unavailable and do not suppress available CLI executions.
@@ -1539,7 +1611,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     def _derive(idx_spec):
         i, spec = idx_spec
         tag = f"{c['id']}/derive{i}_{roster_family_of(spec)}"
-        result = _execute_derivation(run, spec, _DERIVE_SYSTEM, _derive_prompt(ctx, c, methods[i % 2]), tag)
+        result = _execute_derivation(run, spec, _DERIVE_SYSTEM, _derive_prompt(ctx, c, methods[i % 2]), tag, refusals)
         if result:
             result.update(execution_id=tag, method=methods[i % 2] or "unspecified")
         return spec, result
@@ -1566,7 +1638,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
         method = methods[rounds % 2]
         d = _execute_derivation(run, spec, _DERIVE_SYSTEM,
                                  _tiebreak_prompt(ctx, c, method, derivations),
-                                 tag=f"{c['id']}/tiebreak{rounds}_{roster_family_of(spec)}")
+                                 tag=f"{c['id']}/tiebreak{rounds}_{roster_family_of(spec)}", refusals=refusals)
         if d:
             d.update(execution_id=f"{c['id']}/tiebreak{rounds}_{roster_family_of(spec)}", method=method or "unspecified")
             derivations.append(d)
@@ -1604,6 +1676,9 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
         "native_dropped": native_dropped,
         "native_unavailable": native_unavailable,
         "families": sorted(set(families)),
+        # Lanes the provider refused: their families are absent from `families` unless another
+        # lane of the same family produced a derivation.
+        "provider_refusals": sorted(refusals, key=lambda r: r["execution_id"]),
         "total_derivations": len(derivations),
         "derivation_records": derivations,
         "iterate_rounds": rounds,
@@ -1639,6 +1714,9 @@ def _summarize(rows: list[dict], n_claims: int, family_pool: list[str],
         # (blank output / timeout / crash). Recorded so a degraded run is legible as
         # "backend down", never mistaken for a mathematical disagreement.
         "unavailable_backends": unavailable_backends or [],
+        # Provider safeguard refusals are listed apart from infrastructure failures and from
+        # mathematical disagreement; a refused family did not take part in the comparison.
+        "provider_refusals": [{"claim": r["claim"], **x} for r in rows for x in (r.get("provider_refusals") or [])],
         "matrix": rows,
     }
 
@@ -1666,8 +1744,12 @@ def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
 
     def tracked_run(model_spec: str, system: str, prompt: str, tag: str) -> Optional[str]:
         out = run(model_spec, system, prompt, tag)
+        receipts = getattr(tracked_run, "invocations", None)
+        refused = (isinstance(receipts, dict) and bool(receipts.get(tag, {}).get("provider_stop")))
         with streak_lock:
-            if out is None:
+            if refused:
+                pass  # a refusal of this request says nothing about whether the backend is up
+            elif out is None:
                 fail_streak[model_spec] = fail_streak.get(model_spec, 0) + 1
                 if fail_streak[model_spec] == _BACKEND_DISABLE_AFTER and model_spec not in announced:
                     announced.add(model_spec)
@@ -1703,7 +1785,7 @@ def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
                 "claim": c.get("id", "?"), "converged": False, "verification": "error",
                 "independent_confirmations": 0,
                 "cross_family_confirmations": 0, "judges": 0, "native_seeded": 0,
-                "native_dropped": [], "families": [],
+                "native_dropped": [], "families": [], "provider_refusals": [],
                 "total_derivations": 0,
                 "iterate_rounds": 0, "agreed_answer": None, "adjudicated_correct": None,
                 "failure_reason": str(exc),
