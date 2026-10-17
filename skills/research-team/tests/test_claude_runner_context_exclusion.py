@@ -126,6 +126,34 @@ def test_marker_without_flag_is_stale(tmp_path: Path) -> None:
     assert _resolve(project, SKILLS_ROOT).stdout == str(SHARED)
 
 
+MODEL_LINE = 'claude --print --safe-mode --no-session-persistence --model "${MODEL}"'
+NO_MODEL_LINE = 'claude --print --safe-mode --no-session-persistence --tools'
+
+
+def test_flag_on_only_one_claude_line_is_stale(tmp_path: Path) -> None:
+    # The asset has two claude --print lines; run_team_cycle.sh passes --model only when a member model is
+    # set, so a flag on one line alone would leave the other path loading the operator's context.
+    asset = ASSET.read_text(encoding="utf-8")
+    assert asset.count(MODEL_LINE) == 1 and asset.count(NO_MODEL_LINE) == 1
+    only_model = asset.replace(NO_MODEL_LINE, NO_MODEL_LINE.replace(" --safe-mode", ""))
+    only_no_model = asset.replace(MODEL_LINE, MODEL_LINE.replace(" --safe-mode", ""))
+    for i, text in enumerate((only_model, only_no_model)):
+        project, local = _project_with(tmp_path / str(i), text)
+        replaced = _resolve(project, SKILLS_ROOT, "1 0 0")
+        assert replaced.stdout == str(SHARED), text
+        assert "[warn]" in replaced.stderr and "predates the operator-context exclusion" in replaced.stderr
+        assert local.read_text(encoding="utf-8") == text
+    project, local = _project_with(tmp_path / "both", asset)
+    kept = _resolve(project, SKILLS_ROOT, "1 0 0")
+    assert kept.stdout == str(local) and kept.stderr == ""
+
+
+def test_copy_without_any_claude_line_is_stale(tmp_path: Path) -> None:
+    text = "#!/usr/bin/env bash\n# research-team-claude-runner: context-excluded\nexec other-cli \"$@\"\n"
+    project, _ = _project_with(tmp_path, text)
+    assert _resolve(project, SKILLS_ROOT).stdout == str(SHARED)
+
+
 def test_stale_copy_with_api_option_on_a_claude_member_is_refused(tmp_path: Path) -> None:
     project, _ = _project_with(tmp_path, "#!/usr/bin/env bash\nclaude --print \"$@\"\n")
     refused = _resolve(project, SKILLS_ROOT, "0 1 1")
