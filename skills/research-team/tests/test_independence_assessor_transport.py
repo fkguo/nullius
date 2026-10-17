@@ -90,6 +90,35 @@ def test_shared_locator_disposition_requires_both_constructed_bodies():
     assert evaluate_assessment(packet,result)[0] == []
 
 
+
+def test_crlf_constructed_bodies_match_quotes_written_with_plain_newlines():
+    from check_independent_reproduction import evaluate_assessment
+    lanes = [{"execution_id": f"anonymous-{i}",
+              "derivation": f"src/own_{i}.py:\r\ntotal = 0\r\nfor value in values: total += value\r\n"} for i in range(2)]
+    for d in lanes:
+        d["construction_body"] = d["derivation"]
+    quotes = [d["derivation"].replace("\r\n", "\n").strip() for d in lanes]
+    assert all(q not in d["construction_body"] for q, d in zip(quotes, lanes))
+    packet = {"input_sha256": "anonymous-input", "derivations": lanes,
+              "shared_source_locators": ["shared helper referenced by both sources"]}
+    records = [{"index": i, "input_independent": True, "execution_independent": True,
+                "construction_independent": True, "method_applicable": True, "diagnostic": True,
+                "unresolved_defects": [], "evidence": {axis: {"source_span": quotes[i],
+                "reason": "The exact anonymous body supports this controlled protocol field."}
+                for axis in ("input", "execution", "construction", "applicability", "diagnostic")}}
+               for i in range(2)]
+    disposition = {"locator": packet["shared_source_locators"][0], "independence_preserved": True,
+                   "reason": "The complete constructed sources independently apply the neutral operand rule.",
+                   "evidence": [{"index": i, "source_span": quotes[i],
+                                 "reason": "This exact constructed body performs its own complete arithmetic."} for i in range(2)]}
+    result = {"input_sha256": packet["input_sha256"], "assessor_role": "independent_source_review",
+              "independence_assessments": records, "shared_source_assessments": [disposition]}
+    assert evaluate_assessment(packet, result)[0] == [0, 1]
+    # Only line endings compare as equal; other text in the quote still has to be in the body.
+    disposition["evidence"][1]["source_span"] = quotes[1].replace("+=", "-=")
+    assert evaluate_assessment(packet, result)[0] == []
+
+
 def test_recursive_shared_library_and_raw_input_closure(tmp_path):
     proj = _make_project(tmp_path)
     _write(proj / "shared_math.py", "import nested_math\ndef combine(values):\n    return nested_math.combine(values)\n")

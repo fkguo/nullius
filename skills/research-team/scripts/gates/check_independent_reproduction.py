@@ -61,7 +61,7 @@ from convergence_schema import (  # type: ignore
     validate_convergence_result,
 )
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "derivation-verify" / "scripts"))
-from independence import assessed_indices, independence_record, method_risk_passes
+from independence import assessed_indices, independence_record, method_risk_passes, occurs_in
 
 from team_config import load_strict_team_config as load_team_config  # type: ignore
 from member_evidence import validate_original_transport, original_source_origin
@@ -850,7 +850,7 @@ def evaluate_assessment(packet: dict, assessment: dict) -> tuple[list[int], list
                     continue
                 lane = packet["derivations"][item["index"]]
                 span, reason = item.get("source_span"), item.get("reason")
-                if (isinstance(span, str) and span.strip() and span in lane.get("construction_body", "")
+                if (isinstance(span, str) and span.strip() and occurs_in(span, lane.get("construction_body", ""))
                         and isinstance(reason, str) and len(reason.strip()) >= 20):
                     covered.add(item["index"])
             if covered != {0, 1}:

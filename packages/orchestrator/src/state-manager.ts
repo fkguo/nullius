@@ -561,6 +561,21 @@ function commitStagedFileWithRetry(params: {
   }
 }
 
+const LEDGER_EVENT_TYPE_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+/** LOG-03: the ledger vocabulary is open (no closed enum), but every event
+ *  name must be a non-empty lowercase identifier so every reader can parse
+ *  and map it. Rejects empty strings, upper case, spaces and punctuation. */
+export function assertLedgerEventType(eventType: unknown): string {
+  if (typeof eventType !== 'string' || !LEDGER_EVENT_TYPE_PATTERN.test(eventType)) {
+    throw new Error(
+      `invalid ledger event_type ${JSON.stringify(eventType)}: expected a non-empty `
+      + `lowercase identifier matching ${String(LEDGER_EVENT_TYPE_PATTERN)}`,
+    );
+  }
+  return eventType;
+}
+
 /** Durable append of a ledger event line.
  *  Delegates to @nullius/shared.appendJsonlDurable: write → fsync(fd)
  *  → close → fsync(dirFd) so the new bytes survive crash before any
@@ -760,6 +775,7 @@ export class StateManager {
   appendLedger(eventType: string, opts?: {
     run_id?: string | null; workflow_id?: string | null; step_id?: string | null; details?: Record<string, unknown>;
   }): void {
+    assertLedgerEventType(eventType);
     fs.mkdirSync(this.dir, { recursive: true });
     withLedgerLock(this.statePath,
       'Stop all project writers and repair a stale lock manually only while quiescent.', () => {
@@ -773,6 +789,8 @@ export class StateManager {
   /** Compare under lock before staging state or appending any combined event.
    * The ledger remains history; this is not a crash-atomic database transaction. */
   saveStateWithLedger(state: RunState, eventType: string, opts?: StateEventOptions): void {
+    assertLedgerEventType(eventType);
+    for (const event of opts?.additional_events ?? []) assertLedgerEventType(event.event_type);
     this.withCurrentState(state, () => {
       const plan = state.plan;
       let renderedPlanMd: string | null = null;

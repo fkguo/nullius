@@ -6,8 +6,10 @@ observed work and fail closed on absent or incomplete assessments.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
+import re
 from pathlib import Path
 
 _OBSERVATION_AUTHORITY = object()
@@ -50,6 +52,91 @@ def derivation_body(d: dict) -> str:
     return body if isinstance(body, str) else ""
 
 
+def _same_line_endings(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def occurs_in(span: str, text) -> bool:
+    """Exact quotation with line endings (CRLF, CR, LF) compared as equal; they are not content."""
+    return isinstance(span, str) and isinstance(text, str) and _same_line_endings(span) in _same_line_endings(text)
+
+
+_OBJECT_START = re.compile(r'\{[ \t\n\r]*["}]')
+
+
+_ANSWER_KEYS = ("canonical_answer", "derivation_summary")
+
+
+def _holds(value, selected: dict) -> bool:
+    """Whether a decoded JSON value is the selected object or contains it at any depth."""
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if item == selected:
+            return True
+        pending.extend(item.values() if isinstance(item, dict) else item if isinstance(item, list) else ())
+    return False
+
+
+@functools.lru_cache(maxsize=256)
+def _text_outside_answer_json(raw: str) -> tuple[str, ...]:
+    """Assistant text around the answer-shaped JSON objects, line endings normalised.
+
+    Removed are every copy of the selected object and every other decodable JSON object with a
+    canonical_answer or derivation_summary key (drafts, wrappers, near-copies), so no answer
+    object's summary, confidence, answer or JSON-quoted derivation is part of this text. If the
+    selected object cannot be located, nothing is returned."""
+    from run_multi_backend import extract_json
+    selected = extract_json(raw, prefer_keys={"canonical_answer"})
+    if not isinstance(selected, dict):
+        return ()
+    text, decoder = _same_line_endings(raw), json.JSONDecoder()
+    parts, cursor, located = [], 0, False
+    # A JSON object opens with a key or closes at once; other braces (e.g. LaTeX) are skipped
+    # without a decode attempt, which would otherwise make long outputs quadratic.
+    found = _OBJECT_START.search(text)
+    while found:
+        i = found.start()
+        try:
+            value, end = decoder.raw_decode(text, i)
+        except (ValueError, RecursionError):
+            value, end = None, i + 1
+        if value == selected or (isinstance(value, dict) and any(key in value for key in _ANSWER_KEYS)):
+            located = located or _holds(value, selected)
+            parts.append(text[cursor:i])
+            cursor = end
+        else:
+            end = i + 1
+        found = _OBJECT_START.search(text, end)
+    if not located:
+        return ()
+    return tuple(parts) + (text[cursor:],)
+
+
+def quoted_in_derivation(span: str, d: dict, closure: str | None = None) -> bool:
+    """A span quotes original derivation material when it occurs in the given closure (input and
+    execution evidence) or, for the other evidence, in the derivation context; in both cases also
+    when it occurs in the structured derivation as read.
+
+    When the context is the raw output (assistant text outside the selected JSON object), the
+    derivation context for quoting is the text outside every answer-shaped JSON object: their
+    fields, such as the navigation-only summary, are not derivation steps. Inside the raw output the structured
+    derivation is JSON-quoted (newlines, quotes and non-ASCII escaped), so it is quoted as read.
+    Line endings (CRLF, CR, LF) are not content and compare equal.
+    valid_derivation_transport requires the structured field to equal the one parsed from that raw
+    output before any lane counts."""
+    body = derivation_body(d)
+    structured = d.get("derivation")
+    separate = runtime_observed(d) and isinstance(structured, str) and structured != body
+    if closure is not None:
+        texts = (closure,)
+    else:
+        texts = _text_outside_answer_json(body) if separate else (body,)
+    if any(occurs_in(span, text) for text in texts):
+        return True
+    return separate and occurs_in(span, structured)
+
+
 AXES = ("input", "execution", "construction", "applicability", "diagnostic")
 
 
@@ -82,14 +169,15 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
                 valid = False
                 break
             span, reason = item.get("source_span"), item.get("reason")
-            axis_source = source if axis in ("input", "execution") else derivation_body(derivations[i])
-            if axis == "construction" and "construction_body" in derivations[i]:
-                axis_source = derivations[i]["construction_body"]
-            if not isinstance(axis_source, str):
+            if (not isinstance(span, str) or not span.strip()
+                    or not isinstance(reason, str) or len(reason.strip()) < 20):
                 valid = False
                 break
-            if (not isinstance(span, str) or not span.strip() or span not in axis_source
-                    or not isinstance(reason, str) or len(reason.strip()) < 20):
+            if axis == "construction" and "construction_body" in derivations[i]:
+                quoted = occurs_in(span, derivations[i]["construction_body"])
+            else:
+                quoted = quoted_in_derivation(span, derivations[i], source if axis in ("input", "execution") else None)
+            if not quoted:
                 valid = False
                 break
         if valid:
@@ -164,7 +252,7 @@ def method_risk_passes(derivations: list[dict], eligible: list[int], records) ->
             if not isinstance(item, dict) or type(item.get("index")) is not int or item["index"] not in indices:
                 continue
             span, reason = item.get("source_span"), item.get("reason")
-            if isinstance(span, str) and span.strip() and span in derivation_body(derivations[item["index"]]) and isinstance(reason, str) and len(reason.strip()) >= 20:
+            if isinstance(span, str) and span.strip() and quoted_in_derivation(span, derivations[item["index"]]) and isinstance(reason, str) and len(reason.strip()) >= 20:
                 ok.add(item["index"])
         if ok == set(indices):
             return True

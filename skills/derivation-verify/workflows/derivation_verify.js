@@ -111,6 +111,12 @@ function cmpPrompt(c, ds) {
 }
 const runtimeObservations = new WeakSet()
 
+// Exact quotation with line endings (CRLF, CR, LF) compared as equal; they are not content.
+const sameLineEndings = text => text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+function occursIn(span, text) {
+  return typeof span === 'string' && typeof text === 'string' && sameLineEndings(text).includes(sameLineEndings(span))
+}
+
 function validTransport(d) {
   if (!runtimeObservations.has(d)) return false
   const t = d.transport
@@ -123,7 +129,7 @@ function riskPasses(c, ds, idx, cmp) {
   return (Array.isArray(cmp.method_risk_assessments) ? cmp.method_risk_assessments : []).some(r => {
     if (!r || r.addresses_shared_failure !== true || r.methods_distinct !== true || !Array.isArray(r.indices) || r.indices.length !== 2 || r.indices[0] === r.indices[1] || r.indices.some(i => !Number.isInteger(i) || !idx.includes(i))) return false
     if (['risk','method_analysis'].some(k => typeof r[k] !== 'string' || r[k].trim().length < 20) || !Array.isArray(r.evidence) || r.evidence.length !== 2) return false
-    return r.indices.every(i => r.evidence.some(e => e && e.index === i && typeof e.source_span === 'string' && e.source_span.trim() && typeof ds[i].derivation === 'string' && ds[i].derivation.includes(e.source_span) && typeof e.reason === 'string' && e.reason.trim().length >= 20))
+    return r.indices.every(i => r.evidence.some(e => e && e.index === i && typeof e.source_span === 'string' && e.source_span.trim() && occursIn(e.source_span, ds[i].derivation) && typeof e.reason === 'string' && e.reason.trim().length >= 20))
   })
 }
 function accepted(c, ds, cmp) {
@@ -138,7 +144,7 @@ function accepted(c, ds, cmp) {
     if (!Array.isArray(a.unresolved_defects) || a.unresolved_defects.length) continue
     if (['input','execution','construction','applicability','diagnostic'].every(k => {
       const e = (a.evidence || {})[k]
-      return e && typeof e.reason === 'string' && e.reason.trim().length >= 20 && typeof e.source_span === 'string' && e.source_span.trim() && (['input','execution'].includes(k) ? sourceMaterial(ds[i]) : ds[i].derivation).includes(e.source_span)
+      return e && typeof e.reason === 'string' && e.reason.trim().length >= 20 && typeof e.source_span === 'string' && e.source_span.trim() && occursIn(e.source_span, ['input','execution'].includes(k) ? sourceMaterial(ds[i]) : ds[i].derivation)
     })) good.add(i)
   }
   const rawIndices = cmp.majority_indices

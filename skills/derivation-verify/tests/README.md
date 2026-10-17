@@ -34,10 +34,11 @@ nothing. The executor now parses a string `args`; this smoke test fails (0 claim
 
 [`test_run_multi_backend.py`](test_run_multi_backend.py) exercises the gate's PURE logic + orchestration
 with an **injected mock runner** — NO real CLI backends are spawned, so it is fast, deterministic, and
-CI-safe. Run:
+CI-safe. CI runs the whole offline suite in this directory (the CAS-path tests need `sympy`):
 
 ```
-python3 -m pytest skills/derivation-verify/tests/test_run_multi_backend.py -q
+python3 -m pytest skills/derivation-verify/tests -q
+node --test skills/derivation-verify/tests/test_native_workflow_transport.mjs
 ```
 
 It locks: source-grounded independent confirmation (with family diversity reported separately), adjudicator veto (R2), diversity-first tie-break (R3), robust

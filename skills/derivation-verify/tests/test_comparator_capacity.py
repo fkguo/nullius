@@ -174,3 +174,26 @@ def test_comparator_receives_steps_outside_selected_json_field():
     decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
     assert all(d['derivation_context']==raw and d['derivation']==SUMMARY for d in decoded)
     assert all(mb.valid_derivation_transport(d) for d in ds)
+
+
+
+def decoded_packet(raw):
+    ds=[mb._execute_derivation(lambda *a:raw,'claude/offline','neutral','raw operands',f'original-{i}') for i in range(2)]
+    packet=mb._compare_prompt('Raw inputs only.',CLAIM,ds,['host','host'])
+    decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
+    return ds,decoded
+
+
+def test_comparator_request_omits_byte_identical_copies_of_the_original_output():
+    raw=json.dumps({'canonical_answer':'42','derivation':SUMMARY,'checkable_form':'42','confidence':'high'})
+    ds,decoded=decoded_packet(raw)
+    # Without assistant text outside the JSON object, the structured derivation is the whole context.
+    assert all('derivation_context' not in d and 'original_assistant_output' not in d for d in decoded)
+    assert all(d['transport']['raw_output']==raw and d['derivation']==SUMMARY for d in decoded)
+    assert all(ds[i]['original_assistant_output']==raw for i in range(2))
+    early='An earlier original premise and necessary step.\r\n'
+    ds,decoded=decoded_packet(early+raw)
+    # With such text, derivation_context is the complete original output and transport names it.
+    assert all(d['derivation_context']==early+raw and 'raw_output' not in d['transport'] for d in decoded)
+    assert all(d['transport']['raw_output_given_as']=='derivation_context' for d in decoded)
+    assert all(ds[i]['transport']['raw_output']==early+raw and mb.valid_derivation_transport(ds[i]) for i in range(2))
