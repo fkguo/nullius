@@ -383,7 +383,10 @@ and delegation contracts, and consolidated run authority under one canonical
   1e300 in magnitude, written in at most 400 characters. research-team member
   and verifier prompts stop at the required accuracy and report over-tight
   gates as findings. The lock `check-required-accuracy-anti-drift.mjs` and the
-  checker tests run in CI.
+  checker tests run in CI. **Migration:** a reliability matrix written before
+  G0 lacks `required_accuracy` and `error_budget`, which the checker requires
+  on every row, and `total_error` for rows marked reliable; its rows need them
+  before they are treated as reliable.
 - **Skill frontmatter lock.** `scripts/check-skill-frontmatter-anti-drift.mjs`
   (in CI) parses the frontmatter of every tracked `skills/<dir>/SKILL.md` as
   YAML and fails, naming file and reason, when the block is missing, not on
@@ -399,7 +402,8 @@ and delegation contracts, and consolidated run authority under one canonical
   helpers `riskToAnnotations` / `toolAnnotationsFor`), a title per tool and a
   one-paragraph `instructions` string, and returns `structuredContent` beside
   the unchanged text block when the result is a JSON object (never for
-  markdown, strings, arrays or truncated text). hep-mcp takes re-exported
+  markdown, strings, arrays, error results or hard-truncated text, nor for the
+  stored inner result that a project-mcp delivery replay returns). hep-mcp takes re-exported
   tools' risk levels and hints from the sibling packages' own tables. Tools
   that write files move from `read` to `write`: `openalex_search`,
   `openalex_filter`, `openalex_citations` (bulk JSONL export), `pdg_get`,
@@ -542,7 +546,12 @@ and delegation contracts, and consolidated run authority under one canonical
   `unknown option` error is a deterministic, unretried failure in the claude,
   codex, gemini, kimi and opencode runners, so a CLI that does not know
   `--safe-mode` is expected to fail instead of running with the operator's
-  context (not tested against an older CLI).
+  context (not tested against an older CLI). Only Claude CLI lanes are
+  covered: the codex, gemini, opencode and kimi runners and the Native
+  executor neither exclude nor record operator context, although
+  review-swarm's guidance now requires its absence for input independence. A
+  `not_hermetic` lane still triggers fallback, and a lane recovered on another
+  backend carries no hermetic record.
 - **research-team: the project-local Claude runner copy keeps operator
   context out.** `assets/run_claude.sh`, copied into projects as
   `scripts/run_claude.sh`, runs `claude --print --safe-mode` with
@@ -564,11 +573,14 @@ and delegation contracts, and consolidated run authority under one canonical
   executors ask lanes for "the full written derivation, as it would appear in a
   paper appendix: every mathematical step stated explicitly" instead of
   "COMPLETE original steps ... no sentence limit or truncation", which a
-  provider safeguard stopped in 9 of 10 live Claude CLI calls (0 of 4 with the
-  new wording); the lock rejects the old wording. A lane or comparator stopped
-  by the provider is recorded as a refusal (`provider_refusals`, judge status
+  provider safeguard stopped in 9 of 10 live Claude CLI calls (0 of 4 calls
+  with reworded requests, a small sample); the lock rejects the old wording.
+  In the CLI executor with live capture, a lane or comparator stopped by the
+  provider is recorded as a refusal (`provider_refusals`, judge status
   `provider_refusal`), contributes no derivation or family, and does not mark
-  its backend down.
+  its backend down; without live capture such a stop is an ordinary failure,
+  and the Native executor records it only as unavailable. A tie-break may
+  pick a refused family again.
 - **derivation-verify: the comparator packet carries each lane's text twice and
   captured records at content level.** Each lane record carries its original
   text once as the structured `derivation` and once as `transport.raw_output`,
@@ -581,17 +593,22 @@ and delegation contracts, and consolidated run authority under one canonical
   encodes it, or its decoded string values), and the Python packet is encoded
   with sorted keys. With live capture, `transport.captured_records` are carried
   per record: `by_reference` (path, SHA-256, size) only when assembly proves the
-  bytes equal a shipped field; a live stream as `content_blocks`, with text
-  equal to a whole shipped field replaced by a reference to it and only
+  bytes equal a shipped field, or, for the terminal result sidecar, the
+  stream's own terminal event written with indent 2; a live stream as
+  `content_blocks`, where the lane's own assistant, streamed or result text
+  equal to a whole shipped field is replaced by a reference to it (user and
+  synthetic messages stay verbatim), with only
   bookkeeping omitted (ids, timestamps, usage, cost and timing counters,
   status/thinking-token/rate-limit events, stream markers, empty thinking
   blocks, signatures); anything else inline verbatim. `artifact_refs` gain
-  `size`. On the capture-free 300-step test derivation the two-lane request
-  went from 130,540 bytes (after the first duplicate copies were dropped) to
-  66,591 (three lanes: 194,174 to 98,196); on two real Claude streams with
-  capture, the two-lane request bound (system prompt, prompt and an
-  8,192-byte reserve) went from 900,126 to 95,560 bytes, within the
-  159,040-byte default window. Material that still exceeds
+  `size`. Measured at release on the capture-free 300-step test derivation,
+  the two-lane comparator prompt is 68,492 bytes and three lanes about 99 kB;
+  during this release's development the same fixture's two-lane prompt had
+  reached 190,697 bytes. On two real Claude streams with capture, the
+  request bound (system prompt, prompt and an 8,192-byte reserve) is 95,823
+  bytes for two lanes and 136,321 for three at release, against 900,126 bytes
+  for two lanes before captured records were carried at content level; the
+  default byte budget is 159,040. Material that still exceeds
   the byte budget is handled as the read-coverage entry below describes.
 - **derivation-verify: what counts as a quote of a lane's steps.**
   Construction, applicability, diagnostic and method-risk spans count only in
@@ -606,27 +623,33 @@ and delegation contracts, and consolidated run authority under one canonical
   material counts.** Material within the conservative byte budget travels
   inline as before. Above it, the complete material still travels inline and
   counts only when the comparator's own runtime capture shows token usage
-  within the window and no compaction; when no judge can observe usage (a
-  non-Claude comparator, or live capture off) the request is refused before
-  dispatch. When every lane fits, or every judge observes usage, one request
+  within the window and no compaction; a judge that cannot observe usage (a
+  non-Claude comparator, an injected host callable, or live capture off) is
+  refused such a request before dispatch. When every lane fits, or every judge observes usage, one request
   holds all lanes as before; otherwise, and whenever no judge's single request
   gives a counted verdict, each lane is assessed in its own request (counted
   only with span-backed `answer_support`), a joint request clusters the
   canonical answers, and an explicit method risk gets one request per lane
   pair; `request_capacity.comparison_form` records `single_request` or
-  `per_lane`. Only material beyond four bytes per token of the window is frozen
+  `per_lane`. The per-lane form gives up a comparison: no request reads two
+  lanes' bodies except the pair requests of an explicit method risk, so a lane
+  copied from another is not seen there (a live run with two accidentally
+  byte-identical lanes was caught by the single request, which reads both
+  bodies), and each judge makes 1 + n (+ pairs) requests instead of one. Only material beyond four bytes per token of the window is frozen
   into read-only part files that a Claude CLI comparator reads with
   Read/Glob/Grep; its verdict counts only when the capture shows every byte of
   every part returned exactly, otherwise it is unavailable as content not
-  completely read, never truncated. The Native executor cannot show reads, so
-  such material stays unavailable there. Live limitation: the frozen-file
-  reading path is currently stopped by the provider's `reasoning_extraction`
-  safeguard on live Claude comparators, in every live attempt across wording,
-  model and thinking settings, so material beyond the window is recorded as
+  completely read, never truncated. The Native executor and injected host
+  callables observe neither token usage nor file reads, so there all material
+  above the byte budget stays unavailable. Live limitation: the frozen-file
+  reading path is stopped by the provider's `reasoning_extraction` safeguard
+  in most live attempts (with the shipped wording 2 of 4 reading sessions
+  passed; one Read per turn, a different model or disabled thinking did not
+  remove the stop), so such material is usually recorded as
   `provider_refusal` and does not count. The inline forms above the byte
-  budget were run live with stand-in lanes (single request 294,341 bytes;
-  per-lane 175,438 and 255,382 bytes): both converged, with no provider stop
-  and no compaction. Every source span must be one
+  budget were run live with stand-in lanes, in requests of 294,341 bytes
+  (single form) and 175,438 and 255,382 bytes (two per-lane requests): both
+  runs converged, with no provider stop and no compaction. Every source span must be one
   contiguous exact copy; joined passages and ellipses refuse. review-swarm's
   authority-key creation and reads serialize on a lock file.
 - **Delegation time boxes are sized from measurement** (research-team /
@@ -643,10 +666,12 @@ and delegation contracts, and consolidated run authority under one canonical
   its two observations are adjacent lines of a named probe log, newer than the
   previous extension's (the gate does not open the log; a reviewer checks the
   rows). There is no fixed extension count; a stalled run is wrapped up.
-  review-swarm sizes an explicit hard cap from the family's recorded elapsed
-  times, and derivation-verify's `run_multi_backend.py` has no hard deadline by
-  default (was 900 s). **Migration:** an active delegation contract needs a
-  `time_box.basis` before its next preflight.
+  review-swarm's guidance is to size an explicit hard cap from the recorded
+  `elapsed_secs` of comparable seats, and derivation-verify's
+  `run_multi_backend.py` has no hard deadline by default (was 900 s).
+  **Migration:** an active delegation contract needs a `time_box.basis`, and a
+  time-box `retry_of` amendment a `kind` and `progress`, before its next
+  preflight.
 - **Six long SKILL.md files moved reference text to `references/`.**
   numerical-reliability-gate, research-harness, idea-posterior, research-team,
   review-swarm and research-integrity move reference-grade sections verbatim
@@ -681,7 +706,9 @@ and delegation contracts, and consolidated run authority under one canonical
 - **CI runs the complete skill test suites.** `python-contracts-test` runs the
   full research-team, research-harness, derivation-verify (with sympy) and
   review-swarm pytest suites, and derivation-verify's native workflow transport
-  node test; per-file steps those suites already cover are folded into them,
+  node test; the research-team and research-harness per-file steps those
+  suites already cover are folded into them (three review-swarm per-file
+  steps remain),
   and the launch-authorization and literature-coverage locks accept the suite
   invocations as their wiring. Fifteen tests that had gone stale after
   deliberate code changes (13 research-team request-capacity, one
@@ -697,9 +724,12 @@ and delegation contracts, and consolidated run authority under one canonical
   through `check_display_acceptance.py`. `final_display` now accepts
   `prints_values: false`, closed to the reader purpose and the reviewed,
   byte-pinned final surfaces (which carry no `format`); verdict bindings, the
-  overview figure and the main-surface rule are unchanged, every surface under
-  that declaration is scanned, whatever its name or text encoding, and must
-  carry no `data-results` table (`printed-values-undeclared`), and an empty
+  overview figure and the main-surface rule are unchanged, and every surface
+  under that declaration is scanned whatever its name (UTF-16 through its
+  byte-order mark, anything else as ASCII-compatible text) and refused if it
+  carries a table marked `data-results` (`printed-values-undeclared`); that is
+  the only mechanical check, so values printed as plain text, in an unmarked
+  table, in SVG text or in a PDF or PNG rendering are not detected. An empty
   `cells` list is still refused. In the full form a selected quantity drawn as marks beside printed
   cells (a curve with a printed headline value) is listed in the new optional
   `drawn_quantities` and may omit `raw`/`components` in the inventory; a
@@ -713,7 +743,8 @@ and delegation contracts, and consolidated run authority under one canonical
   never matched any implementation; each now states what the code does and
   names the check that enforces it. `make release` runs the full release
   gate (build, `codegen-check`, both version checks, catalog regeneration
-  with `git diff --exit-code`, skill tool-name lock).
+  with `git diff --exit-code`, skill tool-name lock); it is a local pre-tag
+  gate that CI does not run, and it regenerates the catalogs in place.
 - **hep-mcp: `tool_catalog.{standard,full}.json` are deterministic.** The
   `generated_at` and `commit` fields are gone; the files hold `mode`, `count`
   and the sorted `tools` only, are generated with `HEP_ENABLE_ZOTERO=1`, and
@@ -800,7 +831,9 @@ and delegation contracts, and consolidated run authority under one canonical
   module URL without resolving symlinks, so a start through an npm bin link, a
   symlinked checkout or macOS `/tmp` exited 0 after about 300 ms with nothing
   on stderr and no server. They now use `isMainModule()` from
-  `@nullius/shared`, which resolves both sides through `realpath`.
+  `@nullius/shared`, which resolves both sides through `realpath`. Launch tests
+  through symlinks cover arxiv-mcp and hep-mcp; the other five use the same
+  helper, covered by its unit tests.
 - **Locks started through a symlinked path.**
   `check-portable-paths-anti-drift.mjs` and `check-unreachable-modules.mjs`
   exited 0 without checking when started through a symlinked path; both now
@@ -811,8 +844,9 @@ and delegation contracts, and consolidated run authority under one canonical
   `inspire_trace_original_source`, `inspire_find_crossover_topics`,
   `inspire_cleanup_downloads`, `inspire_validate_bibliography`) listed
   omissible limits, nested options included, as `required`; what parses is
-  unchanged. The schema converter declares JSON Schema draft 2020-12, the
-  dialect MCP assumes (no emitted tool schema changes from that).
+  unchanged. The schema converter targets JSON Schema draft 2020-12 and emits
+  no `$schema` keyword; MCP reads such a schema as 2020-12, and no emitted tool
+  schema changed from the switch.
   `findRequiredKeyMismatches` in `@nullius/shared` compares every `required`
   list with what the parser accepts and runs over every tool in the contract
   tests of the MCP packages, project-mcp included.
@@ -823,15 +857,19 @@ and delegation contracts, and consolidated run authority under one canonical
   parsing pipe. `findBudgetBoundMismatches` compares each budget field's
   published type, minimum and maximum with what it accepts, over every tool of
   all eight MCP packages.
-- **derivation-verify: thinking-enabled live-capture streams are read.** The
-  complete-text collector mapped a snapshot's list position to the block
-  index, but Claude Code sends one snapshot per block, so every
-  thinking-enabled live-capture stream was refused with "content block type
-  changed". Snapshots now align to the latest started block of their message;
-  inconsistent streams still refuse, and a response stopped with
-  `stop_reason: "refusal"` never completes. A missing runtime observation is
-  refused as `unavailable: runtime observation missing: <path>` instead of a
-  bare `FileNotFoundError`.
+- **Thinking-enabled Claude live-capture streams are read.** The
+  complete-text collector `complete_assistant_text.py` (claude-cli-runner, with
+  a copy in review-swarm; used by claude-cli-runner's `process_budget.py`,
+  review-swarm's `runtime_capture_observation.py` and research-team's
+  `request_capacity.py`) mapped a snapshot's list position to the block index,
+  but Claude Code sends one snapshot per block, so every thinking-enabled
+  Claude live-capture run was refused with "content block type changed".
+  Snapshots now align to the latest started block of their message;
+  inconsistent streams still refuse. A response stopped with
+  `stop_reason: "refusal"` never completes, so such a run now fails even when
+  the CLI exits 0. review-swarm's `verify_capture_observation` refuses a
+  missing runtime observation as `unavailable: runtime observation missing:
+  <path>` instead of a bare `FileNotFoundError`.
 - **Scaffold `AGENTS.md`: `nullius trace stamp <run_dir>`.** The project
   scaffold's `AGENTS.md` template said `nullius trace stamp <run_id>`; the
   command takes a run directory. A project scaffolded earlier keeps its
@@ -843,8 +881,8 @@ and delegation contracts, and consolidated run authority under one canonical
   run-storage guides, the orchestrator README and `orch_*` tool specification,
   the development contract's rule statistics and several package READMEs.
   Among them: the research-harness market entry declares skill packs in
-  `depends_on`; idea-mcp needs `IDEA_MCP_DATA_DIR` outside the development
-  checkout; hep-mcp re-exposes provider tools under their own names
+  `depends_on`; idea-mcp always needs `IDEA_MCP_DATA_DIR`, pointing outside
+  the development checkout; hep-mcp re-exposes provider tools under their own names
   (`arxiv_*`, `openalex_*`, `hepdata_*`, `pdg_*`, `zotero_*`); the OpenAlex
   contact variable is `OPENALEX_MAILTO`; `PDG_TOOL_MODE=full` adds
   `pdg_batch`; installer examples pass `--source-root`;
@@ -855,8 +893,8 @@ and delegation contracts, and consolidated run authority under one canonical
   an input error; the migration's step 5 creates `AGENTS.md` only when it is
   missing.
 - **figure-hygiene: complete sidecar example restored; 0.6.0 migration note.**
-  `references/display-semantics.md` again shows a complete provenance sidecar
-  (`figure`, `data`, `script`, `style`, `command`, the `series_provenance` block
+  `references/display-semantics.md` now shows the complete provenance sidecar
+  that SKILL.md carried before (`figure`, `data`, `script`, `style`, `command`, the `series_provenance` block
   with `table`, `series_column`, `fingerprint_column` and `check_command`, the
   `display_acceptance` block and the top-level `sha256` map); an earlier commit
   of this release had dropped it from SKILL.md without moving it. Migration note for the 0.6.0 final
