@@ -277,6 +277,9 @@ def test_lane_larger_than_the_window_is_read_in_chunks_and_passes_only_with_full
         assert joined == mb._encoded(mb._lane_entry(ds[i], 'host', i))
         assert all(len(Path(f['path']).read_bytes()) <= read_coverage.PART_BYTES for f in files)
         assert all(not os.access(f['path'], os.W_OK) for f in files)
+        # The request's working directory holds this lane's parts and nothing else.
+        directory = {Path(f['path']).parent for f in files}
+        assert len(directory) == 1 and sorted(os.listdir(directory.pop())) == sorted(Path(f['path']).name for f in files)
     # Reading a part in two offset/limit halves, or in the older numbered layout, covers it the same way.
     for mutation in ('offset-halves', 'arrow-layout'):
         sub = tmp_path / mutation; sub.mkdir()
