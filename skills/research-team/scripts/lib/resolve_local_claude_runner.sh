@@ -15,10 +15,13 @@ LOCAL_CLAUDE_RUNNER="${PROJECT_ROOT}/scripts/run_claude.sh"
 STALE_LOCAL_CLAUDE_RUNNER=""
 # Every `claude --print` line must carry --safe-mode: the asset has two (with and without --model), and
 # run_team_cycle.sh passes --model only when a member model is set, so a flag on one line alone leaves the
-# other path loading the operator's context. A flag on a continuation line is not seen (treated as stale).
+# other path loading the operator's context. The flag must stand as a whole option on the line itself (a
+# trailing comment is ignored, `--safe-modeX` does not count); a flag on a continuation line is not seen
+# (treated as stale). One awk pass, so the answer does not depend on `set -o pipefail` in the caller.
 if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] && ! { grep -q -- "${RESEARCH_TEAM_CLAUDE_RUNNER_MARKER}" "${LOCAL_CLAUDE_RUNNER}" \
-    && grep -Eq '^[[:space:]]*claude --print' "${LOCAL_CLAUDE_RUNNER}" \
-    && ! grep -E '^[[:space:]]*claude --print' "${LOCAL_CLAUDE_RUNNER}" | grep -vq -- '--safe-mode'; }; then
+    && awk '/^[ \t]*claude --print/ { n++; line = $0; sub(/[ \t]+#.*/, "", line)
+              if (line !~ /(^|[ \t])--safe-mode([ \t]|\\|$)/) bad = 1 }
+            END { exit !(n > 0 && !bad) }' "${LOCAL_CLAUDE_RUNNER}"; }; then
   STALE_LOCAL_CLAUDE_RUNNER="${LOCAL_CLAUDE_RUNNER}"
   _shared_claude_runner="${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh"
   if [[ -f "${_shared_claude_runner}" ]]; then
