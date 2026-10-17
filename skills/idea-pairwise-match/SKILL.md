@@ -196,7 +196,7 @@ version 1. Discovery order, first hit wins:
    that declares the real family (for example claude) names it in the
    records.
 
-A missing file is never an error — the next source applies. A roster file
+A missing discovered file is never an error — the next source applies (an explicit `--roster` path that does not exist is). A roster file
 that exists but does not parse or validate stops the run loudly, naming the
 file; silently skipping a broken roster would change panel composition
 behind the operator's back. `run_panel.py` reads the roster with its own

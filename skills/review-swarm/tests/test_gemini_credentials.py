@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -14,6 +15,8 @@ import pytest
 
 
 RUNNER = Path(__file__).resolve().parents[1] / "scripts/bin/run_multi_task.py"
+# Loading the runner as a module needs its sibling modules importable, as when it runs as a script.
+sys.path.insert(0, str(RUNNER.parent))
 
 
 @pytest.fixture
@@ -76,7 +79,17 @@ def assert_private_and_removed(report, out):
     for artifact in out.rglob("*"):
         if artifact.is_file():
             text = artifact.read_text()
-            assert data["home"] not in text
+            if data["home"] in text:
+                # A seat's original report is runtime-observed and its bytes are
+                # never rewritten; the launcher writes a redacted view beside it
+                # and redacts every other artifact (stdout, stderr, trace).
+                assert re.fullmatch(r"agent_\d+_gemini_.*\.txt", artifact.name), artifact
+                assert not artifact.name.endswith(".redacted-view.txt"), artifact
+                assert text == "VERDICT: READY\n" + data["home"]  # original bytes, never rewritten
+                view = artifact.with_name(artifact.name + ".redacted-view.txt")
+                assert view.is_file()
+                assert data["home"] not in view.read_text()
+                assert "[Gemini home]" in view.read_text()
             assert "dummy-token-never-valid" not in text
             assert "dummy-private-config" not in text
     assert not list(out.rglob("oauth_creds.json"))

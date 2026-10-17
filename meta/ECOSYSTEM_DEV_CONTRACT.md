@@ -904,7 +904,7 @@ if (internal.length) { console.error('PLUG-01:', internal); process.exit(1); }
 | **LANG** | LANG-01 代码与文档语言 | fail-closed | CJK 字符 grep 检查 |
 | **PLUG** | PLUG-01 独立发布能力 | fail-closed | 内部依赖 lint |
 
-**统计**: 42 条规则，35 条 fail-closed (含 SEC-03 staged)，7 条 fail-open
+**统计**: 43 条规则，32 条 fail-closed (含 SEC-03 staged)，7 条 fail-open，4 条 fail-open（review 阻断）
 
 ---
 

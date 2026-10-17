@@ -15,11 +15,11 @@ pnpm -C packages/zotero-mcp build
 pnpm -C packages/zotero-mcp start
 ```
 
-Or run the workspace binary after build:
+Or run the package bin script after build:
 
 ```bash
 pnpm -C packages/zotero-mcp build
-pnpm -C packages/zotero-mcp exec zotero-mcp
+node packages/zotero-mcp/bin/zotero-mcp.js
 ```
 
 ## Environment Variables

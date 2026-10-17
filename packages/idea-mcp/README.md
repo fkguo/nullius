@@ -22,8 +22,10 @@ If you need these, use the engine directly (library import or `packages/idea-eng
 
 ```bash
 pnpm -r build
-node packages/idea-mcp/dist/server.js
+IDEA_MCP_DATA_DIR=/absolute/path/to/idea-data node packages/idea-mcp/dist/server.js
 ```
+
+`IDEA_MCP_DATA_DIR` is required and must lie outside the nullius development checkout; the server refuses to start without it.
 
 Wire into an MCP client:
 
@@ -32,7 +34,8 @@ Wire into an MCP client:
   "mcpServers": {
     "idea-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/nullius/packages/idea-mcp/dist/server.js"]
+      "args": ["/absolute/path/to/nullius/packages/idea-mcp/dist/server.js"],
+      "env": { "IDEA_MCP_DATA_DIR": "/absolute/path/to/idea-data" }
     }
   }
 }
@@ -51,4 +54,4 @@ pnpm -C packages/idea-mcp test
 
 - [`@nullius/idea-engine`](../idea-engine/README.md) — full runtime contract
 - Root [README.md](../../README.md) §1 Surface Policy
-- Root [AGENTS.md](../../AGENTS.md) §Stable Public Invariants — "idea-mcp must not reclaim root workflow authority"
+- [Architecture Overview](../../docs/ARCHITECTURE.md) §2 Design Invariants — "idea-mcp must not reclaim root workflow authority"

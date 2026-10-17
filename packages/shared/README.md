@@ -10,10 +10,11 @@ Shared contracts layer (cross-cutting). Sits between the control plane (`@nulliu
 
 | Entry | What lives there |
 | --- | --- |
-| `@nullius/shared` | Top-level barrel including all sub-exports plus `./generated` types |
+| `@nullius/shared` | Top-level barrel: types, tool-name/risk/annotation tables, artifact-ref, gate registry, discovery, utils and the other root modules, plus `./generated` types; `./graph-viz` is not re-exported from it |
 | `@nullius/shared/types` | Hand-written domain-neutral TypeScript types |
-| `@nullius/shared/utils` | Helpers (path/sha256/clock/etc.) used by control plane and domain packs |
-| `@nullius/shared/graph-viz` | Memory-graph visualization helpers |
+| `@nullius/shared/utils` | Helpers (LRU cache, INSPIRE/arXiv/DOI URL builders, text and author formatters, rate-limit helpers, `sortKeysRecursive`, ...) used by control plane and domain packs |
+| `@nullius/shared/graph-viz` | Graphviz dependency-graph rendering engine and adapters: claims, progress, literature and roadmap (behind `nullius graph`) plus a memory-graph adapter |
+| `@nullius/shared/atomic-write` | Durable atomic-write primitives (`writeBytesAtomicDurable`, `writeJsonAtomicDurable`, `appendJsonlDurable`, ...) |
 | `@nullius/shared/discovery` | Provider capability descriptors and evidence localization/multimodal artifact contracts |
 
 ## Generated contracts

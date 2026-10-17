@@ -22,7 +22,7 @@ a checkout remains unpublished. See `README.md` and `docs/PERSONAL_PLUGIN.md`.
 Install only what you need (skill-pack dependencies are pulled in automatically):
 
 ```bash
-python3 scripts/install_skill.py --platform <codex|claude_code|kimi_code|opencode> --package <skill-id>
+python3 scripts/install_skill.py --platform <codex|claude_code|kimi_code|opencode> --source-root /absolute/path/to/nullius --package <skill-id>
 ```
 
 List available skill ids in `packages/index.json`. To install every market skill as a live,

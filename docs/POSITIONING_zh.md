@@ -46,8 +46,10 @@ surface 层面的保证。
 
 ### M1–M7：pre-approval 纪律
 
-7 个反复出现的 AI 研究失败模式，记录在
-[`skills/research-integrity/SKILL.md`](../skills/research-integrity/SKILL.md)：
+7 个反复出现的 AI 研究失败模式，即
+[`skills/research-integrity/SKILL.md`](../skills/research-integrity/SKILL.md)
+所记录 8 个模式中的前 7 个（第 8 个 M8 reinvention_over_available_reuse 在
+重型计算开始前或手工搭建可复用计算方法前过一遍，不属于机器 receipt）：
 
 - **M1** implementation_bug_passing_self_review
 - **M2** hallucinated_citation
@@ -97,14 +99,16 @@ fail-closed，返回 `HARNESS_INVOCATION_REQUIRED`。
 ## 4. 纪律如何被强制 — anti-drift CI
 
 只活在 `SKILL.md` 里的纪律会静默腐烂。下面每条保证都有一个 CI 脚本，
-discipline 一旦松动构建就失败。完整清单，全部接入
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml)：
+discipline 一旦松动构建就失败。这些保证背后的锁列于下表；其余
+`scripts/check-*.mjs` 锁也接入同一个工作流
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml)，唯一例外是
+`check-orchestrator-package-freshness.mjs`（工作流中未单列，但在 CI 执行的 hep-mcp 构建中运行）：
 
 | Anti-drift 脚本 | 锁住的契约 | 捕获的漂移 |
 | --- | --- | --- |
-| [`check-shell-boundary-anti-drift.mjs`](../scripts/check-shell-boundary-anti-drift.mjs) | front-door 入口真理、包级 first-touch framing、shell 边界用词 | [`scripts/lib/front-door-boundary-authority.mjs`](../scripts/lib/front-door-boundary-authority.mjs) 列出的 10 个 front-door 叙述文档（`README.md`、`docs/QUICKSTART.md`、`docs/README_zh.md`、`docs/PROJECT_STATUS.md`、`docs/ARCHITECTURE.md`、`docs/TOOL_CATEGORIES.md`、`docs/TESTING_GUIDE.md`、`docs/URI_REGISTRY.md`、`meta/protocols/session_protocol_v1.md`、`meta/docs/orchestrator-mcp-tools-spec.md`）的边界叙述漂移。AGENTS.md/CLAUDE.md 的 byte-sync 由下一行的 `check-governance-sync.mjs` 负责，**不**由本行负责。 |
+| [`check-shell-boundary-anti-drift.mjs`](../scripts/check-shell-boundary-anti-drift.mjs) | front-door 入口真理、包级 first-touch framing、shell 边界用词 | [`scripts/lib/front-door-boundary-authority.mjs`](../scripts/lib/front-door-boundary-authority.mjs) 列出的 10 个 front-door 叙述文档（`README.md`、`docs/QUICKSTART.md`、`docs/README_zh.md`、`docs/PROJECT_STATUS.md`、`docs/ARCHITECTURE.md`、`docs/TOOL_CATEGORIES.md`、`docs/TESTING_GUIDE.md`、`docs/URI_REGISTRY.md`、`meta/protocols/session_protocol_v1.md`、`meta/docs/orchestrator-mcp-tools-spec.md`）的边界叙述漂移。CLAUDE.md → AGENTS.md 的导入由下一行的 `check-governance-sync.mjs` 负责，**不**由本行负责。 |
 | [`check-atomic-write-anti-drift.mjs`](../scripts/check-atomic-write-anti-drift.mjs) | 生产代码无裸 `fs.writeFileSync` / `renameSync` / `appendFileSync`（含 `fs.promises.*`） | 写到一半 crash 导致的 torn write 数据损失 |
-| [`check-governance-sync.mjs`](../scripts/check-governance-sync.mjs) | `AGENTS.md` ↔ `CLAUDE.md` governance 段 byte-identical | 双镜像文件治理段漂移 |
+| [`check-governance-sync.mjs`](../scripts/check-governance-sync.mjs) | `CLAUDE.md` 是只含一行 `@AGENTS.md` 导入、不复制治理内容的普通文件 | 规则被写进或复制进 `CLAUDE.md`；导入行丢失；`CLAUDE.md` 被做成符号链接 |
 | [`check-harness-invocation-anti-drift.mjs`](../scripts/check-harness-invocation-anti-drift.mjs) | 每个 `*-mcp` dispatcher 都 import + 调用 `verifyHarnessInvocationMarker` | 长对话漂移；新 MCP 加进来但没接 anchor enforcement |
 | [`check-integrity-receipt-anti-drift.mjs`](../scripts/check-integrity-receipt-anti-drift.mjs) | 每个审批门 handler 都 import + 调用 `verifyIntegrityReceipt` | M1–M7 纪律静默跳过；approve 时没 receipt |
 | [`check-skill-tool-name-anti-drift.mjs`](../scripts/check-skill-tool-name-anti-drift.mjs) | `SKILL.md` 中出现的工具名都对得上 tool-name 注册表 | provider 工具改名而 skill prose 未跟随 |

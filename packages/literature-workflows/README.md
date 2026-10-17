@@ -9,7 +9,7 @@ Workflow authority. Holds the high-level workflow meaning that sits **above** pr
 ## What lives here
 
 - Recipe definitions for `literature_landscape`, `literature_gap_analysis`, `research_brainstorm`, etc.
-- Provider profiles (which capabilities each provider atom — arxiv, openalex, hepdata, pdg, zotero — fulfills)
+- Provider profiles (which capabilities each provider — inspire, openalex, arxiv, zotero, crossref, datacite, github, doi — fulfills)
 - A recipe loader and capability resolver that the orchestrator uses to plan and dispatch steps
 
 ## How it is consumed

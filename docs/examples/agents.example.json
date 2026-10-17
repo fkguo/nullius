@@ -13,7 +13,7 @@
     "claude": {
       "runner": "native",
       "models": { "default": "opus", "strong": "fable", "fast": "sonnet" },
-      "notes": "The host agent's own family, served by the host's native subagents in-process. CLI launchers reject family: specs that resolve to a native runner; derivation-verify takes host-supplied native_derivations instead."
+      "notes": "The host agent's own family, served by the host's native subagents in-process. CLI launchers reject family: specs that resolve to a native runner; derivation-verify runs native families only through its in-host Workflow executor."
     },
     "gpt": {
       "runner": "codex",
