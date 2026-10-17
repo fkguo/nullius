@@ -10,6 +10,26 @@ the version to cite.
 
 ## [Unreleased]
 
+### Changed
+- **figure-hygiene: a display that prints no value can pass the display gate.**
+  Since 0.6.0 `final_display` demanded a non-empty cell inventory, a printed
+  decimal token per cell and at least one cell per selected quantity, so a
+  curve, spectrum, field or contour drawn as continuous marks had no honest way
+  through `check_display_acceptance.py`. `final_display` now accepts
+  `prints_values: false`, closed to the reader purpose and the reviewed,
+  byte-pinned final surfaces (which carry no `format`); verdict bindings, the
+  overview figure and the main-surface rule are unchanged, every surface under
+  that declaration is scanned, whatever its name or text encoding, and must
+  carry no `data-results` table (`printed-values-undeclared`), and an empty
+  `cells` list is still refused. In the full form a selected quantity drawn as marks beside printed
+  cells (a curve with a printed headline value) is listed in the new optional
+  `drawn_quantities` and may omit `raw`/`components` in the inventory; a
+  selected quantity that prints no cell and is not listed there is still
+  refused, as is a listed one that prints a cell, and a quantity that prints
+  any cell must still print all its components. A parser assertion on odd
+  markup is now a `semantics-unreadable` finding instead of a crash without a
+  payload. The coverage lock pins the declaration, the guard and their controls.
+
 ### Fixed
 - **figure-hygiene: complete sidecar example restored; 0.6.0 migration note.**
   `references/display-semantics.md` again shows a complete provenance sidecar

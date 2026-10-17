@@ -124,6 +124,19 @@ requireAll(SEMANTICS_FILE, read(SEMANTICS_FILE), [
   ['diagnostic purpose refusal', '"diagnostic-in-display"'],
   ['display-token rounding interval', 'printed.as_tuple().exponent / 2'],
   ['noninvertible forward mapping', 'abs(canonical) if kind == "absolute"'],
+  ['no-values declaration field', '"prints_values"'],
+  ['no-values declaration must be boolean', 'isinstance(prints_values, bool)'],
+  ['no-values declaration closed shape', '{"purpose", "prints_values", "surfaces"}'],
+  ['no-values declaration refusal on a result table', '"printed-values-undeclared"'],
+  ['result-table detection on marked tables', '"data-results" in dict(attrs)'],
+  ['result-table guard reads surface bytes, not a declared format', '_carries_result_table(path.read_bytes())'],
+  ['result-table guard is encoding-independent', 'data.decode("latin-1")'],
+  ['result-table guard tolerates damaged UTF-16', 'data.decode("utf-16", errors="replace")'],
+  ['result-table guard survives parser refusal', '_MARKED_TABLE.search(text) is not None'],
+  ['no-values declaration keeps the rendered review', 'with_values=False'],
+  ['explicit drawn-quantity declaration', '"drawn_quantities"'],
+  ['undeclared cell-less quantity refusal', 'no displayed components'],
+  ['parser assertion mapped to a finding', 'KeyError, AssertionError) as exc'],
 ]);
 
 // 2. Schema authority: enums must match the script exactly.
@@ -204,6 +217,7 @@ requireAll(SKILL_FILE, read(SKILL_FILE), [
   ['new-display-new-observable discipline', 'A new display is a new observable.'],
   ['final-display reference routing', 'references/display-semantics.md'],
   ['final-display contract', '`final_display`'],
+  ['no-values declaration in prose', '`prints_values: false`'],
 ]);
 
 // 4. Tests: the negative controls must keep asserting failure, not merely
@@ -255,6 +269,109 @@ requireInTestBody('test_intermediate_cannot_enter_limited_reader_selection', 're
 ]);
 requireInTestBody('test_equivalent_multilingual_final_output_is_accepted', 'translation positive control', [
   '_semantic_result(tmp_path, block, None)',
+]);
+requireInTestBody('test_continuous_plot_with_declared_no_printed_values_passes', 'no-values positive control', [
+  '_curve_result(tmp_path, _curve_bundle(tmp_path), None)',
+]);
+requireInTestBody('test_no_values_declaration_keeps_the_verdict_binding_requirement', 'no-values binding control', [
+  '"missing-binding"',
+  'assert payload["result"] == "missing_verdict_binding"',
+]);
+requireInTestBody('test_no_values_declaration_still_requires_rendered_review', 'no-values review control', [
+  '"rendered-review-missing"',
+]);
+requireInTestBody('test_no_values_declaration_still_requires_main_surface_coverage', 'no-values main-surface control', [
+  '"main-surface-not-covered"',
+]);
+requireInTestBody('test_no_values_declaration_cannot_carry_cell_fields', 'no-values closed-shape control', [
+  '{"cells": []}',
+  '{"source": {"path": "quantities.json", "sha256": "0" * 64}}',
+  '{"selection": ["response_curve"]}',
+  '"semantics-malformed"',
+]);
+requireInTestBody('test_empty_cell_list_is_not_a_no_values_declaration', 'empty-cells negative control', [
+  '_semantic_result(tmp_path, block, "semantics-malformed")',
+]);
+requireInTestBody('test_html_result_table_contradicts_no_values_declaration', 'false no-values declaration control', [
+  '"printed-values-undeclared"',
+]);
+requireInTestBody('test_plotted_curve_beside_a_printed_headline_value_passes', 'unprinted-quantity positive control', [
+  '_curve_result(tmp_path, _annotated_curve_bundle(tmp_path), None)',
+]);
+requireInTestBody('test_printed_headline_value_is_still_checked_beside_a_curve', 'headline value control', [
+  '"value-unit-mismatch"',
+]);
+requireInTestBody('test_quantity_that_prints_any_cell_must_print_all_its_components', 'partial-components negative control', [
+  '_semantic_result(tmp_path, block, "component-order-mismatch")',
+]);
+requireInTestBody('test_no_values_declaration_keeps_the_overview_requirement', 'no-values overview control', [
+  '"overview-undeclared"',
+  'assert payload["result"] == "missing_overview_figure"',
+]);
+requireInTestBody('test_no_values_declaration_still_pins_the_final_bytes', 'no-values byte-pin control', [
+  '"final-input-mismatch"',
+]);
+requireInTestBody('test_no_values_surface_cannot_carry_reading_fields', 'no-values surface closed-shape control', [
+  '("extraction", {"path": "cells.json", "sha256": "0" * 64})',
+  '("format", "extracted")',
+  '("labels", {})',
+  '("unit_labels", {})',
+  '("status_labels", {})',
+  '"semantics-malformed"',
+]);
+requireInTestBody('test_prints_values_must_be_a_boolean', 'declaration-type control', [
+  '[0, None]',
+  'block["final_display"]["prints_values"] = 1',
+  '"semantics-malformed"',
+]);
+requireInTestBody('test_result_table_guard_reads_bytes_not_a_declared_format', 'content-based guard control', [
+  '"figs/page.pdf"',
+  '"printed-values-undeclared"',
+]);
+requireInTestBody('test_binary_rendering_is_accepted_under_no_values_declaration', 'binary surface positive control', [
+  '_curve_result(tmp_path, block, None)',
+]);
+requireInTestBody('test_parser_assertion_on_odd_markup_is_a_finding_not_a_crash', 'parser-assertion control', [
+  '_semantic_result(tmp_path, block, "semantics-unreadable")',
+]);
+requireInTestBody('test_result_table_guard_is_encoding_independent', 'encoding-independence control', [
+  'encode("cp1252")',
+  'encode("utf-16")',
+  '"printed-values-undeclared"',
+]);
+requireInTestBody('test_odd_markup_cannot_hide_a_result_table', 'parser-refusal fallback control', [
+  '"printed-values-undeclared"',
+]);
+requireInTestBody('test_odd_markup_without_result_table_is_accepted_under_no_values_declaration', 'odd-markup positive control', [
+  '_curve_result(tmp_path, block, None)',
+]);
+requireInTestBody('test_html_without_result_table_is_accepted_under_no_values_declaration', 'no-values HTML positive control', [
+  '_curve_result(tmp_path, block, None)',
+]);
+requireInTestBody('test_full_form_explicit_prints_values_true_is_accepted', 'explicit full-form control', [
+  '_semantic_result(tmp_path, block, None)',
+]);
+requireInTestBody('test_unprinted_quantity_outside_the_selection_is_still_refused', 'drawn-outside-selection control', [
+  '"display-selection-mismatch"',
+]);
+requireInTestBody('test_absence_of_cells_is_not_a_drawn_declaration', 'undeclared drawn quantity control', [
+  'del block["final_display"]["drawn_quantities"]',
+  '"component-order-mismatch"',
+]);
+requireInTestBody('test_drawn_declaration_cannot_name_a_printing_quantity', 'drawn-but-printing control', [
+  '"display-selection-mismatch"',
+]);
+requireInTestBody('test_drawn_declaration_cannot_name_an_unselected_quantity', 'drawn-unselected control', [
+  '"display-selection-mismatch"',
+]);
+requireInTestBody('test_drawn_quantity_without_value_cannot_be_printed', 'valueless-quantity cell control', [
+  '"component-identity-missing"',
+]);
+requireInTestBody('test_empty_drawn_list_is_not_a_declaration', 'empty drawn-list control', [
+  '"semantics-malformed"',
+]);
+requireInTestBody('test_table_row_dropped_by_the_generator_is_still_refused', 'dropped-row control', [
+  '_semantic_result(tmp_path, block, "component-order-mismatch")',
 ]);
 
 requireInTestBody('test_full_bundle_passes', 'positive control', [
