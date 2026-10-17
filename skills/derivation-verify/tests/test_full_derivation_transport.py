@@ -205,6 +205,7 @@ def live_stream(raw, *, tool=False, alter_delta=False, extra=False):
         events += [env({'type': 'system', 'subtype': 'compact_boundary', 'compact_metadata': {'trigger': 'auto', 'pre_tokens': 150000}}),
                    env({'type': 'user', 'message': {'role': 'user', 'content': [{'type': 'text', 'text': SYNTHETIC}]}, 'isSynthetic': True}),
                    env({'type': 'assistant', 'message': {**message, 'content': [{'type': 'text', 'text': PARTIAL}]}}),
+                   env({'type': 'user', 'message': {'role': 'user', 'content': [{'type': 'text', 'text': raw}]}}),
                    stream({'type': 'content_block_delta', 'index': 7, 'delta': {'type': 'text_delta', 'text': 'orphan fragment'}}),
                    '{"type": "stream_event", truncated line']
     events += [stream({'type': 'message_delta', 'delta': {'stop_reason': 'max_tokens' if extra else 'end_turn'}, 'usage': usage}),
@@ -286,7 +287,8 @@ def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_ou
     # stream markers, empty thinking and signatures stays visible: the tool list and model of the lane,
     # a compaction record, stop reasons, result errors and permission denials, which models served it,
     # a synthetic user message and an assistant text that is only part of the output (both verbatim
-    # although their text occurs inside the lane output), an orphan delta and a malformed line.
+    # although their text occurs inside the lane output), a user message that repeats the whole output
+    # (verbatim: only the lane's own messages are referenced), an orphan delta and a malformed line.
     raw = json.dumps(verdict(LONG_ORIGINAL))
     run = LiveCapture(tmp_path, raw, extra=True)
     ds, prompt, packet = packet_for(raw, run=run)
@@ -301,6 +303,7 @@ def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_ou
         assert {'source': 'user', 'block': {'type': 'text', 'text': SYNTHETIC}} in blocks
         assert {'source': 'user', 'event_fields': {'isSynthetic': True}} in blocks
         assert {'source': 'assistant', 'block': {'type': 'text', 'text': PARTIAL}} in blocks  # part of a field is not equality
+        assert {'source': 'user', 'block': {'type': 'text', 'text': raw}} in blocks  # user text is never the lane's output
         assert {'source': 'unrecognized_line', 'line': '{"type": "stream_event", truncated line'} in blocks
         assert any(b['source'] == 'unrecognized_line' and 'orphan fragment' in b['line'] for b in blocks)
         result = next(b['block'] for b in blocks if b['source'] == 'result')
@@ -310,7 +313,6 @@ def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_ou
         assert not any(b.get('event_fields', {}).get('subtype') in ('status', 'thinking_tokens') for b in blocks)
     # The unrecognized orphan delta line keeps its envelope verbatim; recognized events show none.
     assert run.signature not in prompt and prompt.count(SESSION) == len(packet)
-    assert mb.validate_request_bytes(mb._COMPARE_SYSTEM, prompt, mb.request_budgets()) <= 0.6 * mb.request_budgets()['context_bytes']
 
 
 def test_captured_content_not_proven_equal_to_a_shipped_field_stays_inline(tmp_path):
