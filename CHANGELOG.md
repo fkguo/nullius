@@ -562,8 +562,10 @@ and delegation contracts, and consolidated run authority under one canonical
   authorization, quota and `unknown option` errors fail at once instead of
   being retried; it applies the exclusion but writes no
   `context_sources.json`.
-  `run_team_cycle.sh` uses a project copy only when it carries both the marker
-  and `--safe-mode` on its `claude --print` line. Otherwise, when a member uses
+  `run_team_cycle.sh` uses a project copy only when it carries the marker and
+  `--safe-mode` on every `claude --print` line (the asset has two, with and
+  without `--model`, and `--model` is passed only when a member model is set).
+  Otherwise, when a member uses
   the Claude runner through the project copy (no `--member-*-runner`
   override), the run substitutes the shared `claude-cli-runner` with a
   `[warn]` line and leaves the project file untouched; it refuses with the
@@ -571,7 +573,7 @@ and delegation contracts, and consolidated run authority under one canonical
   or `--member-*-api-key-env` option (only the project copy accepts them) or
   when the shared runner is not available. **Migration**, once per existing
   project: `cp <skills>/research-team/assets/run_claude.sh
-  scripts/run_claude.sh`; for a customized copy, put `--safe-mode` on its
+  scripts/run_claude.sh`; for a customized copy, put `--safe-mode` on every
   `claude --print` line, export `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, and
   add the comment line `research-team-claude-runner: context-excluded`
   (without the marker the copy is still replaced).
@@ -651,7 +653,8 @@ and delegation contracts, and consolidated run authority under one canonical
   above the byte budget stays unavailable. Live limitation: the frozen-file
   reading path is stopped by the provider's `reasoning_extraction` safeguard
   in most live attempts (with the reworded reading requests 2 of 4 sessions
-  ran without a stop, and the shipped prompts add one span sentence since;
+  ran without a stop; the shipped prompts differ from those by two wording
+  fixes and one span sentence;
   one Read per turn, a different model or disabled thinking did not remove
   the stop), so such material is usually recorded as
   `provider_refusal` and does not count. The inline forms above the byte
