@@ -45,8 +45,18 @@ contract-test:
 	@echo "--- H-16b: cross-component tool subset contract ---"
 	cd packages/hep-mcp && npx vitest run tests/contracts/crossComponentToolSubset.test.ts
 
+# REL-01: every check a release tag must pass, in one target.
 release:
-	@echo "--- M-23: Release artifact alignment ---"
+	@echo "--- REL-01 (1/5): build ---"
 	pnpm -r build
-	@if [ -f meta/scripts/codegen.sh ]; then bash meta/scripts/codegen.sh; fi
+	@echo "--- REL-01 (2/5): SYNC-06 generated code matches meta/schemas ---"
+	$(MAKE) codegen-check
+	@echo "--- REL-01 (3/5): versions in lockstep ---"
 	bash meta/scripts/check_version_sync.sh
+	node scripts/check-version-consistency.mjs
+	@echo "--- REL-01 (4/5): SYNC-02 tool catalog matches the runtime registry ---"
+	pnpm --filter @nullius/hep-mcp catalog
+	git diff --exit-code packages/hep-mcp/tool_catalog.standard.json packages/hep-mcp/tool_catalog.full.json
+	@echo "--- REL-01 (5/5): skill tool-name references resolve ---"
+	node scripts/check-skill-tool-name-anti-drift.mjs
+	@echo "release: OK — tag this commit"

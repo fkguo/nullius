@@ -1,7 +1,7 @@
 # Nullius 生态圈开发规范 (Ecosystem Development Contract)
 
-> **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01)
-> **日期**: 2026-04-08
+> **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01; R7: LOG-03 开放词表+格式守卫, REL-01 对齐 make release 检查清单, SYNC-02 确定性清单, PLUG-01 允许叶子包 @nullius/shared, LANG-01 `_zh` 后缀约定)
+> **日期**: 2026-10-17
 > **适用范围**: hep-mcp, idea-engine, orchestrator, project-contracts, skills/, skills-market, meta/
 > **强制级别**: 所有新增/修改代码必须遵守；存量代码按当前 checked-in 架构/治理文档分阶段对齐
 > **违规默认行为**: **fail-closed**（除非规则明确标注 fail-open）
@@ -182,16 +182,17 @@ pnpm --filter @nullius/idea-engine test -- tests/runtime-asset-authority.test.ts
 
 ### SYNC-02: 工具清单自动生成
 
-**规则**: `tool_catalog.{standard,full}.json` 必须由 CI 自动生成（`pnpm catalog`），禁止手动编辑。文件包含 commit hash + 生成时间戳。CI diff 前必须 normalize 易变字段（时间戳、生成器版本）以避免误报。
+**规则**: `packages/hep-mcp/tool_catalog.{standard,full}.json` 由 `pnpm --filter @nullius/hep-mcp catalog` 从运行时注册表 `getTools(mode)` 生成（`src/tools/utils/toolCatalog.ts` 的 `buildToolCatalog()`），禁止手动编辑。文件只含确定性字段（`mode`、`count`、按名排序的 `tools`），不含时间戳或 commit；生成时固定 `HEP_ENABLE_ZOTERO=1`（完整清单）。清单变化只能来自注册表变化，并在 PR diff 中显形。
 
 **CI 验证**:
 ```bash
-# package-local tool catalog 必须可重生成且与 checked-in JSON 一致
-pnpm --filter @nullius/hep-mcp catalog
-git diff --exit-code packages/hep-mcp/tool_catalog.standard.json packages/hep-mcp/tool_catalog.full.json
+# 测试在内存中重算清单并与入库 JSON 逐字节比对（随 pnpm -r test 运行）
+pnpm --filter @nullius/hep-mcp test -- tests/contracts/toolCatalog.test.ts
+# 本地等价：重生成后无 diff
+pnpm --filter @nullius/hep-mcp catalog && git diff --exit-code packages/hep-mcp/tool_catalog.standard.json packages/hep-mcp/tool_catalog.full.json
 ```
 
-**违规行为**: **fail-closed** — catalog 与运行时 `listTools()` 不一致阻断 CI
+**违规行为**: **fail-closed** — 清单与运行时 `getTools()` 不一致阻断 CI
 
 ### SYNC-03: 工具名常量化
 
@@ -446,24 +447,21 @@ pnpm --filter @nullius/hep-mcp test -- tests/docs/docToolDrift.test.ts
 
 **违规行为**: **fail-open** (警告) — 缺少 trace_id 不阻断但降低可观测性
 
-### LOG-03: Ledger 事件类型枚举
+### LOG-03: Ledger 事件类型
 
-**规则**: `orchestrator_state.append_ledger()` 的 `event_type` 必须属于已注册枚举。枚举值：
+**规则**: `.nullius/ledger.jsonl` 是追加式历史，由 `StateManager.appendLedger()` / `saveStateWithLedger()` / `transitionStatus()`（`packages/orchestrator/src/state-manager.ts`）写入。`event_type` 是开放词表，不设封闭枚举，但必须满足：
 
-```
-workflow_start, workflow_end, phase_start, phase_end,
-approval_request, approval_granted, approval_denied, approval_timeout,
-state_transition, error, checkpoint
-```
+1. 非空、形如 `^[a-z][a-z0-9_]*$` 的标识符（`assertLedgerEventType()` 在写入前校验）；`transitionStatus()` 在调用方未给名时写 `status_<run_status>`。
+2. 运行状态只能由读模型 `deriveLedgerStatusFromOperatorEvent()`（`packages/orchestrator/src/operator-read-model-summary.ts`）识别的事件名推导；未识别的事件保持前一状态，并由 `orch_run_list` 以 `LEDGER_EVENT_UNMAPPED` 报告，不得静默丢弃。
+3. 新增会影响运行状态推导、或被其他包（如 `project-mcp`）读取的事件名，必须同时加入上述读模型映射及其测试。
 
 **CI 验证**:
 ```bash
-# 当前没有独立的 repo-local ledger-event linter。
-# 先由 orchestrator state/ledger tests 覆盖该约束。
-pnpm --filter @nullius/orchestrator test -- tests/orchestrator.test.ts
+# 格式守卫 + 事件名断言 + 未映射事件报告
+pnpm --filter @nullius/orchestrator test -- tests/orchestrator.test.ts tests/orch-fleet-status.test.ts
 ```
 
-**违规行为**: **fail-closed** — 非枚举 event_type 写入时抛出 ValueError
+**违规行为**: **fail-closed** — 空的或不合格式的 `event_type` 在写入时抛错；读模型未识别的事件名以 `LEDGER_EVENT_UNMAPPED` 报告但不阻断
 
 ### LOG-04: 日志脱敏
 
@@ -688,15 +686,14 @@ make codegen-check
 
 ### REL-01: 发布偏差防护
 
-**规则**: Release tag 创建前必须：(1) 重新生成 `tool_catalog.{standard,full}.json` 和 Python bindings (`mcp_tools.py`)；(2) 验证 `tool_catalog_hash` 与 Python bindings 中的 `EXPECTED_CATALOG_HASH` 一致。允许 TS/Python 独立发布，但接口 hash 必须匹配。
+**规则**: 创建 release tag 前，必须在干净检出上通过 `make release`。它依次执行：(1) `pnpm -r build`；(2) `make codegen-check`（SYNC-06：`packages/shared/src/generated/`、`meta/generated/python/` 重生成后无 diff）；(3) `meta/scripts/check_version_sync.sh` 与 `node scripts/check-version-consistency.mjs`（所有包版本一致）；(4) `pnpm --filter @nullius/hep-mcp catalog` 后 `tool_catalog.{standard,full}.json` 无 diff（SYNC-02）；(5) `node scripts/check-skill-tool-name-anti-drift.mjs`（技能引用的工具名与运行时注册表一致）。tag 必须指向通过以上全部检查的提交。`hep_health.tool_catalog_hash` 是客户端可钉住的运行时自检值，不是发布门。
 
 **CI 验证**:
 ```bash
-# release gate: 重新生成 + hash 比对
-make release  # 内部: build + codegen + version sync
+make release
 ```
 
-**违规行为**: **fail-closed** — hash 不匹配阻断 tag 创建
+**违规行为**: **fail-closed** — 任一步失败则不得创建 tag
 
 ### REL-02: 生成产物确定性 (R3 新增)
 
@@ -809,14 +806,13 @@ grep -rn 'except:\s*pass\|except\s.*:\s*pass' --include='*.py' \
 **规则**:
 
 1. **源代码全英文**: 所有源代码、注释、变量名、commit message、PR description 使用英文
-2. **用户手册英文优先**: 英文版为 canonical source (`docs/en/`)；中文版为翻译产物 (`docs/zh/`)，功能完工后批量生成
+2. **用户手册英文优先**: 英文文件为 canonical source；中文版是翻译产物，与英文文件同目录、以 `_zh` 后缀命名（`README.md` ↔ `docs/README_zh.md`，`docs/POSITIONING.md` ↔ `docs/POSITIONING_zh.md`；技能 references 用 `.zh.md`），在英文文本定稿后生成或更新。不设 `docs/en/`、`docs/zh/` 目录
 3. **架构文档**: `AGENTS.md`, `ECOSYSTEM_DEV_CONTRACT.md` 等内部架构文档保持当前语言 (中文)，不受本规则约束
 
 **CI 验证**:
 ```bash
-# 检查 src/ 下 .ts/.py 文件是否包含 CJK 字符 (注释和字符串中)
-grep -rPn '[\x{4e00}-\x{9fff}]' --include='*.ts' --include='*.py' src/ \
-  | grep -v 'node_modules\|generated\|CONTRACT-EXEMPT' && exit 1 || exit 0
+# packages/*/src 下 .ts/.py 不得含 CJK 字符（generated/ 与带 CONTRACT-EXEMPT: LANG-01 的行除外）
+node scripts/check-source-language-anti-drift.mjs
 ```
 
 **违规行为**: **fail-closed** — 新增代码含 CJK 字符阻断 CI
@@ -838,19 +834,14 @@ grep -rPn '[\x{4e00}-\x{9fff}]' --include='*.ts' --include='*.py' src/ \
 | **Zotero MCP** | `@nullius/zotero-mcp` | 已独立 | 文献管理集成 |
 
 **约束**:
-1. 可独立发布组件的 `package.json` 中 `dependencies` 不得包含 `@nullius/*` 内部包 (shared types 通过 `peerDependencies` 或内联)
-2. 必须有独立的 `README.md` (英文) + 独立的 CI test target
-3. 导出结构遵循 MCP SDK 模式: root / client / server / transport / validation 子路径
+1. `@nullius/rep-sdk` 的 `dependencies` 不得含任何 `@nullius/*` 包（协议内核，所需助手内联）。`@nullius/pdg-mcp`、`@nullius/zotero-mcp` 的 `dependencies` 中 `@nullius/*` 只允许 `@nullius/shared`：它必须保持叶子包（自身 `dependencies` 不含 `@nullius/*`、非 `private`、与全仓同版本），随这两个包一同发布。禁止依赖 `@nullius/orchestrator`、`@nullius/hep-mcp`、其他 `*-mcp`、`idea-*`、`project-contracts`；`@nullius/*` 也不得出现在 `peerDependencies`（那只是把安装负担推给用户，耦合并未解除）
+2. 必须有独立的 `README.md`（英文）+ 包级 `test` 脚本（由 `pnpm -r test` 运行）
+3. `@nullius/rep-sdk` 的导出结构遵循 MCP SDK 模式：root / client / server / transport / validation 子路径；MCP 服务器包导出 root、`./tooling` 与 `bin` 入口即可
 
 **CI 验证**:
 ```bash
-# 检查可独立发布包的 dependencies 无内部引用
-node -e "
-const pkg = require('./packages/rep-sdk/package.json');
-const deps = Object.keys(pkg.dependencies || {});
-const internal = deps.filter(d => d.startsWith('@nullius/'));
-if (internal.length) { console.error('PLUG-01:', internal); process.exit(1); }
-"
+# 三个可发布包的 @nullius/* 依赖白名单 + shared 保持叶子包
+node scripts/check-publishable-package-deps-anti-drift.mjs
 ```
 
 **违规行为**: **fail-closed** — 引入内部依赖阻断 CI
@@ -867,7 +858,7 @@ if (internal.length) { console.error('PLUG-01:', internal); process.exit(1); }
 | | ID-02 跨组件引用模型 | fail-open | 契约测试 |
 | | ID-03 ArtifactRef V1 | fail-closed | 工具返回值检查 |
 | **SYNC** | SYNC-01 Schema SHA256 | fail-closed | pre-commit + CI |
-| | SYNC-02 工具清单自动生成 | fail-closed | CI diff 检查 |
+| | SYNC-02 工具清单自动生成 | fail-closed | catalog 比对测试 + diff 检查 |
 | | SYNC-03 工具名常量化 | fail-closed | lint: 裸字符串检查 |
 | | SYNC-04 运行时握手 | fail-open | 集成测试 |
 | | SYNC-05 跨组件冒烟矩阵 | fail-closed | standard/full 冒烟测试 |
@@ -884,7 +875,7 @@ if (internal.length) { console.error('PLUG-01:', internal); process.exit(1); }
 | | GATE-05 审批三件套产物强制 | fail-closed | 产物完整性测试 |
 | **LOG** | LOG-01 JSONL 格式 | fail-open | jq 解析测试 |
 | | LOG-02 trace_id 透传 | fail-open | 集成测试 |
-| | LOG-03 Ledger 事件枚举 | fail-closed | lint 检查 |
+| | LOG-03 Ledger 事件类型 | fail-closed | 写入格式守卫 + 读模型测试 |
 | | LOG-04 日志脱敏 | fail-closed | secrets 模式 grep |
 | **ART** | ART-01 命名规范 | fail-open（review 阻断） | 评审核对 |
 | | ART-02 版本化双标记 | fail-open（review 阻断） | 评审核对 |
@@ -897,12 +888,12 @@ if (internal.length) { console.error('PLUG-01:', internal); process.exit(1); }
 | **NET** | NET-01 出口域名白名单 | fail-closed | 白名单 lint |
 | **RES** | RES-01 重试/退避/取消契约 | fail-closed | 重试策略测试 |
 | **MIG** | MIG-01 Schema 迁移链强制 | fail-closed | 迁移注册表 lint |
-| **REL** | REL-01 发布偏差防护 | fail-closed | release hash 比对 |
+| **REL** | REL-01 发布偏差防护 | fail-closed | make release 检查清单 |
 | | REL-02 生成产物确定性 | fail-closed | 连续生成 diff 检查 |
 | **CODE** | CODE-01 模块化与反模式强制 | fail-closed | LOC + 文件名 + 类型逃逸 lint |
 | | ↳ AMEND-01 文件级豁免+日落 (待批准) | — | check_loc.py sunset 检查 |
-| **LANG** | LANG-01 代码与文档语言 | fail-closed | CJK 字符 grep 检查 |
-| **PLUG** | PLUG-01 独立发布能力 | fail-closed | 内部依赖 lint |
+| **LANG** | LANG-01 代码与文档语言 | fail-closed | check-source-language-anti-drift |
+| **PLUG** | PLUG-01 独立发布能力 | fail-closed | check-publishable-package-deps-anti-drift |
 
 **统计**: 43 条规则，32 条 fail-closed (含 SEC-03 staged)，7 条 fail-open，4 条 fail-open（review 阻断）
 
