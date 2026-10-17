@@ -190,3 +190,12 @@ def test_concurrent_first_use_of_the_authority_key_never_reads_a_partial_key(mon
     with ThreadPoolExecutor(max_workers=8) as pool:
         keys = list(pool.map(first_use, range(8)))
     assert len(set(keys)) == 1 and len(keys[0]) == 32
+
+
+def test_an_empty_key_left_by_a_crashed_creator_is_replaced_by_a_complete_key():
+    # A creator killed after creating the key name but before writing left zero bytes, which signed nothing.
+    directory = runtime._authority_dir(); directory.mkdir(mode=0o700, parents=True)
+    (directory / "authority.key").touch(mode=0o600)
+    key = runtime._key(create=True)
+    assert len(key) == 32 and runtime._key(create=False) == key
+    assert sorted(p.name for p in directory.iterdir()) == ["authority.key", "authority.lock"]

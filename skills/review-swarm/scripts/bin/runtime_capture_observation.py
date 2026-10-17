@@ -216,13 +216,22 @@ def _key(*, create: bool) -> bytes:
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX if create else fcntl.LOCK_SH)
         if create:
+            # Under the exclusive lock: a key left empty by a creator that died before writing never signed
+            # anything and is replaced; a new key is written to a temporary name and renamed into place
+            # complete, so the key name never holds a partial key, even after a crash.
             try:
-                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-            except FileExistsError:
-                pass
-            else:
-                with os.fdopen(fd, "wb") as stream:
-                    stream.write(secrets.token_bytes(32)); stream.flush(); os.fsync(stream.fileno())
+                empty = path.lstat().st_size == 0 and stat.S_ISREG(path.lstat().st_mode)
+            except FileNotFoundError:
+                empty = None
+            if empty is None or empty:
+                temp = directory / f"authority.key.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+                fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                try:
+                    with os.fdopen(fd, "wb") as stream:
+                        stream.write(secrets.token_bytes(32)); stream.flush(); os.fsync(stream.fileno())
+                    os.replace(temp, path)
+                finally:
+                    temp.unlink(missing_ok=True)
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
         with os.fdopen(fd, "rb") as stream:
             fs = os.fstat(stream.fileno())

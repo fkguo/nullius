@@ -1035,7 +1035,9 @@ def _combined_prompt(ctx: str, c: dict, derivations: list[dict], families: list[
     and any method risk in one comparator context, as when every lane fits one request."""
     listing = "\n".join(f'[#{i}] (family={families[i]}) canonical_answer="{d["canonical_answer"]}" | {d["derivation_summary"]}'
                         for i, d in enumerate(derivations))
-    packet = [_lane_entry(d, families[i], i) for i, d in enumerate(derivations)]
+    # Entries exactly as the earlier single request carried them: the listing above names each index.
+    packet = [{k: v for k, v in _lane_entry(d, families[i], i).items() if k != "index"} | ({"index": d["index"]} if "index" in d else {})
+              for i, d in enumerate(derivations)]
     return (
         f"{ctx}\n\nClaim:\n{c['statement']}\nExpected canonical format: {c['report_format']}\n\n"
         f"{len(derivations)} candidate derivations with recorded model-family metadata:\n{listing}\n\n"
