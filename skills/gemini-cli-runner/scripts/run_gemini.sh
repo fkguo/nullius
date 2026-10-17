@@ -366,6 +366,7 @@ classify_deterministic_failure() {
         'no such file or directory' \
         'usage:' \
         'unrecognized argument' \
+        'unknown option' \
         'invalid value' \
         'not eligible' \
         'not currently available in your location' \

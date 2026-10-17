@@ -35,7 +35,11 @@ mistaken for reviewer disagreement:
 - Every agent result carries a `failure_class`: `infrastructure` (timeout,
   crash exit, empty output — the backend never delivered reviewable content) or
   `content` (the backend answered but the answer failed a protocol check, e.g.
-  an invalid two-phase criteria block). Successes carry `null`.
+  an invalid two-phase criteria block), or `configuration` (a local setup fault:
+  `not_hermetic`, a Claude lane rejected because the operator's memory entered it;
+  not a backend outage). A `configuration` failure still makes the lane a fallback
+  candidate; a fallback onto another backend carries no hermetic-lane record.
+  Successes carry `null`.
 - `--retry-empty-output N` (default `0` — disabled, so existing callers of the
   launcher keep their behavior; `review_one.py` passes `1` explicitly for its
   delegated run): an agent whose runner exited 0 but wrote an empty output file

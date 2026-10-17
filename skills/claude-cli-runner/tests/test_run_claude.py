@@ -72,6 +72,10 @@ case "${mode}" in
     echo 'API Error: 401 {"error":{"type":"authentication_error","message":"invalid api key"}}' >&2
     exit 1
     ;;
+  unknown_option)
+    echo "error: unknown option '--safe-mode'" >&2
+    exit 1
+    ;;
   connection_reset_once_then_success)
     if [[ -n "${state_file}" && ! -f "${state_file}" ]]; then
       printf 'failed\\n' >"${state_file}"
@@ -263,3 +267,12 @@ def test_classifier_is_byte_identical_across_all_five_runners() -> None:
             f"classify_deterministic_failure in {name} diverged from {reference_name}; "
             f"the five copies must stay byte-identical (edit one -> update all five).\n{diff}"
         )
+
+
+def test_unknown_option_fails_fast(tmp_path: Path) -> None:
+    # A CLI too old for a flag the runner passes (e.g. --safe-mode) must fail at once,
+    # not burn the retry backoff.
+    proc, out_path, log_path = _run_runner(tmp_path, args=[], fake_mode="unknown_option")
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert _log_text(log_path).count("args=") == 1
+    assert "matched 'unknown option'" in proc.stderr
