@@ -563,8 +563,9 @@ and delegation contracts, and consolidated run authority under one canonical
   being retried; it applies the exclusion but writes no
   `context_sources.json`.
   `run_team_cycle.sh` uses a project copy only when it carries the marker and
-  `--safe-mode` on every `claude --print` line (the asset has two, with and
-  without `--model`, and `--model` is passed only when a member model is set).
+  `--safe-mode` as an option on every `claude --print` line (the asset has two,
+  with and without `--model`, and `--model` is passed only when a member model
+  is set; a flag in a trailing comment does not count).
   Otherwise, when a member uses
   the Claude runner through the project copy (no `--member-*-runner`
   override), the run substitutes the shared `claude-cli-runner` with a
