@@ -37,7 +37,30 @@ def validate_request_bytes(system: str, prompt: str, budgets: dict) -> int:
     return bound
 
 
-def validate_request_capacity(system: str, prompt: str, invocation: dict, budgets: dict, *, expected_working_directory: str | Path | None = None) -> dict:
+def _per_call_usage(stream: Path) -> list[dict]:
+    """Window occupancy of each model call in one stream: the result event sums all calls of a
+    multi-turn session, so each call's own message_delta usage is read instead."""
+    observed = []
+    for line in stream.read_text(encoding="utf-8").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        inner = event.get("event") if isinstance(event, dict) and event.get("type") == "stream_event" else None
+        usage = inner.get("usage") if isinstance(inner, dict) and inner.get("type") == "message_delta" else None
+        if not isinstance(usage, dict):
+            continue
+        fields = [usage.get(k, 0) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")]
+        emitted = usage.get("output_tokens", 0)
+        if any(type(n) is not int or n < 0 for n in fields) or type(emitted) is not int or emitted < 0:
+            raise ValueError("unavailable: invalid per-call usage in the original capture")
+        observed.append({"input_tokens": sum(fields), "output_tokens": emitted})
+    return observed
+
+
+def validate_request_capacity(system: str, prompt: str, invocation: dict, budgets: dict, *, expected_working_directory: str | Path | None = None, usage_per_call: bool = False) -> dict:
+    """With usage_per_call, a multi-turn session (e.g. a comparator reading frozen files) is bounded by
+    each model call's own usage; without per-call records it falls back to the summed result usage."""
     bound = validate_request_bytes(system, prompt, budgets)
     if type(invocation.get("exit_code")) is not int or invocation["exit_code"] != 0:
         raise ValueError("unavailable: actual request invocation did not complete successfully")
@@ -71,11 +94,13 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
         expected_context_tokens=budgets["context_tokens"])
     event_files = list(capture_root.glob("*.events.jsonl")) if capture_root else []
     result_files = []
+    stream = None
     if capture_root is not None:
         complete = validate_stream_report(capture_root, output.read_bytes().decode("utf-8"))
         if observation.get("complete_output") != complete:
             raise ValueError("unavailable: complete output is not bound by the original runtime observation")
         result_files = [capture_root / complete["terminal"]]
+        stream = capture_root / complete["events"]
     for file in event_files:
         for line in file.read_text(encoding="utf-8").splitlines():
             try:
@@ -84,7 +109,9 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
                 continue
             if event.get("type") == "system" and "compact" in str(event.get("subtype", "")).lower():
                 raise ValueError("unavailable: original request context was observably compacted")
-    for file in result_files:
+    if usage_per_call and stream is not None:
+        observations = _per_call_usage(stream)
+    for file in result_files if not observations else []:
         event = json.loads(file.read_text(encoding="utf-8"))
         if event.get("type") != "result" or event.get("is_error") is not False:
             continue
@@ -100,4 +127,6 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
         raise ValueError("unavailable: larger original request has no observed token capacity witness")
     return {**budgets, "conservative_input_bound": bound, "observed_usage": observations,
             "capacity_evidence": "observed_usage" if observations else "conservative_configured_bound",
-            "compaction_witness": "captured_claude_events" if event_files else "unavailable"}
+            "compaction_witness": "captured_claude_events" if event_files else "unavailable",
+            "usage_scope": "per_call" if usage_per_call and stream is not None and observations else "result",
+            "capture_stream": str(stream) if stream is not None else None}

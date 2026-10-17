@@ -16,6 +16,8 @@ def transport_for(answer, derivation, execution_id):
 def assessments(ds):
     records = []
     for i, d in enumerate(ds):
+        # A per-lane or per-pair request names each lane's global index in its packet entry.
+        index = d.get("index", i) if isinstance(d.get("index", i), int) else i
         # These are explicitly offline transport witnesses, never actual model executions.
         d.setdefault("derivation", d["derivation_summary"])
         d.setdefault("execution_id", f"fresh-{i}")
@@ -29,7 +31,7 @@ def assessments(ds):
             observed["method"] = d.get("method", "unspecified")
             ds[i] = d = observed
         source = d["derivation"]
-        records.append({"index": i, "observed_method": "exact arithmetic", "input_independent": True, "execution_independent": True,
+        records.append({"index": index, "observed_method": "exact arithmetic", "input_independent": True, "execution_independent": True,
           "construction_independent": True, "method_applicable": True, "diagnostic": True,
           "unresolved_defects": [], "evidence": {axis: {"source_span": source,
             "reason": "Mock examiner inspected the frozen raw-input arithmetic construction and execution for " + axis}
@@ -39,5 +41,22 @@ def assessments(ds):
 
 def assessed_comparison(payload, prompt):
     marker = "FULL_DERIVATION_RECORDS_JSON:\n"
+    if marker not in prompt:  # the joint request holds canonical answers only, no lane material
+        return {**payload, "independence_assessments": []}
     ds, _ = json.JSONDecoder().raw_decode(prompt.split(marker, 1)[1])
     return {**payload, "independence_assessments": assessments(ds)}
+
+
+LANE_REQUEST = "This request holds the complete material of ONE candidate derivation"
+
+
+def lane_entries(prompts):
+    """Lane entries exactly as the per-lane requests among prompts carried them, by lane index."""
+    marker = "FULL_DERIVATION_RECORDS_JSON:\n"
+    found = {}
+    for prompt in prompts:
+        if LANE_REQUEST in prompt and marker in prompt:
+            entries, _ = json.JSONDecoder().raw_decode(prompt.split(marker, 1)[1])
+            assert len(entries) == 1
+            found.setdefault(entries[0]["index"], entries[0])
+    return [found[i] for i in sorted(found)]
