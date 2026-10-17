@@ -104,8 +104,13 @@ def test_failed_invocation_and_string_usage_do_not_supply_capacity(tmp_path):
 
 def test_unrelated_old_capture_cannot_supply_new_large_request_capacity(tmp_path):
     actual = observation(tmp_path, prompt="original evidence\n" * 13000)
-    (tmp_path / "old.events.result.json").write_text(json.dumps({"type": "result", "is_error": False,
-        "usage": {"input_tokens": 100, "output_tokens": 30}, "result": "original model result"}))
+    # A complete earlier successful run beside the current one, with usage that would fit.
+    old = Path(actual["output"] + ".attempts") / "run.old"
+    old.mkdir()
+    old_result = {"type": "result", "subtype": "success", "is_error": False,
+        "usage": {"input_tokens": 100, "output_tokens": 30}, "result": "original model result"}
+    (old / "attempt_1.events.result.json").write_text(json.dumps(old_result))
+    (old / "attempt_1.events.jsonl").write_text(json.dumps(old_result) + "\n")
     with pytest.raises(ValueError, match="no observed token"):
         capacity.validate_request_capacity("neutral", "original evidence\n" * 13000, actual, capacity.request_budgets(200000, 500000))
 
