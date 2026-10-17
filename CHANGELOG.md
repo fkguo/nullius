@@ -9,6 +9,22 @@ the version to cite.
 
 ## [Unreleased]
 
+### Fixed
+- **figure-hygiene: complete sidecar example restored; 0.6.0 migration note.**
+  `references/display-semantics.md` again shows a complete provenance sidecar
+  (`figure`, `data`, `script`, `style`, `command`, the `series_provenance` block
+  with `table`, `series_column`, `fingerprint_column` and `check_command`, the
+  `display_acceptance` block and the top-level `sha256` map); 0.6.0 had dropped
+  it from SKILL.md without moving it. Migration note for the 0.6.0 final
+  display semantics gate: since 0.6.0
+  `check_display_acceptance.py` requires `display_acceptance.final_display` on
+  every manifest, so a bundle written before 0.6.0 (plotted quantities, verdict
+  bindings and an overview figure only) now returns `verdict_mismatch` with the
+  finding `semantics-malformed` (`final_display must be an object`), plus
+  `main-surface-not-covered` when the manifest has a top-level `figure`. Such a
+  bundle keeps its historical value but grants no new display acceptance until
+  `final_display` is added as the reference describes.
+
 ## [0.6.0] - 2026-10-16
 
 First archived release. Nullius is positioned as an evidence-first harness for

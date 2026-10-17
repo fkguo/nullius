@@ -209,6 +209,114 @@ For a small table, `overview_figure` may point to `interval.html` itself with
 `archived: true`. Preserve the covering, byte-pinned `quantity_verdict_v1`
 binding; the semantic check supplements that scientific verification.
 
+## Complete sidecar example
+
+The provenance manifest is one JSON file; every path in it is relative to the
+sidecar's own directory, so the example below assumes the sidecar sits at the
+project root, one level above `figs/`. Everything the skill checks lives in it:
+the reproduction bundle (`figure`, `data`, `script`, `style`, `command`, the
+`sha256` map), the connected-series provenance (`series_provenance`) and the
+acceptance evidence (`display_acceptance`). A complete sidecar for a two-cell
+results table rendered as `figs/summary.html` from `data/scan_results.csv` is
+(replace the digest markers with the actual file digests; `$SKILL_DIR` is the
+skill directory set in SKILL.md):
+
+```json
+{
+  "figure": "figs/summary.html",
+  "data": ["data/scan_results.csv"],
+  "script": "figs/src/scan_summary.py",
+  "style": "figs/src/style.json",
+  "command": "python3 figs/src/scan_summary.py",
+  "series_provenance": {
+    "table": "data/scan_results.csv",
+    "series_column": "series_id",
+    "fingerprint_column": "evaluator_fingerprint",
+    "check_command": "python3 \"$SKILL_DIR/scripts/bin/check_series_provenance.py\" --data data/scan_results.csv --series-column series_id --fingerprint-column evaluator_fingerprint"
+  },
+  "display_acceptance": {
+    "plotted_quantities": ["interval_a", "interval_b"],
+    "verdict_bindings": [
+      {
+        "quantity": "interval_a",
+        "verdict_path": "gates/interval_a.verdict.json",
+        "verdict_sha256": "<verdict digest>"
+      },
+      {
+        "quantity": "interval_b",
+        "verdict_path": "gates/interval_b.verdict.json",
+        "verdict_sha256": "<verdict digest>"
+      }
+    ],
+    "overview_figure": {
+      "path": "figs/summary.html",
+      "archived": true,
+      "sha256": "<final digest>"
+    },
+    "final_display": {
+      "purpose": "compare two measured intervals",
+      "source": {"path": "quantities.json", "sha256": "<source digest>"},
+      "selection": ["interval_a", "interval_b"],
+      "cells": [
+        {"id": "a", "quantity": "interval_a", "unit": "s",
+         "transform": {"kind": "identity", "definition": "convert source milliseconds to seconds"}},
+        {"id": "b", "quantity": "interval_b", "unit": "s",
+         "transform": {"kind": "identity", "definition": "convert source milliseconds to seconds"}}
+      ],
+      "surfaces": [{
+        "path": "figs/summary.html", "sha256": "<final digest>", "format": "html", "language": "en",
+        "labels": {"a": "Interval A", "b": "Interval B"}, "unit_labels": {"s": "s"},
+        "review": {"sha256": "<final digest>", "readability": true, "semantics": true}
+      }]
+    }
+  },
+  "sha256": {
+    "figs/summary.html": "<final digest>",
+    "data/scan_results.csv": "<data digest>"
+  }
+}
+```
+
+Field by field:
+
+- `figure`, `data`, `script`, `style`, `command`: what to re-run and what it
+  reads. Anyone must be able to run `command` and diff the output against the
+  `sha256` map; `figure` must also be one of the `final_display.surfaces`.
+- `sha256`: the byte digests of the rendered display and of every data file,
+  keyed by the same relative paths. The manuscript-side traceability manifest
+  of `research-writer` mirrors the figure digest from here.
+- `series_provenance`: required whenever the display draws a line,
+  interpolation, fitted band or pooled summary through rows that may come from
+  several checkpoints or runs; a plain table like this one carries it only to
+  show its shape. `table` is the plotting table, `series_column` names the
+  column that groups rows into one connected series and `fingerprint_column`
+  the column holding each row's complete evaluator fingerprint;
+  `check_command` is the exact `check_series_provenance.py` invocation
+  (`--connected-column` restricts the check to rows flagged as connected).
+  Run it before rendering; a missing or mixed fingerprint inside one series
+  fails it. The display gate does not read this block; its own script does.
+- `display_acceptance`: `plotted_quantities`, `verdict_bindings`,
+  `overview_figure` and `final_display` as defined in this reference and in
+  SKILL.md. The two verdict files have the minimal `quantity_verdict_v1`
+  shape shown in SKILL.md, and `figs/summary.html` is the marked-up table shown
+  above with cells `a` and `b`. Its `quantities.json` holds two `result`
+  quantities in milliseconds with distinct identities (two quantities sharing
+  one identity would be refused as an undeclared duplicate representation):
+
+```json
+{"quantities": [
+  {"id": "interval_a",
+   "identity": {"object": "sample a", "conditions": "fixed protocol", "reference": "start", "definition": "elapsed interval"},
+   "role": "result", "raw": {"value": "1234", "unit": "ms"}},
+  {"id": "interval_b",
+   "identity": {"object": "sample b", "conditions": "fixed protocol", "reference": "start", "definition": "elapsed interval"},
+   "role": "result", "raw": {"value": "2345", "unit": "ms"}}
+]}
+```
+
+The same sidecar shape serves a PDF or PNG display; its final surface then uses
+`format: "extracted"` with an `extraction` file as described above.
+
 ## Automatic coverage and remaining judgments
 
 The gate rejects missing identity/component mappings, unlisted quantities,
