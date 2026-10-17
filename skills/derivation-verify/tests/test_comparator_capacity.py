@@ -89,7 +89,7 @@ REFUSAL_REASONS={'over-window':'observed request usage exceeds configured token 
     'compacted':'original request context was observably compacted',
     'failed':'actual request invocation did not complete successfully',
     'foreign-cwd':'runtime observation working directory mismatch',
-    'missing-observation':'out.txt.runtime-observation.json',
+    'missing-observation':'unavailable: runtime observation missing',
     'rehashed-output':'runtime observation captured/report bytes mismatch',
     'changed-request':'capacity receipt is not the exact successful original request',
     'unsigned-window':'runtime observation capacity policy absent or mismatched',

@@ -76,14 +76,14 @@ def test_conservative_no_capture_still_requires_actual_process_origin(tmp_path):
     output,budget,hashes,_,_=observed(tmp_path,capture=False)
     assert runtime.verify_capture_observation(None,output,hashes)['valid']
     Path(str(output)+'.runtime-observation.json').unlink()
-    with pytest.raises(OSError):runtime.verify_capture_observation(None,output,hashes)
+    with pytest.raises(ValueError,match='unavailable: runtime observation missing'):runtime.verify_capture_observation(None,output,hashes)
 
 
 def test_failed_process_does_not_issue_even_if_serialized_receipt_says_success(tmp_path):
     output,budget,hashes,process,_=observed(tmp_path,exit_code=9)
     assert process['exit_code']==9
     assert not Path(str(output)+'.runtime-observation.json').exists()
-    with pytest.raises(OSError):runtime.verify_capture_observation(budget,output,hashes)
+    with pytest.raises(ValueError,match='unavailable: runtime observation missing'):runtime.verify_capture_observation(budget,output,hashes)
 
 
 def test_preexisting_capture_is_not_retroactively_signed_and_guard_rejects_json(tmp_path):
