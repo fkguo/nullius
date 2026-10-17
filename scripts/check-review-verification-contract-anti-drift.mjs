@@ -167,6 +167,25 @@ requireAll('skills/derivation-verify/references/contract.md', read('skills/deriv
   ['lane text carried once as derivation and once in transport', 'once as the structured `derivation` field and once as `transport.raw_output`'],
   ['no other packet field adds a copy of lane text', 'no other packet field adds a copy'],
   ['captured stream records stay verbatim', 'stay verbatim and therefore contain the output again'],
+  ['provider refusal recorded apart', 'a lane stopped by the provider\'s safeguards is recorded in `provider_refusals`'],
+]);
+// Lane requests ask for the written derivation; "original steps ... no truncation" wording was
+// stopped by a provider safeguard against reasoning extraction (no derivation came back at all).
+for (const lanePrompt of ['skills/derivation-verify/scripts/run_multi_backend.py', 'skills/derivation-verify/workflows/derivation_verify.js']) {
+  const body = read(lanePrompt);
+  if (!body.includes('every mathematical step stated explicitly')) errors.push(`${lanePrompt}: lane request no longer asks for every mathematical step`);
+  for (const phrase of ['COMPLETE original steps', 'COMPLETE original derivation, all steps', 'no sentence limit or truncation']) {
+    if (body.includes(phrase)) errors.push(`${lanePrompt}: lane request uses reasoning-extraction wording "${phrase}"`);
+  }
+}
+requireAll('skills/derivation-verify/tests/test_provider_refusal.py', read('skills/derivation-verify/tests/test_provider_refusal.py'), [
+  ['host-runner refusal witness', 'def test_safeguard_text_from_a_host_runner_is_a_recorded_refusal_not_a_family'],
+  ['exit-zero stream refusal witness', 'def test_stream_refusal_is_recorded_even_when_the_cli_exits_zero'],
+]);
+requireAll('skills/claude-cli-runner/tests/test_complete_assistant_text.py', read('skills/claude-cli-runner/tests/test_complete_assistant_text.py'), [
+  ['one-block snapshot alignment witness', 'def test_one_block_snapshots_after_thinking_assemble_the_text_block'],
+  ['inconsistent stream still refuses', 'def test_snapshot_kind_disagreeing_with_latest_started_block_still_refuses'],
+  ['stopped response never completes', 'def test_provider_stopped_response_with_continuation_is_not_complete_output'],
 ]);
 // The copy count per packet record is pinned by offline witnesses in both executors; prose alone erodes.
 requireAll('skills/derivation-verify/tests/test_full_derivation_transport.py', read('skills/derivation-verify/tests/test_full_derivation_transport.py'), [
