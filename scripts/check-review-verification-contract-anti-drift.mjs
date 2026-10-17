@@ -234,6 +234,7 @@ requireAll('skills/derivation-verify/tests/test_comparator_read_coverage.py', re
   ['ellipsis-joined span refused witness', 'def test_a_span_joining_passages_with_an_ellipsis_is_not_a_quote'],
   ['single request above the byte budget witness', 'def test_single_request_above_the_byte_budget_holds_every_lane_on_observed_usage'],
   ['single request fallback witness', 'def test_single_request_over_the_window_falls_back_to_lanes_assessed_one_per_request'],
+  ['no fallback when one judge counted witness', 'def test_single_request_does_not_fall_back_when_one_judge_counted'],
   ['refused before dispatch without observable usage witness', 'def test_material_above_the_byte_budget_is_refused_before_dispatch_when_usage_cannot_be_observed'],
 ]);
 requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', read('skills/derivation-verify/tests/test_native_workflow_transport.mjs'), [

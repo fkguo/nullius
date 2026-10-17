@@ -160,7 +160,8 @@ class ReadingComparator:
         terminal = {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': report,
                     'usage': {k: sum(u[k] for u in calls) for k in usage}}
         single = 'candidate derivations with recorded model-family metadata' in prompt
-        if material_dir is None and (self.mutation == 'usage-over-window' or (self.mutation == 'single-over-window' and single)):
+        if material_dir is None and (self.mutation == 'usage-over-window' or (self.mutation == 'single-over-window' and single)
+                                     or (self.mutation == 'single-over-window-j1' and single and '_j1_' in tag)):
             terminal['usage'] = {**terminal['usage'], 'cache_read_input_tokens': self.request_budgets['context_tokens']}
         if material_dir is None and self.mutation == 'no-usage':
             terminal.pop('usage')
@@ -549,3 +550,17 @@ def test_material_above_the_byte_budget_is_refused_before_dispatch_when_usage_ca
     lanes = lane_requests(cmp)
     assert n_ok == 0 and run.prompts == {}
     assert len(lanes) == 2 and all(r['carried'] == 'inline_observed' and 'observes no token usage' in r['reason'] for r in lanes)
+
+
+
+def test_single_request_does_not_fall_back_when_one_judge_counted(tmp_path, monkeypatch):
+    # Two judges: one single request over the window, the other counted. A judge gave a verdict, so the panel is
+    # aggregated as usual in the single-request form; nothing is re-tried in the per-lane form.
+    monkeypatch.setattr(runtime, '_authority_dir', lambda: tmp_path / 'host-authority')
+    ds = medium_lanes(2)
+    run = ReadingComparator(tmp_path, 'single-over-window-j1', SPLIT_BUDGET)
+    cmp, n_ok = mb._compare(CLAIM, 'Only raw inputs, no expected answer.', ds, ['host', 'host'], ['claude/opus', 'claude/sonnet'], run, tag='compare')
+    judges = cmp['request_capacity']['judges']
+    assert judges[0]['status'] == 'completed' and 'exceeds configured token window' in judges[1]['reason']
+    assert 'single_request_attempt' not in cmp['request_capacity'] and cmp['request_capacity']['comparison_form'] == 'single_request'
+    assert n_ok == 1 and mb.claim_status(cmp, ds, ['host', 'host'])[0]
