@@ -33,7 +33,10 @@ def assessments(ds):
         source = d["derivation"]
         records.append({"index": index, "observed_method": "exact arithmetic", "input_independent": True, "execution_independent": True,
           "construction_independent": True, "method_applicable": True, "diagnostic": True,
-          "unresolved_defects": [], "evidence": {axis: {"source_span": source,
+          "unresolved_defects": [],
+          "answer_support": {"supports_canonical_answer": True, "source_span": source[-200:],
+            "reason": "Mock examiner read the concluding arithmetic step and its stated canonical answer."},
+          "evidence": {axis: {"source_span": source,
             "reason": "Mock examiner inspected the frozen raw-input arithmetic construction and execution for " + axis}
             for axis in ("input","execution","construction","applicability","diagnostic")}})
     return records
@@ -51,12 +54,13 @@ LANE_REQUEST = "This request holds the complete material of ONE candidate deriva
 
 
 def lane_entries(prompts):
-    """Lane entries exactly as the per-lane requests among prompts carried them, by lane index."""
+    """Lane entries exactly as the per-lane or single comparison requests among prompts carried them, by lane index."""
     marker = "FULL_DERIVATION_RECORDS_JSON:\n"
     found = {}
     for prompt in prompts:
-        if LANE_REQUEST in prompt and marker in prompt:
+        if marker in prompt and (LANE_REQUEST in prompt or "candidate derivations with recorded" in prompt):
             entries, _ = json.JSONDecoder().raw_decode(prompt.split(marker, 1)[1])
-            assert len(entries) == 1
-            found.setdefault(entries[0]["index"], entries[0])
+            assert len(entries) == 1 or LANE_REQUEST not in prompt
+            for entry in entries:
+                found.setdefault(entry["index"], entry)
     return [found[i] for i in sorted(found)]

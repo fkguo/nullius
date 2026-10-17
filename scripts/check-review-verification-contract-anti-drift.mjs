@@ -169,9 +169,11 @@ requireAll('skills/derivation-verify/references/contract.md', read('skills/deriv
   ['captured record carried by reference only on a proven equality', 'only when packet assembly proves the bytes equal a shipped field'],
   ['live stream carried as content blocks with proven text slices', 'proven equal to at assembly, and every other block and field'],
   ['captured content quoted only as the packet shows it', 'Input and execution spans quote captured content only as the packet shows it'],
-  ['one comparator request per lane holding its complete material', "Each lane's assessment is made in its own comparator request that holds that lane's complete material"],
+  ['one comparator request per lane holding its complete material', "each lane's assessment is made in its own comparator request that holds that lane's complete material"],
   ['joint request holds no lane material and its assessments are discarded', 'holds no lane material, so any assessment it volunteers is discarded'],
-  ['verdict never easier than one request holding every lane', 'so the verdict is never easier to reach than with one request holding every lane'],
+  ['all lanes in one request when they fit, as before', "When every lane fits one request, a single comparator request holds every lane's complete material"],
+  ['split lane counts only with span-backed answer support', 'a lane assessment in this form counts only with `answer_support`'],
+  ['per-lane form limitation stated', "no request reads two lanes' bodies except the pair requests of an explicit method risk"],
   ['read coverage, not length, decides', 'Read coverage, not length, decides whether lane material counts'],
   ['a byte counts as read only when returned with its frozen text', 'a byte counts as read only when a Read result returned the line holding it, numbered as that line, with exactly the frozen text'],
   ['incomplete reads are unavailable, never truncated', 'otherwise it is unavailable as content not completely read, never truncated'],
@@ -187,7 +189,7 @@ requireAll('skills/derivation-verify/tests/test_full_derivation_transport.py', r
   ['captured text referenced only to a quotable field witness', 'def test_captured_text_is_referenced_only_to_a_field_spans_can_quote'],
   ['captured-content span sources witness', 'def test_input_execution_spans_quote_captured_content_only_as_the_packet_shows_it'],
   ['live-capture per-lane request margin assertion', "assert all(mb.validate_request_bytes(mb._ASSESS_SYSTEM, p, mb.request_budgets()) <= 0.4 * mb.request_budgets()['context_bytes'] for p in prompt.requests)"],
-  ['per-lane fixture requests under the default window assertion', "assert len(seen) == 3 and all(len(p.encode('utf-8')) <= mb.request_budgets()['context_bytes'] for p in seen)"],
+  ['two lanes in one request under the default window assertion', "assert len(seen) == 1 and len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']"],
 ]);
 // Read coverage replaces length as the criterion; each rule is pinned by an offline witness that a mutation fails.
 requireAll('skills/derivation-verify/tests/test_comparator_read_coverage.py', read('skills/derivation-verify/tests/test_comparator_read_coverage.py'), [
@@ -198,6 +200,8 @@ requireAll('skills/derivation-verify/tests/test_comparator_read_coverage.py', re
   ['altered returned content mutation', "'altered-line': 'a returned line differs from the frozen bytes'"],
   ['unobservable reads leave long lanes unavailable witness', 'def test_a_runner_or_comparator_that_cannot_show_reads_leaves_long_lanes_unavailable'],
   ['aggregation not easier witness', 'def test_per_lane_assessment_cannot_make_aggregation_easier'],
+  ['answer support witness', 'def test_split_lane_counts_only_when_its_body_supports_its_stated_answer'],
+  ['returned line number binding mutation', "'shifted-numbers': 'a returned line differs from the frozen bytes'"],
   ['spans checked against what was read witness', 'def test_spans_are_checked_against_exactly_what_the_comparator_read'],
 ]);
 requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', read('skills/derivation-verify/tests/test_native_workflow_transport.mjs'), [

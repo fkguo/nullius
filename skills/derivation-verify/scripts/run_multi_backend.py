@@ -44,8 +44,8 @@ from pathlib import Path
 from typing import Callable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from read_coverage import NOT_READ, WRAP_CHARS, freeze_material, read_coverage, unchanged
-from independence import derivation_body, assessed_indices, independence_record, packet_transport, valid_derivation_transport, method_risk_passes, observe_runtime_derivation
+from read_coverage import NOT_READ, WRAP_CHARS, freeze_material, read_coverage
+from independence import quoted_in_derivation, derivation_body, assessed_indices, independence_record, packet_transport, valid_derivation_transport, method_risk_passes, observe_runtime_derivation
 
 _THIS = Path(__file__).resolve()
 _SKILLS_ROOT = _THIS.parents[2]  # skills/derivation-verify/scripts/run_multi_backend.py -> skills/
@@ -635,6 +635,18 @@ def parse_lane_assessment(text: Optional[str], index: int) -> Optional[list]:
     return own or None
 
 
+def answer_supported(d: dict, assessment: dict) -> bool:
+    """A per-lane assessment never sees the other lanes, and the joint request sees only canonical answers, so
+    the lane request must itself state that the lane's body supports its stated canonical answer, quoting
+    the concluding steps under the construction rule."""
+    support = assessment.get("answer_support") if isinstance(assessment, dict) else None
+    if not isinstance(support, dict) or support.get("supports_canonical_answer") is not True:
+        return False
+    span, reason = support.get("source_span"), support.get("reason")
+    return (isinstance(span, str) and bool(span.strip()) and isinstance(reason, str) and len(reason.strip()) >= 20
+            and quoted_in_derivation(span, d))
+
+
 def parse_pair_risk(text: Optional[str], pair: tuple) -> Optional[list]:
     """The method-risk assessments a per-pair request returned for ITS pair only."""
     obj = extract_json(text, prefer_keys={"method_risk_assessments"})
@@ -882,6 +894,17 @@ _COMPARE_SYSTEM = (
     '"adjudicated_matches_majority" (bool: does YOUR recomputed answer equal majority_answer?). '
     "No prose outside the json block."
 )
+_COMBINED_SYSTEM = (
+    "You are an impartial comparator+adjudicator. You are given candidate derivations of one "
+    "claim. Decide which are MATHEMATICALLY EQUIVALENT (not string-equal; e.g. -pi/(4mu) == -(1/4)pi/mu). "
+    "Then INDEPENDENTLY RECOMPUTE the answer yourself. Output ONLY a single fenced ```json block with "
+    'EXACTLY these keys: "majority_answer" (canonical answer of the largest equivalent cluster), '
+    '"majority_size" (int), "majority_indices" (array of the 0-based input indices in that cluster), '
+    '"all_equivalent" (bool), "outliers" (each non-majority index + its specific error, or "none"), '
+    '"correct_answer_adjudicated" (the answer YOU recompute as correct + one-line reason), '
+    '"adjudicated_matches_majority" (bool: does YOUR recomputed answer equal majority_answer?). '
+    "Include independence_assessments and method_risk_assessments as required by the user prompt. No prose outside the json block."
+)
 _ASSESS_SYSTEM = (
     "You are an impartial assessor of ONE candidate derivation of a claim, given its complete original material. "
     "Read all of it before judging. Output ONLY a single fenced ```json block with the key \"independence_assessments\": "
@@ -983,6 +1006,9 @@ def _assess_prompt(ctx: str, c: dict, entry: dict, frozen: Optional[dict] = None
         "It has booleans input_independent, execution_independent, construction_independent, method_applicable, diagnostic; "
         "unresolved_defects (array); observed_method (source-grounded description, not the hint); evidence with input, execution, "
         "construction, applicability, diagnostic. Each entry quotes an exact source_span plus a substantive reason: construction/applicability/diagnostic MUST quote, when derivation_context is present, its text OUTSIDE every answer-shaped JSON object (the selected one and any other decodable JSON object with a canonical_answer or derivation_summary key, e.g. drafts or wrappers), or the COMPLETE structured derivation body as read; the fields of those objects are never derivation steps; input/execution may also quote the transport record exactly as shown (request, raw_output, invocation, captured_records) or any of its decoded string values, or derivation_summary. "
+        "The equivalence of answers is judged elsewhere from canonical answers alone, so state here whether this lane's actual steps arrive at "
+        "its stated canonical_answer: answer_support {supports_canonical_answer:boolean, source_span (the concluding steps, quoted under the "
+        "construction rule), reason}; false when the steps reach a different result, contradict it or do not reach it. "
         "Reject absent original steps/transport, failed invocations, copied reasoning, original-code reruns, contaminated inputs, "
         "known relevant defects and non-diagnostic checks. Same/similar methods, same family and shared legitimate libraries alone do not reject. "
         "Missing material is unavailable, never approval."
@@ -997,6 +1023,44 @@ def _risk_prompt(ctx: str, c: dict, entries: list[dict], frozen: Optional[dict] 
         + _material_section(entries, frozen) + _MATERIAL_RULES +
         f"Explicit method risk required: {c.get('requires_method_diversity') is True}. Declared risk: {c.get('method_diversity_risk', 'assess shared failure modes substantively')}. "
         f"Provide method_risk_assessments with exactly one entry, indices {pair}: {{indices:[i,j], addresses_shared_failure:boolean, methods_distinct:boolean (actual mechanisms, never hint labels), risk:string, method_analysis:string, "
+        "evidence:[{index,source_span,reason} from each lane's derivation_context text outside every decodable answer-shaped JSON object when present or its COMPLETE structured derivation BODY as read, never fields of those objects, request or metadata]}. Approval must explain with both actual derivations why the declared shared "
+        "failure mode is independently tested or avoided through substantively distinct mechanisms; differently named hints or rewordings do not establish orthogonality. "
+        "Missing material or unsupported risk assessment is unavailable, never approval."
+    )
+
+
+def _combined_prompt(ctx: str, c: dict, derivations: list[dict], families: list[str]) -> str:
+    """One request holding every lane's complete material: clustering, recomputation, every lane's assessment
+    and any method risk in one comparator context, as when every lane fits one request."""
+    listing = "\n".join(f'[#{i}] (family={families[i]}) canonical_answer="{d["canonical_answer"]}" | {d["derivation_summary"]}'
+                        for i, d in enumerate(derivations))
+    packet = [_lane_entry(d, families[i], i) for i, d in enumerate(derivations)]
+    return (
+        f"{ctx}\n\nClaim:\n{c['statement']}\nExpected canonical format: {c['report_format']}\n\n"
+        f"{len(derivations)} candidate derivations with recorded model-family metadata:\n{listing}\n\n"
+        "FULL_DERIVATION_RECORDS_JSON:\n" + json.dumps(packet, ensure_ascii=False, sort_keys=True) + "\n\n"
+        "Read the COMPLETE original derivations and runtime-observed requests, raw outputs and execution records. "
+        "The structured derivation field is unchanged; transport.raw_output is the exact original assistant output. "
+        "derivation_context is present only when that output holds assistant text outside the selected JSON object; it is then that complete "
+        "original output, and the lane's transport marks raw_output_given_as=derivation_context instead of repeating the same bytes. "
+        "transport.captured_records states for each captured file how it is carried: inline (content verbatim), by_reference "
+        "(ref = path, sha256, size, with the equality proven at assembly), or content_blocks for a live stream: its content in "
+        "emission order, where a text value given as {equals, sha256} is exactly the complete named shipped field (proven equal at "
+        "assembly) and every other block and field is verbatim; only ids, timestamps, usage, cost and timing counters, status, "
+        "token-counter and rate-limit events, stream markers, empty thinking blocks and thinking signatures are not shown. "
+        "Check whether earlier text contains necessary steps, contradictions, repetitions or unrelated commentary. "
+        "Do not assume all text is a derivation, or that one selected JSON field contains every necessary step. "
+        "If the JSON already contains the complete derivation, retain that contract and substantively explain coverage of earlier text. "
+        "Summaries, author assertions of freshness and labels cannot substitute for original material. "
+        "Cluster by mathematical equivalence, independently recompute, and provide independence_assessments for EVERY index. "
+        "majority_answer must be an exact canonical_answer representative from its majority_indices; no empty or unenumerated cluster can converge. "
+        "Each has booleans input_independent, execution_independent, construction_independent, method_applicable, diagnostic; "
+        "unresolved_defects (array); observed_method (source-grounded description, not the hint); evidence with input, execution, "
+        "construction, applicability, diagnostic. Each entry quotes an exact source_span plus a substantive reason: construction/applicability/diagnostic MUST quote, when derivation_context is present, its text OUTSIDE every answer-shaped JSON object (the selected one and any other decodable JSON object with a canonical_answer or derivation_summary key, e.g. drafts or wrappers), or the COMPLETE structured derivation body as read; the fields of those objects are never derivation steps; input/execution may also quote the transport record exactly as shown (request, raw_output, invocation, captured_records) or any of its decoded string values, or derivation_summary. "
+        "Reject absent original steps/transport, failed invocations, copied reasoning, original-code reruns, contaminated inputs, "
+        "known relevant defects and non-diagnostic checks. Same/similar methods, same family and shared legitimate libraries alone do not reject. "
+        f"Explicit method risk required: {c.get('requires_method_diversity') is True}. Declared risk: {c.get('method_diversity_risk', 'assess shared failure modes substantively')}. "
+        "Provide method_risk_assessments: array of {indices:[i,j], addresses_shared_failure:boolean, methods_distinct:boolean (actual mechanisms, never hint labels), risk:string, method_analysis:string, "
         "evidence:[{index,source_span,reason} from each lane's derivation_context text outside every decodable answer-shaped JSON object when present or its COMPLETE structured derivation BODY as read, never fields of those objects, request or metadata]}. Approval must explain with both actual derivations why the declared shared "
         "failure mode is independently tested or avoided through substantively distinct mechanisms; differently named hints or rewordings do not establish orthogonality. "
         "Missing material or unsupported risk assessment is unavailable, never approval."
@@ -1173,20 +1237,28 @@ def _aggregate_judges(verdicts: list, n_derivations: int, derivations: Optional[
 
 
 def _plan_requests(c, ctx, derivations, families, budgets, material_root):
-    """Every comparator request of one comparison, decided before any comparator starts: a joint
-    equivalence/adjudication request over the canonical answers, one assessment request per lane holding
-    that lane's complete material, and, for an explicit method risk, one request per lane pair holding both
-    complete materials. A request whose material is inline when it fits the window; otherwise that lane
-    material is frozen to read-only part files (bytes + sha256) and the request names them. Length decides
-    only how material is carried, never whether it is assessed."""
+    """Every comparator request of one comparison, decided before any comparator starts. When every lane fits
+    one request, that single request holds every lane's complete material (clustering, recomputation, every
+    assessment and any method risk in one context, as before). Otherwise there is a joint
+    equivalence/adjudication request over the canonical answers, one assessment request per lane holding that
+    lane's complete material, and, for an explicit method risk, one request per lane pair holding both complete
+    materials. Such a request carries its material inline when it fits the window; otherwise the material is
+    frozen to read-only part files (bytes + sha256) in a directory of that request's own, holding only its
+    lanes. Length decides only how material is carried, never whether it is assessed."""
     from itertools import combinations
+    combined = _combined_prompt(ctx, c, derivations, families)
+    try:
+        validate_request_bytes(_COMBINED_SYSTEM, combined, budgets)
+        return [{"kind": "combined", "lanes": tuple(range(len(derivations))), "system": _COMBINED_SYSTEM,
+                 "mode": "inline", "prompt": combined}]
+    except ValueError:
+        pass
     entries = [_lane_entry(d, families[i], i) for i, d in enumerate(derivations)]
     plans = [{"kind": "joint", "lanes": (), "system": _COMPARE_SYSTEM, "mode": "inline",
               "prompt": _joint_prompt(ctx, c, derivations, families)}]
     groups = [("lane", (i,)) for i in range(len(entries))]
     if c.get("requires_method_diversity") is True:
         groups += [("pair", pair) for pair in combinations(range(len(entries)), 2)]
-    frozen: dict = {}
     for kind, lanes in groups:
         chosen = [entries[i] for i in lanes]
         system = _ASSESS_SYSTEM if kind == "lane" else _RISK_SYSTEM
@@ -1200,20 +1272,21 @@ def _plan_requests(c, ctx, derivations, families, budgets, material_root):
             pass
         plan = {"kind": kind, "lanes": lanes, "system": system, "mode": "files", "prompt": None}
         if material_root is not None:
-            for i in lanes:
-                if i not in frozen:
-                    frozen[i] = freeze_material(_encoded(entries[i]), material_root, f"lane-{i}")
-            plan["prompt"] = build(frozen)
-            plan["frozen"] = [f for i in lanes for f in frozen[i]]
+            directory = material_root / ("-".join([kind] + [str(i) for i in lanes]))
+            frozen = {i: freeze_material(_encoded(entries[i]), directory, f"lane-{i}") for i in lanes}
+            plan.update(prompt=build(frozen), frozen=[f for i in lanes for f in frozen[i]], directory=directory.resolve())
         plans.append(plan)
     return plans
 
 
 def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, tag: str) -> tuple:
-    """Run the comparator PANEL (>=1 model families) and meta-aggregate. Each judge makes one joint request
+    """Run the comparator PANEL (>=1 model families) and meta-aggregate. When every lane fits one request, each
+    judge makes that single request holding every lane, as before. Otherwise each judge makes one joint request
     (equivalence + independent recomputation over the canonical answers) and one assessment request per lane
-    (plus one per lane pair for an explicit method risk), each holding the complete material it assesses. A
-    judge's verdict is assembled from its own requests only, then aggregated exactly as before."""
+    (plus one per lane pair for an explicit method risk), each holding the complete material it assesses; a
+    lane assessment then counts only with span-backed answer support. A judge's verdict is assembled from its
+    own requests only, then aggregated exactly as before. A judge counts in n_ok once its joint request gave a
+    verdict, even when none of its lane requests did; that can only raise the panel's majority need."""
     if not derivations:
         return dict(SAFE_CMP), 0
     owner = getattr(run, "__self__", None)
@@ -1230,7 +1303,7 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
     if material_root is not None and not any(p["mode"] == "files" for p in plans):
         material_root.rmdir()
     evidence = [{"tag": f"{tag}_j{j}_{roster_family_of(spec)}", "model": spec, "requests": []} for j, spec in enumerate(comparators)]
-    keys = {"joint": {"majority_size", "majority_answer"}, "lane": {"independence_assessments"}, "pair": {"method_risk_assessments"}}
+    keys = {"combined": {"majority_size", "majority_answer"}, "joint": {"majority_size", "majority_answer"}, "lane": {"independence_assessments"}, "pair": {"method_risk_assessments"}}
 
     def _unreadable(spec, plan):
         """Why this judge cannot be shown a frozen-file request completely, decided before dispatch."""
@@ -1246,12 +1319,12 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
 
     # A judge that can assess fewer than two lanes completely cannot support any convergence: none of its
     # requests is sent, and each records why.
-    hopeless = {j for j, spec in enumerate(comparators)
+    hopeless = set() if plans[0]["kind"] == "combined" else {j for j, spec in enumerate(comparators)
                 if sum(1 for p in plans if p["kind"] == "lane" and _unreadable(spec, p) is None) < 2}
 
     def _request(job):
         j, spec, k, plan = job
-        call_tag = evidence[j]["tag"] + ("" if plan["kind"] == "joint" else
+        call_tag = evidence[j]["tag"] + ("" if plan["kind"] in ("joint", "combined") else
                                          f"_lane{plan['lanes'][0]}" if plan["kind"] == "lane" else f"_pair{plan['lanes'][0]}-{plan['lanes'][1]}")
         record = {"kind": plan["kind"], "lanes": list(plan["lanes"]), "tag": call_tag, "carried": plan["mode"]}
         system, prompt = plan["system"], plan["prompt"]
@@ -1263,24 +1336,22 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
                 raise ValueError(reason)
             if plan["mode"] == "files":
                 validate_request_bytes(system, prompt, budgets)
-                raw = reader(spec, system, prompt, call_tag, material_root)
+                raw = reader(spec, system, prompt, call_tag, plan["directory"])
                 invocation = receipts.get(call_tag, {})
                 capacity = validate_request_capacity(system, prompt, invocation, budgets,
-                    expected_working_directory=str(material_root), usage_per_call=True)
+                    expected_working_directory=str(plan["directory"]), usage_per_call=True)
                 if any(item["output_tokens"] > OUTPUT_RESERVE for item in capacity["observed_usage"]):
                     raise ValueError("unavailable: observed comparator output exceeds configured output budget")
                 if not isinstance(raw, str) or Path(invocation["output"]).read_bytes().decode("utf-8") != raw:
                     raise ValueError("unavailable: comparator return differs from observed current report")
                 if not capacity.get("capture_stream"):
                     raise ValueError(NOT_READ + ": no captured stream of the comparator's reads")
-                coverage = read_coverage(Path(capacity["capture_stream"]).read_text(encoding="utf-8"), plan["frozen"], material_root)
+                coverage = read_coverage(Path(capacity["capture_stream"]).read_text(encoding="utf-8"), plan["frozen"], plan["directory"])
                 record["read_coverage"] = {k: v for k, v in coverage.items() if k != "final_text"}
                 if not coverage["complete"]:
                     raise ValueError(coverage["reason"])
                 if extract_json(coverage["final_text"], prefer_keys=keys[plan["kind"]]) != extract_json(raw, prefer_keys=keys[plan["kind"]]):
                     raise ValueError(NOT_READ + ": the verdict was not given in a final message after the last read")
-                if not unchanged(plan["frozen"]):
-                    raise ValueError(NOT_READ + ": frozen material changed during the comparator call")
             else:
                 bound = validate_request_bytes(system, prompt, budgets)
                 # The injected host callable has no CLI capture/token protocol. Its
@@ -1306,10 +1377,11 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
                     capacity = {**budgets, "conservative_input_bound": bound,
                         "conservative_output_bound": emitted_bound, "capacity_evidence": "conservative_host_bound",
                         "observed_usage": [], "compaction_witness": "unavailable", "capture_observation": "unavailable"}
-            if plan["kind"] == "joint":
+            if plan["kind"] in ("joint", "combined"):
                 parsed = parse_comparison(raw, len(derivations))
             elif plan["kind"] == "lane":
-                parsed = parse_lane_assessment(raw, plan["lanes"][0])
+                parsed = [a for a in parse_lane_assessment(raw, plan["lanes"][0]) or []
+                          if answer_supported(derivations[plan["lanes"][0]], a)] or None
             else:
                 parsed = parse_pair_risk(raw, plan["lanes"])
             record.update(status="completed", capacity=capacity)
@@ -1337,13 +1409,19 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
         if not isinstance(joint, dict):
             verdicts.append(None)
             continue
+        if plans[0]["kind"] == "combined":
+            verdicts.append(joint)  # one request held every lane's complete material: its verdict as returned
+            continue
         # The joint request holds no lane material: any assessment it volunteers is discarded, never merged.
         verdicts.append({**joint,
             "independence_assessments": [a for k, plan in enumerate(plans) if plan["kind"] == "lane" for a in (own.get(k) or [])],
             "method_risk_assessments": [r for k, plan in enumerate(plans) if plan["kind"] == "pair" for r in (own.get(k) or [])]})
     cmp, n_ok = _aggregate_judges(verdicts, len(derivations), derivations)
     cmp["assessment_input_sha256"] = hashlib.sha256(json.dumps(derivations, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    # comparison_form says whether one request held every lane, or lanes were assessed one per request; in
+    # the latter no request reads two lanes' bodies except pair requests for an explicit method risk.
     cmp["request_capacity"] = {"configured": budgets, "judges": evidence,
+                               "comparison_form": "single_request" if plans[0]["kind"] == "combined" else "per_lane",
                                "material": str(material_root) if material_root is not None and material_root.exists() else None}
     return cmp, n_ok
 

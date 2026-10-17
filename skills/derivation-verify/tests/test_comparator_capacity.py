@@ -35,7 +35,7 @@ def actual(tmp_path, monkeypatch, mode='complete', *, budget=None):
         reply={'majority_answer':'42','majority_size':2,'majority_indices':[0,1],'adjudicated_matches_majority':True}
         if 'FULL_DERIVATION_RECORDS_JSON:\n' in prompt:
             ds,_=json.JSONDecoder().raw_decode(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
-            reply={'independence_assessments':assessments(ds)}
+            reply={**reply,'independence_assessments':assessments(ds)}
         report=json.dumps(reply)
         systemp,promptp,out=d/'system.txt',d/'prompt.txt',d/'out.txt'
         systemp.write_text(system);promptp.write_text(prompt)
@@ -83,12 +83,11 @@ def test_actual_current_capacity_binds_complete_original_request_and_report(tmp_
     ds,cmp,count=compare(actual(tmp_path,monkeypatch))
     assert count==1 and mb.claim_status(cmp,ds,['host','host'])[0]
     assert cmp['request_capacity']['judges'][0]['capacity']['capacity_evidence']=='observed_usage'
-    # Each lane's own request holds that lane's complete material, and only that lane.
-    for i in range(2):
-        packet=(tmp_path/f'current/compare_j0_claude_lane{i}/prompt.txt').read_text()
-        decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
-        assert [d['index'] for d in decoded]==[i] and decoded[0]['derivation']==SUMMARY
-    assert 'FULL_DERIVATION_RECORDS_JSON' not in (tmp_path/'current/compare_j0_claude/prompt.txt').read_text()
+    # Lanes that fit one request together are compared in that single request, as before.
+    packet=(tmp_path/'current/compare_j0_claude/prompt.txt').read_text()
+    decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
+    assert [d['index'] for d in decoded]==[0,1] and all(d['derivation']==SUMMARY for d in decoded)
+    assert cmp['request_capacity']['comparison_form']=='single_request'
 
 REFUSAL_REASONS={'over-window':'observed request usage exceeds configured token window',
     'output-budget':'observed comparator output exceeds configured output budget',

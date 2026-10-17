@@ -168,3 +168,25 @@ def test_invalid_capacity_is_refused_before_popen(monkeypatch,invalid):
     with pytest.raises(ValueError,match='capacity policy'):
         run_multi_task._run_with_timeout([],timeout_secs=1,context_tokens=invalid)
     assert calls==[]
+
+
+def test_concurrent_first_use_of_the_authority_key_never_reads_a_partial_key(monkeypatch):
+    # Many comparator requests may start at once on a host that has no key yet. Without serialized
+    # creation a reader can open the key after another creator's exclusive open but before its write,
+    # read zero bytes and refuse; every concurrent first use must instead return the same complete key.
+    import os
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    real_open, gate = os.open, threading.Barrier(8)
+    def slow_open(path, flags, *args):
+        fd = real_open(path, flags, *args)
+        if str(path).endswith("authority.key") and flags & os.O_EXCL:
+            threading.Event().wait(0.05)  # widen the window between exclusive create and write
+        return fd
+    monkeypatch.setattr(runtime.os, "open", slow_open)
+    def first_use(_):
+        gate.wait()
+        return runtime._key(create=True)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        keys = list(pool.map(first_use, range(8)))
+    assert len(set(keys)) == 1 and len(keys[0]) == 32

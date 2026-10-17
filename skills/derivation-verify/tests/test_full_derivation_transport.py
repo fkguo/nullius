@@ -101,12 +101,12 @@ def test_complete_original_material_and_observed_requests_are_not_truncated():
                 for e in a['evidence'].values(): e['source_span'] = original[:200]
             return json.dumps(report)
         return json.dumps(verdict(original))
-    # Each complete 14.6 kB lane passes in its own request under the DEFAULT byte window
-    # (159,040 bytes) without truncation on this capture-free path; each lane's text appears
+    # Two complete 14.6 kB lanes fit one request under the DEFAULT byte window (159,040 bytes), so
+    # they are compared in that single request without truncation on this capture-free path; each lane's text appears
     # twice (derivation, transport.raw_output), pinned below together with the live-capture path.
     assert verify(CLAIM, run)['converged']
     packet = lane_entries(seen)
-    assert len(seen) == 3 and all(len(p.encode('utf-8')) <= mb.request_budgets()['context_bytes'] for p in seen)
+    assert len(seen) == 1 and len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']
     assert all(d['derivation'] == original for d in packet)
     assert all(CLAIM['statement'] in d['transport']['request']['prompt'] for d in packet)
     assert all(json.loads(d['transport']['raw_output'])['derivation'] == original for d in packet)

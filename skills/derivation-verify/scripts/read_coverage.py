@@ -2,8 +2,9 @@
 
 Lane material that does not fit one comparator request is frozen to disk before the comparator
 starts: the lane's packet entry, encoded exactly as an inline packet encodes it, cut into lines
-(after each JSON ``\\n`` escape and at most WRAP_CHARS characters, never inside an escape) and
-grouped into part files of at most PART_BYTES bytes. Joining every line of every part, in order,
+(after each JSON ``\\n`` escape and at most WRAP_CHARS characters, never inside an escape and never
+before U+FEFF, which Read would strip at a file start; a line may exceed WRAP_CHARS by the characters
+of a run of U+FEFF) and grouped into part files of at most PART_BYTES bytes and PART_LINES lines. Joining every line of every part, in order,
 with nothing between them gives back the encoded entry byte for byte.
 
 The comparator reads the parts with read-only file tools. Its captured stream records each tool call
@@ -23,6 +24,8 @@ from pathlib import Path
 
 WRAP_CHARS = 2000
 PART_BYTES = 24000
+# The Read tool returns at most 2000 lines per call by default; a part stays below that so one call reads it.
+PART_LINES = 1500
 READ_ONLY_TOOLS = frozenset({"Read", "Glob", "Grep"})
 NOT_READ = "unavailable: content not completely read"
 # Read returns each line as "<number>\t<text>" or, in its older layout, "<padded number>→<text>".
@@ -35,12 +38,13 @@ def material_lines(encoded: str) -> list[str]:
     lines, start, i, n = [], 0, 0, len(encoded)
     while i < n:
         step = (6 if encoded[i + 1:i + 2] == "u" else 2) if encoded[i] == "\\" else 1
-        if i > start and i + step - start > WRAP_CHARS:
+        # Read strips a byte-order mark at the start of a file, so no line (and no part) starts with U+FEFF.
+        if i > start and i + step - start > WRAP_CHARS and encoded[i] != "\ufeff":
             lines.append(encoded[start:i])
             start = i
         newline_escape = encoded[i:i + 2] == "\\n"
         i += step
-        if newline_escape:
+        if newline_escape and encoded[i:i + 1] != "\ufeff":
             lines.append(encoded[start:i])
             start = i
     if start < n:
@@ -56,7 +60,7 @@ def freeze_material(encoded: str, directory: Path, stem: str) -> list[dict]:
     parts, current, size = [], [], 0
     for line in lines:
         cost = len(line.encode("utf-8")) + (1 if current else 0)
-        if current and size + cost > PART_BYTES:
+        if current and (size + cost > PART_BYTES or len(current) >= PART_LINES):
             parts.append(current)
             current, size = [], 0
             cost = len(line.encode("utf-8"))
@@ -115,7 +119,8 @@ def observed_session(stream_text: str) -> dict:
     """Tool calls, their returned results, context edits and the final message of one top-level session."""
     calls, results, edits = {}, [], 0
     final = {"id": None, "text": [], "tool_use": False}
-    for line in stream_text.splitlines():
+    # Only "\n" ends a captured event: U+2028, U+2029 and U+0085 may stand unescaped inside event JSON.
+    for line in stream_text.split("\n"):
         if not line.strip():
             continue
         try:
@@ -174,7 +179,7 @@ def read_coverage(stream_text: str, frozen: list[dict], working_directory: Path)
     if foreign:
         return {"complete": False, "reason": NOT_READ + ": comparator used tools outside the read-only set: " + ", ".join(foreign), "files": []}
     if session["context_edits"]:
-        return {"complete": False, "reason": NOT_READ + ": earlier tool results were edited out of the comparator context", "files": []}
+        return {"complete": False, "reason": NOT_READ + ": the provider edited the comparator context during the session (applied context edits), so returned content may not have stayed in view", "files": []}
     for result in session["results"]:
         call = session["calls"].get(result["tool_use_id"])
         if not call or call["name"] != "Read" or result["is_error"] or not isinstance(call.get("input"), dict):
