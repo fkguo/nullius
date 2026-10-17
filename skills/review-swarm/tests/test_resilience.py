@@ -170,6 +170,10 @@ class FailureClassificationTests(unittest.TestCase):
         self.assertEqual(classify("phase1_criteria_invalid"), "content")
         # Unknown reasons must not read as outages.
         self.assertEqual(classify("something_new"), "content")
+        # A Claude lane rejected for loading operator memory is a local configuration fault.
+        self.assertEqual(classify("not_hermetic"), "configuration")
+        self.assertEqual(self.mod._unavailable_backend_summary([
+            {"model": "claude/some-model", "success": False, "failure_reason": "not_hermetic"}]), [])
 
 
 class DualReviewSummaryTests(unittest.TestCase):

@@ -27,7 +27,8 @@
  *
  * This lock fails the build when either clause is removed or renamed
  * from the skill surfaces that state it (research-team non-negotiables,
- * review-swarm reviewer roles).
+ * review-swarm reviewer roles). It also pins that Claude lanes carry no
+ * operator memory (safe-mode default, recorded and observed per invocation).
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -206,6 +207,36 @@ requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', 
   ['native packet copy count witness', 'async function checkPacketCopies('],
   ['native input/execution span sources witness', 'await checkSpanSources('],
   ['native no-capture transport witness', 'await checkNativeCapturedRecords()'],
+]);
+
+// A lane carries no operator memory: the prose in both verification skills, the runner's default
+// flag and observed-init rejection, and the witnesses that pin them.
+requireAll(SWARM_SKILL_FILE, read(SWARM_SKILL_FILE), [
+  ['operator context excluded from lanes', "**Keep the operator's own context out of the lane.**"],
+  ['no operator memory in input framing', 'carries no operator memory'],
+]);
+for (const relPath of ['skills/derivation-verify/SKILL.md', 'skills/derivation-verify/references/contract.md']) {
+  requireAll(relPath, read(relPath), [
+    ['no operator memory in input independence', 'Input independence also requires that a lane carry no operator memory'],
+  ]);
+}
+requireAll('skills/claude-cli-runner/SKILL.md', read('skills/claude-cli-runner/SKILL.md'), [
+  ['hermetic default section', '## Context sources (hermetic by default)'],
+  ['per-invocation record', '`context_sources.json`'],
+]);
+requireAll('skills/claude-cli-runner/scripts/run_claude.sh', read('skills/claude-cli-runner/scripts/run_claude.sh'), [
+  ['safe mode is the default context', 'HERMETIC=1'],
+  ['safe mode flag', 'CONTEXT_ARGS=(--safe-mode)'],
+  ['git snapshot dropped', 'export CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1'],
+  ['flag reaches the real invocation', '"${CONTEXT_ARGS[@]+"${CONTEXT_ARGS[@]}"}"'],
+  ['declared sources record', 'declare "${context_declare_args[@]}"'],
+  ['observed init-event check', '"${CONTEXT_SOURCES}" observe'],
+]);
+requireAll('skills/claude-cli-runner/tests/test_context_sources.py', read('skills/claude-cli-runner/tests/test_context_sources.py'), [
+  ['default flag witness', 'def test_runner_starts_every_lane_in_safe_mode_by_default'],
+  ['memory rejection witness', 'def test_live_lane_reporting_operator_memory_is_rejected_not_retried'],
+  ['reduced real stream witness', 'def test_reduced_real_init_events_separate_hermetic_from_operator_lanes'],
+  ['installed CLI witness', 'def test_installed_cli_offers_safe_mode'],
 ]);
 
 if (errors.length > 0) {

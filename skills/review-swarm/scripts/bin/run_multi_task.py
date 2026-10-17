@@ -1279,6 +1279,10 @@ def _run_one(
                         result["capture_receipt"] = str(receipt_path)
         if result.get("runner_failure_reason") == "hard_budget_exhausted":
             result["timed_out"] = True
+        # The Claude runner rejects a lane that loaded the operator's memory (exit 78). That is a
+        # configuration fault of this machine, not a backend outage and not review content.
+        if not result.get("success") and "claude lane rejected" in proc.get("stderr", "").lower():
+            result["runner_failure_reason"] = "not_hermetic"
         if not result.get("success") and not result.get("runner_failure_reason"):
             diagnostics = proc.get("stderr", "").lower()
             if "deterministic error" in diagnostics:
@@ -1629,6 +1633,8 @@ def _classify_failure(failure_reason: Optional[str]) -> Optional[str]:
     if failure_reason is None:
         return None
     reason = str(failure_reason)
+    if reason == "not_hermetic":
+        return "configuration"
     if reason in _INFRASTRUCTURE_FAILURE_REASONS or reason.startswith(("exit_code_", "deterministic_")) or reason in {
         "hard_budget_exhausted", "confirmed_inactivity", "user_cancelled", "transient_transport"
     }:

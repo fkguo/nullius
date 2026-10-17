@@ -1,0 +1,201 @@
+{
+ "note": "Domain-neutral reduction of the system/init events of two real claude 2.1.287 live-capture streams (2026-10-17): the runner before --safe-mode (operator) and with it (safe_mode). Paths, model, operator skill/agent/plugin names replaced by placeholders; CLI built-in names kept.",
+ "operator": {
+  "type": "system",
+  "subtype": "init",
+  "cwd": "/work/project",
+  "tools": [],
+  "mcp_servers": [],
+  "model": "some-model",
+  "apiKeySource": "none",
+  "claude_code_version": "2.1.287",
+  "skills": [
+   "operator-skill-1",
+   "operator-skill-2",
+   "operator-skill-3",
+   "operator-skill-4",
+   "operator-skill-5",
+   "operator-skill-6",
+   "operator-skill-7",
+   "operator-skill-8",
+   "operator-skill-9",
+   "operator-skill-10",
+   "operator-skill-11",
+   "operator-skill-12",
+   "operator-skill-13",
+   "operator-skill-14",
+   "operator-skill-15",
+   "operator-skill-16",
+   "operator-skill-17",
+   "operator-skill-18",
+   "operator-skill-19",
+   "operator-skill-20",
+   "operator-skill-21",
+   "operator-skill-22",
+   "operator-skill-23",
+   "operator-skill-24",
+   "operator-skill-25",
+   "operator-skill-26",
+   "operator-skill-27",
+   "operator-skill-28",
+   "operator-skill-29",
+   "operator-skill-30",
+   "operator-skill-31",
+   "operator-skill-32",
+   "operator-skill-33",
+   "operator-skill-34",
+   "operator-skill-35",
+   "operator-skill-36",
+   "operator-skill-37",
+   "operator-skill-38",
+   "operator-skill-39",
+   "operator-skill-40",
+   "deep-research",
+   "design",
+   "slides",
+   "design-sync",
+   "dataviz",
+   "artifact-diagramming",
+   "artifact-capabilities",
+   "update-config",
+   "verify",
+   "debug",
+   "code-review",
+   "simplify",
+   "batch",
+   "fewer-permission-prompts",
+   "doctor",
+   "loop",
+   "schedule",
+   "claude-api",
+   "workflow-authoring",
+   "run",
+   "run-skill-generator",
+   "plugin-authoring",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill",
+   "some-plugin:some-plugin-skill"
+  ],
+  "agents": [
+   "some-plugin:some-plugin-agent",
+   "some-plugin:some-plugin-agent",
+   "operator-agent",
+   "claude",
+   "claude-code-guide",
+   "operator-agent",
+   "Explore",
+   "general-purpose",
+   "Plan",
+   "operator-agent",
+   "operator-agent"
+  ],
+  "plugins": [
+   {
+    "name": "some-plugin",
+    "path": "/home/user/.claude/plugins/cache/some-plugin",
+    "source": "some-plugin@some-marketplace"
+   },
+   {
+    "name": "some-plugin",
+    "path": "/home/user/.claude/plugins/cache/some-plugin",
+    "source": "some-plugin@some-marketplace"
+   },
+   {
+    "name": "cc-plugin-agents-md",
+    "path": "builtin",
+    "source": "cc-plugin-agents-md@builtin"
+   },
+   {
+    "name": "cc-plugin-telemetry",
+    "path": "builtin",
+    "source": "cc-plugin-telemetry@builtin"
+   },
+   {
+    "name": "cc-plugin-plugin-authoring",
+    "path": "builtin",
+    "source": "cc-plugin-plugin-authoring@builtin"
+   }
+  ],
+  "memory_paths": {
+   "auto": "/home/user/.claude/projects/-work-project/memory/"
+  }
+ },
+ "safe_mode": {
+  "type": "system",
+  "subtype": "init",
+  "cwd": "/work/project",
+  "tools": [],
+  "mcp_servers": [],
+  "model": "some-model",
+  "apiKeySource": "none",
+  "claude_code_version": "2.1.287",
+  "skills": [
+   "deep-research",
+   "design",
+   "slides",
+   "design-sync",
+   "dataviz",
+   "artifact-diagramming",
+   "artifact-capabilities",
+   "update-config",
+   "verify",
+   "debug",
+   "code-review",
+   "simplify",
+   "batch",
+   "fewer-permission-prompts",
+   "doctor",
+   "loop",
+   "schedule",
+   "claude-api",
+   "workflow-authoring",
+   "run",
+   "run-skill-generator",
+   "plugin-authoring"
+  ],
+  "agents": [
+   "claude",
+   "claude-code-guide",
+   "Explore",
+   "general-purpose",
+   "Plan"
+  ],
+  "plugins": [
+   {
+    "name": "some-plugin",
+    "path": "/home/user/.claude/plugins/cache/some-plugin",
+    "source": "some-plugin@some-marketplace"
+   },
+   {
+    "name": "some-plugin",
+    "path": "/home/user/.claude/plugins/cache/some-plugin",
+    "source": "some-plugin@some-marketplace"
+   },
+   {
+    "name": "cc-plugin-agents-md",
+    "path": "builtin",
+    "source": "cc-plugin-agents-md@builtin"
+   },
+   {
+    "name": "cc-plugin-telemetry",
+    "path": "builtin",
+    "source": "cc-plugin-telemetry@builtin"
+   },
+   {
+    "name": "cc-plugin-plugin-authoring",
+    "path": "builtin",
+    "source": "cc-plugin-plugin-authoring@builtin"
+   }
+  ]
+ }
+}

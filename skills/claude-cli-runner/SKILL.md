@@ -31,6 +31,7 @@ bash "${SKILL_DIR}/scripts/run_claude.sh" \
 
 Notes:
 - The runner always uses `--print` + `--no-session-persistence`.
+- Every lane starts with `--safe-mode`: the operator's own context stays out (see **Context sources** below).
 - `--model` is optional. If omitted (or set to `default` upstream), the runner uses Claude CLI's configured default model.
 - It disables tools by default (`--tool-mode none`, equivalent to `--tools ""`).
 - Use `--tool-mode review` for the read-only review profile (`Read,Glob,Grep`).
@@ -44,6 +45,44 @@ Notes:
   exit codes 2/126/127, and similar, detected from the exit code and diagnostics) fail immediately with the diagnostic instead of burning the retry backoff.
 - It feeds the user prompt via stdin (`--input-format text` + `< --prompt-file`) to avoid macOS/Linux `ARG_MAX` limits (fixes `Argument list too long` with 1–5MB prompt packets).
 - For offline/CI validation, use `--dry-run` to print the planned invocation without calling Claude (prints only paths + size + sha256; never the full prompt).
+
+## Context sources (hermetic by default)
+
+A lane carries only its own request: the system prompt file and the prompt file. Without further flags
+the Claude CLI would also load the operator's user-level instruction file, `CLAUDE.md`/`CLAUDE.local.md`/
+`AGENTS.md` of the working directory and its parents (and of subdirectories once a file there is read),
+the project's auto memory, installed plugins, hooks and skills. Auto memory and instruction files routinely
+record earlier conclusions and the author's judgment, so a lane that loads them is not independent of the
+claim it checks, and their style rules change the lane's language.
+
+- The runner passes `--safe-mode`, which loads none of those sources and keeps the operator's login,
+  and sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, which drops the git status snapshot (recent commit
+  subjects of the checkout can state a conclusion). Measured with marker files: user-level `CLAUDE.md`,
+  `CLAUDE.md`/`AGENTS.md` of the working directory and the home directory, a subdirectory `CLAUDE.md`
+  after a read, and auto memory all reached the lane without the flag and none did with it.
+  `--bare` would also drop them but refuses the login (it needs an API key); `--setting-sources ""` drops
+  the instruction files but still loads auto memory; a fresh `CLAUDE_CONFIG_DIR` loses the login.
+- What still reaches the lane: the CLI's environment block (working directory, platform, model, date), its
+  agent identity line, and the account e-mail address the login attaches. Nothing measured removes the
+  e-mail while keeping the login.
+- Not measured: `CLAUDE.local.md` and the git snapshot (excluded per the CLI documentation); managed-policy
+  settings and policy-configured hooks, which the CLI says still apply; whether a default model, `env`
+  block or `apiKeyHelper` in the operator's settings still applies under `--safe-mode`. An operator who
+  relies on a settings-only default model or proxy should pass `--model` explicitly and check the lane.
+- Each invocation writes `context_sources.json` into its attempt directory (`OUT.attempts/run.*/`, or
+  `TRACE_DIR/run.*/` with `--trace-dir`): mechanism, excluded sources (measured, and stated by the CLI
+  documentation), admitted sources and what was not measured. Under `--live-capture` each attempt also writes
+  `attempt_N.context_observed.json` from the stream's init event. A lane declared hermetic whose init
+  event reports an auto-memory location, or that succeeds without any init event, exits `78` without retry
+  and its answer is moved to `OUT.not-hermetic` (partial text to `OUT.not-hermetic.partial`). The
+  observation lists the skills and agents the lane could use; its `plugins_installed` field lists installed
+  plugins, which the init event names even when none is loaded. The init event does not list loaded `CLAUDE.md` files;
+  their exclusion rests on the CLI flag, measured with marker files when this default was introduced.
+- `--load-operator-context` restores the CLI's default loading for interactive-style uses; the records then
+  state `hermetic: false`. Independent review and derivation lanes must not pass it. Material a lane
+  legitimately needs goes into its request.
+- A CLI version that does not know `--safe-mode` is expected to reject it as an unknown option, so the
+  call fails instead of running with the operator's context (not tested against an older CLI).
 
 ## Progress and durable evidence
 
