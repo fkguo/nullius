@@ -646,7 +646,8 @@ from real contamination events that voided otherwise-clean review rounds:
   sources**) and records the allowed sources per invocation in `context_sources.json` of the attempt
   directory (`OUT.attempts/run.*/` unless a trace directory is given), plus the observed init-event check
   under live capture; a rejected lane has `runner_failure_reason: not_hermetic`, class `configuration`,
-  and is not counted as a backend outage. Other backends' runners, and the project-local Claude runner
+  and is not counted as a backend outage (it still triggers fallback; a lane recovered on another backend
+  carries no hermetic record). Other backends' runners, and the project-local Claude runner
   copy that the research-team workflow installs, do not yet exclude or record this; their lanes carry no
   such attestation.
 - **Seal the independent phase from the first round (sealed-derivation protocol).** Whenever a
