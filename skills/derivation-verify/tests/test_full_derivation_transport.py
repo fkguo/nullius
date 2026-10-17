@@ -396,8 +396,10 @@ def test_lane_above_the_window_without_observable_reads_is_refused_not_truncated
     assert n_ok == 0 and called == [] and not cmp['majority_indices']
     requests = cmp['request_capacity']['judges'][0]['requests']
     lanes = [r for r in requests if r['kind'] == 'lane']
-    assert len(lanes) == 2 and all(r['carried'] == 'files' and r['status'] == 'unavailable' for r in lanes)
-    assert all(r['reason'].startswith('unavailable: content not completely read') for r in lanes)
+    # Above the byte budget the material would travel inline, admitted only on observed token usage; a host
+    # callable observes none, so nothing is sent.
+    assert len(lanes) == 2 and all(r['carried'] == 'inline_observed' and r['status'] == 'unavailable' for r in lanes)
+    assert all(r['reason'].startswith('unavailable: content not completely read') and 'observes no token usage' in r['reason'] for r in lanes)
     assert all(ds[i]['transport']['captured_records'] for i in range(2))
 
 

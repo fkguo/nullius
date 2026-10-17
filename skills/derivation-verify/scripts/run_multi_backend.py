@@ -934,6 +934,10 @@ def _tiebreak_prompt(ctx: str, c: dict, method: str, prior: list[dict]) -> str:
     return _derive_prompt(ctx, c, method)
 
 
+_CONTIGUOUS_SPAN = ("Every source_span is one contiguous exact copy of text as read: never join separate passages, never shorten "
+                    "it with \"...\" or an ellipsis, never paraphrase; quote a shorter passage instead. ")
+
+
 def _lane_entry(d: dict, family: str, index: int) -> dict:
     """One lane as every comparator request carries it. Byte-identical copies only consume the request
     budget: original_assistant_output equals transport.raw_output; derivation_context appears only when it
@@ -1008,7 +1012,7 @@ def _assess_prompt(ctx: str, c: dict, entry: dict, frozen: Optional[dict] = None
         "It has booleans input_independent, execution_independent, construction_independent, method_applicable, diagnostic; "
         "unresolved_defects (array); observed_method (source-grounded description, not the hint); evidence with input, execution, "
         "construction, applicability, diagnostic. Each entry quotes an exact source_span plus a substantive reason: construction/applicability/diagnostic MUST quote, when derivation_context is present, its text OUTSIDE every answer-shaped JSON object (the selected one and any other decodable JSON object with a canonical_answer or derivation_summary key, e.g. drafts or wrappers), or the COMPLETE structured derivation body as read; the fields of those objects are never derivation steps; input/execution may also quote the transport record exactly as shown (request, raw_output, invocation, captured_records) or any of its decoded string values, or derivation_summary. "
-        "Equivalence between answers is decided elsewhere from the stated answers only, so say here whether the written steps of this "
+        + _CONTIGUOUS_SPAN + "Equivalence between answers is decided elsewhere from the stated answers only, so say here whether the written steps of this "
         "derivation arrive at its stated canonical_answer: answer_support {supports_canonical_answer:boolean, source_span (the concluding "
         "steps as written, quoted under the construction rule), reason}; false when the written steps reach a different result, "
         "contradict it or do not reach it. "
@@ -1026,7 +1030,7 @@ def _risk_prompt(ctx: str, c: dict, entries: list[dict], frozen: Optional[dict] 
         + _material_section(entries, frozen) + _MATERIAL_RULES +
         f"Explicit method risk required: {c.get('requires_method_diversity') is True}. Declared risk: {c.get('method_diversity_risk', 'assess shared failure modes substantively')}. "
         f"Provide method_risk_assessments with exactly one entry, indices {pair}: {{indices:[i,j], addresses_shared_failure:boolean, methods_distinct:boolean (actual mechanisms, never hint labels), risk:string, method_analysis:string, "
-        "evidence:[{index,source_span,reason} from each lane's derivation_context text outside every decodable answer-shaped JSON object when present or its COMPLETE structured derivation BODY as read, never fields of those objects, request or metadata]}. Approval must explain with both actual derivations why the declared shared "
+        "evidence:[{index,source_span,reason} from each lane's derivation_context text outside every decodable answer-shaped JSON object when present or its COMPLETE structured derivation BODY as read, never fields of those objects, request or metadata]}. " + _CONTIGUOUS_SPAN + "Approval must explain with both actual derivations why the declared shared "
         "failure mode is independently tested or avoided through substantively distinct mechanisms; differently named hints or rewordings do not establish orthogonality. "
         "Missing material or unsupported risk assessment is unavailable, never approval."
     )
@@ -1066,7 +1070,7 @@ def _combined_prompt(ctx: str, c: dict, derivations: list[dict], families: list[
         "known relevant defects and non-diagnostic checks. Same/similar methods, same family and shared legitimate libraries alone do not reject. "
         f"Explicit method risk required: {c.get('requires_method_diversity') is True}. Declared risk: {c.get('method_diversity_risk', 'assess shared failure modes substantively')}. "
         "Provide method_risk_assessments: array of {indices:[i,j], addresses_shared_failure:boolean, methods_distinct:boolean (actual mechanisms, never hint labels), risk:string, method_analysis:string, "
-        "evidence:[{index,source_span,reason} from each lane's derivation_context text outside every decodable answer-shaped JSON object when present or its COMPLETE structured derivation BODY as read, never fields of those objects, request or metadata]}. Approval must explain with both actual derivations why the declared shared "
+        "evidence:[{index,source_span,reason} from each lane's derivation_context text outside every decodable answer-shaped JSON object when present or its COMPLETE structured derivation BODY as read, never fields of those objects, request or metadata]}. " + _CONTIGUOUS_SPAN + "Approval must explain with both actual derivations why the declared shared "
         "failure mode is independently tested or avoided through substantively distinct mechanisms; differently named hints or rewordings do not establish orthogonality. "
         "Missing material or unsupported risk assessment is unavailable, never approval."
     )
@@ -1293,15 +1297,22 @@ def _aggregate_judges(verdicts: list, n_derivations: int, derivations: Optional[
     return cmp, len(ok)
 
 
+# Carriage only, never acceptance: material is read from frozen files only when its bytes exceed the token
+# window even at this many bytes per token; below that it travels inline and observed usage decides.
+INLINE_BYTES_PER_TOKEN = 4
+
+
 def _plan_requests(c, ctx, derivations, families, budgets, material_root):
     """Every comparator request of one comparison, decided before any comparator starts. When every lane fits
     one request, that single request holds every lane's complete material (clustering, recomputation, every
     assessment and any method risk in one context, as before). Otherwise there is a joint
     equivalence/adjudication request over the canonical answers, one assessment request per lane holding that
     lane's complete material, and, for an explicit method risk, one request per lane pair holding both complete
-    materials. Such a request carries its material inline when it fits the window; otherwise the material is
-    frozen to read-only part files (bytes + sha256) in a directory of that request's own, holding only its
-    lanes. Length decides only how material is carried, never whether it is assessed."""
+    materials. Such a request carries its material inline when it fits the byte budget; above it, still inline
+    ("inline_observed") and admitted only on the comparator's observed token usage within the window with no
+    compaction; only material whose bytes exceed INLINE_BYTES_PER_TOKEN times the token window is frozen to
+    read-only part files (bytes + sha256) in a directory of that request's own, holding only its lanes.
+    Length decides only how material is carried, never whether it is assessed."""
     from itertools import combinations
     combined = _combined_prompt(ctx, c, derivations, families)
     try:
@@ -1327,6 +1338,11 @@ def _plan_requests(c, ctx, derivations, families, budgets, material_root):
             continue
         except ValueError:
             pass
+        # Above the conservative byte budget the complete material still travels inline unless even a lower
+        # estimate of its tokens exceeds the window; whether it fitted is then decided by observed usage.
+        if len((system + prompt).encode("utf-8")) <= INLINE_BYTES_PER_TOKEN * budgets["context_tokens"]:
+            plans.append({"kind": kind, "lanes": lanes, "system": system, "mode": "inline_observed", "prompt": prompt})
+            continue
         plan = {"kind": kind, "lanes": lanes, "system": system, "mode": "files", "prompt": None}
         if material_root is not None:
             directory = material_root / ("-".join([kind] + [str(i) for i in lanes]))
@@ -1363,7 +1379,12 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
     keys = {"combined": {"majority_size", "majority_answer"}, "joint": {"majority_size", "majority_answer"}, "lane": {"independence_assessments"}, "pair": {"method_risk_assessments"}}
 
     def _unreadable(spec, plan):
-        """Why this judge cannot be shown a frozen-file request completely, decided before dispatch."""
+        """Why this judge cannot be shown a request's material completely, decided before dispatch."""
+        if plan["mode"] == "inline_observed":
+            if receipts is None or family_of(spec) != "claude":
+                return (NOT_READ + ": the complete material is above the conservative byte budget and this runner "
+                        "observes no token usage that could show it fitted the window; nothing is truncated")
+            return None
         if plan["mode"] != "files":
             return None
         if plan["prompt"] is None or reader is None or receipts is None:
@@ -1413,6 +1434,17 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
                     raise ValueError(coverage["reason"])
                 if extract_json(coverage["final_text"], prefer_keys=keys[plan["kind"]]) != extract_json(raw, prefer_keys=keys[plan["kind"]]):
                     raise ValueError(NOT_READ + ": the verdict was not given in a final message after the last read")
+            elif plan["mode"] == "inline_observed":
+                raw = run(spec, system, prompt, call_tag)
+                if isinstance(raw, str) and "{" not in raw and provider_stop(raw):
+                    raise ValueError("unavailable: provider safeguard stopped the comparator")
+                invocation = receipts.get(call_tag, {})
+                capacity = validate_request_capacity(system, prompt, invocation, budgets,
+                    expected_working_directory=str(Path.cwd().resolve()), above_byte_budget=True)
+                if any(item["output_tokens"] > OUTPUT_RESERVE for item in capacity["observed_usage"]):
+                    raise ValueError("unavailable: observed comparator output exceeds configured output budget")
+                if not isinstance(raw, str) or Path(invocation["output"]).read_bytes().decode("utf-8") != raw:
+                    raise ValueError("unavailable: comparator return differs from observed current report")
             else:
                 bound = validate_request_bytes(system, prompt, budgets)
                 # The injected host callable has no CLI capture/token protocol. Its

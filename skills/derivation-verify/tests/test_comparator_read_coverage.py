@@ -49,6 +49,9 @@ def long_lanes(tmp_path, count=2, tool_output=LONG_TOOL_OUTPUT):
 
 
 SPLIT_BUDGET = mb.request_budgets(context_bytes=80000)
+# A token window small enough that a ~300 kB lane is beyond it even at INLINE_BYTES_PER_TOKEN bytes per token,
+# so its material is read from frozen files.
+FILE_BUDGET = mb.request_budgets(60000)
 
 
 def medium_lanes(count, *, last_line='Therefore the sum is 42.'):
@@ -94,7 +97,7 @@ class ReadingComparator:
         self.prompts[tag] = prompt
         d = self.root / 'calls' / tag.replace('/', '__'); d.mkdir(parents=True)
         events, entries, final_id = [], [], 'msg_final'
-        usage = {'input_tokens': 3, 'cache_creation_input_tokens': 9000, 'cache_read_input_tokens': 60000, 'output_tokens': 40}
+        usage = {'input_tokens': 3, 'cache_creation_input_tokens': 9000, 'cache_read_input_tokens': 30000, 'output_tokens': 40}
 
         def call(message_id, blocks, call_usage=usage):
             events.append({'type': 'stream_event', 'event': {'type': 'message_start', 'message': {'id': message_id, 'content': []}}})
@@ -156,6 +159,13 @@ class ReadingComparator:
         calls = [e['event']['usage'] for e in events if e.get('type') == 'stream_event' and e['event'].get('type') == 'message_delta']
         terminal = {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': report,
                     'usage': {k: sum(u[k] for u in calls) for k in usage}}
+        if material_dir is None and self.mutation == 'usage-over-window':
+            terminal['usage'] = {**terminal['usage'], 'cache_read_input_tokens': self.request_budgets['context_tokens']}
+        if material_dir is None and self.mutation == 'no-usage':
+            terminal.pop('usage')
+            events = [e for e in events if not (e.get('type') == 'stream_event' and e['event'].get('type') == 'message_delta')]
+        if material_dir is None and self.mutation == 'compacted':
+            events.insert(0, {'type': 'system', 'subtype': 'compact_boundary', 'compact_metadata': {'trigger': 'auto'}})
         events.append(terminal)
         if self.mutation == 'changed-file' and material_dir is not None:
             victim = Path(parts[0]); victim.chmod(0o644); victim.write_text(victim.read_text() + ' ', encoding='utf-8')
@@ -190,7 +200,8 @@ class ReadingComparator:
 
 def compare(tmp_path, monkeypatch, mutation=None, ds=None, budgets=None):
     monkeypatch.setattr(runtime, '_authority_dir', lambda: tmp_path / 'host-authority')
-    ds = ds or long_lanes(tmp_path)
+    if ds is None:
+        ds, budgets = long_lanes(tmp_path), budgets or FILE_BUDGET
     run = ReadingComparator(tmp_path, mutation, budgets)
     cmp, n_ok = mb._compare(CLAIM, 'Only raw inputs, no expected answer.', ds, ['host'] * len(ds), ['claude/opus'], run, tag='compare')
     return ds, cmp, n_ok, run
@@ -268,8 +279,8 @@ def test_lane_larger_than_the_window_is_read_in_chunks_and_passes_only_with_full
         # Each model call of the reading session fits the window; their sum, which the result event
         # reports, does not, so the window is judged per call.
         calls = r['capacity']['observed_usage']
-        assert len(calls) >= 4 and all(u['input_tokens'] + u['output_tokens'] <= mb.request_budgets()['context_tokens'] for u in calls)
-        assert sum(u['input_tokens'] + u['output_tokens'] for u in calls) > mb.request_budgets()['context_tokens']
+        assert len(calls) >= 4 and all(u['input_tokens'] + u['output_tokens'] <= FILE_BUDGET['context_tokens'] for u in calls)
+        assert sum(u['input_tokens'] + u['output_tokens'] for u in calls) > FILE_BUDGET['context_tokens']
         assert r['capacity']['usage_scope'] == 'per_call'
         # The frozen parts, joined line by line, are exactly the lane entry an inline request would carry.
         i = r['lanes'][0]
@@ -283,7 +294,7 @@ def test_lane_larger_than_the_window_is_read_in_chunks_and_passes_only_with_full
     # Reading a part in two offset/limit halves, or in the older numbered layout, covers it the same way.
     for mutation in ('offset-halves', 'arrow-layout'):
         sub = tmp_path / mutation; sub.mkdir()
-        _, cmp2, n2, _ = compare(sub, monkeypatch, mutation, ds=long_lanes(sub))
+        _, cmp2, n2, _ = compare(sub, monkeypatch, mutation, ds=long_lanes(sub), budgets=FILE_BUDGET)
         assert n2 == 1 and cmp2['majority_indices'] == [0, 1] and len(cmp2['independence_assessments']) == 2, mutation
 
 
@@ -319,11 +330,11 @@ def test_a_runner_or_comparator_that_cannot_show_reads_leaves_long_lanes_unavail
     ds = long_lanes(tmp_path)
     class NoFileReads(ReadingComparator):
         run_reading = None  # no file-reading call: reads cannot be observed
-    run = NoFileReads(tmp_path)
+    run = NoFileReads(tmp_path, budgets=FILE_BUDGET)
     cmp, n_ok = mb._compare(CLAIM, 'raw inputs', ds, ['host', 'host'], ['claude/opus'], run, tag='compare')
     assert n_ok == 0 and run.prompts == {}  # fewer than two lanes can be shown completely: nothing is sent
     assert all('cannot show the comparator\'s file reads' in r['reason'] for r in lane_requests(cmp))
-    run = ReadingComparator(tmp_path / 'other'); (tmp_path / 'other').mkdir()
+    run = ReadingComparator(tmp_path / 'other', budgets=FILE_BUDGET); (tmp_path / 'other').mkdir()
     cmp, n_ok = mb._compare(CLAIM, 'raw inputs', ds, ['host', 'host'], ['codex/some-model'], run, tag='compare')
     assert n_ok == 0 and run.prompts == {}
     assert all('Claude CLI live capture' in r['reason'] for r in lane_requests(cmp))
@@ -383,7 +394,7 @@ def test_capture_lines_with_unicode_line_separators_and_byte_order_marks_are_rea
     # completely read lane fail: only "\n" ends an event, and no line or part starts with U+FEFF.
     awkward = ('sample line\u2028with separators\u2029and\x85next ' + '\ufeff' * 3 + 'mark\n') * 4000
     ds = long_lanes(tmp_path, tool_output=awkward)
-    _, cmp, n_ok, _ = compare(tmp_path, monkeypatch, ds=ds)
+    _, cmp, n_ok, _ = compare(tmp_path, monkeypatch, ds=ds, budgets=FILE_BUDGET)
     assert n_ok == 1 and mb.claim_status(cmp, ds, ['host', 'host'])[0], [r.get('reason') for r in lane_requests(cmp)]
     files = [f for r in lane_requests(cmp) for f in r['read_coverage']['files']]
     assert all(not Path(f['path']).read_text(encoding='utf-8').startswith('\ufeff') for f in files)
@@ -437,3 +448,60 @@ def test_lane_and_pair_requests_read_as_reviewing_a_written_document():
                  'contaminated inputs', 'known relevant defects and non-diagnostic checks', 'Missing material is unavailable, never approval.'):
         assert kept in files, kept
     assert 'Missing material or unsupported risk assessment is unavailable, never approval.' in texts['pair files']
+
+
+
+def test_material_above_the_byte_budget_travels_inline_and_counts_on_observed_usage(tmp_path, monkeypatch):
+    # The byte budget is a conservative upper bound on tokens. Above it, a lane that is not beyond the token
+    # window even at INLINE_BYTES_PER_TOKEN bytes per token travels inline, and counts only when the
+    # comparator's own capture shows its usage within the window and no compaction.
+    ds = long_lanes(tmp_path)
+    _, cmp, n_ok, run = compare(tmp_path, monkeypatch, ds=ds, budgets=mb.request_budgets())
+    lanes = lane_requests(cmp)
+    assert all(len(run.prompts[r['tag']].encode()) > mb.request_budgets()['context_bytes'] for r in lanes)
+    assert all(r['carried'] == 'inline_observed' and r['status'] == 'completed' for r in lanes)
+    assert all(r['capacity']['capacity_evidence'] == 'observed_usage' and r['capacity']['observed_usage'] for r in lanes)
+    assert all(mb._encoded([mb._lane_entry(ds[i], 'host', i)]) in run.prompts[r['tag']] for i, r in enumerate(lanes))
+    assert n_ok == 1 and mb.claim_status(cmp, ds, ['host', 'host'])[0]
+
+
+OBSERVED_REFUSALS = {'usage-over-window': 'observed request usage exceeds configured token window',
+                     'no-usage': 'request above the byte budget has no observed token usage witness',
+                     'compacted': 'original request context was observably compacted'}
+
+
+@pytest.mark.parametrize('mutation', sorted(OBSERVED_REFUSALS))
+def test_material_above_the_byte_budget_is_refused_without_a_clean_observed_fit(tmp_path, monkeypatch, mutation):
+    ds = long_lanes(tmp_path)
+    _, cmp, n_ok, _ = compare(tmp_path, monkeypatch, mutation, ds=ds, budgets=mb.request_budgets())
+    lanes = lane_requests(cmp)
+    assert all(r['carried'] == 'inline_observed' and r['status'] == 'unavailable' for r in lanes)
+    assert all(OBSERVED_REFUSALS[mutation] in r['reason'] for r in lanes), [r['reason'] for r in lanes]
+    assert not mb.claim_status(cmp, ds, ['host', 'host'])[0] and cmp['independence_assessments'] == []
+
+
+def test_only_material_beyond_the_token_window_is_read_from_files():
+    # Carriage by size: within the byte budget inline; above it inline with observed usage; beyond
+    # INLINE_BYTES_PER_TOKEN bytes per token of the window, frozen files.
+    entry = {'index': 0, 'family': 'f', 'canonical_answer': '42', 'derivation': 'x' * 300000, 'derivation_summary': 's'}
+    raw = json.dumps({'canonical_answer': '42', 'derivation': 'x' * 300000})
+    ds = [mb._execute_derivation(lambda *a: raw, 'claude/offline', 'neutral', 'raw operands', f'size-{i}') for i in range(2)]
+    modes = lambda budgets: [p['mode'] for p in mb._plan_requests(CLAIM, 'ctx', ds, ['f', 'f'], budgets, None) if p['kind'] == 'lane']
+    assert modes(mb.request_budgets()) == ['inline_observed', 'inline_observed']
+    assert modes(FILE_BUDGET) == ['files', 'files']
+    assert modes(mb.request_budgets(context_bytes=800000)) == ['inline', 'inline']
+
+
+def test_a_span_joining_passages_with_an_ellipsis_is_not_a_quote():
+    # A live assessor joined non-adjacent concluding lines with "..."; that is not an exact copy and refuses.
+    ds = medium_lanes(2)
+    lines = ds[0]['derivation'].split('\n')
+    joined = lines[1] + '\n...\n' + lines[-1]
+    for span, ok in ((lines[-1], True), (joined, False)):
+        support = {'supports_canonical_answer': True, 'source_span': span, 'reason': 'The concluding written step states the sum.'}
+        assert mb.answer_supported(ds[0], {'answer_support': support}) is ok
+        aa = assessments([dict(d) for d in ds])
+        for a in aa:
+            a['evidence']['construction']['source_span'] = span
+        assert (mb.assessed_indices(ds, aa) == [0, 1]) is ok
+    assert mb._CONTIGUOUS_SPAN.startswith('Every source_span is one contiguous exact copy of text as read')

@@ -75,10 +75,16 @@ def _per_call_usage(stream: Path) -> list[dict]:
     return observed
 
 
-def validate_request_capacity(system: str, prompt: str, invocation: dict, budgets: dict, *, expected_working_directory: str | Path | None = None, usage_per_call: bool = False) -> dict:
+def validate_request_capacity(system: str, prompt: str, invocation: dict, budgets: dict, *, expected_working_directory: str | Path | None = None, usage_per_call: bool = False, above_byte_budget: bool = False) -> dict:
     """With usage_per_call, a multi-turn session (e.g. a comparator reading frozen files) is bounded by
-    each model call's own usage; without per-call records it falls back to the summed result usage."""
-    bound = validate_request_bytes(system, prompt, budgets)
+    each model call's own usage; without per-call records it falls back to the summed result usage.
+    With above_byte_budget, a complete request larger than the conservative byte budget is admitted only
+    on observed token usage within the configured window (and no observed compaction): the byte budget
+    is a conservative upper bound, observed usage is the measurement."""
+    if above_byte_budget:
+        bound = len(system.encode("utf-8")) + len(prompt.encode("utf-8")) + PROTOCOL_RESERVE
+    else:
+        bound = validate_request_bytes(system, prompt, budgets)
     if type(invocation.get("exit_code")) is not int or invocation["exit_code"] != 0:
         raise ValueError("unavailable: actual request invocation did not complete successfully")
     output = Path(invocation["output"])
@@ -140,6 +146,8 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
         observations.append({"input_tokens": sum(fields), "output_tokens": emitted})
     if any(item["input_tokens"] + item["output_tokens"] > budgets["context_tokens"] for item in observations):
         raise ValueError("unavailable: observed request usage exceeds configured token window")
+    if above_byte_budget and not observations:
+        raise ValueError("unavailable: request above the byte budget has no observed token usage witness")
     if not observations and bound + OUTPUT_RESERVE > budgets["context_tokens"]:
         raise ValueError("unavailable: larger original request has no observed token capacity witness")
     return {**budgets, "conservative_input_bound": bound, "observed_usage": observations,

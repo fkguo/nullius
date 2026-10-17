@@ -176,6 +176,9 @@ requireAll('skills/derivation-verify/references/contract.md', read('skills/deriv
   ['split lane counts only with span-backed answer support', 'a lane assessment in this form counts only with `answer_support`'],
   ['per-lane form limitation stated', "no request reads two lanes' bodies except the pair requests of an explicit method risk"],
   ['read coverage, not length, decides', 'Read coverage, not length, decides whether lane material counts'],
+  ['above the byte budget inline, counted on observed usage', 'the request counts only when the comparator\'s own runtime-observed capture shows token usage within the configured window and no compaction'],
+  ['files only beyond the token window', 'Only material whose bytes exceed four times the token window'],
+  ['one contiguous exact span', 'Every source span is one contiguous exact copy of text as read'],
   ['a byte counts as read only when returned with its frozen text', 'a byte counts as read only when a Read result returned the line holding it, numbered as that line, with exactly the frozen text'],
   ['incomplete reads are unavailable, never truncated', 'otherwise it is unavailable as content not completely read, never truncated'],
   ['executors that cannot show reads leave long material unavailable', 'leave such material unavailable as content not completely read'],
@@ -224,6 +227,10 @@ requireAll('skills/derivation-verify/tests/test_comparator_read_coverage.py', re
   ['returned line number binding mutation', "'shifted-numbers': 'a returned line differs from the frozen bytes'"],
   ['spans checked against what was read witness', 'def test_spans_are_checked_against_exactly_what_the_comparator_read'],
   ['lane and pair requests phrased as reviewing a written document witness', 'def test_lane_and_pair_requests_read_as_reviewing_a_written_document'],
+  ['above-budget inline counted on observed usage witness', 'def test_material_above_the_byte_budget_travels_inline_and_counts_on_observed_usage'],
+  ['above-budget inline refused without a clean observed fit witness', 'def test_material_above_the_byte_budget_is_refused_without_a_clean_observed_fit'],
+  ['files only beyond the token window witness', 'def test_only_material_beyond_the_token_window_is_read_from_files'],
+  ['ellipsis-joined span refused witness', 'def test_a_span_joining_passages_with_an_ellipsis_is_not_a_quote'],
 ]);
 requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', read('skills/derivation-verify/tests/test_native_workflow_transport.mjs'), [
   ['native packet copy count witness', 'async function checkPacketCopies('],
