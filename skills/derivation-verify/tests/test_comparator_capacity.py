@@ -30,10 +30,13 @@ def compare(run, ds=None):
 def actual(tmp_path, monkeypatch, mode='complete', *, budget=None):
     monkeypatch.setattr(runtime,'_authority_dir',lambda:tmp_path/'host-authority')
     def run(model, system, prompt, tag):
-        d=tmp_path/'current';d.mkdir()
-        ds,_=json.JSONDecoder().raw_decode(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
-        report=json.dumps({'majority_answer':'42','majority_size':2,'majority_indices':[0,1],
-            'adjudicated_matches_majority':True,'independence_assessments':assessments(ds)})
+        # One directory per comparator request: the joint request and each per-lane request.
+        d=tmp_path/'current'/tag.replace('/','__');d.mkdir(parents=True)
+        reply={'majority_answer':'42','majority_size':2,'majority_indices':[0,1],'adjudicated_matches_majority':True}
+        if 'FULL_DERIVATION_RECORDS_JSON:\n' in prompt:
+            ds,_=json.JSONDecoder().raw_decode(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
+            reply={**reply,'independence_assessments':assessments(ds)}
+        report=json.dumps(reply)
         systemp,promptp,out=d/'system.txt',d/'prompt.txt',d/'out.txt'
         systemp.write_text(system);promptp.write_text(prompt)
         cap=Path(str(out)+'.attempts')/'run.current';receipt=cap/'budget.json'
@@ -80,9 +83,11 @@ def test_actual_current_capacity_binds_complete_original_request_and_report(tmp_
     ds,cmp,count=compare(actual(tmp_path,monkeypatch))
     assert count==1 and mb.claim_status(cmp,ds,['host','host'])[0]
     assert cmp['request_capacity']['judges'][0]['capacity']['capacity_evidence']=='observed_usage'
-    packet=(tmp_path/'current/prompt.txt').read_text()
+    # Lanes that fit one request together are compared in that single request, as before.
+    packet=(tmp_path/'current/compare_j0_claude/prompt.txt').read_text()
     decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
-    assert all(d['derivation']==SUMMARY for d in decoded)
+    assert len(decoded)==2 and all('index' not in d and d['derivation']==SUMMARY for d in decoded)
+    assert cmp['request_capacity']['comparison_form']=='single_request'
 
 REFUSAL_REASONS={'over-window':'observed request usage exceeds configured token window',
     'output-budget':'observed comparator output exceeds configured output budget',
@@ -111,7 +116,7 @@ def test_full_packet_byte_budget_refuses_before_any_comparator_dispatch():
     ds=lanes();ds[0]['derivation']='Original complete bytes λ\n'*1000
     _,cmp,count=compare(run,ds)
     assert not calls and count==0
-    assert 'complete original request' in cmp['request_capacity']['judges'][0]['reason']
+    assert 'content not completely read' in cmp['request_capacity']['judges'][0]['reason']
     assert ds[0]['derivation'].endswith('λ\n')
 
 def test_host_token_window_refuses_before_dispatch_without_capture():
@@ -159,19 +164,29 @@ def test_gate_tracking_wrapper_keeps_caller_capacity_and_refuses_before_compare(
 def test_complete_multipart_report_reaches_actual_comparator_capacity(tmp_path,monkeypatch,mode):
     ds,cmp,count=compare(actual(tmp_path,monkeypatch,mode))
     assert count==1 and mb.claim_status(cmp,ds,['host','host'])[0]
-    output=(tmp_path/'current/out.txt').read_bytes().decode('utf-8')
-    sidecar=json.loads(next((tmp_path/'current/out.txt.attempts').glob('run.*/*.events.result.json')).read_text())
+    output=(tmp_path/'current/compare_j0_claude/out.txt').read_bytes().decode('utf-8')
+    sidecar=json.loads(next((tmp_path/'current/compare_j0_claude/out.txt.attempts').glob('run.*/*.events.result.json')).read_text())
     assert output != sidecar['result']
     assert cmp['request_capacity']['judges'][0]['capacity']['observed_usage']==[{'input_tokens':100,'output_tokens':20}]
     if mode=='multipart-crlf':assert '\r\n' in output
+
+
+def lane_packets(ds):
+    """The lane entries as their own per-lane requests carry them, one lane per request."""
+    decoded=[]
+    for i,d in enumerate(ds):
+        packet=mb._assess_prompt('Raw inputs only.',CLAIM,mb._lane_entry(d,'host',i))
+        entries,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
+        assert [e['index'] for e in entries]==[i]
+        decoded+=entries
+    return decoded
 
 
 def test_comparator_receives_steps_outside_selected_json_field():
     early='An earlier original premise and necessary step.\r\n'
     raw=early+json.dumps({'canonical_answer':'42','derivation':SUMMARY,'checkable_form':'42','confidence':'high'})
     ds=[mb._execute_derivation(lambda *a:raw,'claude/offline','neutral','raw operands',f'original-{i}') for i in range(2)]
-    packet=mb._compare_prompt('Raw inputs only.',CLAIM,ds,['host','host'])
-    decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
+    decoded=lane_packets(ds)
     assert all(d['derivation_context']==raw and d['derivation']==SUMMARY for d in decoded)
     assert all(mb.valid_derivation_transport(d) for d in ds)
 
@@ -179,9 +194,7 @@ def test_comparator_receives_steps_outside_selected_json_field():
 
 def decoded_packet(raw):
     ds=[mb._execute_derivation(lambda *a:raw,'claude/offline','neutral','raw operands',f'original-{i}') for i in range(2)]
-    packet=mb._compare_prompt('Raw inputs only.',CLAIM,ds,['host','host'])
-    decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
-    return ds,decoded
+    return ds,lane_packets(ds)
 
 
 def test_comparator_request_omits_byte_identical_copies_of_the_original_output():

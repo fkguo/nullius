@@ -180,6 +180,27 @@ async function checkCapacity(kind) {
   if (kind !== 'small') assert.equal(row.independent_confirmations,0)
 }
 for (const kind of ['small','byte-budget','token-window','invalid-budget','output-budget']) await checkCapacity(kind)
+
+// Long material in this executor: no capture of reads exists, so it is unavailable as content not completely
+// read, before any comparator call, and the complete lane text is kept, never cut.
+async function checkNativeLongMaterialUnavailable() {
+  const complete = 'Use neutral raw operands and derive the exact result.' + '\nComplete original λ step.'.repeat(20000)
+  let comparisons = 0
+  const agent = async (prompt, options) => {
+    if (options.label.startsWith('verify:')) return { canonical_answer:'42', derivation:complete, confidence:'high' }
+    comparisons++
+    return null
+  }
+  const result = await execute({context:'Neutral original input.',max_iter:0,claims:[{id:'long',statement:'Derive from raw inputs.',report_format:'integer'}]},agent,fs=>Promise.all(fs.map(f=>f())),()=>{},()=>{})
+  const row = result.matrix[0]
+  assert.equal(comparisons, 0)
+  assert.equal(row.converged, false)
+  assert.equal(row.independent_confirmations, 0)
+  assert.match(row.comparator_diagnostics.request_capacity.reason, /^Content not completely read: .*cannot show which file bytes a comparator was returned; nothing is truncated\.$/)
+  assert(row.derivation_records.every(d => d.derivation === complete))
+}
+await checkNativeLongMaterialUnavailable()
+console.log('1 native long-material read-coverage-unavailable case passed.')
 console.log('5 full original request/window/output Native capacity cases passed; token/capture/compaction witness unavailable.')
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from assessment_fixture import SUMMARY, assessed_comparison, assessments, transport_for
+from assessment_fixture import lane_entries, SUMMARY, assessed_comparison, assessments, transport_for
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/run_multi_backend.py'
 spec = importlib.util.spec_from_file_location('full_derivation_executor', SCRIPT)
@@ -30,14 +30,14 @@ def runner(*, missing_steps=False, risk=None, failed=False):
             payload = {'majority_answer': '42', 'majority_size': 2, 'majority_indices': [0, 1],
                        'adjudicated_matches_majority': True}
             parsed = assessed_comparison(payload, prompt)
-            if risk is not None:
+            if risk is not None and 'FULL_DERIVATION_RECORDS_JSON:\n' in prompt:
                 ds, _ = json.JSONDecoder().raw_decode(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
-                parsed['method_risk_assessments'] = [{'indices': [0, 1], 'addresses_shared_failure': risk, 'methods_distinct': risk,
+                parsed['method_risk_assessments'] = [{'indices': [e.get('index', k) for k, e in enumerate(ds)], 'addresses_shared_failure': risk, 'methods_distinct': risk,
                     'risk': 'Both use the same addition rule; a shared operand-transcription error must be independently diagnosed.',
                     'method_analysis': 'The frozen actual derivations show whether separate raw-operand checks address that failure; hint wording is irrelevant.',
                     'evidence': [{'index': i, 'source_span': d['derivation'],
                                  'reason': 'The actual lane steps, rather than its requested route name, determine what shared failure is addressed.'}
-                                 for i, d in enumerate(ds)]}]
+                                 for i, d in zip((e.get('index', k) for k, e in enumerate(ds)), ds)]}]
             return json.dumps(parsed)
         out = verdict()
         if missing_steps:
@@ -101,12 +101,12 @@ def test_complete_original_material_and_observed_requests_are_not_truncated():
                 for e in a['evidence'].values(): e['source_span'] = original[:200]
             return json.dumps(report)
         return json.dumps(verdict(original))
-    # Two complete 14.6 kB lanes must pass the comparator under the DEFAULT byte window
-    # (159,040 bytes) without truncation on this capture-free path; each lane's text appears
+    # Two complete 14.6 kB lanes fit one request under the DEFAULT byte window (159,040 bytes), so
+    # they are compared in that single request without truncation on this capture-free path; each lane's text appears
     # twice (derivation, transport.raw_output), pinned below together with the live-capture path.
     assert verify(CLAIM, run)['converged']
-    packet, _ = json.JSONDecoder().raw_decode(seen[0].split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
-    assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']
+    packet = lane_entries(seen)
+    assert len(seen) == 1 and len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']
     assert all(d['derivation'] == original for d in packet)
     assert all(CLAIM['statement'] in d['transport']['request']['prompt'] for d in packet)
     assert all(json.loads(d['transport']['raw_output'])['derivation'] == original for d in packet)
@@ -116,12 +116,17 @@ ANCHOR = 'UNIQUE_FINAL_SOURCE_ANCHOR'
 LONG_ORIGINAL = 'Begin complete derivation.\n' + '\n'.join(f'Original step {i}: preserve this exact evidence.' for i in range(300)) + '\n' + ANCHOR
 
 
+class LaneRequests(str):
+    """The per-lane assessment requests of one comparison, joined; .requests holds each one."""
+
+
 def packet_for(raw, lanes=2, run=None):
     run = run or (lambda *a: raw)
     ds = [mb._execute_derivation(run, 'claude/opus', mb._DERIVE_SYSTEM, 'neutral raw problem', f'fresh-{i}') for i in range(lanes)]
-    prompt = mb._compare_prompt('Only raw inputs, no expected answer.', CLAIM, ds, ['host'] * lanes)
-    packet, _ = json.JSONDecoder().raw_decode(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
-    return ds, prompt, packet
+    requests = [mb._assess_prompt('Only raw inputs, no expected answer.', CLAIM, mb._lane_entry(d, 'host', i)) for i, d in enumerate(ds)]
+    prompt = LaneRequests('\n'.join(requests))
+    prompt.requests = requests
+    return ds, prompt, lane_entries(requests)
 
 
 def copies_per_field(record):
@@ -141,7 +146,7 @@ def test_comparator_packet_repeats_lane_text_only_inside_transport():
     # Two complete 300-step lanes (14.6 kB each) fit the default window. The same fixture gave six
     # copies per record and 190 kB after 755a64dd added duplicates, four copies and 130 kB after
     # c41fe396 removed the byte-identical ones, and two copies and 66 kB once assessment_source went.
-    assert len(prompt.encode('utf-8')) <= mb.request_budgets()['context_bytes']
+    assert all(len(p.encode('utf-8')) <= mb.request_budgets()['context_bytes'] for p in prompt.requests)
     # With additional assistant text the complete original output travels once as derivation_context
     # and the packet's transport names it (raw_output_given_as) instead of repeating the bytes.
     raw = 'An earlier original premise and necessary step.\n' + json.dumps(verdict(LONG_ORIGINAL))
@@ -252,7 +257,7 @@ def text_values(blocks):
     return [b['block'][f] for b in blocks if isinstance(b.get('block'), dict) for f in ('text', 'result') if f in b['block']]
 
 
-def test_live_capture_stream_is_carried_as_content_blocks_and_two_lanes_fit(tmp_path):
+def test_live_capture_stream_is_carried_as_content_blocks_and_each_lane_request_fits(tmp_path):
     # A live stream repeats the output in its snapshot, deltas, result event and sidecar, and wraps
     # every delta in an event envelope: one realistic stream alone is larger than the default window.
     # The packet shows its content; every text value of the lane's own output is a reference to
@@ -280,8 +285,9 @@ def test_live_capture_stream_is_carried_as_content_blocks_and_two_lanes_fit(tmp_
         assert copies_per_field(record) == {'derivation': 1, 'transport': 1}
     assert prompt.count(ANCHOR) == 2 * len(packet)
     assert run.signature not in prompt and SESSION not in prompt and '-0000-4000-8000-' not in prompt
-    # Two complete 14.6 kB lanes with realistic live capture fit the default window, with margin.
-    assert mb.validate_request_bytes(mb._COMPARE_SYSTEM, prompt, mb.request_budgets()) <= 0.6 * mb.request_budgets()['context_bytes']
+    # Each lane's own request, a complete 14.6 kB lane with realistic live capture, fits the default
+    # window with margin (two real live-capture lanes measured 53.0 and 53.6 kB per request).
+    assert all(mb.validate_request_bytes(mb._ASSESS_SYSTEM, p, mb.request_budgets()) <= 0.4 * mb.request_budgets()['context_bytes'] for p in prompt.requests)
 
 
 
@@ -370,22 +376,31 @@ def test_captured_text_is_referenced_only_to_a_field_spans_can_quote(tmp_path):
     assert raw_copy == {'carried': 'by_reference', 'ref': extra[next(p for p in extra if p.endswith('raw-copy.log'))], 'proven': 'bytes equal derivation_context'}
 
 
-def test_live_capture_request_above_the_window_is_refused_not_truncated(tmp_path):
-    # Carriage changes what is shown, never the capacity rule: a request whose inline captured
-    # content exceeds the window is refused before the comparator runs, and nothing is cut.
+def test_lane_above_the_window_without_observable_reads_is_refused_not_truncated(tmp_path):
+    # Length decides only how a lane is carried, never whether it counts. A lane whose own inline
+    # material exceeds the window must be read from frozen files; a runner that cannot show the
+    # comparator's file reads (here an injected host callable with no capture) leaves it unavailable
+    # as content not completely read, before any comparator runs, and nothing is cut.
     raw = json.dumps(verdict(LONG_ORIGINAL))
     global TOOL_OUTPUT
-    saved, TOOL_OUTPUT = TOOL_OUTPUT, 'log line kept verbatim\n' * 4000
+    saved, TOOL_OUTPUT = TOOL_OUTPUT, 'log line kept verbatim\n' * 8000
     try:
         ds, prompt, packet = packet_for(raw, run=LiveCapture(tmp_path, raw, tool=True))
     finally:
         TOOL_OUTPUT = saved
-    assert all('log line kept verbatim\n' * 4000 in json.dumps(r, ensure_ascii=False) or 'log line kept verbatim\\n' * 4000 in json.dumps(r, ensure_ascii=False) for r in packet)
+    assert all('log line kept verbatim\\n' * 8000 in json.dumps(r, ensure_ascii=False) for r in packet)
+    assert all(len(p.encode('utf-8')) > mb.request_budgets()['context_bytes'] for p in prompt.requests)
     called = []
     run = lambda *a: called.append(a) or ''
     cmp, n_ok = mb._compare(CLAIM, 'Only raw inputs, no expected answer.', ds, ['host'] * len(ds), ['claude/opus'], run, tag='compare')
     assert n_ok == 0 and called == [] and not cmp['majority_indices']
-    assert cmp['request_capacity']['judges'][0]['reason'] == 'unavailable: complete original request exceeds configured byte budget; no truncation'
+    requests = cmp['request_capacity']['judges'][0]['requests']
+    lanes = [r for r in requests if r['kind'] == 'lane']
+    # Above the byte budget the material would travel inline, admitted only on observed token usage; a host
+    # callable observes none, so nothing is sent.
+    assert len(lanes) == 2 and all(r['carried'] == 'inline_observed' and r['status'] == 'unavailable' for r in lanes)
+    assert all(r['reason'].startswith('unavailable: content not completely read') and 'observes no token usage' in r['reason'] for r in lanes)
+    assert all(ds[i]['transport']['captured_records'] for i in range(2))
 
 
 def test_input_execution_spans_quote_captured_content_only_as_the_packet_shows_it(tmp_path):
@@ -421,7 +436,7 @@ def test_input_execution_spans_match_packet_transport_encoding_and_decoded_value
     summary = 'Navigation "only"\nsecond line'
     raw = json.dumps({**verdict(SUMMARY), 'derivation_summary': summary})
     ds, prompt, packet = packet_for(raw)
-    encoded = prompt.split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1]
+    encoded = prompt.requests[0].split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1]
     shown = json.dumps(mb.packet_transport(ds[0]), ensure_ascii=False, sort_keys=True)
     assert shown in encoded and shown == json.dumps(packet[0]['transport'], ensure_ascii=False, sort_keys=True)
     escaped = json.dumps(raw, ensure_ascii=False)[1:-1]  # raw_output exactly as the packet shows it
@@ -469,7 +484,7 @@ def test_complete_original_output_with_text_outside_json_is_not_truncated():
             return json.dumps(report)
         return raw
     assert verify(CLAIM, run)['converged']
-    packet, _ = json.JSONDecoder().raw_decode(seen[0].split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
+    packet = lane_entries(seen)
     assert all(d['derivation'] == original and d['derivation_context'] == raw for d in packet)
     assert all(CLAIM['statement'] in d['transport']['request']['prompt'] for d in packet)
 

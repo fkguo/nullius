@@ -8,6 +8,7 @@ that signs old captures. Verification reads the fixed native host authority only
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import hmac
 import json
 import os
@@ -209,20 +210,36 @@ def _key(*, create: bool) -> bytes:
     if not stat.S_ISDIR(ds.st_mode) or ds.st_uid != os.getuid() or ds.st_mode & 0o077:
         raise ValueError("unavailable: unsafe host observation authority directory")
     path = directory / "authority.key"
-    if create:
-        try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        except FileExistsError:
-            pass
-        else:
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(secrets.token_bytes(32)); stream.flush(); os.fsync(stream.fileno())
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(fd, "rb") as stream:
-        fs = os.fstat(stream.fileno())
-        if not stat.S_ISREG(fs.st_mode) or fs.st_uid != os.getuid() or fs.st_mode & 0o077 or fs.st_nlink != 1:
-            raise ValueError("unavailable: unsafe host observation authority key")
-        key = stream.read()
+    # Creation and reads serialize on a lock file beside the key, so a concurrent first use never
+    # reads a key that another creator has opened but not yet completely written.
+    lock_fd = os.open(directory / "authority.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX if create else fcntl.LOCK_SH)
+        if create:
+            # Under the exclusive lock: a key left empty by a creator that died before writing never signed
+            # anything and is replaced; a new key is written to a temporary name and renamed into place
+            # complete, so the key name never holds a partial key, even after a crash.
+            try:
+                empty = path.lstat().st_size == 0 and stat.S_ISREG(path.lstat().st_mode)
+            except FileNotFoundError:
+                empty = None
+            if empty is None or empty:
+                temp = directory / f"authority.key.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+                fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                try:
+                    with os.fdopen(fd, "wb") as stream:
+                        stream.write(secrets.token_bytes(32)); stream.flush(); os.fsync(stream.fileno())
+                    os.replace(temp, path)
+                finally:
+                    temp.unlink(missing_ok=True)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd, "rb") as stream:
+            fs = os.fstat(stream.fileno())
+            if not stat.S_ISREG(fs.st_mode) or fs.st_uid != os.getuid() or fs.st_mode & 0o077 or fs.st_nlink != 1:
+                raise ValueError("unavailable: unsafe host observation authority key")
+            key = stream.read()
+    finally:
+        os.close(lock_fd)
     if len(key) != 32:
         raise ValueError("unavailable: invalid host observation authority key")
     return key

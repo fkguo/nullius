@@ -170,7 +170,19 @@ requireAll('skills/derivation-verify/references/contract.md', read('skills/deriv
   ['captured record carried by reference only on a proven equality', 'only when packet assembly proves the bytes equal a shipped field'],
   ['live stream carried as content blocks with proven text slices', 'proven equal to at assembly, and every other block and field'],
   ['captured content quoted only as the packet shows it', 'Input and execution spans quote captured content only as the packet shows it'],
-  ['refusal above the window, never truncation', 'a request that still exceeds it is refused, never truncated'],
+  ['one comparator request per lane holding its complete material', "each lane's assessment is made in its own comparator request that holds that lane's complete material"],
+  ['joint request holds no lane material and its assessments are discarded', 'holds no lane material, so any assessment it volunteers is discarded'],
+  ['all lanes in one request when they fit, as before', "a single comparator request holds every lane's complete material and supplies clustering, recomputation, every lane's assessment and any method risk together, as before"],
+  ['split lane counts only with span-backed answer support', 'a lane assessment in this form counts only with `answer_support`'],
+  ['per-lane form limitation stated', "no request reads two lanes' bodies except the pair requests of an explicit method risk"],
+  ['read coverage, not length, decides', 'Read coverage, not length, decides whether lane material counts'],
+  ['above the byte budget inline, counted on observed usage', 'the request counts only when the comparator\'s own runtime-observed capture shows token usage within the configured window and no compaction'],
+  ['files only beyond the token window', 'Only material whose bytes exceed four times the token window'],
+  ['single request kept above the byte budget on observed usage', 'or the lanes together are above the byte budget but every judge observes token usage'],
+  ['one contiguous exact span', 'Every source span is one contiguous exact copy of text as read'],
+  ['a byte counts as read only when returned with its frozen text', 'a byte counts as read only when a Read result returned the line holding it, numbered as that line, with exactly the frozen text'],
+  ['incomplete reads are unavailable, never truncated', 'otherwise it is unavailable as content not completely read, never truncated'],
+  ['executors that cannot show reads leave long material unavailable', 'leave such material unavailable as content not completely read'],
   ['provider refusal recorded apart', 'a lane stopped by the provider\'s safeguards is recorded in `provider_refusals`'],
 ]);
 // Lane requests ask for the written derivation; "original steps ... no truncation" wording was
@@ -194,19 +206,42 @@ requireAll('skills/claude-cli-runner/tests/test_complete_assistant_text.py', rea
 // The copy count per packet record is pinned by offline witnesses in both executors; prose alone erodes.
 requireAll('skills/derivation-verify/tests/test_full_derivation_transport.py', read('skills/derivation-verify/tests/test_full_derivation_transport.py'), [
   ['per-record copy count witness', 'def test_comparator_packet_repeats_lane_text_only_inside_transport'],
-  ['live-capture content-block carriage witness', 'def test_live_capture_stream_is_carried_as_content_blocks_and_two_lanes_fit'],
+  ['live-capture content-block carriage witness', 'def test_live_capture_stream_is_carried_as_content_blocks_and_each_lane_request_fits'],
   ['unproven captured content stays inline witness', 'def test_captured_content_not_proven_equal_to_a_shipped_field_stays_inline'],
-  ['live-capture refusal above the window witness', 'def test_live_capture_request_above_the_window_is_refused_not_truncated'],
+  ['lane above the window without observable reads witness', 'def test_lane_above_the_window_without_observable_reads_is_refused_not_truncated'],
   ['stream view omits only bookkeeping witness', 'def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_output'],
   ['captured text referenced only to a quotable field witness', 'def test_captured_text_is_referenced_only_to_a_field_spans_can_quote'],
   ['captured-content span sources witness', 'def test_input_execution_spans_quote_captured_content_only_as_the_packet_shows_it'],
-  ['live-capture two-lane margin assertion', "assert mb.validate_request_bytes(mb._COMPARE_SYSTEM, prompt, mb.request_budgets()) <= 0.6 * mb.request_budgets()['context_bytes']"],
-  ['two-lane fixture under the default window assertion', "assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']"],
+  ['live-capture per-lane request margin assertion', "assert all(mb.validate_request_bytes(mb._ASSESS_SYSTEM, p, mb.request_budgets()) <= 0.4 * mb.request_budgets()['context_bytes'] for p in prompt.requests)"],
+  ['two lanes in one request under the default window assertion', "assert len(seen) == 1 and len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']"],
+]);
+// Read coverage replaces length as the criterion; each rule is pinned by an offline witness that a mutation fails.
+requireAll('skills/derivation-verify/tests/test_comparator_read_coverage.py', read('skills/derivation-verify/tests/test_comparator_read_coverage.py'), [
+  ['per-lane requests carry one complete lane witness', 'def test_per_lane_requests_each_carry_one_complete_lane'],
+  ['chunked read with full coverage witness', 'def test_lane_larger_than_the_window_is_read_in_chunks_and_passes_only_with_full_coverage'],
+  ['incomplete or unfaithful reads refused witness', 'def test_incomplete_or_unfaithful_reads_are_refused'],
+  ['dropped read mutation', "'drop-one-read': 'some bytes of the frozen material were never returned to the comparator'"],
+  ['altered returned content mutation', "'altered-line': 'a returned line differs from the frozen bytes'"],
+  ['unobservable reads leave long lanes unavailable witness', 'def test_a_runner_or_comparator_that_cannot_show_reads_leaves_long_lanes_unavailable'],
+  ['aggregation not easier witness', 'def test_per_lane_assessment_cannot_make_aggregation_easier'],
+  ['answer support witness', 'def test_split_lane_counts_only_when_its_body_supports_its_stated_answer'],
+  ['returned line number binding mutation', "'shifted-numbers': 'a returned line differs from the frozen bytes'"],
+  ['spans checked against what was read witness', 'def test_spans_are_checked_against_exactly_what_the_comparator_read'],
+  ['lane and pair requests phrased as reviewing a written document witness', 'def test_lane_and_pair_requests_read_as_reviewing_a_written_document'],
+  ['above-budget inline counted on observed usage witness', 'def test_material_above_the_byte_budget_travels_inline_and_counts_on_observed_usage'],
+  ['above-budget inline refused without a clean observed fit witness', 'def test_material_above_the_byte_budget_is_refused_without_a_clean_observed_fit'],
+  ['files only beyond the token window witness', 'def test_only_material_beyond_the_token_window_is_read_from_files'],
+  ['ellipsis-joined span refused witness', 'def test_a_span_joining_passages_with_an_ellipsis_is_not_a_quote'],
+  ['single request above the byte budget witness', 'def test_single_request_above_the_byte_budget_holds_every_lane_on_observed_usage'],
+  ['single request fallback witness', 'def test_single_request_over_the_window_falls_back_to_lanes_assessed_one_per_request'],
+  ['no fallback when one judge counted witness', 'def test_single_request_does_not_fall_back_when_one_judge_counted'],
+  ['refused before dispatch without observable usage witness', 'def test_material_above_the_byte_budget_is_refused_before_dispatch_when_usage_cannot_be_observed'],
 ]);
 requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', read('skills/derivation-verify/tests/test_native_workflow_transport.mjs'), [
   ['native packet copy count witness', 'async function checkPacketCopies('],
   ['native input/execution span sources witness', 'await checkSpanSources('],
   ['native no-capture transport witness', 'await checkNativeCapturedRecords()'],
+  ['native long material unavailable as content not completely read witness', 'await checkNativeLongMaterialUnavailable()'],
 ]);
 
 // A lane carries no operator memory: the prose in both verification skills, the runner's default
