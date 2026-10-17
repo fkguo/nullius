@@ -287,7 +287,7 @@ For front-door drift, start with:
 
 ## Citation
 
-If Nullius contributed to your work, please cite the version you used. Every GitHub release is archived on Zenodo and receives its own DOI; the DOI for the current release is recorded in [`CITATION.cff`](./CITATION.cff) (GitHub renders it under "Cite this repository"). Until the first archived release is published, cite the repository directly:
+If Nullius contributed to your work, please cite the version you used. Every GitHub release is archived on Zenodo and receives its own DOI; the DOI for the current release is recorded in [`CITATION.cff`](./CITATION.cff) (GitHub renders it under "Cite this repository"). Version 0.6.0 is [doi:10.5281/zenodo.23436003](https://doi.org/10.5281/zenodo.23436003); the concept DOI [10.5281/zenodo.23436002](https://doi.org/10.5281/zenodo.23436002) always resolves to the latest version.
 
 ```bibtex
 @software{nullius,
@@ -295,6 +295,7 @@ If Nullius contributed to your work, please cite the version you used. Every Git
   title   = {Nullius: an evidence-first harness for agent-assisted research},
   year    = {2026},
   version = {0.6.0},
+  doi     = {10.5281/zenodo.23436003},
   url     = {https://github.com/fkguo/nullius}
 }
 ```
