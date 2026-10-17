@@ -24,6 +24,27 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "recorded_value": "1.92",       // the value folded into the durable record (only if reliable)
       "recorded_setting": "grid=(24,16,16,10), nodes=36, method=AAA",
 
+      // G0 — required accuracy, error budget and total error. REQUIRED on every row. The required
+      // accuracy is the strictest over every use the quantity serves (never what the method can
+      // achieve); the budget names exactly one dominant source (where the next refinement goes); the
+      // total error combines the sources by a stated rule, and a `reliable` row's total error is at or
+      // below the required accuracy (stop there — further refinement needs the owner's authorization).
+      "required_accuracy": {
+        "kind": "absolute",           // "absolute" | "relative"
+        "value": 0.02,                // the strictest of the uses below
+        "uses": [
+          { "source": "comparison_uncertainty", "value": 0.02,
+            "basis": "compared against a competing model's value quoted with an uncertainty of 0.02" },
+          { "source": "display", "value": 0.029,
+            "basis": "quoted to one decimal (round half up); 0.03 below the boundary 1.95, so the error stays strictly inside 0.03 — one unit of the next decimal inside it" }
+        ]
+      },
+      "error_budget": [
+        { "source": "continuation method (spread between the two independent continuations below)", "estimate": 0.009, "dominant": true },
+        { "source": "integration grid (change across the last refinement step)", "estimate": 0.007, "dominant": false }
+      ],
+      "total_error": { "rule": "linear_sum", "value": 0.016 },
+
       // G1 — discretization convergence. value MUST be stable as setting refines.
       "refinement": [
         { "setting": "grid=(12,10,10,8)", "value": "1.913" },
@@ -34,8 +55,24 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
       // G2 — independent-confirmation cross-check. >=2 independent evidence lanes; agree within tolerance.
       "cross_method": [
-        { "method": "AAA continuation", "value": "1.920" },
-        { "method": "Thiele continuation", "value": "1.929" }
+        { "method": "AAA continuation", "value": "1.920",
+          "method_diversity": "rational (barycentric) continuation; differs from the second lane's continued-fraction form",
+          "model_family": "one agent family built both lanes — model-family independence not established",
+          "execution_independence": "separately written routines, run in separate processes",
+          "input_independence": "both lanes read the frozen grid samples; neither saw the other's value before running",
+          "raw_input_provenance": "the converged-grid samples, read directly from the run artifact",
+          "applicability": "well conditioned for the node counts used; nodes stay away from the continuation's poles",
+          "known_defects": "spurious low-chi2 wells at low node counts (G1 provenance) — excluded by the converged node count",
+          "diagnostic_limits": "cannot resolve differences below the 0.009 spread to the second continuation" },
+        { "method": "Thiele continuation", "value": "1.929",
+          "method_diversity": "continued-fraction continuation; differs from the first lane's barycentric form",
+          "model_family": "same agent family as the first lane — model-family independence not established",
+          "execution_independence": "separately written routine, separate process",
+          "input_independence": "frozen grid samples only; the first lane's value was withheld until both had run",
+          "raw_input_provenance": "the same converged-grid samples, re-read by a separately written routine",
+          "applicability": "stable in this node range; known to destabilize past the range used",
+          "known_defects": "none found at this node count; checked against the AAA result above",
+          "diagnostic_limits": "shares the grid samples, so it cannot test the integration grid (the ladder does)" }
       ],
       "methods_agree": true,
       "tolerance": "abs < 0.02",
@@ -74,7 +111,9 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       //   "residual_def": "‖[P,O]ψ‖/‖Oψ‖ (or true-operator ‖Oψ−λψ‖/‖Oψ‖ for a projected eigenvalue)",
       //   "production_setting": "<the setting that produced recorded_value>",
       //   "tested_setting": "<MUST equal production_setting>",
-      //   "residual": 1.3e-14, "threshold": 1e-10, "command": "<one-command repro>", "passed": true }
+      //   "residual": 1.3e-14, "threshold": 1e-10,
+      //   "threshold_basis": "<one line: what the threshold must detect, or how a residual of that size propagates into the quantity>",
+      //   "command": "<one-command repro>", "passed": true }
       "method_precondition": null,
 
       // G8 — reference-number reproduction. null unless the result CLAIMS to match a published value;
@@ -122,6 +161,19 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "verdict": "reliable",
       "recorded_value": "1",
       "recorded_setting": "rectangle Re[1.28,1.46] x Im[-0.18,-0.055] on the principal branch",
+      "required_accuracy": {
+        "kind": "absolute", "value": 0.25,
+        "uses": [
+          { "source": "downstream_sensitivity", "value": 0.25,
+            "basis": "an integer count: the rounded count changes only near 0.5, so 0.25 is the decision margin" }
+        ]
+      },
+      "error_budget": [
+        // From the refinement ladder, NOT from closeness to an integer: an inaccurate integral can sit
+        // close to the wrong integer, so the integer residual below is a consistency check only.
+        { "source": "contour sampling (change across the last refinement step)", "estimate": 0.007, "dominant": true }
+      ],
+      "total_error": { "rule": "linear_sum", "value": 0.007 },
       "refinement": [
         { "setting": "contour samples = 512", "value": "0.991" },
         { "setting": "contour samples = 2048", "value": "0.998" }
@@ -129,11 +181,27 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "converged": true,
       "mirage": false,
       "cross_method": [
-        { "method": "argument-principle winding of D(z)", "value": "1" },
-        { "method": "sign-change scan of the characteristic determinant", "value": "1" }
+        { "method": "argument-principle winding of D(z)", "value": "1",
+          "method_diversity": "a single contour integral of D'/D",
+          "model_family": "one agent family built both lanes — model-family independence not established",
+          "execution_independence": "production quadrature routine",
+          "input_independence": "the region and D(z) only; no expected count was given",
+          "raw_input_provenance": "D(z) evaluated by the production evaluator on the contour samples",
+          "applicability": "D analytic and pole-free in R1; no zero on or near the contour (see the invariant's preconditions)",
+          "known_defects": "a contour passing close to a zero is under-resolved between samples — excluded by the min |D| bound below",
+          "diagnostic_limits": "counts zeros, does not locate them" },
+        { "method": "independent subdivision count: R1 split into four sub-rectangles, each winding evaluated by a separately written quadrature routine; the sub-counts sum to 1", "value": "1",
+          "method_diversity": "four sub-region integrals summed; a different contour geometry from the first lane",
+          "model_family": "same agent family as the first lane — model-family independence not established",
+          "execution_independence": "separately written quadrature routine, separate process",
+          "input_independence": "the region and D(z) only; the first lane's count was withheld",
+          "raw_input_provenance": "D(z) re-evaluated on the sub-rectangle contours, including the new internal boundaries",
+          "applicability": "valid only when no zero lies on or near an internal boundary — min |D| on the internal boundaries is 0.18",
+          "known_defects": "none found; the sub-counts are each within 0.01 of an integer",
+          "diagnostic_limits": "shares the evaluator D(z), so it cannot detect an error in D itself" }
       ],
       "methods_agree": true,
-      "tolerance": "|raw_winding - round| < 0.05",
+      "tolerance": "integer counts equal",
       // G3 invariant — record the semantics, not just a boolean (an auditor must see WHAT was counted).
       "invariant_check": {
         "kind": "argument-principle winding number",
@@ -142,10 +210,14 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
         "region": "Re[1.28,1.46] x Im[-0.18,-0.055]",
         "contour": "rectangle, positively oriented (CCW)",
         "sheet": "principal branch (name the sheet/branch explicitly when the function is multivalued)",
-        "preconditions_checked": ["meromorphic in R1", "no zero/pole on the contour (min |D| on Gamma = 0.21)", "correct sheet"],
+        "preconditions_checked": ["meromorphic in R1", "no zero/pole on or near the contour: min |D| on Gamma = 0.21, with the bound on |D'| times the sample spacing well below it, so |D| cannot vanish between samples", "correct sheet"],
         "raw_winding": 0.998,
         "rounded_count": 1,
         "integer_residual": 0.002,
+        // A DIAGNOSTIC threshold, stricter than the 0.25 required accuracy and still blocking: it carries
+        // its rationale in `threshold_basis` (G0).
+        "integer_residual_threshold": 0.05,
+        "threshold_basis": "integrality consistency only: a resolved winding of an analytic function is an integer, so a residual above 0.05 means the contour is under-resolved and the count is not read; closeness to an integer is not an error bound (the sampling error comes from the ladder, in error_budget) and the near-contour hazard is bounded separately by the min |D| precondition",
         "passed": true
       },
       "regression_anchor": null,
@@ -160,6 +232,19 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "verdict": "fragile_method",
       "recorded_value": null,
       "recorded_setting": null,
+      "required_accuracy": {
+        "kind": "absolute", "value": 0.001,
+        "uses": [
+          { "source": "comparison_uncertainty", "value": 0.001,
+            "basis": "compared against a reference location quoted with an uncertainty of 0.001" }
+        ]
+      },
+      "error_budget": [
+        // null: the seed dependence of a fixed-seed search has not been estimated — only a
+        // non-reliable row may carry a null estimate.
+        { "source": "seed dependence of the fixed-seed search", "estimate": null, "dominant": true }
+      ],
+      "total_error": null,            // cannot be formed while a source is unestimated
       "refinement": [],
       "converged": false,
       "mirage": false,
@@ -180,7 +265,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
 | verdict | meaning | foldable? |
 |---|---|---|
-| `reliable` | passed **every applicable** G1–G10 check at the converged setting — including the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, and the G10 fast-path scoping where the value comes from an accelerated/heuristic path, not only G1–G3 | **yes** |
+| `reliable` | passed **every applicable** G0–G10 check at the converged setting — including the G0 total error at or below the required accuracy, the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, and the G10 fast-path scoping where the value comes from an accelerated/heuristic path, not only G1–G3 | **yes** |
 | `mirage` | a candidate optimum/feature that did not survive G1 refinement | no |
 | `unconverged` | value still moving as the resolution is refined (G1) | no |
 | `method_disagreement` | independent checks (G2) do not agree and the discrepancy is unexplained | no |
@@ -199,6 +284,41 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
 
 ## Field rules
 
+- **G0 required accuracy, error budget and total error (every row)**: `required_accuracy` is an object
+  with `kind` (`absolute` or `relative`), a non-empty `uses` list and a `value`. Each use is
+  `{ "source", "value", "basis" }` with `source` naming what the quantity is for (`display` — the digits
+  or stroke width it is shown with, about half the last displayed digit; `downstream_sensitivity` — how
+  far a conclusion moves when it moves; `comparison_uncertainty` — the uncertainty it is compared
+  against), a finite positive `value` and a non-empty one-line `basis`. List every use the quantity
+  serves; `required_accuracy.value` MUST equal the smallest use value (the strictest use governs). What
+  the method could achieve is never a source. `error_budget` lists at least one entry
+  `{ "source", "estimate", "dominant" }` with a finite non-negative `estimate` in the same `kind` as the
+  required accuracy (or `null` — not yet estimated — which only a non-`reliable` row may carry), and
+  **exactly one** entry marked `dominant: true`, whose estimate is not smaller than any other numeric
+  estimate; the dominant source is where the next refinement goes. `total_error` is
+  `{ "rule", "value" }` (plus `"basis"` for quadrature): `rule` is `linear_sum` (the default) or
+  `quadrature` (a one-line `basis` stating why the sources are independent is then required), and
+  `value` is not smaller than that rule applied to the estimates — checked exactly, so a total rounded
+  down is refused (round a quadrature total up) — and the stop rule compares that value with the
+  required accuracy. `total_error` may be `null` only on a
+  non-`reliable` row. A `reliable` row requires every estimate to be numeric and the total error to be
+  at or below the required accuracy; a row claiming `reliable` whose total error is above it is
+  `unconverged` instead. A total error more than three orders of magnitude below the required accuracy
+  is reported as a warning on any row: refinement was carried past the point the result needed. A
+  `tolerance` placed on the quantity itself is derived from the required accuracy, and a stricter one is
+  recorded in `notes` as informational and does not block the verdict; a diagnostic threshold (a
+  residual, an invariant's integer residual, a precondition) is set by what it must detect or by how
+  its defect propagates, carries that rationale, and keeps blocking. The rationale is machine-readable:
+  a present (non-null) `invariant_check` or `method_precondition` value must be an object carrying a
+  non-empty one-line `threshold_basis`.
+  Checker: `python3 $SKILL_DIR/scripts/check_reliability_matrix.py numerical_reliability_matrix_v1.json`
+  (exit 0 pass, 1 findings, 2 unreadable or malformed input; `--json` prints the findings). Accepted
+  numbers are written in at most 400 characters (an error estimate or accuracy carrying more digits
+  than that has no physical meaning, and the limit keeps an extreme literal from crashing the reader)
+  and are zero or between 1e-300 and 1e300 in magnitude; within that range every comparison is
+  exact (exact rationals; a quadrature total is compared through squares). It also
+  checks the matrix bookkeeping: `total`, `reliable` and `not_reliable` are required and must match the
+  rows, and `recorded_value`/`recorded_setting` are present exactly on `reliable` rows.
 - `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob (resolution
   **or** size/extent/parity, whichever the value or its precondition could depend on) for any
   `converged: true`. A single setting can never establish convergence. Two `refinement` entries whose

@@ -48,7 +48,9 @@ def actual(tmp_path, monkeypatch, mode='complete', *, budget=None):
         if mode in ('multipart','multipart-crlf'):
             records=[{'type':'assistant','message':{'id':mid,'content':[{'type':'text','text':body}]}}
                      for mid,body in [('first',report[:len(report)//2]),('last',terminal)]]+[event]
-        event_line=json.dumps({'type':'system','subtype':'compact_boundary'}) if mode=='compacted' else '\n'.join(json.dumps(r) for r in records)
+        # A compacted capture still ends in its terminal result event, which the result sidecar must match.
+        if mode=='compacted':records=[{'type':'system','subtype':'compact_boundary'}]+records
+        event_line='\n'.join(json.dumps(r) for r in records)
         script=d/'transport.py';script.write_text('from pathlib import Path\nimport sys\n'
             +f'cap=Path({str(cap)!r});cap.mkdir(parents=True)\n'
             +f'Path({str(out)!r}).write_text({report!r})\n'
@@ -82,12 +84,25 @@ def test_actual_current_capacity_binds_complete_original_request_and_report(tmp_
     decoded,_=json.JSONDecoder().raw_decode(packet.split('FULL_DERIVATION_RECORDS_JSON:\n')[1])
     assert all(d['derivation']==SUMMARY for d in decoded)
 
-@pytest.mark.parametrize('mode',['over-window','output-budget','compacted','failed','foreign-cwd','missing-observation','rehashed-output','changed-request','unsigned-window','relabeled-window'])
+REFUSAL_REASONS={'over-window':'observed request usage exceeds configured token window',
+    'output-budget':'observed comparator output exceeds configured output budget',
+    'compacted':'original request context was observably compacted',
+    'failed':'actual request invocation did not complete successfully',
+    'foreign-cwd':'runtime observation working directory mismatch',
+    'missing-observation':'out.txt.runtime-observation.json',
+    'rehashed-output':'runtime observation captured/report bytes mismatch',
+    'changed-request':'capacity receipt is not the exact successful original request',
+    'unsigned-window':'runtime observation capacity policy absent or mismatched',
+    'relabeled-window':'runtime observation capacity policy absent or mismatched'}
+
+@pytest.mark.parametrize('mode',sorted(REFUSAL_REASONS))
 def test_actual_capacity_failure_cannot_supply_confirmation(tmp_path,monkeypatch,mode):
     ds,cmp,count=compare(actual(tmp_path,monkeypatch,mode))
     assert count==0 and not mb.claim_status(cmp,ds,['host','host'])[0]
     assert cmp['accepted_indices']==[]
-    assert cmp['request_capacity']['judges'][0]['status']=='unavailable'
+    judge=cmp['request_capacity']['judges'][0]
+    assert judge['status']=='unavailable'
+    assert REFUSAL_REASONS[mode] in judge['reason']  # each mode is refused for its own reason
 
 def test_full_packet_byte_budget_refuses_before_any_comparator_dispatch():
     calls=[]

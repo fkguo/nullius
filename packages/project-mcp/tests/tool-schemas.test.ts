@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { findRequiredKeyMismatches } from '@nullius/shared';
+import { findBudgetBoundMismatches, findRequiredKeyMismatches } from '@nullius/shared';
 import { coreSpecs, isBackground } from '../src/policy.js';
 import { extraSchemas, toolsList } from '../src/registry.js';
 
@@ -21,6 +21,16 @@ describe('project transport inputSchema required keys', () => {
       return findRequiredKeyMismatches(schema, tool.inputSchema)
         .filter(issue => !rewrites.has(issue))
         .map(issue => `[${tool.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
+  });
+
+  it('budget fields publish the bounds their parser applies', () => {
+    const issues = toolsList().flatMap(tool => {
+      const extra = (extraSchemas as Record<string, z.ZodType>)[tool.name];
+      const schema = extra ?? coreSpecs.find(spec => spec.name === tool.name)?.zodSchema;
+      if (!schema) return [`[${tool.name}] no Zod schema`];
+      return findBudgetBoundMismatches(schema, tool.inputSchema).map(issue => `[${tool.name}] ${issue}`);
     });
     expect(issues).toEqual([]);
   });

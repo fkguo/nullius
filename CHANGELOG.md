@@ -3,11 +3,28 @@
 Notable changes to nullius. The format follows
 [Keep a Changelog](https://keepachangelog.com/). The project is **pre-1.0**: all
 workspace packages move in lockstep on a single `0.x` version, breaking changes may
-occur in any `0.x` release, and there is no API-stability promise yet. Dated, tagged
-releases begin with 0.6.0, the first release archived on Zenodo; `CITATION.cff` names
+occur in any `0.x` release, and there is no API-stability promise yet. The first release
+archived on Zenodo is 0.6.0 (0.3.0 and 0.4.0 carry git tags only; 0.5.0 was never
+tagged); `CITATION.cff` names
 the version to cite.
 
 ## [Unreleased]
+
+### Fixed
+- **figure-hygiene: complete sidecar example restored; 0.6.0 migration note.**
+  `references/display-semantics.md` again shows a complete provenance sidecar
+  (`figure`, `data`, `script`, `style`, `command`, the `series_provenance` block
+  with `table`, `series_column`, `fingerprint_column` and `check_command`, the
+  `display_acceptance` block and the top-level `sha256` map); 0.6.0 had dropped
+  it from SKILL.md without moving it. Migration note for the 0.6.0 final
+  display semantics gate: since 0.6.0
+  `check_display_acceptance.py` requires `display_acceptance.final_display` on
+  every manifest, so a bundle written before 0.6.0 (plotted quantities, verdict
+  bindings and an overview figure only) now returns `verdict_mismatch` with the
+  finding `semantics-malformed` (`final_display must be an object`), plus
+  `main-surface-not-covered` when the manifest has a top-level `figure`. Such a
+  bundle keeps its historical value but grants no new display acceptance until
+  `final_display` is added as the reference describes.
 
 ## [0.6.0] - 2026-10-16
 
@@ -59,8 +76,9 @@ and delegation contracts, and consolidated run authority under one canonical
   the run roots are stowed in a content store outside any git worktree, the
   originals become read-only, and a tracked hash manifest records them; `verify`
   and `materialize` restore or check them in another worktree. Research outputs
-  are classified before a commit or a pinned snapshot admits them, so bulk run
-  products stay out of history behind the manifest; a reserved file name alone
+  are classified when a pinned snapshot admits them, and by `check --staged --strict`
+  where the project calls it from its own pre-commit hook (nullius installs no hook),
+  so bulk run products can stay out of history behind the manifest; a reserved file name alone
   grants no exemption, only a validated stow record does. Two read-only commands
   measure before anything is deleted: `worktree-check` says whether removing a
   linked worktree loses anything (uncommitted and hidden tracked changes, a
@@ -106,8 +124,9 @@ and delegation contracts, and consolidated run authority under one canonical
   `package.json` and the README had declared is now present as a `LICENSE` file.
 - **Result traceability (`nullius trace`, `nullius result`, `nullius current`).** Every
   run binds to the exact code state at launch through origin stamps written at every
-  mandatory machine moment (computation front door, team-cycle run creation, result
-  registration at convergence); an append-only validity ledger records `void` /
+  mandatory machine moment (computation front door, team-cycle run creation; result
+  registration at convergence requires a stamped run); an append-only validity ledger
+  records `void` /
   `supersede` / `reinstate` rulings with normalized, existence-checked run ids; a
   results registry (`nullius result set-current`) names the producing run per headline
   result; `nullius current` renders the whole current-version answer as prose.
@@ -174,9 +193,11 @@ and delegation contracts, and consolidated run authority under one canonical
 - **skill `literature-to-package`**: turn a literature survey into the verified initial
   framework of a software package (skeleton, typed API stubs, equation inventory,
   conventions table, frozen reference values).
-- **Cross-family review by construction**: review-swarm, derivation-verify, and
-  paper-reviser stop hard-coding a claude+gemini pair and frame reviewers as "the
-  host's own family plus a different family"; Kimi Code is a first-class runner and a
+- **Cross-family review by construction**: review-swarm stops hard-coding a
+  claude+gemini pair and frames reviewers as "the host's own family plus a different
+  family"; paper-reviser accepts any of claude, gemini, codex, opencode and kimi as
+  writer and auditor (defaults remain claude + gemini) and advises a family other than
+  the writer's; Kimi Code is a first-class runner and a
   supported skills-market host.
 - **Reuse-or-deviate gate and review-verification contract clauses**: per-asset
   reuse-or-deviate decisions, independent recomputation from blind inputs with the
@@ -480,8 +501,8 @@ and delegation contracts, and consolidated run authority under one canonical
   current contract.
 - **Trace verbs** normalize path-shaped run ids, refuse ids neither disk nor ledger
   knows (nearest real ids named), and print the post-write validity, so a misaddressed
-  `void` can no longer strand a run silently; control-plane paths under `.nullius/` and
-  the project's own `backups/` no longer demote stamp honesty.
+  `void` can no longer strand a run silently; control-plane paths under `.nullius/` (its
+  `backups/` included) no longer demote stamp honesty.
 - **Atomic writes** across parents satisfy the durability contract (quarantine moves).
 - **project-mcp** enforces harness invocation before dispatch and stops the whole
   process group on timeout.

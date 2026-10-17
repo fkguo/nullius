@@ -15,7 +15,7 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 - `nullius` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate、主报告结构校验、proposal decisions 与 conversational decision ledger 都从这里进入。
 - `orch_*` 继续作为同一 control plane 的 MCP/operator counterpart。它是 control plane 的 host-facing bridge，不是另一个产品身份，也不是对 CLI 的替代。
 - `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。`@nullius/hep-mcp` 同时把这些 provider 工具作为入口纳入自身工具面（复用各 provider 包的 `tooling`），因此在一个 HEP 会话里即可使用文献、数据、参考与 Zotero 能力，无需分别接入各 provider MCP。
-- `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。idea-engine 的 search/eval runtime 已归档；contracts + store 保留，打分消费外部 belief-graph posterior（pinned tool，当前 pin gaia-lang==0.5.0a4），idea-engine 仍不是默认 capability expansion lane。
+- `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。idea-engine 的 search/eval runtime 已归档；contracts + store 保留，打分消费外部 belief-graph posterior（pinned tool，当前 pin gaia-lang==0.5.0a4），idea-engine 仍不是默认 capability expansion lane。围绕它的 belief、decision 与 generation 层放在四个 skill 中，而不在 runtime 里：`idea-posterior`（把 idea 分解为有来源依据的子判据，计算 Gaia posterior 并写回）、`idea-pairwise-match`（按事先承诺的判据做跨模型家族的成对比较，每次只给出一条有上限、不淘汰的观测）、`idea-allocation`（Thompson 采样式的研究投入分配，加上对暂缓 idea 的激活监测）、`idea-generation`（从研究进展的证据增量生成派生 idea 节点——综述中的张力、重新锚定的空白、失败路径条目，以及对已有节点带父节点的后续变异——经引擎的 `node.import_generated` 作为可审计的生成包导入；先有检索回执才有证据 URI，机械去重，新颖性表述为可证伪的最近先例差异主张，生成端不打分）。
 - `@nullius/hep-mcp` 是在 domain-neutral root 之上构建的、当前最成熟的 domain pack 与最强的端到端示例。
 - `research-harness` 是面向 Codex / Claude Code / OpenCode 的薄 external research project 入口 skill：它恢复 `nullius` 项目状态，把里程碑执行路由给 `research-team`，把 Markdown 笔记清理路由给 `markdown-hygiene`，把 HEP 证据工作路由给 `hep-mcp`，并把长期结论折回项目文件与 artifacts。它不是新的 CLI，也不是第二套 control plane。
 - `.nullius/HARNESS` 是 `nullius init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `nullius status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff。
@@ -56,7 +56,7 @@ Skill 源码面与分发面是分离的：
 - `skills/` 存放 checked-in 的 skill 源码与手册。
 - Julia 计算程序包用 [`julia-package`](../skills/julia-package/SKILL.md) 检查接口、数值契约和包开发规范，用 [`julia-perf`](../skills/julia-perf/SKILL.md) 检查计算内核及可复现的性能证据。
 - `packages/skills-market` 是 installer / distribution control plane；它不意味着这些 skill 已经预装到某个 client runtime 中。
-- `research-harness` 是已进入 market 的 external research project 薄入口 skill。它故意不对 `research-team`、`markdown-hygiene` 或 `hep-mcp` 声明硬 package 依赖；这些能力仍由 host client 独立提供或安装。
+- `research-harness` 是已进入 market 的 external research project 薄入口 skill。它的 market 条目在 `depends_on` 中声明了 `research-team`、`markdown-hygiene` 等 skill pack（安装时默认一并安装，传 `--no-deps` 可跳过），并把 `hep-mcp` 作为非 skill 依赖：安装器仅给出 preflight 警告（只有 `--strict-deps` 才硬失败）；`hep-mcp` 本身仍由 host client 独立提供或安装。
 
 项目的非 surface 层保证 — Nullius **不是**什么、它主动防御哪些 agent 失败模式（M1–M7 + 长对话漂移）、这些保证如何被 anti-drift CI 机器强制、以及哪些借鉴概念被考虑后明确丢弃 — 见 [`docs/POSITIONING_zh.md`](./POSITIONING_zh.md)。
 
@@ -202,7 +202,7 @@ authority, research-team as the milestone executor, and fold stable results back
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
 Promote a complete immutable report through project_index.md#Main research report,
 then run: nullius report-validate
-Stamp each run's code origin at creation with: nullius trace stamp <run_id>
+Stamp each run's code origin at creation with: nullius trace stamp <run_dir>
 Retry a resultless crash under the same run id with: nullius trace retry <run_dir>
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
 Register headline results with: nullius result set-current <result-id> --run <run_id> --artifact <path>
@@ -222,12 +222,12 @@ Open questions stay counted in every status receipt (oldest ten itemized; the re
 via: nullius decision list) until resolved.
 ```
 
-新 decision 条目先使用 6 字符的 branch-local handle，其原始抽样为 30 个无偏随机 bit（$32^6 = 2^{30}$）。与 durable `D<n>` 同形的候选、本地已有 id 与既有映射都会重抽，因此精确的逐对碰撞概率依上下文而变；无本地占位时为 $1/(2^{30}-90{,}000)\approx 9.314\times 10^{-10}$，略高于 $2^{-30}$。这是概率保证而非结构保证，碰撞时 fail closed。`--resolves` 是关闭关系，只接受仍然 open 的 `pending` 目标；`--relates` 是非关闭关系，可以指向更早且可读的 `decided` 或 `pending` 条目。回放时若持久化关系格式错误或语义不成立，工具会在 `unrecognized_relations` 中报告并忽略该链接，但不会让整条记录失效。旧版或未知的非空字符串 `kind` 会继续按当前 `decided` 语义读取，并通过 `source_kind` 与 `normalized_kinds` 保留原始拼写；只有精确的持久化 `pending` 才会创建 open item，而归一化条目上其余合法的 `resolves` 仍会关闭对应 pending。分支内容进入权威主干后，`decision land` 原子分配后续 durable `D<n>`、改写指向 handle 的关系，并以 `provisional_id` 保留映射。既有 `D<n>` ledger 无需迁移，仍可读取和 resolve。若同一 provisional id 映射到多条记录或又被用作当前 id，list/status 会具名冲突行，land 在零改写下拒绝。初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`project_index.md`、`research_plan.md`、`research_contract.md`、已登记报告和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
+新 decision 条目先使用 6 字符的 branch-local handle，其原始抽样为 30 个无偏随机 bit（$32^6 = 2^{30}$）。与 durable `D<n>` 同形的候选、本地已有 id 与既有映射都会重抽，因此精确的逐对碰撞概率依上下文而变；无本地占位时为 $1/(2^{30}-90{,}000)\approx 9.314\times 10^{-10}$，略高于 $2^{-30}$。这是概率保证而非结构保证，碰撞时 fail closed。`--resolves` 是关闭关系，只接受仍然 open 的 `pending` 目标；`--relates` 是非关闭关系，可以指向更早且可读的 `decided` 或 `pending` 条目。回放时若持久化关系格式错误或语义不成立，工具会在 `unrecognized_relations` 中报告并忽略该链接，但不会让整条记录失效。旧版或未知的、含非空白字符的字符串 `kind` 会继续按当前 `decided` 语义读取，并通过 `source_kind` 与 `normalized_kinds` 保留原始拼写；只有精确的持久化 `pending` 才会创建 open item，而归一化条目上其余合法的 `resolves` 仍会关闭对应 pending。分支内容进入权威主干后，`decision land` 原子分配后续 durable `D<n>`、改写指向 handle 的关系，并以 `provisional_id` 保留映射。既有 `D<n>` ledger 无需迁移，仍可读取和 resolve。若同一 provisional id 映射到多条记录或又被用作当前 id，list/status 会具名冲突行，land 在零改写下拒绝。初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`project_index.md`、`research_plan.md`、`research_contract.md`、已登记报告和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
 
 - 对 stateful 文献工作流，先用 `nullius init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `nullius workflow-plan`。它会直接通过 `@nullius/literature-workflows` 解析 recipe，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。有意义的外部研究运行应显式传 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。`research_brainstorm` 是 planning-only 的轻量 durable harness：`nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 会记录 brainstorm context、candidate angles、screening、单一 recommendation 与 `next_contract` handoff。`.nullius/plan.md` 是给人读的派生 read model，不是机器编排 SSOT。这个 contract 可以建议后续进入 `literature_landscape` 或 `literature_gap_analysis` 等更重 recipe，但不会自动启动它们，也不依赖 host-native thinking process。持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runtime tools，除非未来有外部 tool caller 明确实现它们。
 - delegated agent 执行现在在 tool 边界持久化：attempt 明确区分 `not_started`、`outcome_unknown` 与 `committed`；副作用结果未知时停机交 operator 核对，已提交的 MCP result 原样 replay 而不再次派发。direct 与 team journal 分别位于 `artifacts/delegated-runs/direct/<run_id>/` 和 `artifacts/delegated-runs/team/<runtime_run_id>/`，caller 自选的 root/direct run id 无法冒充 team checkpoint；approval resolver 只允许 host/operator 调用。`nullius run` 启动配置的 stdio MCP server 时，非敏感配置写入 `NULLIUS_RUN_MCP_ENV_JSON`，凭据写入 `NULLIUS_RUN_MCP_CREDENTIALS_JSON`，必需凭据名可用 `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` 声明；缺值会在 spawn 前失败。
 
-持久化 workflow-plan 的每次派发也使用 `artifacts/runs/<run_id>/manifest.json`：未知副作用停止等待核对，已提交响应原样回放而不重调工具；每个派发边界检查暂停，审批请求在真实批准前不会完成步骤。溢出恢复逐字保留原始用户约束和完整工具配对；指令自身超出窗口时停止，不能静默截断。
+持久化 workflow-plan 的每次派发也使用 `artifacts/runs/<run_id>/manifest.json`：未知副作用停止等待核对，已提交响应原样回放而不重调工具；每个派发边界检查暂停，审批请求在真实批准前不会完成步骤。溢出恢复逐字保留原始用户约束，且不拆开工具调用与其结果（较早的交换整段丢弃，过长的结果截为带标记的不完整摘录）；指令自身超出窗口时停止，不能静默截断。
 
 ## 6. 更深的架构 / 治理文档在哪里
 

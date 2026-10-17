@@ -49,7 +49,7 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-skill-tool-name-anti-drift.mjs
 
-      - name: Check governance sync (AGENTS.md ↔ CLAUDE.md)
+      - name: Check governance sync (CLAUDE.md imports AGENTS.md)
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-governance-sync.mjs
 
@@ -133,6 +133,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-knob-threading-anti-drift.mjs
 
+      - name: Check required-accuracy anti-drift (stop refining at the accuracy the result's use requires)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-required-accuracy-anti-drift.mjs
+
       - name: Check optimization-equivalence anti-drift (accelerated path identity)
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-optimization-equivalence-anti-drift.mjs
@@ -206,14 +210,6 @@ jobs:
       - name: Python tests (citation-triangulation comparator)
         run: python -m pytest skills/citation-triangulation/tests -q
 
-      - name: Python tests (derivation-verify offline suite)
-        run: |
-          python -m pip install sympy
-          python -m pytest skills/derivation-verify/tests -q
-
-      - name: Native workflow transport test (derivation-verify)
-        run: node --test skills/derivation-verify/tests/test_native_workflow_transport.mjs
-
       - name: Python tests (launch authorization gate behavior)
         run: python -m pytest skills/research-harness/tests/test_launch_authorization_gate.py -q
 
@@ -279,6 +275,9 @@ jobs:
       - name: Python tests (figure display-acceptance gate behavior)
         run: python -m pytest skills/figure-hygiene/tests/test_display_acceptance_gate.py -q
 
+      - name: Python tests (reliability-matrix checker, required accuracy and error budget)
+        run: python -m pytest skills/numerical-reliability-gate/tests -q
+
       - name: Python tests (interactive argument-graph reader surface)
         run: python -m pytest skills/idea-posterior/tests/test_reader_surface_interactions.py -q
 
@@ -287,6 +286,23 @@ jobs:
 
       - name: Run idea-posterior scaffold prose locks
         run: python -m pytest skills/idea-posterior/tests/test_scaffold.py -q
+
+      - name: Build the literature-workflows resolver the research-team suite invokes
+        run: pnpm --filter "@nullius/literature-workflows..." build
+
+      - name: Python tests (research-team skill suite)
+        run: python -m pytest skills/research-team/tests -q
+
+      - name: Python tests (research-harness skill suite)
+        run: python -m pytest skills/research-harness/tests -q
+
+      - name: Python tests (derivation-verify skill suite, with the sympy CAS path)
+        run: |
+          python -m pip install sympy
+          python -m pytest skills/derivation-verify/tests -q
+
+      - name: Python tests (review-swarm skill suite)
+        run: python -m pytest skills/review-swarm/tests -q
 
   skills-market-checks:
     runs-on: ubuntu-latest

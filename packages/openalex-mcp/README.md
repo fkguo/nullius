@@ -28,7 +28,7 @@ Or wire into an MCP client:
 
 ## Notes
 
-- Respects OpenAlex rate-limit policy (see `src/rateLimiter.ts`); set a contact email via `OPENALEX_USER_AGENT` to qualify for the polite pool.
+- Respects OpenAlex rate-limit policy (see `src/api/rateLimiter.ts`); set a contact email via `OPENALEX_MAILTO` to qualify for the polite pool.
 - Large result sets are paginated; tool results stay compact and large artifacts go to the resolved local data directory.
 
 ## Composition

@@ -88,7 +88,10 @@ except Exception:  # pragma: no cover - fallback keeps the gate usable if review
         return s.strip()
 
 _DEFAULT_BACKENDS = "claude/default,codex/default,gemini/default,opencode/default"
-_DEFAULT_TIMEOUT = 900
+# No hard deadline by default, matching the review-swarm launcher: a long blind derivation that
+# is still producing output is not killed by a fixed wall clock. The launcher's soft expected
+# duration is recorded instead; pass --timeout-secs only for a cap sized from earlier runs.
+_DEFAULT_TIMEOUT = 0
 _CONFIDENCE = {"high", "medium", "low"}
 _TOOL_MODES = {"claude": "review", "gemini": "review", "opencode": "workspace"}  # codex always execs
 
@@ -1426,7 +1429,8 @@ def main(argv=None) -> int:
                          "judge (overrides --comparator). Default: one judge (= --comparator).")
     ap.add_argument("--out", type=Path, default=None, help="write matrix JSON here (default: stdout)")
     ap.add_argument("--work-dir", type=Path, default=None, help="durable invocation records (default: beside --out, or beside --claims for stdout)")
-    ap.add_argument("--timeout-secs", type=int, default=_DEFAULT_TIMEOUT, help="per-backend timeout")
+    ap.add_argument("--timeout-secs", type=int, default=_DEFAULT_TIMEOUT,
+                    help="per-backend hard deadline in seconds; 0 (default) means none — size an explicit cap from earlier runs")
     ap.add_argument("--context-tokens", type=int, default=200000, help="configured comparator context window including output reserve")
     ap.add_argument("--context-bytes", type=int, default=None, help="complete comparator request byte budget; oversized original input is refused")
     ap.add_argument("--max-iter", type=int, default=None, help="override claims.max_iter")

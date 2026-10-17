@@ -3,6 +3,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 from assessment_fixture import SUMMARY, assessed_comparison, assessments, transport_for
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/run_multi_backend.py'
@@ -98,8 +100,11 @@ def test_complete_original_material_and_observed_requests_are_not_truncated():
                 for e in a['evidence'].values(): e['source_span'] = original[:200]
             return json.dumps(report)
         return json.dumps(verdict(original))
+    # Two complete 14.6 kB lanes fit the default window: the request carries no
+    # byte-identical copies of a lane's original text beyond what span checks need.
     assert verify(CLAIM, run)['converged']
     packet, _ = json.JSONDecoder().raw_decode(seen[0].split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
+    assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']
     assert all(d['derivation'] == original for d in packet)
     assert all(CLAIM['statement'] in d['transport']['request']['prompt'] for d in packet)
     assert all(json.loads(d['transport']['raw_output'])['derivation'] == original for d in packet)
@@ -357,6 +362,7 @@ def test_stale_complete_lane_material_invalidates_bound_comparison():
 
 
 def test_symbolic_agreement_does_not_override_actual_adjudicator_veto():
+    pytest.importorskip("sympy")  # the CAS verification path abstains without sympy
     run = runner()
     def veto(model, system, prompt, tag):
         result = run(model, system, prompt, tag)

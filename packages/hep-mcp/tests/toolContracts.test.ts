@@ -6,7 +6,7 @@ import { getTools as getHepdataTools } from '@nullius/hepdata-mcp/tooling';
 import { getTools as getOpenalexTools } from '@nullius/openalex-mcp/tooling';
 import { getTools as getPdgTools } from '@nullius/pdg-mcp/tooling';
 import { getTools as getZoteroTools } from '@nullius/zotero-mcp/tooling';
-import { findRequiredKeyMismatches } from '@nullius/shared';
+import { findBudgetBoundMismatches, findRequiredKeyMismatches } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
 import { HEP_TOOL_RISK_LEVELS, type ToolRiskLevel } from '../src/tool-risk.js';
@@ -363,6 +363,16 @@ describe('Tool inputSchema required keys', () => {
       const spec = specs.get(def.name);
       if (!spec) return [`[${def.name}] no tool spec`];
       return findRequiredKeyMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
+    });
+    expect(issues).toEqual([]);
+  });
+
+  it.each<ToolExposureMode>(['standard', 'full'])('budget fields publish the bounds their parser applies (%s)', mode => {
+    const specs = new Map(getToolSpecs(mode).map(spec => [spec.name, spec]));
+    const issues = getTools(mode).flatMap(def => {
+      const spec = specs.get(def.name);
+      if (!spec) return [`[${def.name}] no tool spec`];
+      return findBudgetBoundMismatches(spec.zodSchema, def.inputSchema).map(issue => `[${def.name}] ${issue}`);
     });
     expect(issues).toEqual([]);
   });
