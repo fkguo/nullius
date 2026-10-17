@@ -33,7 +33,7 @@
 | `orch_run_stage_idea` | `write` | Stage IdeaHandoffC2 artifacts into the run's own directory, `<project_root>/artifacts/runs/<run_id>` |
 | `orch_run_stage_content` | `write` | Stage generic writing/review content into the run's own directory and return a `rep://runs/.../artifact/...` staging URI; loop-owned draft/review tasks may attach task-scoped provenance so completion and downstream review refresh can fail closed on missing outputs |
 | `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and a run-local `computation/manifest.json`, requiring a supplied `method_spec` with files and `run_card`; missing methods are refused before executable artifacts are written |
-| `orch_run_execute_manifest` | `destructive` | Execute a run-local `computation_manifest_v1` from the run's own directory; when the A3 `compute_runs` gate is enabled by policy (default off) it first returns an approval request and runs only once that approval is granted |
+| `orch_run_execute_manifest` | `destructive` | Execute a run-local `computation_manifest_v1` from the run's own directory; when the A3 `compute_runs` gate is enabled by policy (default off) or an A3 approval is already pending or was granted, it first returns an approval request and runs only once that approval is granted |
 | `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
 | `orch_run_record_proposal_decision` | `write` | Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into `.nullius/proposal_decisions_v1.json` |
 | `orch_run_record_verification` | `write` | Execute one checker under a runtime environment allowlist and record adjacent production snapshots plus the checker's request-bound self-reported matching observations; `passed` does not prove actual reads or complete dependencies |
@@ -130,7 +130,7 @@ Agent / operator
   ├──► orch_run_approve(...) or orch_run_reject(...)    → resolve approval
   ├──► orch_run_execute_agent(...)                      → bounded orchestrator runtime
   ├──► orch_fleet_enqueue(...) / orch_fleet_worker_poll(...) → queue-backed orchestration
-  └──► orch_run_export(project_root, _confirm)                  → portable summary/artifact listing
+  └──► orch_run_export(project_root, _confirm)          → portable summary/artifact listing
 ```
 
 ---
@@ -196,7 +196,7 @@ For the higher-conclusion boundary:
 Current live approval producers are:
 - `orch_run_plan_computation` and `orch_run_execute_manifest` for A3 compute execution (only when the `compute_runs` gate is enabled by policy; default off)
 
-Tools that record local results and create no approval:
+Tools that record local results and create no approval (the A5 request is listed last because it can create one in principle, but currently returns `unavailable`):
 - `orch_run_record_proposal_decision` for local proposal lifecycle closure without a second approval family
 - `orch_run_record_verification` for adjacent production snapshots, absolute declared external refs, runtime/checker identity, logs, and checker self-reported matching observations. A recorded pass does not prove actual output reads, negative-control execution, semantic independence, or complete dependencies.
 - `orch_run_request_final_conclusions` for the exactly-one-subject A5 consumer, currently fail-closed as `unavailable` because dependency closure is literal incomplete

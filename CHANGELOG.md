@@ -3,9 +3,9 @@
 Notable changes to nullius. The format follows
 [Keep a Changelog](https://keepachangelog.com/). The project is **pre-1.0**: all
 workspace packages move in lockstep on a single `0.x` version, breaking changes may
-occur in any `0.x` release, and there is no API-stability promise yet. Dated changelog
-entries begin with 0.6.0, the first release archived on Zenodo (0.3.0 and 0.4.0 carry git
-tags only; 0.5.0 was never tagged); `CITATION.cff` names
+occur in any `0.x` release, and there is no API-stability promise yet. The first release
+archived on Zenodo is 0.6.0 (0.3.0 and 0.4.0 carry git tags only; 0.5.0 was never
+tagged); `CITATION.cff` names
 the version to cite.
 
 ## [Unreleased]
@@ -60,8 +60,9 @@ and delegation contracts, and consolidated run authority under one canonical
   the run roots are stowed in a content store outside any git worktree, the
   originals become read-only, and a tracked hash manifest records them; `verify`
   and `materialize` restore or check them in another worktree. Research outputs
-  are classified when a pinned snapshot admits them and by `check --staged --strict` before a commit (called from the project's own pre-commit hook), so bulk run
-  products stay out of history behind the manifest; a reserved file name alone
+  are classified when a pinned snapshot admits them, and by `check --staged --strict`
+  where the project calls it from its own pre-commit hook (nullius installs no hook),
+  so bulk run products can stay out of history behind the manifest; a reserved file name alone
   grants no exemption, only a validated stow record does. Two read-only commands
   measure before anything is deleted: `worktree-check` says whether removing a
   linked worktree loses anything (uncommitted and hidden tracked changes, a
@@ -108,7 +109,8 @@ and delegation contracts, and consolidated run authority under one canonical
 - **Result traceability (`nullius trace`, `nullius result`, `nullius current`).** Every
   run binds to the exact code state at launch through origin stamps written at every
   mandatory machine moment (computation front door, team-cycle run creation; result
-  registration at convergence requires a stamped run); an append-only validity ledger records `void` /
+  registration at convergence requires a stamped run); an append-only validity ledger
+  records `void` /
   `supersede` / `reinstate` rulings with normalized, existence-checked run ids; a
   results registry (`nullius result set-current`) names the producing run per headline
   result; `nullius current` renders the whole current-version answer as prose.

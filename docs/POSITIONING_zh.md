@@ -49,7 +49,7 @@ surface 层面的保证。
 7 个反复出现的 AI 研究失败模式，即
 [`skills/research-integrity/SKILL.md`](../skills/research-integrity/SKILL.md)
 所记录 8 个模式中的前 7 个（第 8 个 M8 reinvention_over_available_reuse 在
-重型计算开始前过一遍，不属于机器 receipt）：
+重型计算开始前或手工搭建可复用计算方法前过一遍，不属于机器 receipt）：
 
 - **M1** implementation_bug_passing_self_review
 - **M2** hallucinated_citation
@@ -99,10 +99,10 @@ fail-closed，返回 `HARNESS_INVOCATION_REQUIRED`。
 ## 4. 纪律如何被强制 — anti-drift CI
 
 只活在 `SKILL.md` 里的纪律会静默腐烂。下面每条保证都有一个 CI 脚本，
-discipline 一旦松动构建就失败。上述保证背后的锁列于下表；其余
+discipline 一旦松动构建就失败。这些保证背后的锁列于下表；其余
 `scripts/check-*.mjs` 锁也接入同一个工作流
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)，唯一例外是
-`check-orchestrator-package-freshness.mjs`（由 hep-mcp 包脚本调用）：
+`check-orchestrator-package-freshness.mjs`（工作流中未单列，但在 CI 执行的 hep-mcp 构建中运行）：
 
 | Anti-drift 脚本 | 锁住的契约 | 捕获的漂移 |
 | --- | --- | --- |
