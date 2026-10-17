@@ -77,41 +77,103 @@ def test_negative_control_copy_without_flag_is_detected(tmp_path: Path) -> None:
     assert not _lane_is_context_excluded(log)
 
 
-def _resolve(project: Path, skills: Path, pre: str = "") -> subprocess.CompletedProcess[str]:
+def _resolve(project: Path, skills: Path, call: str = "") -> subprocess.CompletedProcess[str]:
+    """Source the resolver; optionally call the post-resolution check with `call` as its arguments."""
+    check = f"research_team_check_local_claude_runner {call} || exit $?; " if call else ""
     return subprocess.run(
-        ["bash", "-c", f'PROJECT_ROOT="{project}"; SKILLS_DIR="{skills}"; {pre} source "{RESOLVER}"; '
-                       'printf "%s" "$LOCAL_CLAUDE_RUNNER"'],
+        ["bash", "-c", f'PROJECT_ROOT="{project}"; SKILLS_DIR="{skills}"; source "{RESOLVER}"; '
+                       f'{check}printf "%s" "$LOCAL_CLAUDE_RUNNER"'],
         capture_output=True, text=True, timeout=30,
     )
 
 
-def test_current_project_copy_is_kept_and_stale_copy_is_replaced(tmp_path: Path) -> None:
+def _project_with(tmp_path: Path, text: str | None) -> tuple[Path, Path]:
     project = tmp_path / "proj"
     (project / "scripts").mkdir(parents=True)
     local = project / "scripts" / "run_claude.sh"
+    if text is None:
+        shutil.copy(ASSET, local)
+    else:
+        local.write_text(text, encoding="utf-8")
+    return project, local
 
-    shutil.copy(ASSET, local)
-    kept = _resolve(project, SKILLS_ROOT)
-    assert kept.stdout == str(local) and "[warn]" not in kept.stderr
 
-    local.write_text("#!/usr/bin/env bash\nclaude --print \"$@\"\n", encoding="utf-8")
-    replaced = _resolve(project, SKILLS_ROOT)
-    shared = SKILLS_ROOT / "claude-cli-runner" / "scripts" / "run_claude.sh"
-    assert replaced.stdout == str(shared)
+SHARED = SKILLS_ROOT / "claude-cli-runner" / "scripts" / "run_claude.sh"
+
+
+def test_current_copy_is_kept_without_warning(tmp_path: Path) -> None:
+    project, local = _project_with(tmp_path, None)
+    kept = _resolve(project, SKILLS_ROOT, "1 1 1")
+    assert kept.stdout == str(local) and kept.returncode == 0 and kept.stderr == ""
+
+
+def test_stale_copy_is_replaced_and_left_untouched(tmp_path: Path) -> None:
+    old = "#!/usr/bin/env bash\nclaude --print \"$@\"\n"
+    project, local = _project_with(tmp_path, old)
+    replaced = _resolve(project, SKILLS_ROOT, "1 0 0")
+    assert replaced.stdout == str(SHARED)
     assert "predates the operator-context exclusion" in replaced.stderr
-    assert local.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash\nclaude --print")  # untouched
+    assert local.read_text(encoding="utf-8") == old
+    # No member uses the Claude runner: substitution stays silent.
+    quiet = _resolve(project, SKILLS_ROOT, "0 0 1")
+    assert quiet.returncode == 0 and quiet.stderr == ""
 
-    api = _resolve(project, SKILLS_ROOT, 'MEMBER_B_API_BASE_URL=https://gw.example;')
-    assert api.returncode == 2 and "refresh the copy first" in api.stderr
 
-    no_shared = tmp_path / "empty_skills"
-    no_shared.mkdir()
-    refused = _resolve(project, no_shared)
-    assert refused.returncode == 2
+def test_marker_without_flag_is_stale(tmp_path: Path) -> None:
+    text = ASSET.read_text(encoding="utf-8").replace(" --safe-mode", "")
+    assert "research-team-claude-runner: context-excluded" in text
+    project, _ = _project_with(tmp_path, text)
+    assert _resolve(project, SKILLS_ROOT).stdout == str(SHARED)
 
-    local.unlink()
-    absent = _resolve(project, SKILLS_ROOT)
-    assert absent.stdout == str(local)  # no project copy: callers fall through to the shared runner
+
+def test_stale_copy_with_api_option_on_a_claude_member_is_refused(tmp_path: Path) -> None:
+    project, _ = _project_with(tmp_path, "#!/usr/bin/env bash\nclaude --print \"$@\"\n")
+    refused = _resolve(project, SKILLS_ROOT, "0 1 1")
+    assert refused.returncode == 2 and "refresh the copy first" in refused.stderr
+
+
+def test_stale_copy_without_shared_runner_is_refused(tmp_path: Path) -> None:
+    project, _ = _project_with(tmp_path, "#!/usr/bin/env bash\nclaude --print \"$@\"\n")
+    empty = tmp_path / "empty_skills"
+    empty.mkdir()
+    assert _resolve(project, empty, "1 0 0").returncode == 2
+
+
+def test_no_project_copy_leaves_path_for_shared_fallthrough(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    absent = _resolve(project, SKILLS_ROOT, "1 1 1")
+    assert absent.returncode == 0 and absent.stdout == str(project / "scripts" / "run_claude.sh")
+
+
+def test_cycle_script_passes_api_options_only_for_claude_members() -> None:
+    cycle = (SKILL_DIR / "scripts" / "bin" / "run_team_cycle.sh").read_text(encoding="utf-8")
+    call = cycle.index("research_team_check_local_claude_runner ")
+    window = cycle[call - 900:call]
+    assert 'MEMBER_A_RUNNER_KIND_RESOLVED}" == "claude"' in window
+    assert 'MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude"' in window
+
+
+def test_deterministic_failure_is_not_retried(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "claude"
+    fake.write_text(
+        '#!/usr/bin/env bash\necho x >>"${FAKE_LOG}"\ncat >/dev/null || true\n'
+        "echo \"error: unknown option '--safe-mode'\" >&2\nexit 1\n", encoding="utf-8")
+    fake.chmod(0o755)
+    (tmp_path / "sys.txt").write_text("s\n", encoding="utf-8")
+    (tmp_path / "prompt.txt").write_text("p\n", encoding="utf-8")
+    log = tmp_path / "log.txt"
+    env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", FAKE_LOG=str(log))
+    done = subprocess.run(
+        ["bash", str(ASSET), "--system-prompt-file", str(tmp_path / "sys.txt"),
+         "--prompt-file", str(tmp_path / "prompt.txt"), "--out", str(tmp_path / "out.txt"),
+         "--sleep-secs", "0"],
+        env=env, capture_output=True, text=True, timeout=60,
+    )
+    assert done.returncode == 1 and "deterministic error" in done.stderr
+    assert log.read_text(encoding="utf-8").count("x") == 1
 
 
 def test_cycle_scripts_use_the_resolver() -> None:

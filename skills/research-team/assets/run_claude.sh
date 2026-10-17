@@ -5,7 +5,7 @@ set -euo pipefail
 # Vendored copy for project-local use.
 #
 # research-team-claude-runner: context-excluded v1
-# (marker read by run_team_cycle.sh / run_draft_cycle.sh: a project copy without it predates the
+# (marker read by run_team_cycle.sh: a project copy without it, or without --safe-mode on its claude line, predates the
 # context exclusion and is not used; see research-team RUNBOOK, "Refreshing the Claude runner copy")
 #
 # The lane carries only its own request: --safe-mode keeps the CLI login but loads no user/project
@@ -158,6 +158,65 @@ print_stderr_excerpt() {
   tail -n "${ATTEMPT_EXCERPT_LINES}" "${stderr_file}" >&2 || true
 }
 
+# Deterministic-failure classifier — duplicated verbatim in every *-cli-runner
+# script (cross-skill imports are forbidden: each skill must stay self-contained).
+# Retry-with-backoff exists for TRANSIENT failures (rate limits, network blips,
+# 5xx, timeouts). Deterministic failures — usage errors, unbound variables,
+# missing commands/files, auth or region ineligibility — reproduce identically
+# on every retry, so the runner fails immediately with the diagnostic instead
+# of burning the backoff budget re-running them.
+# Usage: classify_deterministic_failure EXIT_CODE [DIAG_FILE...]
+# Prints a one-line classification and returns 0 when (exit code, diagnostics)
+# look deterministic; prints nothing and returns 1 when the failure may be
+# transient (callers then keep their existing retry/fallback behavior).
+classify_deterministic_failure() {
+  local code="$1"
+  shift
+  local reason=""
+  case "${code}" in
+    2) reason="exit code 2 (usage/argument error)";;
+    126) reason="exit code 126 (command found but not executable)";;
+    127) reason="exit code 127 (command not found)";;
+  esac
+  if [[ -z "${reason}" ]]; then
+    local f pat
+    for f in "$@"; do
+      [[ -n "${f}" && -s "${f}" ]] || continue
+      for pat in \
+        'unbound variable' \
+        'command not found' \
+        'no such file or directory' \
+        'usage:' \
+        'unrecognized argument' \
+        'unknown option' \
+        'invalid value' \
+        'not eligible' \
+        'not currently available in your location' \
+        'location is not supported' \
+        'unauthorized' \
+        'forbidden' \
+        'quota exhausted' \
+        'quota exceeded' \
+        'insufficient quota' \
+        'usage limit reached' \
+        "reached your usage limit for this billing cycle" \
+        'out of usage' \
+        'auto-rejecting' \
+        'permission denied' \
+        'invalid api key'; do
+        if grep -qiF -- "${pat}" "${f}" 2>/dev/null; then
+          reason="diagnostic output matched '${pat}'"
+          break 2
+        fi
+      done
+    done
+  fi
+  if [[ -z "${reason}" ]]; then
+    return 1
+  fi
+  printf '%s\n' "${reason}"
+}
+
 attempt=1
 # Apply API overrides via env vars (preferred over CLI flags to avoid key exposure in process list).
 if [[ -n "${API_BASE_URL}" ]]; then
@@ -201,6 +260,14 @@ while true; do
     mkdir -p "$(dirname "${OUT}")"
     mv "${tmp_out}" "${OUT}"
     exit 0
+  fi
+
+  # Deterministic failures reproduce identically on every retry: fail
+  # immediately with the diagnostic instead of burning the backoff budget.
+  if det_reason="$(classify_deterministic_failure "${code}" "${tmp_stderr}")"; then
+    echo "Claude failed with a deterministic error (${det_reason}); not retrying." >&2
+    cat "${tmp_out}" >&2
+    exit $code
   fi
 
   if [[ $attempt -ge $MAX_RETRIES ]]; then

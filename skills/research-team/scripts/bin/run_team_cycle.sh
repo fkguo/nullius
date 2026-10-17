@@ -2241,6 +2241,19 @@ if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" && -z "${MEMBER_B_RUNNER_PA
   fi
 fi
 
+# A stale project Claude runner copy was swapped for the shared runner (see the resolver); warn, or refuse
+# when a Claude member through that copy has an API endpoint/key option the shared runner rejects.
+_a_uses_local_claude=0; _b_uses_local_claude=0; _local_claude_api_set=0
+if [[ "${MEMBER_A_RUNNER_KIND_RESOLVED}" == "claude" && -z "${MEMBER_A_RUNNER_PATH}" ]]; then
+  _a_uses_local_claude=1
+  [[ -n "${MEMBER_A_API_BASE_URL}${MEMBER_A_API_KEY_ENV}" ]] && _local_claude_api_set=1
+fi
+if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "claude" && -z "${MEMBER_B_RUNNER_PATH}" ]]; then
+  _b_uses_local_claude=1
+  [[ -n "${MEMBER_B_API_BASE_URL}${MEMBER_B_API_KEY_ENV}" ]] && _local_claude_api_set=1
+fi
+research_team_check_local_claude_runner "${_a_uses_local_claude}" "${_b_uses_local_claude}" "${_local_claude_api_set}" || exit $?
+
 # If Member B uses codex and no explicit --member-b-runner was provided, switch runner path accordingly.
 if [[ "${MEMBER_B_RUNNER_KIND_RESOLVED}" == "codex" && -z "${MEMBER_B_RUNNER_PATH}" ]]; then
   if [[ -f "${LOCAL_CODEX_RUNNER}" ]]; then
