@@ -77,9 +77,9 @@ def test_negative_control_copy_without_flag_is_detected(tmp_path: Path) -> None:
     assert not _lane_is_context_excluded(log)
 
 
-def _resolve(project: Path, skills: Path) -> subprocess.CompletedProcess[str]:
+def _resolve(project: Path, skills: Path, pre: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bash", "-c", f'PROJECT_ROOT="{project}"; SKILLS_DIR="{skills}"; source "{RESOLVER}"; '
+        ["bash", "-c", f'PROJECT_ROOT="{project}"; SKILLS_DIR="{skills}"; {pre} source "{RESOLVER}"; '
                        'printf "%s" "$LOCAL_CLAUDE_RUNNER"'],
         capture_output=True, text=True, timeout=30,
     )
@@ -100,6 +100,9 @@ def test_current_project_copy_is_kept_and_stale_copy_is_replaced(tmp_path: Path)
     assert replaced.stdout == str(shared)
     assert "predates the operator-context exclusion" in replaced.stderr
     assert local.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash\nclaude --print")  # untouched
+
+    api = _resolve(project, SKILLS_ROOT, 'MEMBER_B_API_BASE_URL=https://gw.example;')
+    assert api.returncode == 2 and "refresh the copy first" in api.stderr
 
     no_shared = tmp_path / "empty_skills"
     no_shared.mkdir()
