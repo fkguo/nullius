@@ -73,8 +73,11 @@ coordinates, signed coefficients and other components need not sum to one.
 
 Flatten composite displays into identified leaf cells in the checking inventory.
 Inspect the actual component labels and order. The helper requires every declared
-component of a selected quantity; to show a scientifically meaningful projection
-or subset, define that displayed quantity explicitly in the source inventory.
+component of a quantity that prints any cell; to show a scientifically meaningful
+projection or subset, define that displayed quantity explicitly in the source
+inventory. A selected quantity that prints no cell at all (a curve drawn beside a
+printed headline value) is covered by its verdict binding and the overview figure
+only when it is listed in `drawn_quantities`.
 
 Inspect the final rendering, not just its generation log. Check each value against
 its source mapping, the visible unit, quantity/component meaning, selection,
@@ -105,16 +108,20 @@ final surfaces; an inspected translation cannot stand in for an omitted main dis
 | Field | Meaning |
 | --- | --- |
 | `purpose` | Non-empty reader purpose. |
-| `source` | `{path, sha256}` for the raw quantity inventory. |
-| `selection` | Unique quantity IDs; must equal `plotted_quantities`. |
-| `cells` | Ordered leaf cells `{id, quantity, unit, transform}`, plus `component` for array entries and optional `representation` for multiple component sequences. |
+| `prints_values` | Optional boolean, default `true`. `false` declares a display that prints no result value (see "Displays that print no values"); the block is then closed to `purpose`, `prints_values` and `surfaces`. |
+| `source` | Full form only. `{path, sha256}` for the raw quantity inventory. |
+| `selection` | Full form only. Unique quantity IDs; must equal `plotted_quantities`. |
+| `cells` | Full form only. Ordered, non-empty leaf cells `{id, quantity, unit, transform}`, plus `component` for array entries and optional `representation` for multiple component sequences. |
+| `drawn_quantities` | Full form only, optional. Non-empty list of the selected quantities drawn as marks that print no cell; it must name exactly those quantities. |
 | `surfaces` | Final rendered files, each with the fields below. |
-| `diagnostic_purposes` | Optional mapping from selected diagnostic/intermediate quantity ID to its reader purpose. |
-| `dual_representations` | Optional list of `{cells: [cell IDs], purpose}`; exactly the groups repeating a reversible quantity/component identity. |
+| `diagnostic_purposes` | Full form only, optional mapping from selected diagnostic/intermediate quantity ID to its reader purpose. |
+| `dual_representations` | Full form only, optional list of `{cells: [cell IDs], purpose}`; exactly the groups repeating a reversible quantity/component identity. |
 
 The raw inventory is `{quantities: [...], units: {...}}`; `units` is optional.
 Each quantity has `id`, `identity`, `role` (`result`, `diagnostic`, `intermediate`)
-and either `raw` or `components`. `identity` requires non-empty `object`,
+and either `raw` or `components`, or neither when it is drawn as marks and never
+printed (such a quantity has no value to trace, so no cell may name it, and the
+full form must list it in `drawn_quantities`). `identity` requires non-empty `object`,
 `conditions`, `reference`, `definition` strings; additional named context strings
 distinguish identities. A raw record is `{value: "decimal token", unit: "symbol"}`.
 Optional `status` is `available`, `failed`, `missing` or `not_applicable`; the last
@@ -145,10 +152,11 @@ units directly. `affine` additionally requires decimal `scale` (nonzero) and
 The source and final unit dimensions must agree. Non-invertible cells need
 definitions that explain the changed meaning; the script does not infer it.
 
-A surface has `path`, `sha256`, `format` (`html` or `extracted`), `language`,
-`labels` (all cell IDs to final identity labels), `unit_labels` (all used unit
-symbols to distinct final visible strings), and `review`. Optional `status_labels`
-maps status tokens to distinct translated labels. `review` is
+A surface has `path`, `sha256`, `language` and `review`; in the full form also
+`format` (`html` or `extracted`), `labels` (all cell IDs to final identity
+labels), `unit_labels` (all used unit symbols to distinct final visible strings)
+and optional `status_labels`, which maps status tokens to distinct translated
+labels. `review` is
 `{sha256: <same final digest>, readability: true, semantics: true}`: a record
 of **actual final-render inspection**, never default booleans set by the generator.
 It records a person's or visual agent's judgment, not independent proof.
@@ -168,12 +176,53 @@ must have a unique `data-display-id` and exactly three flat spans:
 
 The helper reads the text actually in those spans, including the unit, not
 an expected number hidden in an attribute. For dynamic HTML, CSS visibility,
-localized numbers, headers carrying units, PDF/PNG charts or other layouts,
-use `format: "extracted"` and `extraction: {path, sha256}`. Extract **after
-rendering and all edits**, not from the generator's input. The extraction JSON
-is `{surface_sha256: <final digest>, cells: [{id, label, value, unit}, ...]}`.
+localized numbers, headers carrying units, PDF/PNG displays with printed values
+or other layouts, use `format: "extracted"` and `extraction: {path, sha256}`.
+Extract **after rendering and all edits**, not from the generator's input. The
+extraction JSON is `{surface_sha256: <final digest>, cells: [{id, label, value, unit}, ...]}`.
 Inspect every extracted cell against the final rendering. Headers and captions
 must be resolved into each leaf's identity/unit; array entries each get a record.
+
+### Displays that print no values
+
+A curve, spectrum, rendered field or contour drawn as continuous marks prints no
+decimal token, so there is no cell to trace and no extraction to take. Such a
+display declares it:
+
+```json
+{
+  "purpose": "show how the response varies with the control parameter",
+  "prints_values": false,
+  "surfaces": [{
+    "path": "figs/curve.pdf", "sha256": "<final digest>", "language": "en",
+    "review": {"sha256": "<final digest>", "readability": true, "semantics": true}
+  }]
+}
+```
+
+With `prints_values: false` the block is closed to `purpose`, `prints_values` and
+`surfaces`, and each surface to `path`, `sha256`, `language` and `review`:
+`source`, `selection`, `cells`, `format`, `labels`, `unit_labels`,
+`status_labels` and `extraction` are refused, and an empty `cells` list is not a
+declaration. No cells are read from such a surface, so it has no format. Each
+surface keeps its pinned bytes, language and the final-render `review` record;
+the top-level `figure` must still be among the surfaces, and the verdict
+bindings and overview figure still apply to every plotted quantity. The gate
+scans the bytes of every declared surface, whatever its name or text encoding
+(UTF-16 through its byte-order mark, anything else as ASCII-compatible text):
+one that carries a table marked `data-results` is refused
+(`printed-values-undeclared`). That is the only mechanical check: values printed
+as plain text, in an unmarked table, in SVG text or in a binary rendering (PDF,
+PNG) are not detected, so a false declaration there is an inspection failure
+the gate cannot see. Any printed result value — a headline value on a mark, an inset table, an
+annotated extremum — makes the display a printing one: use the full form, trace
+the printed cells, list the quantities drawn but never printed in
+`drawn_quantities` (they then need neither `raw` nor `components` in the
+inventory), and keep them in `selection` so that it still equals
+`plotted_quantities`. A selected quantity that prints no cell and is not listed
+there is refused; one listed there that prints a cell is refused too. Axis
+ranges, tick labels and legend entries are not cells; their correctness is part
+of the rendered review.
 
 Here is a complete `final_display` structure for the HTML above (replace the
 digest markers with the actual file digests):
@@ -315,14 +364,17 @@ Field by field:
 ```
 
 The same sidecar shape serves a PDF or PNG display; its final surface then uses
-`format: "extracted"` with an `extraction` file as described above.
+`format: "extracted"` with an `extraction` file as described above, or, when the
+display prints no value, the `prints_values: false` form of `final_display`
+(whose surfaces carry no `format`).
 
 ## Automatic coverage and remaining judgments
 
 The gate rejects missing identity/component mappings, unlisted quantities,
 undeclared diagnostics, unintended reversible duplicates, wrong dimensions,
 wrong final value-unit pairs, stale final/extraction bytes, missing rendered
-inspection records and incorrect cell labels/order. It checks decimal rounding
+inspection records, incorrect cell labels/order, and a no-values declaration on
+any surface whose bytes carry a marked result table. It checks decimal rounding
 intervals, and forward maps for the supported non-invertible transform.
 
 It cannot prove source correctness, identity equivalence expressed with different

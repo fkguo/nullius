@@ -13,6 +13,7 @@ from __future__ import annotations
 import ast
 import hashlib
 from html import escape
+import html.parser
 import importlib.util
 import json
 import os
@@ -1272,3 +1273,367 @@ def test_semantic_json_also_rejects_duplicate_keys(tmp_path: Path) -> None:
     source.write_text('{"quantities": [], "quantities": []}', encoding="utf-8")
     block["final_display"]["source"]["sha256"] = _sha256(source)
     _semantic_result(tmp_path, block, "semantics-unreadable")
+
+
+# --- Displays that print no result value (continuous marks) -------------------
+
+
+def _curve_bundle(tmp_path: Path) -> dict:
+    """Passing fixture for a plotted curve: one verdict-bound quantity, an
+    archived overview and a PDF whose marks print no numeric token. The
+    final_display block declares prints_values: false and carries only the
+    reader purpose and the reviewed final surface."""
+    hash_curve = _write_verdict(tmp_path / "gates" / "curve.verdict.json", ["response_curve"])
+    overview = tmp_path / "figs" / "review" / "overview_all_components.pdf"
+    overview.parent.mkdir(parents=True, exist_ok=True)
+    overview.write_bytes(b"%PDF-1.4 overview placeholder")
+    curve = tmp_path / "figs" / "curve.pdf"
+    curve.write_bytes(b"%PDF-1.4 a plotted curve without printed values")
+    digest = _sha256(curve)
+    return {
+        "plotted_quantities": ["response_curve"],
+        "verdict_bindings": [{"quantity": "response_curve", "verdict_path": "gates/curve.verdict.json",
+                              "verdict_sha256": hash_curve}],
+        "overview_figure": {"path": "figs/review/overview_all_components.pdf", "archived": True},
+        "final_display": {
+            "purpose": "show how the response varies with the control parameter",
+            "prints_values": False,
+            "surfaces": [{"path": "figs/curve.pdf", "sha256": digest, "language": "en",
+                          "review": {"sha256": digest, "readability": True, "semantics": True}}],
+        },
+    }
+
+
+def _curve_result(tmp_path: Path, block: dict, expected: str | None, figure: str = "figs/curve.pdf") -> dict:
+    manifest = _write_manifest(tmp_path, block)
+    record = json.loads(manifest.read_text(encoding="utf-8"))
+    record["figure"] = figure
+    manifest.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    code, payload = _run(manifest)
+    if expected is None:
+        assert code == 0, payload
+        assert payload["result"] == "pass"
+    else:
+        assert code == 1, payload
+        assert expected in _kinds(payload), payload
+    _assert_payload_matches_schema(payload)
+    return payload
+
+
+def test_continuous_plot_with_declared_no_printed_values_passes(tmp_path: Path) -> None:
+    _curve_result(tmp_path, _curve_bundle(tmp_path), None)
+
+
+def test_no_values_declaration_keeps_the_verdict_binding_requirement(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    block["verdict_bindings"] = []
+    payload = _curve_result(tmp_path, block, "missing-binding")
+    assert payload["result"] == "missing_verdict_binding"
+
+
+def test_no_values_declaration_keeps_the_overview_requirement(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    del block["overview_figure"]
+    payload = _curve_result(tmp_path, block, "overview-undeclared")
+    assert payload["result"] == "missing_overview_figure"
+
+
+def test_no_values_declaration_still_requires_rendered_review(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    block["final_display"]["surfaces"][0]["review"]["semantics"] = False
+    payload = _curve_result(tmp_path, block, "rendered-review-missing")
+    assert payload["result"] == "verdict_mismatch"
+
+
+def test_no_values_declaration_still_pins_the_final_bytes(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    (tmp_path / "figs" / "curve.pdf").write_bytes(b"%PDF-1.4 re-rendered after the review")
+    _curve_result(tmp_path, block, "final-input-mismatch")
+
+
+def test_no_values_declaration_still_requires_main_surface_coverage(tmp_path: Path) -> None:
+    _curve_result(tmp_path, _curve_bundle(tmp_path), "main-surface-not-covered", figure="figs/uninspected.pdf")
+
+
+def test_no_values_declaration_cannot_carry_cell_fields(tmp_path: Path) -> None:
+    # Cases live in the body so the coverage lock can pin each refused field.
+    for extra in [
+        {"cells": []},
+        {"source": {"path": "quantities.json", "sha256": "0" * 64}},
+        {"selection": ["response_curve"]},
+    ]:
+        block = _curve_bundle(tmp_path)
+        block["final_display"].update(extra)
+        _curve_result(tmp_path, block, "semantics-malformed")
+
+
+def test_no_values_surface_cannot_carry_reading_fields(tmp_path: Path) -> None:
+    for field, value in [
+        ("extraction", {"path": "cells.json", "sha256": "0" * 64}),
+        ("format", "extracted"),
+        ("labels", {}),
+        ("unit_labels", {}),
+        ("status_labels", {}),
+    ]:
+        block = _curve_bundle(tmp_path)
+        block["final_display"]["surfaces"][0][field] = value
+        _curve_result(tmp_path, block, "semantics-malformed")
+
+
+def test_prints_values_must_be_a_boolean(tmp_path: Path) -> None:
+    # Falsy non-booleans would otherwise enter the no-values branch of the
+    # curve bundle; a truthy non-boolean would otherwise pass the full bundle.
+    for value in [0, None]:
+        block = _curve_bundle(tmp_path)
+        block["final_display"]["prints_values"] = value
+        _curve_result(tmp_path, block, "semantics-malformed")
+    block = _bundle(tmp_path)
+    block["final_display"]["prints_values"] = 1
+    _semantic_result(tmp_path, block, "semantics-malformed")
+
+
+def test_empty_cell_list_is_not_a_no_values_declaration(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["final_display"]["cells"] = []
+    _semantic_result(tmp_path, block, "semantics-malformed")
+
+
+def test_html_result_table_contradicts_no_values_declaration(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    table = tmp_path / "figs" / "summary.html"
+    table.write_text(_html_cells([{"id": "a", "label": "Interval A", "value": "1.23", "unit": "s"}]), encoding="utf-8")
+    digest = _sha256(table)
+    block["final_display"]["surfaces"].append({
+        "path": "figs/summary.html", "sha256": digest, "language": "en",
+        "review": {"sha256": digest, "readability": True, "semantics": True}})
+    payload = _curve_result(tmp_path, block, "printed-values-undeclared")
+    assert payload["result"] == "verdict_mismatch"
+
+
+def test_result_table_guard_reads_bytes_not_a_declared_format(tmp_path: Path) -> None:
+    # An HTML page saved under a non-HTML name is still scanned.
+    block = _curve_bundle(tmp_path)
+    page = tmp_path / "figs" / "page.pdf"
+    page.write_text(_html_cells([{"id": "a", "label": "Interval A", "value": "1.23", "unit": "s"}]), encoding="utf-8")
+    digest = _sha256(page)
+    block["final_display"]["surfaces"].append({
+        "path": "figs/page.pdf", "sha256": digest, "language": "en",
+        "review": {"sha256": digest, "readability": True, "semantics": True}})
+    _curve_result(tmp_path, block, "printed-values-undeclared")
+
+
+def test_binary_rendering_is_accepted_under_no_values_declaration(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    curve = tmp_path / "figs" / "curve.pdf"
+    curve.write_bytes(b"%PDF-1.4\n\xff\xfe binary stream")
+    digest = _sha256(curve)
+    block["final_display"]["surfaces"][0].update(sha256=digest, review={"sha256": digest, "readability": True, "semantics": True})
+    _curve_result(tmp_path, block, None)
+
+
+def _raising_feed(self, data: str) -> None:
+    # Which markup makes html.parser assert differs between Python patch
+    # releases (an unknown marked section does on 3.12, not on 3.11), so the
+    # assertion is injected at the parser entry instead of provoked by input.
+    raise AssertionError("injected parser assertion")
+
+
+def test_parser_assertion_on_odd_markup_is_a_finding_not_a_crash(tmp_path: Path, monkeypatch) -> None:
+    module = _load_gate_module()
+    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
+    monkeypatch.setattr(html.parser.HTMLParser, "feed", _raising_feed)
+    payload = module.check_manifest(manifest)
+    assert payload["result"] == "verdict_mismatch"
+    assert "semantics-unreadable" in _kinds(payload)
+    assert any("injected parser assertion" in f["message"] for f in payload["findings"])
+    _assert_payload_matches_schema(payload)
+
+
+def test_result_table_guard_falls_back_when_the_parser_asserts(monkeypatch) -> None:
+    spec = importlib.util.spec_from_file_location("display_semantics", GATE.with_name("display_semantics.py"))
+    semantics = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(semantics)
+    marked = _html_cells([{"id": "a", "label": "Interval A", "value": "1.23", "unit": "s"}]).encode("utf-8")
+    assert semantics._carries_result_table(marked)
+    assert not semantics._carries_result_table(b"<figure></figure>")
+    monkeypatch.setattr(html.parser.HTMLParser, "feed", _raising_feed)
+    assert semantics._carries_result_table(marked)
+    assert semantics._carries_result_table(b"<TABLE class=\"x\" DATA-RESULTS>")
+    assert not semantics._carries_result_table(b"<figure></figure>")
+
+
+def test_result_table_guard_is_encoding_independent(tmp_path: Path) -> None:
+    # The same marked table in three text encodings is refused each time.
+    block_html = _html_cells([{"id": "a", "label": "Interval A (\u00b5s)", "value": "1.23", "unit": "s"}])
+    for name, raw in [("cp1252.html", block_html.encode("cp1252")),
+                      ("utf16.html", block_html.encode("utf-16")),
+                      ("utf16-truncated.html", block_html.encode("utf-16") + b"\x00"),
+                      ("utf8bom.html", b"\xef\xbb\xbf" + block_html.encode("utf-8"))]:
+        block = _curve_bundle(tmp_path)
+        page = tmp_path / "figs" / name
+        page.write_bytes(raw)
+        digest = _sha256(page)
+        block["final_display"]["surfaces"].append({
+            "path": "figs/" + name, "sha256": digest, "language": "en",
+            "review": {"sha256": digest, "readability": True, "semantics": True}})
+        _curve_result(tmp_path, block, "printed-values-undeclared")
+
+
+def test_odd_markup_without_result_table_is_accepted_under_no_values_declaration(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    page = tmp_path / "figs" / "odd.html"
+    page.write_text("<![foo[ x ]]><figure></figure>", encoding="utf-8")
+    digest = _sha256(page)
+    block["final_display"]["surfaces"].append({
+        "path": "figs/odd.html", "sha256": digest, "language": "en",
+        "review": {"sha256": digest, "readability": True, "semantics": True}})
+    _curve_result(tmp_path, block, None)
+
+
+def test_odd_markup_cannot_hide_a_result_table(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    page = tmp_path / "figs" / "odd.html"
+    page.write_text("<![foo[ x ]]>" + _html_cells([{"id": "a", "label": "Interval A", "value": "1.23", "unit": "s"}]),
+                    encoding="utf-8")
+    digest = _sha256(page)
+    block["final_display"]["surfaces"].append({
+        "path": "figs/odd.html", "sha256": digest, "language": "en",
+        "review": {"sha256": digest, "readability": True, "semantics": True}})
+    _curve_result(tmp_path, block, "printed-values-undeclared")
+
+
+def test_html_without_result_table_is_accepted_under_no_values_declaration(tmp_path: Path) -> None:
+    block = _curve_bundle(tmp_path)
+    page = tmp_path / "figs" / "curve.html"
+    page.write_text('<figure><img src="curve.svg" alt="response versus control parameter"></figure>', encoding="utf-8")
+    digest = _sha256(page)
+    block["final_display"]["surfaces"].append({
+        "path": "figs/curve.html", "sha256": digest, "language": "en",
+        "review": {"sha256": digest, "readability": True, "semantics": True}})
+    _curve_result(tmp_path, block, None)
+
+
+def test_full_form_explicit_prints_values_true_is_accepted(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["final_display"]["prints_values"] = True
+    _semantic_result(tmp_path, block, None)
+
+
+# --- A plotted quantity that prints no cell beside quantities that do ---------
+
+
+def _annotated_curve_bundle(tmp_path: Path) -> dict:
+    """A curve drawn as continuous marks plus one printed headline value,
+    extracted after rendering: the curve has no cell, the headline has one."""
+    block = _bundle(tmp_path)
+    block["plotted_quantities"] = ["response_curve", "peak_position"]
+    hash_all = _write_verdict(tmp_path / "gates" / "all.verdict.json", ["response_curve", "peak_position"])
+    block["verdict_bindings"] = [
+        {"quantity": q, "verdict_path": "gates/all.verdict.json", "verdict_sha256": hash_all}
+        for q in ["response_curve", "peak_position"]]
+    source = tmp_path / "quantities.json"
+    source.write_text(json.dumps({"quantities": [
+        {"id": "response_curve", "identity": {"object": "sample", "conditions": "fixed", "reference": "origin",
+                                              "definition": "response versus control parameter"},
+         "role": "result"},
+        {"id": "peak_position", "identity": {"object": "sample", "conditions": "fixed", "reference": "origin",
+                                             "definition": "control value at maximum response"},
+         "role": "result", "raw": {"value": "1234", "unit": "ms"}}]}), encoding="utf-8")
+    curve = tmp_path / "figs" / "curve.pdf"
+    curve.write_bytes(b"%PDF-1.4 a plotted curve annotated: peak at 1.23 s")
+    digest = _sha256(curve)
+    extraction = tmp_path / "curve-cells.json"
+    extraction.write_text(json.dumps({"surface_sha256": digest, "cells": [
+        {"id": "peak", "label": "Peak position", "value": "1.23", "unit": "s"}]}), encoding="utf-8")
+    block["final_display"] = {
+        "purpose": "show the response and quote where it peaks",
+        "source": {"path": "quantities.json", "sha256": _sha256(source)},
+        "selection": ["response_curve", "peak_position"],
+        "drawn_quantities": ["response_curve"],
+        "cells": [{"id": "peak", "quantity": "peak_position", "unit": "s",
+                   "transform": {"kind": "identity", "definition": "convert source milliseconds to seconds"}}],
+        "surfaces": [{"path": "figs/curve.pdf", "sha256": digest, "format": "extracted", "language": "en",
+                      "labels": {"peak": "Peak position"}, "unit_labels": {"s": "s"},
+                      "review": {"sha256": digest, "readability": True, "semantics": True},
+                      "extraction": {"path": "curve-cells.json", "sha256": _sha256(extraction)}}],
+    }
+    return block
+
+
+def test_plotted_curve_beside_a_printed_headline_value_passes(tmp_path: Path) -> None:
+    _curve_result(tmp_path, _annotated_curve_bundle(tmp_path), None)
+
+
+def test_printed_headline_value_is_still_checked_beside_a_curve(tmp_path: Path) -> None:
+    block = _annotated_curve_bundle(tmp_path)
+    extraction = tmp_path / "curve-cells.json"
+    record = json.loads(extraction.read_text(encoding="utf-8"))
+    record["cells"][0]["value"] = "1234"  # milliseconds printed under a seconds label
+    extraction.write_text(json.dumps(record), encoding="utf-8")
+    block["final_display"]["surfaces"][0]["extraction"]["sha256"] = _sha256(extraction)
+    _curve_result(tmp_path, block, "value-unit-mismatch")
+
+
+def test_unprinted_quantity_outside_the_selection_is_still_refused(tmp_path: Path) -> None:
+    block = _annotated_curve_bundle(tmp_path)
+    block["final_display"]["selection"] = ["peak_position"]
+    _curve_result(tmp_path, block, "display-selection-mismatch")
+
+
+def test_absence_of_cells_is_not_a_drawn_declaration(tmp_path: Path) -> None:
+    block = _annotated_curve_bundle(tmp_path)
+    del block["final_display"]["drawn_quantities"]
+    _curve_result(tmp_path, block, "component-order-mismatch")
+
+
+def test_drawn_declaration_cannot_name_a_printing_quantity(tmp_path: Path) -> None:
+    block = _annotated_curve_bundle(tmp_path)
+    block["final_display"]["drawn_quantities"] = ["response_curve", "peak_position"]
+    _curve_result(tmp_path, block, "display-selection-mismatch")
+
+
+def test_empty_drawn_list_is_not_a_declaration(tmp_path: Path) -> None:
+    block = _annotated_curve_bundle(tmp_path)
+    block["final_display"]["drawn_quantities"] = []
+    _curve_result(tmp_path, block, "semantics-malformed")
+
+
+def test_drawn_declaration_cannot_name_an_unselected_quantity(tmp_path: Path) -> None:
+    block = _annotated_curve_bundle(tmp_path)
+    block["final_display"]["drawn_quantities"] = ["response_curve", "other"]
+    _curve_result(tmp_path, block, "display-selection-mismatch")
+
+
+def test_drawn_quantity_without_value_cannot_be_printed(tmp_path: Path) -> None:
+    block = _annotated_curve_bundle(tmp_path)
+    del block["final_display"]["drawn_quantities"]
+    block["final_display"]["cells"].append({"id": "curve", "quantity": "response_curve", "unit": "s",
+                                            "transform": {"kind": "identity", "definition": "none"}})
+    _curve_result(tmp_path, block, "component-identity-missing")
+
+
+def test_table_row_dropped_by_the_generator_is_still_refused(tmp_path: Path) -> None:
+    # A pure table whose generator lost one quantity's row and its cell record.
+    block = _bundle(tmp_path)
+    final = block["final_display"]
+    del final["cells"][1]
+    surface = final["surfaces"][0]
+    del surface["labels"]["b"]
+    path = tmp_path / surface["path"]
+    path.write_text(_html_cells([{"id": "a", "label": "Interval A", "value": "1.23", "unit": "s"}]), encoding="utf-8")
+    surface["sha256"] = surface["review"]["sha256"] = _sha256(path)
+    _semantic_result(tmp_path, block, "component-order-mismatch")
+
+
+def test_quantity_that_prints_any_cell_must_print_all_its_components(tmp_path: Path) -> None:
+    block = _vector_bundle(tmp_path)
+    final = block["final_display"]
+    del final["cells"][1]  # the second coordinate is dropped from the inventory and the page
+    surface = final["surfaces"][0]
+    del surface["labels"]["second"]
+    path = tmp_path / surface["path"]
+    path.write_text(_html_cells([
+        {"id": "first", "label": "First coordinate", "value": "-2.0", "unit": "m"},
+        {"id": "b", "label": "Interval B", "value": "2.35", "unit": "s"}]), encoding="utf-8")
+    surface["sha256"] = surface["review"]["sha256"] = _sha256(path)
+    _semantic_result(tmp_path, block, "component-order-mismatch")
