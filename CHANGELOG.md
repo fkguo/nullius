@@ -519,12 +519,17 @@ and delegation contracts, and consolidated run authority under one canonical
   Auto memory and instruction files record earlier conclusions and the
   author's judgment, so a lane that loads them is not independent of the claim
   it checks. `claude-cli-runner` starts every lane with `--safe-mode` and
-  `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`: the user-level instruction file,
-  `CLAUDE.md`/`AGENTS.md` of the working directory and its parents, auto
-  memory, plugins, hooks, skills and the git status snapshot stay out, and the
-  login is kept. Each invocation writes `context_sources.json` into its attempt
-  directory (exclusions measured with marker files, exclusions stated only by
-  the CLI documentation, admitted sources, what was not measured). Under
+  `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, and the login is kept. Measured
+  with marker files to stay out: the user-level instruction file,
+  `CLAUDE.md`/`AGENTS.md` of the working directory and its parents (home
+  included), a subdirectory `CLAUDE.md` after a read, auto memory, and the
+  skills and agents of user-installed plugins and of the user's skill
+  directory. Excluded according to the CLI documentation, not measured:
+  `CLAUDE.local.md` and user-level rules files, managed-policy `CLAUDE.md`,
+  user and project hooks, custom commands, output styles and MCP servers, and
+  the git status snapshot; managed-policy settings and policy-configured hooks
+  still apply, per the CLI. Each invocation writes `context_sources.json` into
+  its attempt directory with these three lists and the admitted sources. Under
   `--live-capture` each attempt also writes `attempt_N.context_observed.json`
   from the stream's init event; a hermetic lane whose init event reports an
   auto-memory location, or that succeeds without an init event, exits `78`
@@ -538,6 +543,23 @@ and delegation contracts, and consolidated run authority under one canonical
   codex, gemini, kimi and opencode runners, so a CLI that does not know
   `--safe-mode` is expected to fail instead of running with the operator's
   context (not tested against an older CLI).
+- **research-team: the project-local Claude runner copy keeps operator
+  context out.** `assets/run_claude.sh`, copied into projects as
+  `scripts/run_claude.sh`, runs `claude --print --safe-mode` with
+  `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, carries the marker line
+  `research-team-claude-runner: context-excluded`, and treats an
+  `unknown option` error as a deterministic failure like the shared runner;
+  it applies the exclusion but writes no `context_sources.json`.
+  `run_team_cycle.sh` uses a project copy only when it carries both the marker
+  and `--safe-mode` on its `claude --print` line. Otherwise, when a member uses
+  the Claude runner through the project copy (no `--member-*-runner`
+  override), the run substitutes the shared `claude-cli-runner` with a
+  `[warn]` line and leaves the project file untouched; it refuses with the
+  refresh command instead when such a member has a `--member-*-api-base-url`
+  or `--member-*-api-key-env` option (only the project copy accepts them) or
+  when the shared runner is not available. **Migration**, once per existing
+  project: `cp <skills>/research-team/assets/run_claude.sh
+  scripts/run_claude.sh` (merge the two flags by hand into a customized copy).
 - **derivation-verify: lane request wording; provider refusals recorded.** Both
   executors ask lanes for "the full written derivation, as it would appear in a
   paper appendix: every mathematical step stated explicitly" instead of
@@ -564,9 +586,12 @@ and delegation contracts, and consolidated run authority under one canonical
   bookkeeping omitted (ids, timestamps, usage, cost and timing counters,
   status/thinking-token/rate-limit events, stream markers, empty thinking
   blocks, signatures); anything else inline verbatim. `artifact_refs` gain
-  `size`. On the 300-step test derivation two lanes went from about 190 kB to
-  66,591 bytes; on two real Claude streams with capture, from 891 kB to 95,454
-  bytes, within the 159,040-byte default window. Material that still exceeds
+  `size`. On the capture-free 300-step test derivation the two-lane request
+  went from 130,540 bytes (after the first duplicate copies were dropped) to
+  66,591 (three lanes: 194,174 to 98,196); on two real Claude streams with
+  capture, the two-lane request bound (system prompt, prompt and an
+  8,192-byte reserve) went from 900,126 to 95,560 bytes, within the
+  159,040-byte default window. Material that still exceeds
   the byte budget is handled as the read-coverage entry below describes.
 - **derivation-verify: what counts as a quote of a lane's steps.**
   Construction, applicability, diagnostic and method-risk spans count only in
@@ -594,7 +619,14 @@ and delegation contracts, and consolidated run authority under one canonical
   Read/Glob/Grep; its verdict counts only when the capture shows every byte of
   every part returned exactly, otherwise it is unavailable as content not
   completely read, never truncated. The Native executor cannot show reads, so
-  such material stays unavailable there. Every source span must be one
+  such material stays unavailable there. Live limitation: the frozen-file
+  reading path is currently stopped by the provider's `reasoning_extraction`
+  safeguard on live Claude comparators, in every live attempt across wording,
+  model and thinking settings, so material beyond the window is recorded as
+  `provider_refusal` and does not count. The inline forms above the byte
+  budget were run live with stand-in lanes (single request 294,341 bytes;
+  per-lane 175,438 and 255,382 bytes): both converged, with no provider stop
+  and no compaction. Every source span must be one
   contiguous exact copy; joined passages and ellipses refuse. review-swarm's
   authority-key creation and reads serialize on a lock file.
 - **Delegation time boxes are sized from measurement** (research-team /
