@@ -13,6 +13,7 @@ from __future__ import annotations
 import ast
 import hashlib
 from html import escape
+import html.parser
 import importlib.util
 import json
 import os
@@ -1430,12 +1431,35 @@ def test_binary_rendering_is_accepted_under_no_values_declaration(tmp_path: Path
     _curve_result(tmp_path, block, None)
 
 
-def test_parser_assertion_on_odd_markup_is_a_finding_not_a_crash(tmp_path: Path) -> None:
-    # html.parser raises AssertionError on an unknown marked section; the
-    # full form reads the page through the cell adapter.
-    block = _bundle(tmp_path)
-    _change_html(tmp_path, block, '<table data-results>', '<![foo[ x ]]><table data-results>')
-    _semantic_result(tmp_path, block, "semantics-unreadable")
+def _raising_feed(self, data: str) -> None:
+    # Which markup makes html.parser assert differs between Python patch
+    # releases (an unknown marked section does on 3.12, not on 3.11), so the
+    # assertion is injected at the parser entry instead of provoked by input.
+    raise AssertionError("injected parser assertion")
+
+
+def test_parser_assertion_on_odd_markup_is_a_finding_not_a_crash(tmp_path: Path, monkeypatch) -> None:
+    module = _load_gate_module()
+    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
+    monkeypatch.setattr(html.parser.HTMLParser, "feed", _raising_feed)
+    payload = module.check_manifest(manifest)
+    assert payload["result"] == "verdict_mismatch"
+    assert "semantics-unreadable" in _kinds(payload)
+    assert any("injected parser assertion" in f["message"] for f in payload["findings"])
+    _assert_payload_matches_schema(payload)
+
+
+def test_result_table_guard_falls_back_when_the_parser_asserts(monkeypatch) -> None:
+    spec = importlib.util.spec_from_file_location("display_semantics", GATE.with_name("display_semantics.py"))
+    semantics = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(semantics)
+    marked = _html_cells([{"id": "a", "label": "Interval A", "value": "1.23", "unit": "s"}]).encode("utf-8")
+    assert semantics._carries_result_table(marked)
+    assert not semantics._carries_result_table(b"<figure></figure>")
+    monkeypatch.setattr(html.parser.HTMLParser, "feed", _raising_feed)
+    assert semantics._carries_result_table(marked)
+    assert semantics._carries_result_table(b"<TABLE class=\"x\" DATA-RESULTS>")
+    assert not semantics._carries_result_table(b"<figure></figure>")
 
 
 def test_result_table_guard_is_encoding_independent(tmp_path: Path) -> None:

@@ -332,7 +332,13 @@ requireInTestBody('test_binary_rendering_is_accepted_under_no_values_declaration
   '_curve_result(tmp_path, block, None)',
 ]);
 requireInTestBody('test_parser_assertion_on_odd_markup_is_a_finding_not_a_crash', 'parser-assertion control', [
-  '_semantic_result(tmp_path, block, "semantics-unreadable")',
+  'monkeypatch.setattr(html.parser.HTMLParser, "feed", _raising_feed)',
+  'assert payload["result"] == "verdict_mismatch"',
+  'assert "semantics-unreadable" in _kinds(payload)',
+]);
+requireInTestBody('test_result_table_guard_falls_back_when_the_parser_asserts', 'parser-fallback control', [
+  'monkeypatch.setattr(html.parser.HTMLParser, "feed", _raising_feed)',
+  'assert semantics._carries_result_table(marked)',
 ]);
 requireInTestBody('test_result_table_guard_is_encoding_independent', 'encoding-independence control', [
   'encode("cp1252")',
