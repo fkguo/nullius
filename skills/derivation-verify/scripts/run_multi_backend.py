@@ -968,7 +968,7 @@ _MATERIAL_RULES = (
     "(ref = path, sha256, size, with the equality proven at assembly), or content_blocks for a run's event log: its entries in "
     "recorded order, where a text value given as {equals, sha256} is exactly the complete named shipped field (proven equal at "
     "assembly) and every other entry and field is verbatim; only bookkeeping is not shown (ids, timestamps, usage, cost and "
-    "timing counters, status, counter and rate-limit entries, start/stop markers, empty blocks and opaque signature fields). "
+    "timing counters, status, counter and rate-limit entries, start/stop markers, empty blocks of the model's internal notes and opaque signature fields). "
     "Check whether earlier text contains necessary steps, contradictions, repetitions or unrelated commentary. "
     "Do not assume all text is a derivation, or that one selected JSON field contains every necessary step. "
     "If the JSON already contains the complete derivation, retain that contract and substantively explain coverage of earlier text. "
@@ -1012,7 +1012,7 @@ def _assess_prompt(ctx: str, c: dict, entry: dict, frozen: Optional[dict] = None
         "derivation arrive at its stated canonical_answer: answer_support {supports_canonical_answer:boolean, source_span (the concluding "
         "steps as written, quoted under the construction rule), reason}; false when the written steps reach a different result, "
         "contradict it or do not reach it. "
-        "Reject missing written steps or records, failed invocations, text copied from another lane, reruns of the original code, contaminated inputs, "
+        "Reject missing written steps or records, failed invocations, copied text (from another lane, the inputs, or any supplied or known solution), reruns of the original code, contaminated inputs, "
         "known relevant defects and non-diagnostic checks. Same/similar methods, same family and shared legitimate libraries alone do not reject. "
         "Missing material is unavailable, never approval."
     )

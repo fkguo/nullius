@@ -429,5 +429,11 @@ def test_lane_and_pair_requests_read_as_reviewing_a_written_document():
         assert not found, (name, found)
     files = texts['lane files']
     for kept in ('Open every listed part with the Read tool', 'every line of every listed file was shown to you by the Read tool',
-                 'write the assessment in your last message, after the last Read', 'answer_support {supports_canonical_answer:boolean'):
+                 'write the assessment in your last message, after the last Read', 'answer_support {supports_canonical_answer:boolean',
+                 'put the lines of all parts of a lane together in the listed order with nothing between them',
+                 'a piece ends after each \\n escape or after at most', 'never inside an escape', 'Do not use other files or tools instead.',
+                 'a text value given as {equals, sha256} is exactly the complete named shipped field',
+                 'copied text (from another lane, the inputs, or any supplied or known solution)', 'reruns of the original code',
+                 'contaminated inputs', 'known relevant defects and non-diagnostic checks', 'Missing material is unavailable, never approval.'):
         assert kept in files, kept
+    assert 'Missing material or unsupported risk assessment is unavailable, never approval.' in texts['pair files']
