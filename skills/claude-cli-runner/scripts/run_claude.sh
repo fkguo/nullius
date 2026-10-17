@@ -7,6 +7,8 @@ set -euo pipefail
 # - Avoids copy/paste errors with long prompts
 # - Adds exponential backoff for transient overload/5xx
 # - Keeps tool access disabled by default
+# - Keeps the operator's own context (user/project CLAUDE.md, auto memory, plugins, hooks) out of
+#   the lane by default (--safe-mode), recording what was allowed in context_sources.json
 
 MODEL=""
 SYSTEM_PROMPT_FILE=""
@@ -29,7 +31,9 @@ INACTIVITY_SECS=0
 INACTIVITY_GRACE_SECS=30
 TRACE_DIR=""
 ACTIVE_PID=""
+HERMETIC=1
 PROCESS_BUDGET="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/process_budget.py"
+CONTEXT_SOURCES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/context_sources.py"
 
 usage() {
   cat <<'EOF'
@@ -44,6 +48,9 @@ Options:
   --tools TOOLS            Explicit tool list override. Use "" to disable all tools.
   --strict-mcp-config      Default: enabled (skip MCP tool loading)
   --no-strict-mcp-config   Disable --strict-mcp-config
+  --load-operator-context  Let the CLI load the operator's own context (user and project CLAUDE.md,
+                           AGENTS.md, auto memory, plugins, hooks, skills). Default: excluded with
+                           --safe-mode, which keeps the login; the lane is then recorded as not hermetic.
   --system-prompt-file F   Required
   --prompt-file F          Required
   --out PATH               Required (stdout+stderr captured)
@@ -75,6 +82,7 @@ while [[ $# -gt 0 ]]; do
     --tools) TOOLS="$2"; TOOLS_EXPLICIT=1; shift 2;;
     --strict-mcp-config) STRICT_MCP_CONFIG=1; shift 1;;
     --no-strict-mcp-config) STRICT_MCP_CONFIG=0; shift 1;;
+    --load-operator-context) HERMETIC=0; shift 1;;
     --system-prompt-file) SYSTEM_PROMPT_FILE="$2"; shift 2;;
     --prompt-file) PROMPT_FILE="$2"; shift 2;;
     --out) OUT="$2"; shift 2;;
@@ -129,6 +137,16 @@ esac
 STRICT_ARG=()
 if [[ "${STRICT_MCP_CONFIG}" -eq 1 ]]; then
   STRICT_ARG=(--strict-mcp-config)
+fi
+
+# Context sources: by default a lane carries only its own request. --safe-mode keeps the operator's
+# login but loads no user/project CLAUDE.md or AGENTS.md, no auto memory, no plugins, hooks or skills
+# (--bare would also drop them but refuses the login; --setting-sources "" still loads auto memory).
+CONTEXT_ARGS=()
+CONTEXT_MODE="operator"
+if [[ "${HERMETIC}" -eq 1 ]]; then
+  CONTEXT_ARGS=(--safe-mode)
+  CONTEXT_MODE="hermetic"
 fi
 
 # Session semantics: the runner's default contract is a CLEAN-ROOM one-shot (claude
@@ -211,6 +229,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   else
     echo "Strict MCP config: disabled (--no-strict-mcp-config)"
   fi
+  if [[ "${HERMETIC}" -eq 1 ]]; then
+    echo "Operator context: excluded (--safe-mode: no user/project CLAUDE.md, AGENTS.md, auto memory, plugins, hooks, skills)"
+  else
+    echo "Operator context: loaded (--load-operator-context; lane is not hermetic)"
+  fi
   echo "System prompt file: ${SYSTEM_PROMPT_FILE} (bytes=${sys_size}, sha256=${sys_sha})"
   echo "Prompt file (stdin): ${PROMPT_FILE} (bytes=${prompt_size}, sha256=${prompt_sha})"
   echo "Output: ${OUT} (buffered bytes preserved unless live capture is enabled)"
@@ -239,6 +262,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   fi
   if [[ "${STRICT_MCP_CONFIG}" -eq 1 ]]; then
     echo -n " --strict-mcp-config"
+  fi
+  if [[ "${HERMETIC}" -eq 1 ]]; then
+    echo -n " --safe-mode"
   fi
   if [[ -n "${MODEL}" ]]; then
     echo -n " --model ${MODEL}"
@@ -278,6 +304,9 @@ policy_args=(--timeout-secs "${TIMEOUT_SECS}" --expected-secs "${EXPECTED_SECS}"
 if [[ "${LIVE_CAPTURE}" -eq 1 ]]; then policy_args+=(--capture); fi
 python3 "${PROCESS_BUDGET}" init --state "${BUDGET_STATE}" --max-attempts "${MAX_RETRIES}" \
   "${policy_args[@]}" --prompt-file "${PROMPT_FILE}" --system-file "${SYSTEM_PROMPT_FILE}" --out "${OUT}"
+context_declare_args=(--mode "${CONTEXT_MODE}")
+if [[ "${LIVE_CAPTURE}" -eq 1 ]]; then context_declare_args+=(--live-capture); fi
+python3 "${CONTEXT_SOURCES}" declare "${context_declare_args[@]}" --out "${TRACE_RUN_DIR}/context_sources.json"
 tmp_out="${TRACE_RUN_DIR}/buffered-output.txt"
 tmp_stdout=""
 tmp_stderr=""
@@ -442,7 +471,8 @@ while true; do
     "${session_capture_args[@]+"${session_capture_args[@]}"}" --out "${OUT}" --stdin "${PROMPT_FILE}" \
     --stdout "${tmp_stdout}" --stderr "${tmp_stderr}" -- \
     claude --print "${SESSION_ARGS[@]+"${SESSION_ARGS[@]}"}" "${FORMAT_ARGS[@]+"${FORMAT_ARGS[@]}"}" \
-    "${STRICT_ARG[@]+"${STRICT_ARG[@]}"}" "${MODEL_ARG[@]+"${MODEL_ARG[@]}"}" --tools "${TOOLS}" \
+    "${STRICT_ARG[@]+"${STRICT_ARG[@]}"}" "${CONTEXT_ARGS[@]+"${CONTEXT_ARGS[@]}"}" \
+    "${MODEL_ARG[@]+"${MODEL_ARG[@]}"}" --tools "${TOOLS}" \
     --input-format text --system-prompt "${SYSTEM_PROMPT}" &
   ACTIVE_PID=$!
   code=0
@@ -452,6 +482,17 @@ while true; do
   if [[ "${LIVE_CAPTURE}" -eq 1 ]]; then
     sleep_for=0
     write_attempt_logs "${attempt}" "${code}" "${sleep_for}" "${tmp_stdout}" "${tmp_stderr}"
+    # The stream's init event names the auto-memory location when memory was loaded. A lane
+    # declared hermetic that shows one (or succeeds without any init event) is rejected, not retried:
+    # the same configuration would load the same context again.
+    observe_code=0
+    python3 "${CONTEXT_SOURCES}" observe --mode "${CONTEXT_MODE}" --events "${tmp_stdout}" \
+      --exit-code "${code}" --out "${TRACE_RUN_DIR}/attempt_${attempt}.context_observed.json" || observe_code=$?
+    if [[ "${observe_code}" -ne 0 ]]; then
+      # Keep the evidence, but never leave a rejected lane's answer where a result is read.
+      if [[ -e "${OUT}" ]]; then mv -f "${OUT}" "${OUT}.not-hermetic"; fi
+      exit "${observe_code}"
+    fi
     if [[ "${code}" -eq 0 ]]; then exit 0; fi
     if det_reason="$(classify_deterministic_failure "${code}" "${tmp_stderr}" "${tmp_stdout%.jsonl}.error.log")"; then
       echo "Claude failed with a deterministic error (${det_reason}); not retrying." >&2
