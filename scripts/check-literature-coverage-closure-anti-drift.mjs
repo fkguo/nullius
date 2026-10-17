@@ -80,7 +80,8 @@ const anchoredFiles = new Map([
   ['packages/orchestrator/src/state-manager.ts', REQUIRED_FLAGS],
   ['meta/schemas/workflow_recipe_v1.schema.json', REQUIRED_FLAGS],
   ['.github/workflows/ci.yml', [
-    'skills/research-team/tests/test_literature_trace_gate.py',
+    // The trace-gate tests run as part of the research-team directory suite step.
+    'skills/research-team/tests -q',
     'skills/idea-posterior/tests/test_close_prior_gate.py',
     'skills/idea-posterior/tests/test_writeback.py',
   ]],

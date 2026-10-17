@@ -277,7 +277,8 @@ if (testsText !== null) {
 const ciText = read(CI_FILE);
 if (ciText !== null) {
   requireAll(CI_FILE, ciText, [
-    ['pytest wiring', 'skills/research-harness/tests/test_launch_authorization_gate.py'],
+    // The gate tests run as part of the research-harness directory suite step.
+    ['pytest wiring', 'skills/research-harness/tests -q'],
     ['anti-drift wiring', 'check-launch-authorization-anti-drift.mjs'],
   ]);
 }
