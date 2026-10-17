@@ -637,6 +637,15 @@ from real contamination events that voided otherwise-clean review rounds:
   (`convergence.excluded_non_independent` names them), and never occupy a dual-review comparison
   seat. A `--contaminated` selector that matches no lane aborts the run before execution — a
   declared contamination must never silently fail to bind.
+- **Keep the operator's own context out of the lane.** Input-framing independence also means the lane
+  carries no operator memory: no user-level instruction files, no project instruction files of the
+  operator's checkout (`CLAUDE.md`, `AGENTS.md` and the like), and no auto memory of earlier sessions.
+  Those files routinely record the conclusion under test or the author's initial judgment, and their
+  style rules change the lane's language. Anything a lane legitimately needs belongs in its own request.
+  The Claude runner enforces this by default (`--safe-mode`; `claude-cli-runner` SKILL.md, **Context
+  sources**) and records the allowed sources per invocation in `OUT.attempts/run.*/context_sources.json`,
+  plus the observed init-event check under live capture. Other backends' runners do not yet record this;
+  their lanes carry no such attestation.
 - **Seal the independent phase from the first round (sealed-derivation protocol).** Whenever a
   review both (i) derives or recomputes a target quantity and (ii) will afterwards read the
   candidate, run the sealed-derivation protocol from round one: the reviewer receives only the
