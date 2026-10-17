@@ -6,6 +6,15 @@ authors:
   - family-names: Guo
     given-names: Feng-Kun
 version: 0.6.0
+date-released: 2026-10-17
+doi: 10.5281/zenodo.23436003
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23436003
+    description: "Nullius 0.6.0 (this version)"
+  - type: doi
+    value: 10.5281/zenodo.23436002
+    description: "Concept DOI: resolves to the latest archived version"
 repository-code: "https://github.com/fkguo/nullius"
 license: MIT
 keywords:
