@@ -194,7 +194,7 @@ For the higher-conclusion boundary:
 - `orch_run_status` / `orch_run_export` are the read surfaces for the current run's local outcome-facing `final_conclusions_v1` seam; no separate public read tool is introduced in this slice.
 
 Current live approval producers are:
-- `orch_run_plan_computation` and `orch_run_execute_manifest` for A3 compute execution (only when the `compute_runs` gate is enabled by policy; default off)
+- `orch_run_plan_computation` and `orch_run_execute_manifest` for A3 compute execution (only when the `compute_runs` gate is enabled by policy (default off) or an A3 approval already exists for the run)
 
 Tools that record local results and create no approval (the A5 request is listed last because it can create one in principle, but currently returns `unavailable`):
 - `orch_run_record_proposal_decision` for local proposal lifecycle closure without a second approval family
