@@ -1525,9 +1525,10 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
         verdicts.append({**joint,
             "independence_assessments": [a for k, plan in enumerate(plans) if plan["kind"] == "lane" for a in (own.get(k) or [])],
             "method_risk_assessments": [r for k, plan in enumerate(plans) if plan["kind"] == "pair" for r in (own.get(k) or [])]})
-    if plans[0]["kind"] == "combined" and plans[0]["mode"] == "inline_observed" and all(
-            "exceeds configured token window" in str(judge["requests"][0].get("reason", "")) for judge in evidence):
-        # The single request did not fit by observed usage: compare again in the split form, keeping this record.
+    if plans[0]["kind"] == "combined" and plans[0]["mode"] == "inline_observed" and all(v is None for v in verdicts):
+        # No judge's single request above the byte budget gave a counted verdict (over the window by observed
+        # usage, rejected by the provider as too long, or otherwise unavailable): compare again in the split
+        # form, the form used without this attempt, keeping the attempt's record.
         cmp, n_ok = _compare(c, ctx, derivations, families, comparators, run, tag=tag + "_split", allow_single_observed=False)
         cmp["request_capacity"]["single_request_attempt"] = evidence
         return cmp, n_ok

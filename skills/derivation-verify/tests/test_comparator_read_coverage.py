@@ -182,7 +182,8 @@ class ReadingComparator:
             + f'Path({str(out)!r}).write_text({report!r})\n'
             + f'(cap/"budget.json").write_text({json.dumps(budget)!r})\n'
             + f'(cap/"attempt_1.events.jsonl").write_text({stream!r})\n'
-            + f'(cap/"attempt_1.events.result.json").write_text({json.dumps(terminal)!r})\n', encoding='utf-8')
+            + f'(cap/"attempt_1.events.result.json").write_text({json.dumps(terminal)!r})\n'
+            + ('import sys; sys.exit(9)\n' if material_dir is None and single and self.mutation == 'single-rejected' else ''), encoding='utf-8')
         cmd = [sys.executable, str(writer), '--system-prompt-file', str(systemp), '--prompt-file', str(promptp), '--out', str(out)]
         # The real runner gives the launcher subprocess its own working directory; this in-process stand-in
         # changes the one shared process directory, so concurrent requests take turns.
@@ -528,11 +529,15 @@ def test_single_request_above_the_byte_budget_holds_every_lane_on_observed_usage
     assert cmp['request_capacity']['comparison_form'] == 'single_request' and n_ok == 1 and mb.claim_status(cmp, ds, ['host', 'host'])[0]
 
 
-def test_single_request_over_the_window_falls_back_to_lanes_assessed_one_per_request(tmp_path, monkeypatch):
+@pytest.mark.parametrize('mutation,reason', [('single-over-window', 'exceeds configured token window'),
+                                             ('single-rejected', 'actual request invocation did not complete successfully')])
+def test_single_request_over_the_window_falls_back_to_lanes_assessed_one_per_request(tmp_path, monkeypatch, mutation, reason):
+    # Over the window by observed usage, or rejected outright (e.g. by the provider as too long): either way no
+    # judge gave a counted verdict, so the lanes are compared in the per-lane form.
     ds = medium_lanes(2)
-    _, cmp, n_ok, run = compare(tmp_path, monkeypatch, 'single-over-window', ds=ds, budgets=SPLIT_BUDGET)
+    _, cmp, n_ok, run = compare(tmp_path, monkeypatch, mutation, ds=ds, budgets=SPLIT_BUDGET)
     attempt = cmp['request_capacity']['single_request_attempt'][0]['requests']
-    assert attempt[0]['kind'] == 'combined' and 'exceeds configured token window' in attempt[0]['reason']
+    assert attempt[0]['kind'] == 'combined' and reason in attempt[0]['reason']
     assert cmp['request_capacity']['comparison_form'] == 'per_lane' and n_ok == 1 and mb.claim_status(cmp, ds, ['host', 'host'])[0]
 
 
