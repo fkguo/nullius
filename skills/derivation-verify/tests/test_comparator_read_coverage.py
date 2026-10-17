@@ -448,6 +448,12 @@ def test_lane_and_pair_requests_read_as_reviewing_a_written_document():
                  'contaminated inputs', 'known relevant defects and non-diagnostic checks', 'Missing material is unavailable, never approval.'):
         assert kept in files, kept
     assert 'Missing material or unsupported risk assessment is unavailable, never approval.' in texts['pair files']
+    # Every request that asks for spans states the one-contiguous-copy rule, the single all-lane request included.
+    raw = json.dumps({'canonical_answer': '42', 'derivation': 'Step 1: 17 + 25 = 42.'})
+    small = [mb._execute_derivation(lambda *a: raw, 'claude/offline', 'neutral', 'raw operands', f'span-{i}') for i in range(2)]
+    for name in ('lane inline', 'lane files', 'pair files'):
+        assert mb._CONTIGUOUS_SPAN in texts[name], name
+    assert mb._CONTIGUOUS_SPAN in mb._combined_prompt('ctx', claim, small, ['f', 'f'])
 
 
 
