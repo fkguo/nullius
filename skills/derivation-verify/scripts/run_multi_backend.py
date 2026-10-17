@@ -887,10 +887,10 @@ def _compare_prompt(ctx: str, c: dict, derivations: list[dict], families: list[s
     # appears to the comparator byte for byte as that check encodes it. transport.captured_records
     # are carried per record by packet_transport: a record whose bytes are proven equal to a shipped
     # field or to the stream's terminal event goes by reference (path, sha256, size from
-    # artifact_refs); a live stream is shown as its content blocks, each text block replaced by a
-    # reference to the slice of raw_output (or derivation_context) it is proven equal to, every
-    # other block verbatim; event bookkeeping and thinking signatures are not shown; anything else
-    # stays inline. The window check below still refuses an oversized request; nothing is truncated.
+    # artifact_refs); a live stream is shown as its content, the lane's own text replaced by a
+    # reference to the shipped field it is proven equal to, every other block and field verbatim;
+    # only ids, timing/usage/cost counters, status, token-counter and rate-limit events, stream
+    # markers, empty thinking and thinking signatures are left out; anything else stays inline. The window check below still refuses an oversized request; nothing is truncated.
     packet = []
     for i, d in enumerate(derivations):
         entry = {k: v for k, v in d.items() if k != "original_assistant_output"}
@@ -908,9 +908,10 @@ def _compare_prompt(ctx: str, c: dict, derivations: list[dict], families: list[s
         "derivation_context is present only when that output holds assistant text outside the selected JSON object; it is then that complete "
         "original output, and the lane's transport marks raw_output_given_as=derivation_context instead of repeating the same bytes. "
         "transport.captured_records states for each captured file how it is carried: inline (content verbatim), by_reference "
-        "(ref = path, sha256, size, with the equality proven at assembly), or content_blocks for a live stream: its content blocks in "
-        "emission order, where a text value given as {given_in, start, end, sha256} is exactly that slice of the named shipped field "
-        "(proven equal at assembly) and every other block is verbatim; event envelopes, ids, token counters and thinking signatures are not shown. "
+        "(ref = path, sha256, size, with the equality proven at assembly), or content_blocks for a live stream: its content in "
+        "emission order, where a text value given as {equals, sha256} is exactly the complete named shipped field (proven equal at "
+        "assembly) and every other block and field is verbatim; only ids, timestamps, usage, cost and timing counters, status, "
+        "token-counter and rate-limit events, stream markers, empty thinking blocks and thinking signatures are not shown. "
         "Check whether earlier text contains necessary steps, contradictions, repetitions or unrelated commentary. "
         "Do not assume all text is a derivation, or that one selected JSON field contains every necessary step. "
         "If the JSON already contains the complete derivation, retain that contract and substantively explain coverage of earlier text. "
