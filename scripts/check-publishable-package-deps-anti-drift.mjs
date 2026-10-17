@@ -17,9 +17,11 @@
  * internal dependency inside shared, fails CI instead of silently making the
  * "independent" packages depend on the whole workspace.
  *
- * Only `dependencies` count: devDependencies are not installed by consumers.
- * `peerDependencies` on @nullius/* are rejected too — they move the install
- * burden to the user without removing the coupling.
+ * `dependencies` and `optionalDependencies` count (consumers install both);
+ * devDependencies do not. `peerDependencies` on @nullius/* are rejected too —
+ * they move the install burden to the user without removing the coupling.
+ * An alias such as `"x": "npm:@nullius/orchestrator@*"` counts as the
+ * internal package it points at.
  */
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
@@ -46,8 +48,20 @@ function readPackageJson(repoRoot, dir) {
   return { file, pkg: JSON.parse(readFileSync(file, 'utf8')) };
 }
 
+/** @nullius/* entries of a dependency record, by key or by `npm:@nullius/...` alias value. */
 function internalNames(record) {
-  return Object.keys(record ?? {}).filter(name => name.startsWith(INTERNAL_SCOPE)).sort();
+  const names = [];
+  for (const [name, spec] of Object.entries(record ?? {})) {
+    if (name.startsWith(INTERNAL_SCOPE)) names.push(name);
+    else if (typeof spec === 'string' && spec.startsWith(`npm:${INTERNAL_SCOPE}`)) {
+      names.push(`${name} (alias of ${spec.slice('npm:'.length).replace(/@[^@]*$/, '')})`);
+    }
+  }
+  return names.sort();
+}
+
+function installedInternalNames(pkg) {
+  return [...internalNames(pkg.dependencies), ...internalNames(pkg.optionalDependencies)].sort();
 }
 
 /**
@@ -66,9 +80,9 @@ export function checkPublishablePackages({
     const { file, pkg } = readPackageJson(repoRoot, dir);
     if (!pkg) { problems.push(`${rel(file)}: missing (publishable package listed in PLUG-01)`); continue; }
     const allowed = new Set(allowedList);
-    for (const name of internalNames(pkg.dependencies)) {
+    for (const name of installedInternalNames(pkg)) {
       if (!allowed.has(name)) {
-        problems.push(`${rel(file)}: dependencies lists ${name}; PLUG-01 allows only ${allowedList.length ? allowedList.join(', ') : 'no @nullius/* dependency'}`);
+        problems.push(`${rel(file)}: dependencies/optionalDependencies lists ${name}; PLUG-01 allows only ${allowedList.length ? allowedList.join(', ') : 'no @nullius/* dependency'}`);
       }
     }
     for (const name of internalNames(pkg.peerDependencies)) {
@@ -80,8 +94,8 @@ export function checkPublishablePackages({
   for (const dir of leaves) {
     const { file, pkg } = readPackageJson(repoRoot, dir);
     if (!pkg) { problems.push(`${rel(file)}: missing (leaf package that publishable packages depend on)`); continue; }
-    for (const name of internalNames(pkg.dependencies)) {
-      problems.push(`${rel(file)}: dependencies lists ${name}; ${pkg.name ?? dir} must stay a leaf (no @nullius/* dependency) because publishable packages depend on it`);
+    for (const name of installedInternalNames(pkg)) {
+      problems.push(`${rel(file)}: dependencies/optionalDependencies lists ${name}; ${pkg.name ?? dir} must stay a leaf (no @nullius/* dependency) because publishable packages depend on it`);
     }
     for (const name of internalNames(pkg.peerDependencies)) {
       problems.push(`${rel(file)}: peerDependencies lists ${name}; ${pkg.name ?? dir} must stay a leaf`);

@@ -44,7 +44,7 @@ test('rep-sdk may not depend on any @nullius/* package, shared included', t => {
   edit('rep-sdk', pkg => { pkg.dependencies = { ...pkg.dependencies, '@nullius/shared': 'workspace:*' }; });
   const problems = checkPublishablePackages({ repoRoot: base });
   assert.equal(problems.length, 1);
-  assert.match(problems[0], /rep-sdk\/package\.json: dependencies lists @nullius\/shared/);
+  assert.match(problems[0], /rep-sdk\/package\.json: dependencies\/optionalDependencies lists @nullius\/shared/);
 });
 
 test('an MCP server may depend on @nullius/shared but on no other internal package', t => {
@@ -52,7 +52,7 @@ test('an MCP server may depend on @nullius/shared but on no other internal packa
   edit('pdg-mcp', pkg => { pkg.dependencies = { ...pkg.dependencies, '@nullius/orchestrator': 'workspace:*' }; });
   const problems = checkPublishablePackages({ repoRoot: base });
   assert.equal(problems.length, 1);
-  assert.match(problems[0], /pdg-mcp\/package\.json: dependencies lists @nullius\/orchestrator/);
+  assert.match(problems[0], /pdg-mcp\/package\.json: dependencies\/optionalDependencies lists @nullius\/orchestrator/);
   assert.match(problems[0], /allows only @nullius\/shared/);
 });
 
@@ -64,12 +64,28 @@ test('@nullius/* peer dependencies are rejected as well', t => {
   assert.match(problems[0], /zotero-mcp\/package\.json: peerDependencies lists @nullius\/shared/);
 });
 
+test('optionalDependencies are installed by consumers and count like dependencies', t => {
+  const { base, edit } = fixtureRoot(t);
+  edit('pdg-mcp', pkg => { pkg.optionalDependencies = { '@nullius/project-contracts': 'workspace:*' }; });
+  const problems = checkPublishablePackages({ repoRoot: base });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /pdg-mcp\/package\.json: dependencies\/optionalDependencies lists @nullius\/project-contracts/);
+});
+
+test('an npm: alias pointing at an internal package is caught by its target', t => {
+  const { base, edit } = fixtureRoot(t);
+  edit('rep-sdk', pkg => { pkg.dependencies = { ...pkg.dependencies, 'helpers': 'npm:@nullius/shared@^0.6.0' }; });
+  const problems = checkPublishablePackages({ repoRoot: base });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /rep-sdk\/package\.json: .*lists helpers \(alias of @nullius\/shared\)/);
+});
+
 test('shared must stay a leaf and publishable', t => {
   const { base, edit } = fixtureRoot(t);
   edit('shared', pkg => { pkg.dependencies = { ...pkg.dependencies, '@nullius/project-contracts': 'workspace:*' }; pkg.private = true; });
   const problems = checkPublishablePackages({ repoRoot: base });
   assert.equal(problems.length, 2);
-  assert.match(problems[0], /shared\/package\.json: dependencies lists @nullius\/project-contracts/);
+  assert.match(problems[0], /shared\/package\.json: dependencies\/optionalDependencies lists @nullius\/project-contracts/);
   assert.match(problems[1], /shared\/package\.json: "private": true/);
 });
 
@@ -98,5 +114,5 @@ test('CLI entry exits 1 and names the offender on a violating tree', t => {
   const result = spawnSync(process.execPath, [path.join(scriptCopyDir, 'check.mjs')], { cwd: base, encoding: 'utf8' });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /FAIL \(PLUG-01\)/);
-  assert.match(result.stderr, /zotero-mcp\/package\.json: dependencies lists @nullius\/hep-mcp/);
+  assert.match(result.stderr, /zotero-mcp\/package\.json: dependencies\/optionalDependencies lists @nullius\/hep-mcp/);
 });
