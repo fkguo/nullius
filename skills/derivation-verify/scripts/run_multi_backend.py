@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from independence import derivation_body, assessed_indices, independence_record, source_material, valid_derivation_transport, method_risk_passes, observe_runtime_derivation
+from independence import derivation_body, assessed_indices, independence_record, valid_derivation_transport, method_risk_passes, observe_runtime_derivation
 
 _THIS = Path(__file__).resolve()
 _SKILLS_ROOT = _THIS.parents[2]  # skills/derivation-verify/scripts/run_multi_backend.py -> skills/
@@ -879,13 +879,30 @@ def _tiebreak_prompt(ctx: str, c: dict, method: str, prior: list[dict]) -> str:
 def _compare_prompt(ctx: str, c: dict, derivations: list[dict], families: list[str]) -> str:
     listing = "\n".join(f'[#{i}] (family={families[i]}) canonical_answer="{d["canonical_answer"]}" | {d["derivation_summary"]}'
                         for i, d in enumerate(derivations))
-    packet = [{**d, "family": families[i], "assessment_source": source_material(d), "derivation_context": derivation_body(d)} for i, d in enumerate(derivations)]
+    # Each lane's original text enters the packet once as the structured derivation field and once
+    # inside transport.raw_output (the complete observed output). derivation_context is added only
+    # when additional assistant text makes it differ from derivation; original_assistant_output is
+    # byte-identical to transport.raw_output (enforced by valid_derivation_transport) and no
+    # concatenated assessment_source is shipped: source_material() is the span check, not a field.
+    # transport.captured_records stay verbatim: live stream events (assistant snapshot, deltas,
+    # result event and its sidecar) repeat the output as emitted, so with capture on the packet
+    # still carries those copies.
+    packet = []
+    for i, d in enumerate(derivations):
+        record = {k: v for k, v in d.items() if k != "original_assistant_output"}
+        record["family"] = families[i]
+        context = derivation_body(d)
+        if context != record.get("derivation"):
+            record["derivation_context"] = context
+        packet.append(record)
     return (
         f"{ctx}\n\nClaim:\n{c['statement']}\nExpected canonical format: {c['report_format']}\n\n"
         f"{len(derivations)} candidate derivations with recorded model-family metadata:\n{listing}\n\n"
-        "FULL_DERIVATION_RECORDS_JSON:\n" + json.dumps(packet, ensure_ascii=False) + "\n\n"
+        "FULL_DERIVATION_RECORDS_JSON:\n" + json.dumps(packet, ensure_ascii=False, sort_keys=True) + "\n\n"
         "Read the COMPLETE original derivations and runtime-observed requests, raw outputs and execution records. "
-        "The structured derivation field is unchanged; derivation_context also preserves any other original assistant text. "
+        "The structured derivation field is unchanged. derivation_context is present only when the original assistant output "
+        "carried text outside the selected JSON object; it is then that complete original output, which transport.raw_output "
+        "repeats byte for byte. Without derivation_context, the derivation field is the complete original context. "
         "Check whether earlier text contains necessary steps, contradictions, repetitions or unrelated commentary. "
         "Do not assume all text is a derivation, or that one selected JSON field contains every necessary step. "
         "If the JSON already contains the complete derivation, retain that contract and substantively explain coverage of earlier text. "
@@ -894,7 +911,7 @@ def _compare_prompt(ctx: str, c: dict, derivations: list[dict], families: list[s
         "majority_answer must be an exact canonical_answer representative from its majority_indices; no empty or unenumerated cluster can converge. "
         "Each has booleans input_independent, execution_independent, construction_independent, method_applicable, diagnostic; "
         "unresolved_defects (array); observed_method (source-grounded description, not the hint); evidence with input, execution, "
-        "construction, applicability, diagnostic. Each entry quotes an exact source_span plus a substantive reason: construction/applicability/diagnostic MUST quote the COMPLETE derivation_context itself (structured body when no additional text); input/execution may quote assessment_source including actual transport. "
+        "construction, applicability, diagnostic. Each entry quotes an exact source_span plus a substantive reason: construction/applicability/diagnostic MUST quote the COMPLETE derivation_context itself (the derivation field when no derivation_context is present); input/execution may also quote the transport record exactly as shown (request, raw_output, invocation, captured_records) or derivation_summary. "
         "Reject absent original steps/transport, failed invocations, copied reasoning, original-code reruns, contaminated inputs, "
         "known relevant defects and non-diagnostic checks. Same/similar methods, same family and shared legitimate libraries alone do not reject. "
         f"Explicit method risk required: {c.get('requires_method_diversity') is True}. Declared risk: {c.get('method_diversity_risk', 'assess shared failure modes substantively')}. "

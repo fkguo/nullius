@@ -100,18 +100,120 @@ def test_complete_original_material_and_observed_requests_are_not_truncated():
                 for e in a['evidence'].values(): e['source_span'] = original[:200]
             return json.dumps(report)
         return json.dumps(verdict(original))
-    # The comparator packet carries each lane's original text six times (derivation,
-    # transport raw output, original assistant output, twice in assessment_source,
-    # derivation_context): two 14.6 kB lanes make a 190 kB request, beyond the
-    # default 159,040-byte window, which is refused rather than truncated. This test
-    # is about complete transport, so it declares a window that holds the request.
-    run.request_budgets = mb.request_budgets(300000, 250000)
+    # Two complete 14.6 kB lanes must pass the comparator under the DEFAULT byte window
+    # (159,040 bytes) without truncation on this capture-free path; the packet copy count is
+    # pinned below, and the live-capture path (stream records repeat the output) separately.
     assert verify(CLAIM, run)['converged']
     packet, _ = json.JSONDecoder().raw_decode(seen[0].split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
-    assert len(seen[0].encode('utf-8')) > mb.request_budgets()['context_bytes']  # the default window would refuse it
+    assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']  # fits the default window
     assert all(d['derivation'] == original for d in packet)
     assert all(CLAIM['statement'] in d['transport']['request']['prompt'] for d in packet)
     assert all(json.loads(d['transport']['raw_output'])['derivation'] == original for d in packet)
+
+
+ANCHOR = 'UNIQUE_FINAL_SOURCE_ANCHOR'
+LONG_ORIGINAL = 'Begin complete derivation.\n' + '\n'.join(f'Original step {i}: preserve this exact evidence.' for i in range(300)) + '\n' + ANCHOR
+
+
+def packet_for(raw, lanes=2):
+    ds = [mb._execute_derivation(lambda *a: raw, 'claude/opus', mb._DERIVE_SYSTEM, 'neutral raw problem', f'fresh-{i}') for i in range(lanes)]
+    prompt = mb._compare_prompt('Only raw inputs, no expected answer.', CLAIM, ds, ['host'] * lanes)
+    packet, _ = json.JSONDecoder().raw_decode(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
+    return ds, prompt, packet
+
+
+def copies_per_field(record):
+    return {key: json.dumps(value, ensure_ascii=False).count(ANCHOR) for key, value in record.items() if ANCHOR in json.dumps(value, ensure_ascii=False)}
+
+
+def test_comparator_packet_repeats_lane_text_only_inside_transport():
+    # Without additional assistant text the lane text appears exactly twice per record:
+    # the structured derivation field and the complete observed transport.raw_output.
+    ds, prompt, packet = packet_for(json.dumps(verdict(LONG_ORIGINAL)))
+    assert all(mb.valid_derivation_transport(d) for d in ds)
+    for record in packet:
+        assert copies_per_field(record) == {'derivation': 1, 'transport': 1}
+        assert not {'assessment_source', 'original_assistant_output', 'derivation_context'} & set(record)
+        assert record['additional_assistant_text_present'] is False
+    assert prompt.count(ANCHOR) == 2 * len(packet)
+    # Two complete 300-step lanes (14.6 kB each) fit the default window; before this pin the same
+    # fixture produced six copies per record and a 190 kB request, refused rather than truncated.
+    assert len(prompt.encode('utf-8')) <= mb.request_budgets()['context_bytes']
+    # With additional assistant text the complete original output is added once as derivation_context,
+    # which is the only extra copy; original_assistant_output stays out (it equals transport.raw_output).
+    raw = 'An earlier original premise and necessary step.\n' + json.dumps(verdict(LONG_ORIGINAL))
+    ds, prompt, packet = packet_for(raw)
+    assert all(mb.valid_derivation_transport(d) for d in ds)
+    for record in packet:
+        assert copies_per_field(record) == {'derivation': 1, 'derivation_context': 1, 'transport': 1}
+        assert record['derivation_context'] == raw == record['transport']['raw_output']
+        assert record['additional_assistant_text_present'] is True
+        assert 'assessment_source' not in record and 'original_assistant_output' not in record
+    assert prompt.count(ANCHOR) == 3 * len(packet)
+
+
+def test_packet_assembly_adds_no_copy_beyond_captured_records(tmp_path):
+    # With live capture on, transport.captured_records carry the stream files verbatim (assistant
+    # snapshot, text deltas, result event and its sidecar), so the output is repeated as emitted.
+    # Packet assembly must add nothing beyond derivation and transport.raw_output to those copies.
+    raw = json.dumps(verdict(LONG_ORIGINAL))
+    class Captured:
+        def __init__(self):
+            self.invocations = {}
+        def __call__(self, spec, system, prompt, tag):
+            d = tmp_path / tag; d.mkdir()
+            out = d / 'out.txt'; out.write_text(raw, encoding='utf-8')
+            capture = Path(str(out) + '.attempts') / 'run.current'; capture.mkdir(parents=True)
+            events = [{'type': 'stream_event', 'event': {'type': 'content_block_delta', 'delta': {'type': 'text_delta', 'text': raw[:80]}}},
+                      {'type': 'assistant', 'message': {'id': 'm1', 'content': [{'type': 'text', 'text': raw}]}},
+                      {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': raw}]
+            (capture / 'attempt_1.events.jsonl').write_text('\n'.join(json.dumps(e) for e in events) + '\n', encoding='utf-8')
+            (capture / 'attempt_1.events.result.json').write_text(json.dumps(events[-1]), encoding='utf-8')
+            self.invocations[tag] = {'exit_code': 0, 'output': str(out)}
+            return raw
+    run = Captured()
+    ds = [mb._execute_derivation(run, 'claude/opus', mb._DERIVE_SYSTEM, 'neutral raw problem', f'captured-{i}') for i in range(2)]
+    assert all(mb.valid_derivation_transport(d) for d in ds)
+    prompt = mb._compare_prompt('Only raw inputs, no expected answer.', CLAIM, ds, ['host'] * 2)
+    packet, _ = json.JSONDecoder().raw_decode(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1])
+    for record, d in zip(packet, ds):
+        captured = d['transport']['captured_records']
+        assert len(captured) == 2 and all(Path(p).name.startswith('attempt_1.events') for p in captured)
+        in_captured = sum(text.count(ANCHOR) for text in captured.values())
+        assert in_captured == 3  # snapshot, result event, result sidecar (the delta holds only a prefix)
+        assert record['transport']['captured_records'] == captured  # verbatim, not rewritten
+        assert copies_per_field(record) == {'derivation': 1, 'transport': 1 + in_captured}
+        assert not {'assessment_source', 'original_assistant_output', 'derivation_context'} & set(record)
+    assert prompt.count(ANCHOR) == len(packet) * (2 + 3)
+    # Measured with this minimal capture: about 166 kB for two 14.6 kB lanes (the exact figure
+    # depends on the temporary path lengths inside captured_records), above the default
+    # 159,040-byte window; about 399 kB with twelve copies per record before this change.
+    # Fitting the live-capture path needs a decision on how captured records travel; not asserted.
+
+
+def test_input_execution_spans_match_packet_transport_encoding_and_decoded_values():
+    # The packet encodes transport with sorted keys; a span copied from that encoding, from a decoded
+    # transport value, or from the summary is found, while construction still needs the body itself.
+    # The summary carries a quote and a newline, so it is JSON-escaped inside raw_output and can
+    # only match through the derivation_summary source itself.
+    summary = 'Navigation "only"\nsecond line'
+    raw = 'Premise line with "quotes" and a tab\t.\n' + json.dumps({**verdict(SUMMARY), 'derivation_summary': summary})
+    ds, prompt, packet = packet_for(raw)
+    encoded = prompt.split('FULL_DERIVATION_RECORDS_JSON:\n', 1)[1]
+    assert json.dumps(ds[0]['transport'], ensure_ascii=False, sort_keys=True) in encoded
+    escaped = json.dumps(raw, ensure_ascii=False)[1:-1]  # raw_output exactly as the packet shows it
+    assert escaped != raw and escaped in encoded
+    base = assessments(ds)
+    for span, ok in ((escaped, True), (raw, True), ('neutral raw problem', True), (summary, True), ('not in any lane material', False)):
+        aa = json.loads(json.dumps(base))
+        for a in aa:
+            a['evidence']['input']['source_span'] = span
+            a['evidence']['execution']['source_span'] = span
+        assert (mb.assessed_indices(ds, aa) == [0, 1]) is ok, span
+    aa = json.loads(json.dumps(base))
+    for a in aa:
+        a['evidence']['construction']['source_span'] = 'neutral raw problem'
+    assert mb.assessed_indices(ds, aa) == []
 
 
 def test_stale_complete_lane_material_invalidates_bound_comparison():

@@ -187,3 +187,47 @@ for (const [key, values] of [['requires_method_diversity', ['true', 1, null, [],
   }
 }
 console.log('10 invalid claim-control cases rejected before host dispatch; literal boolean positive cases retained above.')
+
+// The comparator packet carries each lane's text once as derivation and once inside transport.raw_output;
+// no other field repeats it (assessment_source is no longer shipped). Input/execution spans may come from
+// the derivation, the summary, or the transport record as encoded or as decoded values; construction may not.
+const PACKET_ANCHOR = 'PACKET_COPY_ANCHOR'
+async function packetRun(spans) {
+  let packet = null
+  const body = 'Read raw operands 17 and 25; expand 25=20+5, add 17+20=37 then 37+5=42; exact integers detect a one-unit error.\n' + 'Original intermediate step.\n'.repeat(50) + PACKET_ANCHOR
+  const claim = { id: 'packet', statement: 'Compute the sum of raw integers 17 and 25.', report_format: 'integer' }
+  const agent = async (prompt, options) => {
+    if (options.label.startsWith('verify:')) return { canonical_answer: '42', derivation: body, derivation_summary: 'Navigation "summary"\nonly', confidence: 'high' }
+    packet = { text: prompt, records: JSON.parse(prompt.split('FULL_DERIVATION_RECORDS_JSON:\n')[1].split('\n\n')[0]) }
+    return { majority_answer: '42', majority_size: 2, majority_indices: [0, 1], adjudicated_matches_majority: true, all_equivalent: true,
+      outliers: 'none', correct_answer_adjudicated: '42', method_risk_assessments: [],
+      independence_assessments: packet.records.map((d, index) => ({ index, observed_method: 'exact integer addition', input_independent: true,
+        execution_independent: true, construction_independent: true, method_applicable: true, diagnostic: true, unresolved_defects: [],
+        evidence: Object.fromEntries(axes.map(axis => [axis, { source_span: spans(d)[axis] ?? body.slice(0, 120),
+          reason: 'The mock examiner inspects the complete actual lane material and transport for ' + axis }])) })) }
+  }
+  const result = await execute({ context: 'Neutral raw inputs only.', max_iter: 0, claims: [claim] }, agent, fs => Promise.all(fs.map(f => f())), () => {}, () => {})
+  return { row: result.matrix[0], packet, body }
+}
+async function checkPacketCopies() {
+  const { row, packet } = await packetRun(() => ({}))
+  assert.equal(row.converged, true)
+  for (const record of packet.records) {
+    const copies = Object.fromEntries(Object.entries(record).map(([k, v]) => [k, JSON.stringify(v).split(PACKET_ANCHOR).length - 1]).filter(([, n]) => n > 0))
+    assert.deepEqual(copies, { derivation: 1, transport: 1 })
+    assert(!('assessment_source' in record))
+  }
+  assert.equal(packet.text.split(PACKET_ANCHOR).length - 1, 2 * packet.records.length)
+}
+await checkPacketCopies()
+async function checkSpanSources(axis, pick, converged) {
+  const { row } = await packetRun(d => ({ [axis]: pick(d) }))
+  assert.equal(row.converged, converged, `${axis}: ${converged ? 'accepted' : 'refused'}`)
+}
+await checkSpanSources('input', d => d.derivation_summary, true)                       // summary (quote + newline: JSON-escaped in raw_output, so only the summary source matches)
+await checkSpanSources('execution', d => JSON.stringify(d.transport).slice(0, 60), true) // transport as the packet encodes it
+await checkSpanSources('input', d => d.transport.request.prompt, true)                   // decoded transport value
+await checkSpanSources('execution', d => 'text in no lane material at all', false)
+await checkSpanSources('construction', d => d.derivation_summary, false)                 // body only for the scientific axes
+await checkSpanSources('construction', d => d.transport.request.prompt, false)
+console.log('1 native packet copy-count case and 6 input/execution span-source cases passed.')

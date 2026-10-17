@@ -102,12 +102,20 @@ const COMPARE = {
 function vPrompt(c, method) {
   return `${CTX}\nBLIND TASK (do NOT assume the answer; derive it from scratch):\n${c.statement}\n\n${method || ''}\n\nOUTPUT: canonical_answer in EXACTLY this format: ${c.report_format}. Give derivation with COMPLETE original steps, conventions, raw input, method applicability and diagnostic limits; no sentence limit or truncation. If you used computation, include complete source and actual records, never invent execution. A short derivation_summary may help navigation but is not the evidence. Give confidence.`
 }
+function stringValues(value) {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(stringValues)
+  if (value && typeof value === 'object') return Object.values(value).flatMap(stringValues)
+  return []
+}
+// Texts an input/execution span may quote verbatim: the original derivation body, the navigation summary,
+// and the observed transport record both as the packet encodes it and as its decoded string values.
+// The packet carries each lane's text once as derivation and once inside transport.raw_output; no field repeats it.
 function sourceMaterial(d) {
-  return `${d.derivation || ''}\n${JSON.stringify(d.transport || {})}`
+  return [d.derivation || '', d.derivation_summary || '', JSON.stringify(d.transport || {}), ...stringValues(d.transport || {})]
 }
 function cmpPrompt(c, ds) {
-  const packet = ds.map(d => ({ ...d, assessment_source: sourceMaterial(d) }))
-  return `${CTX}\nClaim: ${c.statement}\nExpected canonical format: ${c.report_format}\nFULL_DERIVATION_RECORDS_JSON:\n${JSON.stringify(packet)}\n\nRead COMPLETE original derivations, runtime-observed requests/raw outputs and successful call records. A summary, self-filled freshness checkbox or name is not provenance. Cluster mathematical equivalence and independently recompute. majority_answer must copy an actual canonical_answer from majority_indices, and majority_size must equal their enumerated cardinality; empty or contradictory clusters are unavailable. For every lane provide independence_assessments for input/execution/construction, applicability, diagnostic power and unresolved defects, plus observed_method grounded in actual steps. Every evidence item quotes an exact source_span with a substantive reason. Construction/applicability/diagnostic MUST anchor the COMPLETE original derivation BODY itself; only input/execution may anchor assessment_source including transport. Missing original steps, failed invocation, contaminated input, copied reasoning, relevant defects or non-diagnostic checks refuse. Same/similar methods, same family and legitimate shared libraries alone do not reject. Explicit method risk required: ${c.requires_method_diversity === true}; declared risk: ${c.method_diversity_risk || 'assess shared failure modes substantively'}. Give method_risk_assessments with indices [i,j], addresses_shared_failure and methods_distinct booleans (actual mechanisms, never labels), specific risk and method_analysis, plus evidence [{index,source_span,reason}] from BOTH COMPLETE original derivation BODIES, never metadata. Explain why the shared failure mode is independently tested or avoided; distinct hint names or wording do not establish orthogonality. Unsupported evidence is unavailable.`
+  return `${CTX}\nClaim: ${c.statement}\nExpected canonical format: ${c.report_format}\nFULL_DERIVATION_RECORDS_JSON:\n${JSON.stringify(ds)}\n\nRead COMPLETE original derivations, runtime-observed requests/raw outputs and successful call records. A summary alone, a self-filled freshness checkbox or a name is not provenance. Cluster mathematical equivalence and independently recompute. majority_answer must copy an actual canonical_answer from majority_indices, and majority_size must equal their enumerated cardinality; empty or contradictory clusters are unavailable. For every lane provide independence_assessments for input/execution/construction, applicability, diagnostic power and unresolved defects, plus observed_method grounded in actual steps. Every evidence item quotes an exact source_span with a substantive reason. Construction/applicability/diagnostic MUST anchor the COMPLETE original derivation BODY itself; only input/execution may also anchor the transport record exactly as shown (request, raw_output) or derivation_summary. Missing original steps, failed invocation, contaminated input, copied reasoning, relevant defects or non-diagnostic checks refuse. Same/similar methods, same family and legitimate shared libraries alone do not reject. Explicit method risk required: ${c.requires_method_diversity === true}; declared risk: ${c.method_diversity_risk || 'assess shared failure modes substantively'}. Give method_risk_assessments with indices [i,j], addresses_shared_failure and methods_distinct booleans (actual mechanisms, never labels), specific risk and method_analysis, plus evidence [{index,source_span,reason}] from BOTH COMPLETE original derivation BODIES, never metadata. Explain why the shared failure mode is independently tested or avoided; distinct hint names or wording do not establish orthogonality. Unsupported evidence is unavailable.`
 }
 const runtimeObservations = new WeakSet()
 
@@ -138,7 +146,7 @@ function accepted(c, ds, cmp) {
     if (!Array.isArray(a.unresolved_defects) || a.unresolved_defects.length) continue
     if (['input','execution','construction','applicability','diagnostic'].every(k => {
       const e = (a.evidence || {})[k]
-      return e && typeof e.reason === 'string' && e.reason.trim().length >= 20 && typeof e.source_span === 'string' && e.source_span.trim() && (['input','execution'].includes(k) ? sourceMaterial(ds[i]) : ds[i].derivation).includes(e.source_span)
+      return e && typeof e.reason === 'string' && e.reason.trim().length >= 20 && typeof e.source_span === 'string' && e.source_span.trim() && (['input','execution'].includes(k) ? sourceMaterial(ds[i]).some(text => text.includes(e.source_span)) : ds[i].derivation.includes(e.source_span))
     })) good.add(i)
   }
   const rawIndices = cmp.majority_indices

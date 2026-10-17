@@ -72,8 +72,7 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
         )) or a.get("unresolved_defects") != []:
             continue
         evidence = a.get("evidence")
-        source = source_material(derivations[i])
-        if not isinstance(evidence, dict) or not isinstance(source, str):
+        if not isinstance(evidence, dict):
             continue
         valid = True
         for axis in AXES:
@@ -82,13 +81,12 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
                 valid = False
                 break
             span, reason = item.get("source_span"), item.get("reason")
-            axis_source = source if axis in ("input", "execution") else derivation_body(derivations[i])
-            if axis == "construction" and "construction_body" in derivations[i]:
-                axis_source = derivations[i]["construction_body"]
-            if not isinstance(axis_source, str):
-                valid = False
-                break
-            if (not isinstance(span, str) or not span.strip() or span not in axis_source
+            if axis in ("input", "execution"):
+                axis_sources = source_material(derivations[i])
+            else:
+                body = derivations[i]["construction_body"] if axis == "construction" and "construction_body" in derivations[i] else derivation_body(derivations[i])
+                axis_sources = (body,) if isinstance(body, str) else ()
+            if (not isinstance(span, str) or not span.strip() or not any(span in text for text in axis_sources)
                     or not isinstance(reason, str) or len(reason.strip()) < 20):
                 valid = False
                 break
@@ -102,9 +100,23 @@ def assessed_indices(derivations: list[dict], assessments: list[dict]) -> list[i
                   and derivations[i]["execution_id"] and ids.count(derivations[i]["execution_id"]) == 1)
 
 
-def source_material(d: dict) -> str:
-    """Complete observed lane material; reproduction packets already contain full source text."""
-    return derivation_body(d) + "\n" + json.dumps(d.get("transport", {}), ensure_ascii=False, sort_keys=True) + "\n" + str(d.get("derivation_summary", ""))
+def _string_values(value) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [text for item in value.values() for text in _string_values(item)]
+    if isinstance(value, list):
+        return [text for item in value for text in _string_values(item)]
+    return []
+
+
+def source_material(d: dict) -> tuple[str, ...]:
+    """Texts an input/execution span may quote verbatim: the complete original context, the navigation
+    summary, and the observed transport record both as the comparator packet encodes it (JSON, sorted
+    keys) and as its decoded string values. The packet never repeats these as one concatenated field."""
+    transport = d.get("transport", {})
+    return (derivation_body(d), str(d.get("derivation_summary", "")),
+            json.dumps(transport, ensure_ascii=False, sort_keys=True), *_string_values(transport))
 
 
 def valid_derivation_transport(d: dict) -> bool:

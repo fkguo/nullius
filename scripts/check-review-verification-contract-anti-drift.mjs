@@ -163,6 +163,20 @@ requireAll('skills/claude-cli-runner/SKILL.md', read('skills/claude-cli-runner/S
 requireAll('skills/derivation-verify/references/contract.md', read('skills/derivation-verify/references/contract.md'), [
   ['complete terminal capacity binding', 'capacity accounting uses only that terminal'],
   ['complete original comparator context', 'enters the comparator as `derivation_context`'],
+  ['transport quoting limited to input/execution', 'only input and execution may also quote the observed `transport` record'],
+  ['lane text carried once as derivation and once in transport', 'once as the structured `derivation` field and once inside `transport.raw_output`'],
+  ['no other packet field adds a copy of lane text', 'no other packet field adds a copy'],
+  ['captured stream records stay verbatim', 'stay verbatim and therefore contain the output again'],
+]);
+// The copy count per packet record is pinned by offline witnesses in both executors; prose alone erodes.
+requireAll('skills/derivation-verify/tests/test_full_derivation_transport.py', read('skills/derivation-verify/tests/test_full_derivation_transport.py'), [
+  ['per-record copy count witness', 'def test_comparator_packet_repeats_lane_text_only_inside_transport'],
+  ['captured-records copy accounting witness', 'def test_packet_assembly_adds_no_copy_beyond_captured_records'],
+  ['two-lane fixture under the default window assertion', "assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']"],
+]);
+requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', read('skills/derivation-verify/tests/test_native_workflow_transport.mjs'), [
+  ['native packet copy count witness', 'async function checkPacketCopies('],
+  ['native input/execution span sources witness', "await checkSpanSources("],
 ]);
 
 if (errors.length > 0) {
