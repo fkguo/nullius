@@ -77,11 +77,12 @@ def test_negative_control_copy_without_flag_is_detected(tmp_path: Path) -> None:
     assert not _lane_is_context_excluded(log)
 
 
-def _resolve(project: Path, skills: Path, call: str = "") -> subprocess.CompletedProcess[str]:
-    """Source the resolver; optionally call the post-resolution check with `call` as its arguments."""
+def _resolve(project: Path, skills: Path, call: str = "", options: str = "") -> subprocess.CompletedProcess[str]:
+    """Source the resolver (after `options`, e.g. "set -euo pipefail;"); optionally call the post-resolution
+    check with `call` as its arguments."""
     check = f"research_team_check_local_claude_runner {call} || exit $?; " if call else ""
     return subprocess.run(
-        ["bash", "-c", f'PROJECT_ROOT="{project}"; SKILLS_DIR="{skills}"; source "{RESOLVER}"; '
+        ["bash", "-c", f'{options}PROJECT_ROOT="{project}"; SKILLS_DIR="{skills}"; source "{RESOLVER}"; '
                        f'{check}printf "%s" "$LOCAL_CLAUDE_RUNNER"'],
         capture_output=True, text=True, timeout=30,
     )
@@ -122,6 +123,57 @@ def test_stale_copy_is_replaced_and_left_untouched(tmp_path: Path) -> None:
 def test_marker_without_flag_is_stale(tmp_path: Path) -> None:
     text = ASSET.read_text(encoding="utf-8").replace(" --safe-mode", "")
     assert "research-team-claude-runner: context-excluded" in text
+    project, _ = _project_with(tmp_path, text)
+    assert _resolve(project, SKILLS_ROOT).stdout == str(SHARED)
+
+
+MODEL_LINE = 'claude --print --safe-mode --no-session-persistence --model "${MODEL}"'
+NO_MODEL_LINE = 'claude --print --safe-mode --no-session-persistence --tools'
+
+
+def test_flag_on_only_one_claude_line_is_stale(tmp_path: Path) -> None:
+    # The asset has two claude --print lines; run_team_cycle.sh passes --model only when a member model is
+    # set, so a flag on one line alone would leave the other path loading the operator's context.
+    asset = ASSET.read_text(encoding="utf-8")
+    assert asset.count(MODEL_LINE) == 1 and asset.count(NO_MODEL_LINE) == 1
+    only_model = asset.replace(NO_MODEL_LINE, NO_MODEL_LINE.replace(" --safe-mode", ""))
+    only_no_model = asset.replace(MODEL_LINE, MODEL_LINE.replace(" --safe-mode", ""))
+    for i, text in enumerate((only_model, only_no_model)):
+        project, local = _project_with(tmp_path / str(i), text)
+        replaced = _resolve(project, SKILLS_ROOT, "1 0 0")
+        assert replaced.stdout == str(SHARED), text
+        assert "[warn]" in replaced.stderr and "predates the operator-context exclusion" in replaced.stderr
+        assert local.read_text(encoding="utf-8") == text
+    project, local = _project_with(tmp_path / "both", asset)
+    kept = _resolve(project, SKILLS_ROOT, "1 0 0")
+    assert kept.stdout == str(local) and kept.stderr == ""
+
+
+def test_flag_check_does_not_depend_on_pipefail(tmp_path: Path) -> None:
+    # run_team_cycle.sh sources the resolver under `set -euo pipefail`. An unflagged first invocation line
+    # followed by many flagged ones must still be stale (a grep pipeline could die of a broken pipe there
+    # and read as "every line has the flag").
+    marker = "# research-team-claude-runner: context-excluded\n"
+    flagged = 'claude --print --safe-mode --tools "$T"\n'
+    text = "#!/usr/bin/env bash\n" + marker + 'claude --print --tools "$T"\n' + flagged * 5000
+    project, _ = _project_with(tmp_path, text)
+    for options in ("", "set -euo pipefail; "):
+        assert _resolve(project, SKILLS_ROOT, options=options).stdout == str(SHARED), options
+
+
+def test_flag_only_in_a_comment_or_as_a_longer_word_is_stale(tmp_path: Path) -> None:
+    asset = ASSET.read_text(encoding="utf-8")
+    in_comment = asset.replace(MODEL_LINE, MODEL_LINE.replace(" --safe-mode", "")
+                               .replace('"${MODEL}"', '"${MODEL}" # --safe-mode'))
+    longer = asset.replace(MODEL_LINE, MODEL_LINE.replace("--safe-mode", "--safe-modeX"))
+    assert in_comment != asset and longer != asset
+    for i, text in enumerate((in_comment, longer)):
+        project, _ = _project_with(tmp_path / str(i), text)
+        assert _resolve(project, SKILLS_ROOT).stdout == str(SHARED), text
+
+
+def test_copy_without_any_claude_line_is_stale(tmp_path: Path) -> None:
+    text = "#!/usr/bin/env bash\n# research-team-claude-runner: context-excluded\nexec other-cli \"$@\"\n"
     project, _ = _project_with(tmp_path, text)
     assert _resolve(project, SKILLS_ROOT).stdout == str(SHARED)
 

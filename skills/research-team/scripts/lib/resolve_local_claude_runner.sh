@@ -1,8 +1,8 @@
 # Sourced by run_team_cycle.sh (needs PROJECT_ROOT and SKILLS_DIR).
 #
 # Sets LOCAL_CLAUDE_RUNNER to the project's scripts/run_claude.sh when that copy is current: it
-# carries the context-exclusion marker line AND the --safe-mode flag on its real `claude` line (a copy
-# edited to drop the flag is stale). A stale copy loads the operator's own CLAUDE.md / AGENTS.md /
+# carries the context-exclusion marker line AND the --safe-mode flag on every real `claude --print` line
+# (a copy edited to drop the flag from any of them is stale). A stale copy loads the operator's own CLAUDE.md / AGENTS.md /
 # auto memory into every reviewer lane, so it is replaced for this run by the shared claude-cli-runner
 # (same arguments, context excluded); the project file is left untouched.
 # Refresh the copy with: cp <skills>/research-team/assets/run_claude.sh scripts/run_claude.sh
@@ -13,8 +13,15 @@
 RESEARCH_TEAM_CLAUDE_RUNNER_MARKER="research-team-claude-runner: context-excluded"
 LOCAL_CLAUDE_RUNNER="${PROJECT_ROOT}/scripts/run_claude.sh"
 STALE_LOCAL_CLAUDE_RUNNER=""
+# Every `claude --print` line must carry --safe-mode: the asset has two (with and without --model), and
+# run_team_cycle.sh passes --model only when a member model is set, so a flag on one line alone leaves the
+# other path loading the operator's context. The flag must stand as a whole option on the line itself (a
+# trailing comment is ignored, `--safe-modeX` does not count); a flag on a continuation line is not seen
+# (treated as stale). One awk pass, so the answer does not depend on `set -o pipefail` in the caller.
 if [[ -f "${LOCAL_CLAUDE_RUNNER}" ]] && ! { grep -q -- "${RESEARCH_TEAM_CLAUDE_RUNNER_MARKER}" "${LOCAL_CLAUDE_RUNNER}" \
-    && grep -Eq '^[[:space:]]*claude --print .*--safe-mode' "${LOCAL_CLAUDE_RUNNER}"; }; then
+    && awk '/^[ \t]*claude --print/ { n++; line = $0; sub(/[ \t]+#.*/, "", line)
+              if (line !~ /(^|[ \t])--safe-mode([ \t]|\\|$)/) bad = 1 }
+            END { exit !(n > 0 && !bad) }' "${LOCAL_CLAUDE_RUNNER}"; }; then
   STALE_LOCAL_CLAUDE_RUNNER="${LOCAL_CLAUDE_RUNNER}"
   _shared_claude_runner="${SKILLS_DIR}/claude-cli-runner/scripts/run_claude.sh"
   if [[ -f "${_shared_claude_runner}" ]]; then
