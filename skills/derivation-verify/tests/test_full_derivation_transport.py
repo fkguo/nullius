@@ -101,12 +101,12 @@ def test_complete_original_material_and_observed_requests_are_not_truncated():
                 for e in a['evidence'].values(): e['source_span'] = original[:200]
             return json.dumps(report)
         return json.dumps(verdict(original))
-    # Two complete 14.6 kB lanes must pass the comparator under the DEFAULT byte window
+    # Each complete 14.6 kB lane passes in its own request under the DEFAULT byte window
     # (159,040 bytes) without truncation on this capture-free path; each lane's text appears
     # twice (derivation, transport.raw_output), pinned below together with the live-capture path.
     assert verify(CLAIM, run)['converged']
     packet = lane_entries(seen)
-    assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']
+    assert len(seen) == 3 and all(len(p.encode('utf-8')) <= mb.request_budgets()['context_bytes'] for p in seen)
     assert all(d['derivation'] == original for d in packet)
     assert all(CLAIM['statement'] in d['transport']['request']['prompt'] for d in packet)
     assert all(json.loads(d['transport']['raw_output'])['derivation'] == original for d in packet)
@@ -257,7 +257,7 @@ def text_values(blocks):
     return [b['block'][f] for b in blocks if isinstance(b.get('block'), dict) for f in ('text', 'result') if f in b['block']]
 
 
-def test_live_capture_stream_is_carried_as_content_blocks_and_two_lanes_fit(tmp_path):
+def test_live_capture_stream_is_carried_as_content_blocks_and_each_lane_request_fits(tmp_path):
     # A live stream repeats the output in its snapshot, deltas, result event and sidecar, and wraps
     # every delta in an event envelope: one realistic stream alone is larger than the default window.
     # The packet shows its content; every text value of the lane's own output is a reference to
@@ -285,8 +285,9 @@ def test_live_capture_stream_is_carried_as_content_blocks_and_two_lanes_fit(tmp_
         assert copies_per_field(record) == {'derivation': 1, 'transport': 1}
     assert prompt.count(ANCHOR) == 2 * len(packet)
     assert run.signature not in prompt and SESSION not in prompt and '-0000-4000-8000-' not in prompt
-    # Two complete 14.6 kB lanes with realistic live capture fit the default window, with margin.
-    assert mb.validate_request_bytes(mb._COMPARE_SYSTEM, prompt, mb.request_budgets()) <= 0.6 * mb.request_budgets()['context_bytes']
+    # Each lane's own request, a complete 14.6 kB lane with realistic live capture, fits the default
+    # window with margin (two real live-capture lanes measured 53.0 and 53.6 kB per request).
+    assert all(mb.validate_request_bytes(mb._ASSESS_SYSTEM, p, mb.request_budgets()) <= 0.4 * mb.request_budgets()['context_bytes'] for p in prompt.requests)
 
 
 

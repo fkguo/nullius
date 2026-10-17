@@ -185,7 +185,10 @@ async function compare(c, ds, label, stage) {
     observed_usage: null, capture_observation: 'unavailable', compaction_witness: 'unavailable',
   } })
   if (!validBudgets) return unavailable('Invalid configured comparator request budget.')
-  if (inputBound > CONTEXT_BYTES) return unavailable('Complete original comparator request exceeds configured byte budget; no truncation.')
+  // Length decides only carriage. This host protocol returns one object per agent() call and no capture of
+  // tool calls or their results, so it cannot show which bytes of frozen files a comparator was returned:
+  // material that does not fit one complete request stays unavailable as content not completely read.
+  if (inputBound > CONTEXT_BYTES) return unavailable('Content not completely read: the complete comparator material does not fit one request, and this host protocol cannot show which file bytes a comparator was returned; nothing is truncated.')
   // agent() has no authenticated provider token/capture API in this host protocol.
   // Conservatively bound the entire visible request and output before dispatch.
   if (inputBound + OUTPUT_RESERVE > CONTEXT_TOKENS) return unavailable('Complete original comparator request and output reserve exceed configured token window.')

@@ -16,3 +16,5 @@ def test_native_script_transport_protocol():
     assert '4 body-only scientific-axis and transport-only provenance cases passed' in proc.stdout
 
     assert '1 native packet copy-count case, 1 native no-capture transport case and 6 input/execution span-source cases passed' in proc.stdout
+
+    assert '1 native long-material read-coverage-unavailable case passed.' in proc.stdout

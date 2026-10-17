@@ -169,24 +169,42 @@ requireAll('skills/derivation-verify/references/contract.md', read('skills/deriv
   ['captured record carried by reference only on a proven equality', 'only when packet assembly proves the bytes equal a shipped field'],
   ['live stream carried as content blocks with proven text slices', 'proven equal to at assembly, and every other block and field'],
   ['captured content quoted only as the packet shows it', 'Input and execution spans quote captured content only as the packet shows it'],
-  ['refusal above the window, never truncation', 'a request that still exceeds it is refused, never truncated'],
+  ['one comparator request per lane holding its complete material', "Each lane's assessment is made in its own comparator request that holds that lane's complete material"],
+  ['joint request holds no lane material and its assessments are discarded', 'holds no lane material, so any assessment it volunteers is discarded'],
+  ['verdict never easier than one request holding every lane', 'so the verdict is never easier to reach than with one request holding every lane'],
+  ['read coverage, not length, decides', 'Read coverage, not length, decides whether lane material counts'],
+  ['a byte counts as read only when returned with its frozen text', 'a byte counts as read only when a Read result returned the line holding it, numbered as that line, with exactly the frozen text'],
+  ['incomplete reads are unavailable, never truncated', 'otherwise it is unavailable as content not completely read, never truncated'],
+  ['executors that cannot show reads leave long material unavailable', 'leave such material unavailable as content not completely read'],
 ]);
 // The copy count per packet record is pinned by offline witnesses in both executors; prose alone erodes.
 requireAll('skills/derivation-verify/tests/test_full_derivation_transport.py', read('skills/derivation-verify/tests/test_full_derivation_transport.py'), [
   ['per-record copy count witness', 'def test_comparator_packet_repeats_lane_text_only_inside_transport'],
-  ['live-capture content-block carriage witness', 'def test_live_capture_stream_is_carried_as_content_blocks_and_two_lanes_fit'],
+  ['live-capture content-block carriage witness', 'def test_live_capture_stream_is_carried_as_content_blocks_and_each_lane_request_fits'],
   ['unproven captured content stays inline witness', 'def test_captured_content_not_proven_equal_to_a_shipped_field_stays_inline'],
-  ['live-capture refusal above the window witness', 'def test_live_capture_request_above_the_window_is_refused_not_truncated'],
+  ['lane above the window without observable reads witness', 'def test_lane_above_the_window_without_observable_reads_is_refused_not_truncated'],
   ['stream view omits only bookkeeping witness', 'def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_output'],
   ['captured text referenced only to a quotable field witness', 'def test_captured_text_is_referenced_only_to_a_field_spans_can_quote'],
   ['captured-content span sources witness', 'def test_input_execution_spans_quote_captured_content_only_as_the_packet_shows_it'],
-  ['live-capture two-lane margin assertion', "assert mb.validate_request_bytes(mb._COMPARE_SYSTEM, prompt, mb.request_budgets()) <= 0.6 * mb.request_budgets()['context_bytes']"],
-  ['two-lane fixture under the default window assertion', "assert len(seen[0].encode('utf-8')) <= mb.request_budgets()['context_bytes']"],
+  ['live-capture per-lane request margin assertion', "assert all(mb.validate_request_bytes(mb._ASSESS_SYSTEM, p, mb.request_budgets()) <= 0.4 * mb.request_budgets()['context_bytes'] for p in prompt.requests)"],
+  ['per-lane fixture requests under the default window assertion', "assert len(seen) == 3 and all(len(p.encode('utf-8')) <= mb.request_budgets()['context_bytes'] for p in seen)"],
+]);
+// Read coverage replaces length as the criterion; each rule is pinned by an offline witness that a mutation fails.
+requireAll('skills/derivation-verify/tests/test_comparator_read_coverage.py', read('skills/derivation-verify/tests/test_comparator_read_coverage.py'), [
+  ['per-lane requests carry one complete lane witness', 'def test_per_lane_requests_each_carry_one_complete_lane'],
+  ['chunked read with full coverage witness', 'def test_lane_larger_than_the_window_is_read_in_chunks_and_passes_only_with_full_coverage'],
+  ['incomplete or unfaithful reads refused witness', 'def test_incomplete_or_unfaithful_reads_are_refused'],
+  ['dropped read mutation', "'drop-one-read': 'some bytes of the frozen material were never returned to the comparator'"],
+  ['altered returned content mutation', "'altered-line': 'a returned line differs from the frozen bytes'"],
+  ['unobservable reads leave long lanes unavailable witness', 'def test_a_runner_or_comparator_that_cannot_show_reads_leaves_long_lanes_unavailable'],
+  ['aggregation not easier witness', 'def test_per_lane_assessment_cannot_make_aggregation_easier'],
+  ['spans checked against what was read witness', 'def test_spans_are_checked_against_exactly_what_the_comparator_read'],
 ]);
 requireAll('skills/derivation-verify/tests/test_native_workflow_transport.mjs', read('skills/derivation-verify/tests/test_native_workflow_transport.mjs'), [
   ['native packet copy count witness', 'async function checkPacketCopies('],
   ['native input/execution span sources witness', 'await checkSpanSources('],
   ['native no-capture transport witness', 'await checkNativeCapturedRecords()'],
+  ['native long material unavailable as content not completely read witness', 'await checkNativeLongMaterialUnavailable()'],
 ]);
 
 if (errors.length > 0) {
