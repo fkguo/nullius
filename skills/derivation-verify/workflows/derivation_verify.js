@@ -111,6 +111,7 @@ function stringValues(value) {
 // Texts an input/execution span may quote verbatim: the original derivation body, the navigation summary,
 // and the observed transport record both as the packet encodes it and as its decoded string values.
 // The packet carries each lane's text once as derivation and once inside transport.raw_output; no field repeats it.
+// The host protocol observes no capture stream, so the native transport holds no captured_records to carry.
 function sourceMaterial(d) {
   return [d.derivation || '', d.derivation_summary || '', JSON.stringify(d.transport || {}), ...stringValues(d.transport || {})]
 }
