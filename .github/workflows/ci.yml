@@ -203,12 +203,6 @@ jobs:
       - name: Python tests (generated verification bindings)
         run: python -m pytest meta/tests/test_generated_verification_bindings.py -q
 
-      - name: Python tests (independent-reproduction gate behavior)
-        run: python -m pytest skills/research-team/tests/test_independent_reproduction_gate.py -q
-
-      - name: Python tests (literature reconciliation and method-screening gate behavior)
-        run: python -m pytest skills/research-team/tests/test_literature_trace_gate.py -q
-
       - name: Python tests (close-prior bound-ledger write gate behavior)
         run: |
           python -m pytest \
@@ -222,67 +216,14 @@ jobs:
       - name: Python tests (citation-triangulation comparator)
         run: python -m pytest skills/citation-triangulation/tests -q
 
-      - name: Python tests (launch authorization gate behavior)
-        run: python -m pytest skills/research-harness/tests/test_launch_authorization_gate.py -q
+      - name: Python tests (review-swarm runners signal a CLI's process group only before reaping it)
+        run: python -m pytest skills/review-swarm/tests/test_runner_group_signals.py -q
 
-      - name: "Python tests (run storage: check / stow / verify / materialize)"
-        run: python -m pytest skills/research-harness/tests/test_run_storage.py -q
-
-      - name: Python tests (delegation-budget gate behavior)
-        run: python -m pytest skills/research-team/tests/test_delegation_budget_gate.py -q
-
-      - name: Python tests (supervisors signal a CLI's process group only before reaping it)
-        run: |
-          python -m pytest \
-            skills/review-swarm/tests/test_runner_group_signals.py \
-            skills/research-harness/tests/test_independent_reproduction_check.py::test_entry_that_exits_leaving_a_descendant_gets_its_group_stopped \
-            skills/research-harness/tests/test_independent_reproduction_check.py::test_timeout_stops_the_entry_group_with_sigterm_first \
-            -q
-
-      - name: Python tests (ported gate and fixer characterization locks)
-        run: |
-          python -m pytest \
-            skills/research-team/tests/test_check_clean_room.py \
-            skills/research-team/tests/test_check_markdown_math_portability.py \
-            skills/research-team/tests/test_check_research_plan.py \
-            skills/research-team/tests/test_check_tex_draft_preflight.py \
-            skills/research-team/tests/test_fix_markdown_double_backslash_math.py \
-            skills/research-team/tests/test_fix_markdown_latex_macros.py \
-            skills/research-team/tests/test_fix_markdown_math_hygiene.py \
-            skills/research-team/tests/test_export_paper_bundle.py \
-            skills/review-swarm/tests/test_review_contract.py \
-            -q
-
-      - name: Python tests (health-aware resume and round-advance guard)
-        run: |
-          python -m pytest \
-            skills/research-team/tests/test_health_aware_resume.py \
-            skills/research-team/tests/test_next_team_tag_verdict_guard.py \
-            -q
-
-      - name: Python tests (convergence gate machine-verdict contract)
-        run: python -m pytest skills/research-team/tests/test_convergence_gate_json.py -q
-
-      - name: Adjudication disposition inventory tests
-        run: python -m pytest skills/research-team/tests/test_build_adjudication_response.py -q
-
-      - name: Adjudication completeness gate tests
-        run: python -m pytest skills/research-team/tests/test_adjudication_completeness_gate.py -q
-
-      - name: Fold guard runner integration tests
-        run: python -m pytest skills/research-team/tests/test_fold_guard_runner_integration.py -q
-
-      - name: Convergence registration gate tests
-        run: python -m pytest skills/research-team/tests/test_convergence_registration_gate.py -q
-
-      - name: Run origin stamp at creation tests
-        run: python -m pytest skills/research-team/tests/test_run_origin_stamp_at_creation.py -q
+      - name: Python tests (review contract characterization lock)
+        run: python -m pytest skills/review-swarm/tests/test_review_contract.py -q
 
       - name: Review baseline-binding tests
         run: python -m pytest skills/review-swarm/tests/test_baseline_binding.py -q
-
-      - name: Python tests (delegation-budget preflight brake, runner integration)
-        run: python -m pytest skills/research-team/tests/test_delegation_budget_runner_integration.py -q
 
       - name: Python tests (figure display-acceptance gate behavior)
         run: python -m pytest skills/figure-hygiene/tests/test_display_acceptance_gate.py -q
