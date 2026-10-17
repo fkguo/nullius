@@ -18,6 +18,7 @@ version was never tagged). Headline themes: result traceability from run to comm
 a machine-enforced closeout discipline for notebooks and results, fail-closed review
 and delegation contracts, and consolidated run authority under one canonical
 `artifacts/runs/<run_id>/` layout.
+
 ### Removed
 - **hep-mcp modules no entry reaches.** The hep-mcp source modules that no
   declared entry or launcher imported (the removed discovery, preprocessing,
@@ -52,7 +53,6 @@ and delegation contracts, and consolidated run authority under one canonical
   directories and evidence catalogs stay readable in place; `docs/URI_REGISTRY.md`
   gives the rule for resolving historical `hep://projects/...` references to files
   and where to read the catalog item format.
-
 
 ### Added
 - **Large run outputs outside git history.** `skills/research-harness/scripts/run_storage.py`
@@ -408,11 +408,13 @@ and delegation contracts, and consolidated run authority under one canonical
   and `inspire_detect_measurement_conflicts`; tools that replace files in place
   and the idea campaign topup/pause/resume tools carry the destructive hint.
   No `_confirm` requirement changes.
-- CI locks `check-publishable-package-deps-anti-drift` (PLUG-01: rep-sdk has
+- **CI locks for publishable-package dependencies and source language.**
+  `check-publishable-package-deps-anti-drift` (PLUG-01: rep-sdk has
   no internal dependency; pdg-mcp and zotero-mcp may depend on
   `@nullius/shared` only; shared stays a leaf) and
-  `check-source-language-anti-drift` (LANG-01: no CJK characters under
-  `packages/*/src`).
+  `check-source-language-anti-drift` (LANG-01: no CJK characters in `.ts` and
+  `.py` files under `packages/*/src`, outside `generated/` directories and lines
+  marked `CONTRACT-EXEMPT: LANG-01`).
 
 ### Changed
 - **Staged writes at fresh exclusive names.** Shared atomic writes, the openalex
@@ -530,9 +532,12 @@ and delegation contracts, and consolidated run authority under one canonical
   classifies that exit as `not_hermetic` (a configuration failure, not an
   outage). `--load-operator-context` restores the CLI's default loading and the
   records then state `hermetic: false`; independent review and derivation
-  lanes must not pass it. An `unknown option` error is a deterministic,
-  unretried failure in all five CLI runners, so a CLI that does not know
-  `--safe-mode` fails instead of running with the operator's context.
+  lanes must not pass it. The CLI's environment block, its agent identity line
+  and the account e-mail address of the login still reach the lane. An
+  `unknown option` error is a deterministic, unretried failure in the claude,
+  codex, gemini, kimi and opencode runners, so a CLI that does not know
+  `--safe-mode` is expected to fail instead of running with the operator's
+  context (not tested against an older CLI).
 - **derivation-verify: lane request wording; provider refusals recorded.** Both
   executors ask lanes for "the full written derivation, as it would appear in a
   paper appendix: every mathematical step stated explicitly" instead of
@@ -561,8 +566,8 @@ and delegation contracts, and consolidated run authority under one canonical
   blocks, signatures); anything else inline verbatim. `artifact_refs` gain
   `size`. On the 300-step test derivation two lanes went from about 190 kB to
   66,591 bytes; on two real Claude streams with capture, from 891 kB to 95,454
-  bytes, within the 159,040-byte default window. The window check and its
-  refusal are unchanged.
+  bytes, within the 159,040-byte default window. Material that still exceeds
+  the byte budget is handled as the read-coverage entry below describes.
 - **derivation-verify: what counts as a quote of a lane's steps.**
   Construction, applicability, diagnostic and method-risk spans count only in
   the text outside every answer-shaped JSON object (the selected object and any
