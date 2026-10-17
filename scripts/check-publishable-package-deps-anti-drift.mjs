@@ -52,9 +52,15 @@ function readPackageJson(repoRoot, dir) {
 function internalNames(record) {
   const names = [];
   for (const [name, spec] of Object.entries(record ?? {})) {
-    if (name.startsWith(INTERNAL_SCOPE)) names.push(name);
-    else if (typeof spec === 'string' && spec.startsWith(`npm:${INTERNAL_SCOPE}`)) {
-      names.push(`${name} (alias of ${spec.slice('npm:'.length).replace(/@[^@]*$/, '')})`);
+    // "npm:<target>[@<range>]": the range separator is the first "@" after position 0.
+    const aliasTarget = typeof spec === 'string' && spec.startsWith('npm:')
+      ? spec.slice('npm:'.length).replace(/(?!^)@.*$/, '')
+      : null;
+    if (aliasTarget && aliasTarget.startsWith(INTERNAL_SCOPE)) {
+      // The alias target decides, even when the key itself is an allowed name.
+      names.push(aliasTarget === name ? name : `${name} (alias of ${aliasTarget})`);
+    } else if (name.startsWith(INTERNAL_SCOPE)) {
+      names.push(name);
     }
   }
   return names.sort();

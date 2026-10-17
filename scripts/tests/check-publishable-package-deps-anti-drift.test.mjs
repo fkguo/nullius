@@ -80,6 +80,23 @@ test('an npm: alias pointing at an internal package is caught by its target', t 
   assert.match(problems[0], /rep-sdk\/package\.json: .*lists helpers \(alias of @nullius\/shared\)/);
 });
 
+test('an allowed key that aliases another internal package is judged by its target', t => {
+  const { base, edit } = fixtureRoot(t);
+  edit('pdg-mcp', pkg => { pkg.dependencies = { ...pkg.dependencies, '@nullius/shared': 'npm:@nullius/orchestrator@*' }; });
+  const problems = checkPublishablePackages({ repoRoot: base });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /pdg-mcp\/package\.json: .*lists @nullius\/shared \(alias of @nullius\/orchestrator\)/);
+});
+
+test('an alias without a version range names its full target; an alias to itself is the plain name', t => {
+  const { base, edit } = fixtureRoot(t);
+  edit('rep-sdk', pkg => { pkg.dependencies = { ...pkg.dependencies, 'helpers': 'npm:@nullius/shared' }; });
+  edit('zotero-mcp', pkg => { pkg.dependencies = { ...pkg.dependencies, '@nullius/shared': 'npm:@nullius/shared@^0.6.0' }; });
+  const problems = checkPublishablePackages({ repoRoot: base });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /rep-sdk\/package\.json: .*lists helpers \(alias of @nullius\/shared\)/);
+});
+
 test('shared must stay a leaf and publishable', t => {
   const { base, edit } = fixtureRoot(t);
   edit('shared', pkg => { pkg.dependencies = { ...pkg.dependencies, '@nullius/project-contracts': 'workspace:*' }; pkg.private = true; });
