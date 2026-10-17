@@ -10,6 +10,32 @@ the version to cite.
 
 ## [Unreleased]
 
+### Changed
+- **Development contract aligned with the code for LOG-03, REL-01, SYNC-02,
+  PLUG-01 and LANG-01.** Five rules of `meta/ECOSYSTEM_DEV_CONTRACT.md`
+  never matched any implementation; each now states what the code does and
+  names the check that enforces it. `make release` runs the full release
+  gate (build, `codegen-check`, both version checks, catalog regeneration
+  with `git diff --exit-code`, skill tool-name lock).
+- **hep-mcp: `tool_catalog.{standard,full}.json` are deterministic.** The
+  `generated_at` and `commit` fields are gone; the files hold `mode`, `count`
+  and the sorted `tools` only, are generated with `HEP_ENABLE_ZOTERO=1`, and
+  `tests/contracts/toolCatalog.test.ts` holds them byte-identical to the
+  runtime registry.
+- **orchestrator: ledger `event_type` must be a lowercase identifier**
+  (`^[a-z][a-z0-9_]*$`); `appendLedger()` and `saveStateWithLedger()` throw
+  before touching any file otherwise. The vocabulary stays open. The ledger
+  read model now maps `planning_started`, `execution_completed` and
+  `execution_failed`, so a computation run's ledger-derived status no longer
+  stays `running` after it finished.
+
+### Added
+- CI locks `check-publishable-package-deps-anti-drift` (PLUG-01: rep-sdk has
+  no internal dependency; pdg-mcp and zotero-mcp may depend on
+  `@nullius/shared` only; shared stays a leaf) and
+  `check-source-language-anti-drift` (LANG-01: no CJK characters under
+  `packages/*/src`).
+
 ### Fixed
 - **figure-hygiene: complete sidecar example restored; 0.6.0 migration note.**
   `references/display-semantics.md` again shows a complete provenance sidecar

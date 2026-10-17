@@ -8,7 +8,8 @@ import { INSPIRE_API_URL } from '@nullius/shared';
 
 import { getDataDir, getDataRootInfo, getDownloadsDir, projectPdgDataDir } from '../../data/dataDir.js';
 import { getToolUsageSnapshot } from './toolUsageTelemetry.js';
-import { getTools, type ToolExposureMode } from '../registry.js';
+import { type ToolExposureMode } from '../registry.js';
+import { buildToolCatalog } from './toolCatalog.js';
 
 export interface HepHealthParams {
   check_inspire: boolean;
@@ -151,8 +152,7 @@ async function checkInspire(params: { timeoutMs: number }): Promise<{ ok: boolea
  * Stable across restarts as long as the tool registry is unchanged.
  */
 export function computeToolCatalogHash(mode: ToolExposureMode = 'standard'): string {
-  const names = getTools(mode).map(t => t.name).sort();
-  return createHash('sha256').update(names.join('\n')).digest('hex');
+  return createHash('sha256').update(buildToolCatalog(mode).tools.join('\n')).digest('hex');
 }
 
 export async function getHepHealth(params: HepHealthParams): Promise<HepHealthResult> {

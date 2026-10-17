@@ -151,6 +151,18 @@ jobs:
           node --test scripts/tests/check-unreachable-modules.test.mjs
           node scripts/check-unreachable-modules.mjs
 
+      - name: "Check publishable-package dependencies (PLUG-01: rep-sdk / pdg-mcp / zotero-mcp stay installable alone)"
+        if: ${{ matrix.node-version == 22 }}
+        run: |
+          node --test scripts/tests/check-publishable-package-deps-anti-drift.test.mjs
+          node scripts/check-publishable-package-deps-anti-drift.mjs
+
+      - name: "Check source language (LANG-01: no CJK characters under packages/*/src)"
+        if: ${{ matrix.node-version == 22 }}
+        run: |
+          node --test scripts/tests/check-source-language-anti-drift.test.mjs
+          node scripts/check-source-language-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
