@@ -214,11 +214,15 @@ def _without_bookkeeping(fields: dict, *also: str) -> dict:
             and not (k == "parent_tool_use_id" and v is None)}
 
 
+_MODEL_USAGE_COUNTERS = {"inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens",
+                         "webSearchRequests", "costUSD", "thinkingTokens"}
+
+
 def _model_identity(model_usage):
-    """modelUsage without its token and cost numbers: which models served the lane."""
+    """modelUsage without its token and cost counters: which models served the lane, with their settings."""
     if not isinstance(model_usage, dict):
         return model_usage
-    return {name: {k: v for k, v in stats.items() if isinstance(v, (str, bool)) or v is None} if isinstance(stats, dict) else stats
+    return {name: {k: v for k, v in stats.items() if k not in _MODEL_USAGE_COUNTERS} if isinstance(stats, dict) else stats
             for name, stats in model_usage.items()}
 
 
@@ -255,22 +259,29 @@ def _stream_blocks(text: str, shipped: tuple[tuple[str, str], ...]) -> list:
         if kind == "stream_event" and isinstance(event.get("event"), dict):
             inner = event["event"]
             step = inner.get("type")
+            # Outer fields beyond bookkeeping (e.g. a non-null parent_tool_use_id of a subagent) stay shown.
+            outer = _without_bookkeeping(event, "type", "event")
+            shown_outer = {"event_fields": outer} if outer else {}
             if step == "message_start" and isinstance(inner.get("message"), dict):
                 message_id = inner["message"].get("id")
-                blocks.append({"source": "stream", "message_fields": _without_bookkeeping(inner["message"], "id", "content")})
+                blocks.append({"source": "stream", "message_fields": _without_bookkeeping(inner["message"], "id", "content"), **shown_outer})
                 continue
             if step == "message_delta" and isinstance(inner.get("delta"), dict):
-                blocks.append({"source": "stream", "message_delta": _without_bookkeeping(inner["delta"])})
+                blocks.append({"source": "stream", "message_delta": _without_bookkeeping(inner["delta"]), **shown_outer})
                 continue
             if step in ("content_block_stop", "message_stop"):
+                if outer:
+                    blocks.append({"source": "stream", "marker": step, **shown_outer})
                 continue
             if step == "content_block_start" and isinstance(inner.get("content_block"), dict):
-                entry = {"source": "stream", "block": {k: v for k, v in inner["content_block"].items() if k != "signature"}}
+                entry = {"source": "stream", "block": {k: v for k, v in inner["content_block"].items() if k != "signature"}, **shown_outer}
                 streamed[(message_id, inner.get("index"))] = entry
                 blocks.append(entry)
                 continue
             delta = inner.get("delta") if step == "content_block_delta" else None
             entry = streamed.get((message_id, inner.get("index")))
+            # A delta joins its block only when its outer fields are the block's; otherwise it is shown verbatim.
+            entry = entry if entry is not None and entry.get("event_fields", {}) == outer else None
             if isinstance(delta, dict) and delta.get("type") == "signature_delta" and entry is not None:
                 continue
             field = _DELTA_FIELDS.get(delta.get("type")) if isinstance(delta, dict) else None

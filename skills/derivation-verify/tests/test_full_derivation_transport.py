@@ -207,18 +207,21 @@ def live_stream(raw, *, tool=False, alter_delta=False, extra=False):
                    env({'type': 'assistant', 'message': {**message, 'content': [{'type': 'text', 'text': PARTIAL}]}}),
                    env({'type': 'user', 'message': {'role': 'user', 'content': [{'type': 'text', 'text': raw}]}}),
                    stream({'type': 'content_block_delta', 'index': 7, 'delta': {'type': 'text_delta', 'text': 'orphan fragment'}}),
+                   {**stream({'type': 'content_block_start', 'index': 9, 'content_block': {'type': 'text', 'text': ''}}), 'parent_tool_use_id': 'toolu_sub'},
+                   {**stream({'type': 'content_block_delta', 'index': 9, 'delta': {'type': 'text_delta', 'text': SUBAGENT_TEXT}}), 'parent_tool_use_id': 'toolu_sub'},
                    '{"type": "stream_event", truncated line']
     events += [stream({'type': 'message_delta', 'delta': {'stop_reason': 'max_tokens' if extra else 'end_turn'}, 'usage': usage}),
                stream({'type': 'message_stop'}),
                {'type': 'rate_limit_event', 'rate_limit_info': {'status': 'allowed'}, 'session_id': SESSION, 'uuid': 'ffffffff-0000-4000-8000-000000000000'},
                {'type': 'result', 'subtype': 'success', 'is_error': False, 'duration_ms': 148000, 'num_turns': 1, 'result': raw,
                 'stop_reason': 'end_turn', 'session_id': SESSION, 'total_cost_usd': 0.5, 'usage': usage, 'uuid': 'eeeeeeee-0000-4000-8000-000000000000',
-                'modelUsage': {'some-model': {'inputTokens': 2, 'outputTokens': 17887, 'costUSD': 0.5}},
+                'modelUsage': {'some-model': {'inputTokens': 2, 'outputTokens': 17887, 'costUSD': 0.5, 'contextWindow': 1000000}},
                 **({'errors': ['tool denied'], 'permission_denials': [{'tool_name': 'WebSearch'}]} if extra else {})}]
     return events, signature
 
 
 SYNTHETIC = 'Original step 7: preserve this exact evidence.'  # occurs inside the lane output
+SUBAGENT_TEXT = 'subagent reply streamed without a snapshot'
 PARTIAL = 'Original step 9: preserve this exact evidence.'    # an assistant text that is only part of the output
 TOOL_OUTPUT = 'check.py: residual of the rearranged identity is exactly zero for all 64 sampled points'
 
@@ -288,7 +291,8 @@ def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_ou
     # a compaction record, stop reasons, result errors and permission denials, which models served it,
     # a synthetic user message and an assistant text that is only part of the output (both verbatim
     # although their text occurs inside the lane output), a user message that repeats the whole output
-    # (verbatim: only the lane's own messages are referenced), an orphan delta and a malformed line.
+    # (verbatim: only the lane's own messages are referenced), a streamed subagent block with no snapshot
+    # (its parent_tool_use_id shown), the context window in modelUsage, an orphan delta and a malformed line.
     raw = json.dumps(verdict(LONG_ORIGINAL))
     run = LiveCapture(tmp_path, raw, extra=True)
     ds, prompt, packet = packet_for(raw, run=run)
@@ -304,11 +308,12 @@ def test_stream_view_omits_only_bookkeeping_and_references_only_the_lanes_own_ou
         assert {'source': 'user', 'event_fields': {'isSynthetic': True}} in blocks
         assert {'source': 'assistant', 'block': {'type': 'text', 'text': PARTIAL}} in blocks  # part of a field is not equality
         assert {'source': 'user', 'block': {'type': 'text', 'text': raw}} in blocks  # user text is never the lane's output
+        assert {'source': 'stream', 'block': {'type': 'text', 'text': SUBAGENT_TEXT}, 'event_fields': {'parent_tool_use_id': 'toolu_sub'}} in blocks
         assert {'source': 'unrecognized_line', 'line': '{"type": "stream_event", truncated line'} in blocks
         assert any(b['source'] == 'unrecognized_line' and 'orphan fragment' in b['line'] for b in blocks)
         result = next(b['block'] for b in blocks if b['source'] == 'result')
         assert result['errors'] == ['tool denied'] and result['permission_denials'] == [{'tool_name': 'WebSearch'}]
-        assert result['modelUsage'] == {'some-model': {}} and result['num_turns'] == 1
+        assert result['modelUsage'] == {'some-model': {'contextWindow': 1000000}} and result['num_turns'] == 1
         assert not {'session_id', 'uuid', 'usage', 'total_cost_usd', 'duration_ms'} & set(result)
         assert not any(b.get('event_fields', {}).get('subtype') in ('status', 'thinking_tokens') for b in blocks)
     # The unrecognized orphan delta line keeps its envelope verbatim; recognized events show none.
