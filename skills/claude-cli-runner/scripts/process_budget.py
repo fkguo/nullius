@@ -411,7 +411,9 @@ def main() -> int:
                     else:
                         try:
                             args.out.write_text(capture.complete_text.success_text(code))
-                        except CompleteTextError:
+                        except CompleteTextError as exc:
+                            with capture.error_path.open('a') as error_log:
+                                error_log.write(str(exc)+'\n')
                             code = 65
                             termination_reason = 'incomplete_or_error_result'
                         if code == 0 and args.session_id_file and isinstance(terminal.get('session_id'), str):

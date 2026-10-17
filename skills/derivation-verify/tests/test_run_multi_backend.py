@@ -725,8 +725,9 @@ def test_run_gate_summary_schema_and_skips():
     assert set(out) == {"total_claims", "converged", "unconverged", "clean_first_pass",
                         "needed_iteration", "dropped_claims", "family_pool",
                         "agents_file", "independence",
-                        "unavailable_backends", "matrix"}
+                        "unavailable_backends", "provider_refusals", "matrix"}
     assert out["unavailable_backends"] == []  # healthy run: nothing was dropped
+    assert out["provider_refusals"] == []
     assert out["total_claims"] == 1   # 2 malformed claims skipped
     assert out["dropped_claims"] == 2
     assert out["converged"] == 1
