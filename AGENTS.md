@@ -5,7 +5,7 @@
 ## Read Order
 
 1. 先读根级 `AGENTS.md`
-2. 再读根级 `CLAUDE.md` shim
+2. 根级 `CLAUDE.md` 只是一个短说明加一行 `@AGENTS.md` 导入，不必单独读
 3. 再按需要阅读对应 package 的 `README.md`、`docs/*`、源码与测试
 
 ## Stable Public Invariants
@@ -26,7 +26,7 @@
 - maintainer-only 的 redesign plan、remediation tracker、implementation prompts、formal review packets、lane queue、local workflow notes，不应作为公开仓 surface。
 - 当前公开根级文档以 `README.md`、`docs/README_zh.md`、`docs/QUICKSTART.md`、`docs/TESTING_GUIDE.md`、`docs/PROJECT_STATUS.md`、`docs/ARCHITECTURE.md`、`docs/URI_REGISTRY.md`、`meta/ECOSYSTEM_DEV_CONTRACT.md` 为主。
 - `.serena/memories/architecture-decisions.md` 是仓库内允许跟踪的长期架构结论；其余 Serena memory 默认视为本地临时笔记。
-- `CLAUDE.md` 在公开仓中保留为本文件 governance 段的镜像，给只识别 `CLAUDE.md` 的旧 prompt / Claude 工具用；对 `AGENTS.md` governance 段的任何编辑必须同步到 `CLAUDE.md`，反向亦然；两边出现分歧时以 `AGENTS.md` 为准。
+- `CLAUDE.md` 在公开仓中只保留一个短说明加一行 `@AGENTS.md` 导入（Claude Code 的导入语法），给 Claude Code 与只识别 `CLAUDE.md` 的宿主用；规则一律写在 `AGENTS.md`，不得复制到 `CLAUDE.md`，也不得把 `CLAUDE.md` 做成符号链接。
 
 ## Working Norms
 
@@ -48,7 +48,7 @@
   - 受影响包的 targeted `pytest` / `vitest`
   - `pnpm -r build`
   - 若改动触及 `meta/schemas/`，必须运行 `pnpm codegen:check` 验证 `packages/shared/src/generated/` 与 `meta/generated/` 没有 drift；该检查需要本地已通过 `python3 -m pip install -r meta/scripts/codegen-requirements.txt` 安装 pinned `datamodel-code-generator` 与 `ruff`，加上 `pnpm install` 完成的 TS 依赖；CI 由 `.github/workflows/ci.yml` 装同一个 requirements 文件确保版本一致，否则不同 datamodel-codegen 版本会对同一 schema 产生 drift 的 Python
-  - 若改动触及 `AGENTS.md` 或 `CLAUDE.md` 的 governance 段，必须运行 `pnpm check:governance-sync`（或 `node scripts/check-governance-sync.mjs`）确认两文件 governance 区段仍 byte-for-byte 一致
+  - 若改动触及 `AGENTS.md` 或 `CLAUDE.md`，必须运行 `pnpm check:governance-sync`（或 `node scripts/check-governance-sync.mjs`）确认 `CLAUDE.md` 仍只是一个含单行 `@AGENTS.md` 导入的普通文件、没有复制任何 governance 内容
 - 若改动触及 public CLI/help/docs truth，默认还要检查：
   - `packages/orchestrator/tests/nullius-cli.test.ts`
   - `packages/hep-mcp/tests/docs/docToolDrift.test.ts`
