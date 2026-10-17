@@ -526,9 +526,10 @@ and delegation contracts, and consolidated run authority under one canonical
   `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, and the login is kept. Measured
   with marker files to stay out: the user-level instruction file,
   `CLAUDE.md`/`AGENTS.md` of the working directory and its parents (home
-  included), a subdirectory `CLAUDE.md` after a read, auto memory, and the
-  skills and agents of user-installed plugins and of the user's skill
-  directory. Excluded according to the CLI documentation, not measured:
+  included), a subdirectory `CLAUDE.md` after a read, and auto memory; the
+  stream's init event also shows the skills and agents of user-installed
+  plugins and of the user's skill directory gone (built-in ones remain).
+  Excluded according to the CLI documentation, not measured:
   `CLAUDE.local.md` and user-level rules files, managed-policy `CLAUDE.md`,
   user and project hooks, custom commands, output styles and MCP servers, and
   the git status snapshot; managed-policy settings and policy-configured hooks
@@ -556,9 +557,11 @@ and delegation contracts, and consolidated run authority under one canonical
   context out.** `assets/run_claude.sh`, copied into projects as
   `scripts/run_claude.sh`, runs `claude --print --safe-mode` with
   `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, carries the marker line
-  `research-team-claude-runner: context-excluded`, and treats an
-  `unknown option` error as a deterministic failure like the shared runner;
-  it applies the exclusion but writes no `context_sources.json`.
+  `research-team-claude-runner: context-excluded`, and now carries the shared
+  runner's deterministic-failure classifier, so usage, missing-command,
+  authorization, quota and `unknown option` errors fail at once instead of
+  being retried; it applies the exclusion but writes no
+  `context_sources.json`.
   `run_team_cycle.sh` uses a project copy only when it carries both the marker
   and `--safe-mode` on its `claude --print` line. Otherwise, when a member uses
   the Claude runner through the project copy (no `--member-*-runner`
@@ -568,7 +571,10 @@ and delegation contracts, and consolidated run authority under one canonical
   or `--member-*-api-key-env` option (only the project copy accepts them) or
   when the shared runner is not available. **Migration**, once per existing
   project: `cp <skills>/research-team/assets/run_claude.sh
-  scripts/run_claude.sh` (merge the two flags by hand into a customized copy).
+  scripts/run_claude.sh`; for a customized copy, put `--safe-mode` on its
+  `claude --print` line, export `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, and
+  add the comment line `research-team-claude-runner: context-excluded`
+  (without the marker the copy is still replaced).
 - **derivation-verify: lane request wording; provider refusals recorded.** Both
   executors ask lanes for "the full written derivation, as it would appear in a
   paper appendix: every mathematical step stated explicitly" instead of
@@ -602,11 +608,12 @@ and delegation contracts, and consolidated run authority under one canonical
   status/thinking-token/rate-limit events, stream markers, empty thinking
   blocks, signatures); anything else inline verbatim. `artifact_refs` gain
   `size`. Measured at release on the capture-free 300-step test derivation,
-  the two-lane comparator prompt is 68,492 bytes and three lanes about 99 kB;
-  during this release's development the same fixture's two-lane prompt had
-  reached 190,697 bytes. On two real Claude streams with capture, the
+  the two-lane comparator prompt is 67,538 bytes and three lanes 99,228;
+  during this release's development the same construction had reached
+  190,697 bytes for two lanes. On two real Claude streams with capture, the
   request bound (system prompt, prompt and an 8,192-byte reserve) is 95,823
-  bytes for two lanes and 136,321 for three at release, against 900,126 bytes
+  bytes for two lanes and 136,321 for three (one stream used twice) at
+  release, against 900,126 bytes
   for two lanes before captured records were carried at content level; the
   default byte budget is 159,040. Material that still exceeds
   the byte budget is handled as the read-coverage entry below describes.
@@ -643,9 +650,10 @@ and delegation contracts, and consolidated run authority under one canonical
   callables observe neither token usage nor file reads, so there all material
   above the byte budget stays unavailable. Live limitation: the frozen-file
   reading path is stopped by the provider's `reasoning_extraction` safeguard
-  in most live attempts (with the shipped wording 2 of 4 reading sessions
-  passed; one Read per turn, a different model or disabled thinking did not
-  remove the stop), so such material is usually recorded as
+  in most live attempts (with the reworded reading requests 2 of 4 sessions
+  ran without a stop, and the shipped prompts add one span sentence since;
+  one Read per turn, a different model or disabled thinking did not remove
+  the stop), so such material is usually recorded as
   `provider_refusal` and does not count. The inline forms above the byte
   budget were run live with stand-in lanes, in requests of 294,341 bytes
   (single form) and 175,438 and 255,382 bytes (two per-lane requests): both
@@ -830,7 +838,7 @@ and delegation contracts, and consolidated run authority under one canonical
   pdg, zotero and idea MCP entry points compared `process.argv[1]` with the
   module URL without resolving symlinks, so a start through an npm bin link, a
   symlinked checkout or macOS `/tmp` exited 0 after about 300 ms with nothing
-  on stderr and no server. They now use `isMainModule()` from
+  on stderr and no server (reproduced on hep-mcp). They now use `isMainModule()` from
   `@nullius/shared`, which resolves both sides through `realpath`. Launch tests
   through symlinks cover arxiv-mcp and hep-mcp; the other five use the same
   helper, covered by its unit tests.
