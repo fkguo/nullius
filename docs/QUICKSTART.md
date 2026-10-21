@@ -37,6 +37,10 @@ diff -u AGENTS.md "$guidance_preview_root/AGENTS.md"
 课题已有的 prompts、team packet 或复制安装的技能操作说明也需要按来源检查；模板更新不会
 覆盖它们。复制安装应重新安装并核对来源版本；链接安装应确认仍指向所用源码。
 
+更新后的 `status.resume_context.read_order` 先给出 `AGENTS.md`、`research_plan.md`、
+`project_index.md`；`recommended_files` 是候选来源，不代表必须预加载全部内容。
+适用的章程/契约约束与验证所需原文仍须读取。
+
 新模板把简短恢复入口、验证边界与按操作查阅的 `research_guidance.md` 分开。
 如果旧课题没有该文件，`init --refresh` 可生成它；已有文件则保留原始字节与权限。
 对照预览中的两份文件，把 `AGENTS.md` 里需要精简的详细规则移入指导文件，再添加

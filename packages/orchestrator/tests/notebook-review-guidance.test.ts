@@ -61,12 +61,13 @@ function project(): string {
   temporaryRoots.push(root);
   return root;
 }
-async function cli(root: string, args: string[]): Promise<void> {
+async function cli(root: string, args: string[]): Promise<string> {
   let output = '';
   const code = await runCli(['--project-root', root, ...args], {
     stdout: text => { output += text; }, stderr: text => { output += text; },
   });
   expect(code, output).toBe(0);
+  return output;
 }
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
@@ -81,6 +82,28 @@ describe('notebook review instruction drift', () => {
     'skills/research-team/assets/team_packet_template.txt',
   ])('keeps %s aligned with runtime budgets and complete-original review', relative => {
     expect(guidanceIssues(read(relative)), relative).toEqual([]);
+  });
+
+  it('keeps runtime recovery navigation task-scoped with applicable source constraints', async () => {
+    const root = project();
+    await cli(root, ['init']);
+    const status = JSON.parse(await cli(root, ['status', '--json']));
+    expect(status.resume_context.read_order).toEqual(['AGENTS.md', 'research_plan.md', 'project_index.md']);
+    expect(status.resume_context.context_selection).toContain('applicable charter/contract constraints');
+    expect(status.resume_context.context_selection).toContain('complete originals');
+    expect(status.resume_context.context_selection).toContain('not a mandatory preload');
+    expect(status.recovery_context.context_selection).toBe(status.resume_context.context_selection);
+    expect(status.recovery_context.recommended_files).toEqual(status.resume_context.recommended_files);
+    const textStatus = await cli(root, ['status']);
+    expect(textStatus).toContain(`context_selection: ${status.resume_context.context_selection}`);
+    expect(textStatus.match(/context_selection:/g)).toHaveLength(1);
+    expect(status.resume_context.recommended_files).toEqual(expect.arrayContaining([
+      'research_guidance.md', 'project_charter.md', 'research_contract.md',
+    ]));
+    fs.unlinkSync(path.join(root, 'research_guidance.md'));
+    const oldProject = JSON.parse(await cli(root, ['status', '--json']));
+    expect(oldProject.resume_context.recommended_files).not.toContain('research_guidance.md');
+    expect(oldProject.recovery_context.recommended_files).not.toContain('research_guidance.md');
   });
 
   it('keeps CLI help aligned with runtime defaults', () => {

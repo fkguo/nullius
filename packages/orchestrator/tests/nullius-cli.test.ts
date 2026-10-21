@@ -1327,7 +1327,7 @@ describe('nullius CLI', () => {
         current_run_id: 'M-PLAN-1',
         run_status: 'idle',
         human_status_entry: 'research_plan.md#Current Status',
-        recommended_files: expect.arrayContaining(['AGENTS.md', 'project_charter.md', 'research_plan.md', 'research_contract.md']),
+        recommended_files: [],
       },
       plan_view: {
         plan_current_step_id: 'export_project',

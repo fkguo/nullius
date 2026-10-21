@@ -73,12 +73,13 @@ const ACTIVE_DIGEST_RUN_STATUSES = new Set([
 type DigestProposalKind = 'repair' | 'skill' | 'optimize' | 'innovate';
 const CURATED_WORKFLOW_OUTPUT_KEYS = ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'] as const;
 type WorkflowOutputSource = 'state' | 'legacy_workflow_projection';
+const RECOVERY_STARTUP_READ_ORDER = ['AGENTS.md', 'research_plan.md', 'project_index.md'] as const;
+const RECOVERY_CONTEXT_SELECTION = 'Start at research_plan.md#Current Status and project_index.md; select task-relevant guidance and original sources. Read applicable charter/contract constraints and complete originals whenever verification requires them. recommended_files lists candidates, not a mandatory preload.';
 const RECOVERY_RECOMMENDED_FILES = [
-  'project_index.md',
-  'AGENTS.md',
+  ...RECOVERY_STARTUP_READ_ORDER,
   'project_charter.md',
-  'research_plan.md',
   'research_contract.md',
+  'research_guidance.md',
   'research_notebook.md',
 ] as const;
 const PLAN_STEP_TERMINAL_STATUSES = new Set(['completed', 'skipped']);
@@ -622,6 +623,7 @@ function readRecoveryContextView(
     plan_focus: planFocus,
     latest_ledger_event: ledger.latest_event,
     human_status_entry: HUMAN_STATUS_ENTRY,
+    context_selection: RECOVERY_CONTEXT_SELECTION,
     recommended_files: recommendedFiles,
     derivation_warnings: markWarningSeverity(warnings),
   };
@@ -917,19 +919,13 @@ function relativeArtifactPathForRun(projectRoot: string, runId: string, filePath
 }
 
 function readResumeContextView(projectRoot: string, state: RunState, workflowOutputKeys: string[]): Record<string, unknown> {
-  const readOrder = [
-    'AGENTS.md',
-    'project_charter.md',
-    'research_plan.md',
-    'research_contract.md',
-    'research_notebook.md',
-  ];
-  const recommendedFiles = readOrder.filter((file) => {
-    if (file !== 'research_notebook.md') return true;
-    return hasSubstantiveResearchNotebook(projectRoot);
-  });
+  // Startup navigation is deliberately small. Available source documents are
+  // candidates for the current task, not instructions to preload every file.
+  const readOrder = [...RECOVERY_STARTUP_READ_ORDER];
+  const recommendedFiles = readRecoveryRecommendedFiles(projectRoot);
   return {
     read_order: readOrder,
+    context_selection: RECOVERY_CONTEXT_SELECTION,
     status_command: 'nullius status --json',
     current_run_id: state.run_id,
     run_status: state.run_status,

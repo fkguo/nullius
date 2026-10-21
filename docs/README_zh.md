@@ -113,7 +113,7 @@ Approval packet 会落在该 run 的 `artifacts/runs/<run_id>/approvals/<approva
 
 ## 5. 用户如何从 MCP clients / agent clients 接入
 
-课题 `AGENTS.md` 保留恢复入口和验证边界，按操作查阅 `research_guidance.md`。research-harness、research-team、review-swarm 和 research-integrity 入口只按当前任务读取相应参考。跨阶段或跨会话工作可用[任务 brief](../skills/research-harness/references/task-context.md)记录事实、选择、未知项和下一步验收；字节新鲜性检查不代表科学验收。旧课题按[指导更新说明](QUICKSTART.md#updating-existing-project-guidance)显式合并，保留已有定制。
+`status.resume_context.read_order` 从 `AGENTS.md`、`research_plan.md`、`project_index.md` 开始；推荐来源是按任务选择的候选，仍须读取适用约束与验证所需的完整原文。课题 `AGENTS.md` 保留恢复入口和验证边界，按操作查阅 `research_guidance.md`。research-harness、research-team、review-swarm 和 research-integrity 入口只按当前任务读取相应参考。跨阶段或跨会话工作可用[任务 brief](../skills/research-harness/references/task-context.md)记录事实、选择、未知项和下一步验收；字节新鲜性检查不代表科学验收。旧课题按[指导更新说明](QUICKSTART.md#updating-existing-project-guidance)显式合并，保留已有定制。
 
 当前的 MCP 接入模型是本地 stdio。[`project-mcp`](../packages/project-mcp/README.md) 是绑定单个外部项目的叶层 adapter，通过 `NULLIUS_PROJECT_ROOT` 指定项目，并复用 orchestrator 的 canonical tool dispatcher 与 CLI。仓库仍没有“单体的” generic root MCP server；`nullius` 保持 stateful front door，HEP 与 idea server 保持各自职责。
 

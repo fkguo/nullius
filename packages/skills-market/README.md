@@ -189,3 +189,7 @@ When a skill opts in via `runtime.python`, the installed payload records `python
     `components` block is generated from this catalog (`packages/*.json`) — see that
     directory's README for the generator/check workflow.
   - The former GitHub mirror (`https://github.com/autoresearch-lab/autoresearch-meta`, pre-rename) is retired and no longer synced; the checked-in manifest above is the only live copy.
+
+The research-harness payload includes its optional task-brief template under
+`assets/`, alongside the standalone helper and task-context reference. Copy
+installation tests verify that these linked user materials are actually shipped.

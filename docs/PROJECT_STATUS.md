@@ -157,6 +157,10 @@ Research output preservation, path classification, read-only inventory, commit c
 
 ## Instruction context and handoff
 
+Status recovery now starts with `AGENTS.md`, `research_plan.md` and
+`project_index.md`; additional files are task candidates with applicable constraints
+and complete verification sources still required.
+
 Project and research skill entrances use task-scoped references while retaining
 visible recovery and scientific verification boundaries. New scaffolds include
 `research_guidance.md`; existing project files require explicit merging and are

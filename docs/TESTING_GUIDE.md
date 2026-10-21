@@ -563,6 +563,8 @@ Run `python3 -m pytest skills/research-harness/tests/test_task_brief.py` for aut
 body/mode preservation, explicit-source hashes, stale/missing sources, migration,
 invalid metadata and path rejection. Byte freshness is distinct from content
 verification. Scaffold refresh and public init tests preserve customized
-`research_guidance.md` as well as `AGENTS.md` and host rules. Copy-installed skills
-must include referenced documents and the standalone helper; symlink checks alone
+`research_guidance.md` as well as `AGENTS.md` and host rules. The recovery read-order test checks both small startup navigation and preservation
+of applicable constraints/original-source requirements. The brief helper help
+requires an absolute project root. Copy-installed skills
+must include referenced documents, the optional brief template and the standalone helper; symlink checks alone
 do not verify this distribution surface.

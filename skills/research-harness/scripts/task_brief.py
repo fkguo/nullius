@@ -195,10 +195,10 @@ def main(argv=None):
         commands = parser.add_subparsers(dest='command', required=True, parser_class=Parser)
         for command in ('capture', 'check'):
             sub = commands.add_parser(command)
-            sub.add_argument('--project-root', required=True)
-            sub.add_argument('--brief', required=True)
+            sub.add_argument('--project-root', required=True, help='existing absolute project root (from that directory: pwd -P)')
+            sub.add_argument('--brief', required=True, help='project-relative Markdown path under artifacts/runs/<run-id>/')
             if command == 'capture':
-                sub.add_argument('--source', action='append', required=True)
+                sub.add_argument('--source', action='append', required=True, help='selected project-relative source file; repeat for each file')
         result, code = run(parser.parse_args(argv))
     except Stale as exc:
         result, code = {'status': 'stale', 'error': str(exc)}, 1

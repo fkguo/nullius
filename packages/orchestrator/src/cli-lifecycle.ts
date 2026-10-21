@@ -96,6 +96,9 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
     io.stdout(`resume_current_run_id: ${String(resumeContext.current_run_id ?? '')}\n`);
     io.stdout(`resume_run_status: ${String(resumeContext.run_status ?? '')}\n`);
     io.stdout(`resume_plan_md_path: ${String(resumeContext.plan_md_path ?? '')}\n`);
+    if (typeof resumeContext.context_selection === 'string') {
+      io.stdout(`context_selection: ${resumeContext.context_selection}\n`);
+    }
     const recommendedFiles = Array.isArray(resumeContext.recommended_files) ? resumeContext.recommended_files : [];
     if (recommendedFiles.length > 0) {
       io.stdout('resume_recommended_files:\n');

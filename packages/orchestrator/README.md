@@ -230,6 +230,10 @@ Local directory links leave notebook dependency closure pending and prevent acce
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](../../docs/RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
 
+`status.resume_context.read_order` gives `AGENTS.md`, `research_plan.md` and
+`project_index.md` first. `context_selection` preserves applicable constraints
+and complete-original verification; `recommended_files` lists source candidates.
+
 Project instructions select relevant operation guidance and original evidence
 from current status; host tools and compaction retain execution control. The
 optional [task brief](../../skills/research-harness/references/task-context.md)

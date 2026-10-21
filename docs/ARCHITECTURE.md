@@ -287,6 +287,11 @@ Research output preservation, path classification, read-only inventory, commit c
 
 ## Task-scoped instruction context
 
+`status.resume_context.read_order` starts with the instruction entry, current
+plan and project index. Its `context_selection` keeps applicable charter/contract
+constraints and complete verification sources explicit; `recommended_files` are
+candidates, not a mandatory preload.
+
 The host retains its agent loop, tools, hooks and compaction. Nullius supplies
 project recovery, source/evidence contracts and scientific acceptance. A compact
 project `AGENTS.md` routes operations to `research_guidance.md`; four long skill

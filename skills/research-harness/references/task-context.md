@@ -22,15 +22,18 @@ No fixed percentage of the host's context window is a universal acceptance limit
 
 ## Bind selected bytes
 
-After authoring the brief, capture explicit project-relative source files:
+From the external project root, capture explicit project-relative source files
+after authoring the brief. The helper requires an absolute `--project-root`;
+`pwd -P` supplies it. Do not pass `.` as that argument:
 
 ```bash
+project_root="$(pwd -P)"
 python /path/to/research-harness/scripts/task_brief.py capture \
-  --project-root /absolute/external/project \
+  --project-root "$project_root" \
   --brief artifacts/runs/current-task/task_brief.md \
   --source research_plan.md --source research_contract.md --source src/relevant-file.py
 python /path/to/research-harness/scripts/task_brief.py check \
-  --project-root /absolute/external/project \
+  --project-root "$project_root" \
   --brief artifacts/runs/current-task/task_brief.md
 ```
 
@@ -40,7 +43,8 @@ The brief must live under `artifacts/runs/<run-id>/`. Paths are relative, regula
 files with no symlink components, traversal, duplicates or self-reference. File
 identity also rejects aliases of the brief or an already selected source, including
 hard links and case variants on case-insensitive filesystems. Identity is checked
-locally, not stored in the portable metadata. Copying a project to another absolute root preserves a valid relative binding.
+locally, not stored in the portable metadata. Copying a project to another
+absolute root preserves a valid relative binding.
 
 `check` is read-only. Exit 0 / `fresh` means the body and selected source bytes
 match the capture. Exit 1 / `stale` means a changed body/source, missing source or
