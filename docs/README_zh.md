@@ -12,6 +12,8 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 
 ## 1. Surface Policy
 
+旧课题更新指导文件时，按[更新已有课题指导](QUICKSTART.md#updating-existing-project-guidance)单独生成模板、比较差异并合并需要的段落。运行时刷新不会迁移已有定制规则。
+
 - `nullius` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate、主报告结构校验、proposal decisions 与 conversational decision ledger 都从这里进入。
 - `orch_*` 继续作为同一 control plane 的 MCP/operator counterpart。它是 control plane 的 host-facing bridge，不是另一个产品身份，也不是对 CLI 的替代。
 - `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。`@nullius/hep-mcp` 同时把这些 provider 工具作为入口纳入自身工具面（复用各 provider 包的 `tooling`），因此在一个 HEP 会话里即可使用文献、数据、参考与 Zotero 能力，无需分别接入各 provider MCP。

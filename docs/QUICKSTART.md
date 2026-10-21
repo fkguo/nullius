@@ -13,6 +13,47 @@
 
 运行时复制或移动到其它位置后，原开发仓及其它 Nullius 开发仓副本仍不能作为真实研究项目根。
 
+## Updating existing project guidance
+
+更新运行时不会自动更新课题里的定制指导文件。`nullius init --refresh` 会生成缺失的
+`AGENTS.md`，但保留已有且与模板不同的文件。`--runtime-only` 接续运行时握手和入口，
+不改写定制指导；CLI 仍可能同步笔记和索引中已存在的机器维护块。笔记字节改变后，
+原有审查可能过期，需要按当前材料重新核对。两种更新都不能代替对旧指导文件的合并。
+
+先用 Git 或课题已有的备份方式保存当前指导文件与研究记录。在原课题根目录执行：
+
+```bash
+nullius init --runtime-only
+./.nullius/bin/nullius status --json
+guidance_preview_root="$(mktemp -d "${TMPDIR:-/tmp}/nullius-guidance.XXXXXX")"
+nullius init --project-root "$guidance_preview_root"
+diff -u AGENTS.md "$guidance_preview_root/AGENTS.md"
+```
+
+`diff` 返回 1 表示存在差异。只把需要的指导合并回原文件，保留课题的研究约定、授权边界、
+读序与其他定制内容；不要整份复制，也不要用 `init --force` 更新既有课题。
+已有 `CLAUDE.md` 或其他宿主规则也需要按内容检查，不能用新模板覆盖。
+同时对照预览中的 `research_notebook.md`，只合并需要更新的操作说明，保留原有科学内容。
+课题已有的 prompts、team packet 或复制安装的技能操作说明也需要按来源检查；模板更新不会
+覆盖它们。复制安装应重新安装并核对来源版本；链接安装应确认仍指向所用源码。
+
+针对旧版笔记审查说明，核对以下变化：
+
+- 有效 UTF-8 文本不会因大小而变成 `opaque_links`；删除旧的 1 MiB 文本总量限制。
+  链接到的二进制或无效 UTF-8 文件仍只是不可作为已读证据的快照。
+- 用本次生成的模板与 `nullius notebook --help` 核对存储、文件数、单次请求、时间和调用次数预算，
+  替换旧的 64 MiB 快照限制。存储容量与模型上下文容量分开计算。
+- 大材料逐段读取原始文本，随后联合审查完整原文。任一必需输入或联合审查超出容量时，
+  保持 incomplete/unavailable；摘要、截断与增加批次不能替代完整原文覆盖。
+- 恢复未完成审查会创建新运行，并重新核对原材料和可复用记录；保留旧证据。
+  当前仍只接受 tool mode `none`；多个批次不构成独立复核。
+
+合并后再次查看差异，确认只有预期段落改变，再保存本次更新。检查完成后删除生成预览：
+
+```bash
+rm -rf "$guidance_preview_root"
+```
+
 ## Generic First-Touch（先走 generic front door）
 
 普通安装、独立 skills 和[个人插件](../packages/skills-market/docs/PERSONAL_PLUGIN.md)共用本机 Nullius CLI。先在 checkout 根目录构建并安装命令入口：

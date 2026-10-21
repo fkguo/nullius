@@ -11,6 +11,8 @@ This package is intentionally narrow:
 
 Refresh mode (`ensure_project_scaffold(..., refresh=True)`, surfaced as `nullius init --refresh`) generates missing support guidance and preserves differing existing `AGENTS.md` bytes and mode. Render a scaffold in a temporary external root and merge changes explicitly to update existing instructions. The scaffold helper never writes the user-owned seed files (`research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, `reports/main_research_report_template.md`, `.gitignore`). The public CLI may separately synchronize existing machine-managed notebook and index blocks, preserving user-owned content and not inserting missing blocks.
 
+For the notebook-review guidance update, follow [updating existing project guidance](../../docs/QUICKSTART.md#updating-existing-project-guidance). Render the current template separately, compare the notebook-review paragraphs, and merge only the intended changes; preserve existing project and host instructions.
+
 `nullius report-validate` delegates to this package. It checks the current-report
 entry, immutable registered hashes, supersession relations, report structure,
 human-readable evidence links, authoring-process leakage, and validation

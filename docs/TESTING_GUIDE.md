@@ -428,6 +428,21 @@ literal artifact filenames containing `%` or `?`, wrong-file URI matches, and
 headline convergence without a human rewrite. These link tests establish
 structural navigation only.
 
+The notebook guidance drift checks compare generated project instructions, active
+team inputs, rendered adjudication guidance, public budget descriptions and CLI
+help against executable review defaults. They
+include controlled outdated-limit and incomplete-original-review regressions.
+Public init, refresh preview, refresh and runtime-only refresh must preserve
+custom `AGENTS.md` and host instructions byte-for-byte, including modes and CRLF.
+The [existing-project update](QUICKSTART.md#updating-existing-project-guidance)
+uses a separate template preview and explicit merging.
+
+```bash
+pnpm --filter @nullius/orchestrator exec vitest run tests/notebook-review-guidance.test.ts tests/notebook-review-batches.test.ts
+python3 -m pytest -q packages/project-contracts/tests/test_scaffold_contract.py packages/project-contracts/tests/test_scaffold_preserves_user_contract.py
+python3 -m pytest -q skills/research-team/tests/test_notebook_capacity_prompt_drift.py skills/research-team/tests/test_build_adjudication_response.py
+```
+
 Content-review acceptance checks must additionally cover real reviewer dispatch,
 bounded original-text calls under one hard budget and no automatic retry, full UTF-8 notebook
 snapshot identity including the automatic block, declared dependency hashes,

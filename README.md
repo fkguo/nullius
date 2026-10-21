@@ -111,6 +111,8 @@ Surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.templat
 
 ## 5. How Does a User Connect from MCP Clients / Agent Clients
 
+For existing projects, follow [updating project guidance](docs/QUICKSTART.md#updating-existing-project-guidance) to compare a separately generated template and merge changed instructions while preserving custom rules. Runtime refresh does not migrate existing guidance.
+
 The current MCP connection story is local stdio. [`project-mcp`](./packages/project-mcp/README.md) is a leaf adapter bound to one external project by `NULLIUS_PROJECT_ROOT`; it delegates to the canonical orchestrator tool dispatcher and CLI. There is still no single monolithic generic root MCP server: `nullius` remains the stateful front door, and HEP and idea servers retain their separate responsibilities.
 
 Current public MCP contract: local stdio process launch, tool `inputSchema`, compact JSON/text tool results, and no prompts. Research material placement is filesystem-first: transient fetches stay in local temp, while material needed for verification or continuation becomes a project/run artifact. `orch_*` is an operator/tool inventory exposed by the orchestrator package; it is not a separately packaged root MCP server. Remote MCP transports, OAuth, and registry publishing remain future deployment work outside the current local-stdio contract.
