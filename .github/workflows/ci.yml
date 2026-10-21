@@ -31,7 +31,9 @@ jobs:
 
       - name: Check instruction context anti-drift
         if: ${{ matrix.node-version == 22 }}
-        run: pnpm check:instruction-context-anti-drift
+        run: |
+          node --test scripts/tests/instruction-documents.test.mjs
+          node scripts/check-instruction-documents-anti-drift.mjs
 
       - name: Check shell boundary anti-drift
         if: ${{ matrix.node-version == 22 }}

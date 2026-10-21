@@ -281,7 +281,11 @@ class ReviewFreshnessTests(unittest.TestCase):
             self.assertEqual(report["target_diff"]["status"], "diff_failed")
 
     def test_skill_and_source_template_pin_hash_scoping_rule(self):
-        skill = (_SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        reader_path = _SKILL_ROOT.parents[1] / "scripts" / "lib" / "instruction_documents.py"
+        reader_spec = importlib.util.spec_from_file_location("instruction_documents", reader_path)
+        reader = importlib.util.module_from_spec(reader_spec)
+        reader_spec.loader.exec_module(reader)
+        skill = reader.read_instruction_documents(_SKILL_ROOT / "SKILL.md")
         source_template = (_SKILL_ROOT / "templates" / "source-fidelity.md").read_text(
             encoding="utf-8"
         )
