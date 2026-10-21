@@ -16,7 +16,7 @@
 ## Updating existing project guidance
 
 更新运行时不会自动更新课题里的定制指导文件。`nullius init --refresh` 会生成缺失的
-`AGENTS.md`，但保留已有且与模板不同的文件。`--runtime-only` 接续运行时握手和入口，
+`AGENTS.md` 和 `research_guidance.md`，但保留已有且与模板不同的文件。`--runtime-only` 接续运行时握手和入口，
 不改写定制指导；CLI 仍可能同步笔记和索引中已存在的机器维护块。笔记字节改变后，
 原有审查可能过期，需要按当前材料重新核对。两种更新都不能代替对旧指导文件的合并。
 
@@ -36,6 +36,17 @@ diff -u AGENTS.md "$guidance_preview_root/AGENTS.md"
 同时对照预览中的 `research_notebook.md`，只合并需要更新的操作说明，保留原有科学内容。
 课题已有的 prompts、team packet 或复制安装的技能操作说明也需要按来源检查；模板更新不会
 覆盖它们。复制安装应重新安装并核对来源版本；链接安装应确认仍指向所用源码。
+
+新模板把简短恢复入口、验证边界与按操作查阅的 `research_guidance.md` 分开。
+如果旧课题没有该文件，`init --refresh` 可生成它；已有文件则保留原始字节与权限。
+对照预览中的两份文件，把 `AGENTS.md` 里需要精简的详细规则移入指导文件，再添加
+相应的按需链接。保留课题自己的规则和原文来源，不要把简短 brief 当作全文审查的替代。
+`project_index.md`、计划与契约的旧读序也需显式检查并合并，运行时更新不会改写它们。
+比较完成后删除上面的临时预览目录。
+
+跨阶段任务可选用[任务 brief](../skills/research-harness/references/task-context.md)：先写事实、
+选择、未知项和下一步验收，再由 `task_brief.py capture` 绑定明确选择的原文件；恢复时
+用 `check` 发现过期内容。它不判断来源是否齐全、内容是否正确，也不改变任何科学验证门。
 
 针对旧版笔记审查说明，核对以下变化：
 

@@ -549,3 +549,20 @@ python3 -m pytest skills/research-team/tests/test_workflow_literature_acceptance
 ```
 
 These cases cover current committed-output identity, missing and unavailable evidence, explicit checker failures, partial/skipped execution, receipt substitution, changed plans/checkers/nested files and read-only freshness. A completed-plan recheck must issue zero provider calls. Fixture passes verify tooling mechanics; they establish no scientific result or semantic full-text reading.
+
+## Instruction context checks
+
+Run `pnpm check:instruction-context-anti-drift` for the four compact skill entries
+and scaffold `AGENTS.md`. Marked local references must exist inside their payload
+root; missing, escaped, cyclic, symlink or invalid references fail. Unmarked dead
+files cannot satisfy the science-contract locks. Entrypoint byte ceilings prevent
+accidental re-expansion; they are maintenance limits, not universal model context
+percentages. Notebook budget negative controls mutate the reachable guidance.
+
+Run `python3 -m pytest skills/research-harness/tests/test_task_brief.py` for authored
+body/mode preservation, explicit-source hashes, stale/missing sources, migration,
+invalid metadata and path rejection. Byte freshness is distinct from content
+verification. Scaffold refresh and public init tests preserve customized
+`research_guidance.md` as well as `AGENTS.md` and host rules. Copy-installed skills
+must include referenced documents and the standalone helper; symlink checks alone
+do not verify this distribution surface.

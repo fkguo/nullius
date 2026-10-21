@@ -28,8 +28,9 @@
  * the owning gate item, so a clause cannot survive under an unrelated gate.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { readRepositoryDocument } from './lib/instruction-documents.mjs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -55,7 +56,7 @@ function read(relPath) {
     errors.push(`file missing: ${relPath}`);
     return null;
   }
-  return readFileSync(abs, 'utf-8');
+  return readRepositoryDocument(repoRoot, relPath);
 }
 
 function flatten(text) {

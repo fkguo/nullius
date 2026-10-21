@@ -113,6 +113,8 @@ Approval packet 会落在该 run 的 `artifacts/runs/<run_id>/approvals/<approva
 
 ## 5. 用户如何从 MCP clients / agent clients 接入
 
+课题 `AGENTS.md` 保留恢复入口和验证边界，按操作查阅 `research_guidance.md`。research-harness、research-team、review-swarm 和 research-integrity 入口只按当前任务读取相应参考。跨阶段或跨会话工作可用[任务 brief](../skills/research-harness/references/task-context.md)记录事实、选择、未知项和下一步验收；字节新鲜性检查不代表科学验收。旧课题按[指导更新说明](QUICKSTART.md#updating-existing-project-guidance)显式合并，保留已有定制。
+
 当前的 MCP 接入模型是本地 stdio。[`project-mcp`](../packages/project-mcp/README.md) 是绑定单个外部项目的叶层 adapter，通过 `NULLIUS_PROJECT_ROOT` 指定项目，并复用 orchestrator 的 canonical tool dispatcher 与 CLI。仓库仍没有“单体的” generic root MCP server；`nullius` 保持 stateful front door，HEP 与 idea server 保持各自职责。
 
 当前公开 MCP contract 是：本地 stdio 进程启动、tool `inputSchema`、紧凑 JSON/text tool result、没有 prompts。研究材料放置遵循 filesystem-first：临时抓取放本机临时目录，需要后续验证或接续的材料写成 project/run artifact。`orch_*` 是 orchestrator package 暴露的 operator/tool inventory，不是单独打包的 root MCP server。Remote MCP transports、OAuth 与 registry publishing 都仍是未来部署面，不属于当前 local-stdio contract。

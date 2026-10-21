@@ -6,15 +6,14 @@ Last updated: <YYYY-MM-DD>
 This file is the single front door for the project root created by the shared scaffold rule.
 Use it to find the human notebook, the machine contract, and the current plan without assuming any host-specific extras.
 
-## Read first (in order)
+## Start here
 
-1) [project_index.md](project_index.md) — checked-in front door for restart and navigation
-2) [AGENTS.md](AGENTS.md) — workflow anchor, reconnect discipline, and output rules
-3) [project_charter.md](project_charter.md) — goals, constraints, and declared profile
-4) [research_plan.md](research_plan.md#current-status) — current status, task board, milestones, and progress log
-5) [research_contract.md](research_contract.md) — machine-stable contract for gates, packets, and revision
-6) [research_notebook.md](research_notebook.md) — living problem logic, derivations, interpretation, and figures, when it already contains substantive content
-7) [Main research report](#main-research-report) — immutable researcher-facing report registry and current report entry point
+Read [AGENTS.md](AGENTS.md) and [Current Status](research_plan.md#current-status),
+then follow the task's evidence pointers. Read the charter/contract constraints
+and original notebook/source sections needed for this question. Detailed
+operation-specific rules live in [research_guidance.md](research_guidance.md).
+Use the [main report registry](#main-research-report) for the promoted account.
+Do not substitute a task brief or status summary for required original evidence.
 
 The session-start, reconnect, recovery, and approval-boundary protocol lives in [AGENTS.md](AGENTS.md) — the project instructions that `nullius init --refresh` preserves when customized. Follow it there before starting work; this file deliberately carries no copy of the protocol commands, because copies in user-owned files go stale.
 

@@ -34,7 +34,8 @@
     "check:post-correction-recomputation-anti-drift": "node scripts/check-post-correction-recomputation-anti-drift.mjs",
     "check:unreachable-modules": "node --test scripts/tests/check-unreachable-modules.test.mjs && node scripts/check-unreachable-modules.mjs",
     "check:publishable-package-deps-anti-drift": "node --test scripts/tests/check-publishable-package-deps-anti-drift.test.mjs && node scripts/check-publishable-package-deps-anti-drift.mjs",
-    "check:source-language-anti-drift": "node --test scripts/tests/check-source-language-anti-drift.test.mjs && node scripts/check-source-language-anti-drift.mjs"
+    "check:source-language-anti-drift": "node --test scripts/tests/check-source-language-anti-drift.test.mjs && node scripts/check-source-language-anti-drift.mjs",
+    "check:instruction-context-anti-drift": "node --test scripts/tests/instruction-documents.test.mjs && node scripts/check-instruction-documents-anti-drift.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",

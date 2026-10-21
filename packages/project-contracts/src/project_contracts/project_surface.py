@@ -13,6 +13,7 @@ PROJECT_GITIGNORE = ".gitignore"
 
 SCAFFOLD_SUPPORT_FILES = (
     "AGENTS.md",
+    "research_guidance.md",
 )
 
 SCAFFOLD_ROOT_FILES = (
@@ -37,6 +38,7 @@ SCAFFOLD_TEMPLATE_MAP = {
     MAIN_RESEARCH_REPORT_TEMPLATE: "main_research_report_template.md",
     PROJECT_GITIGNORE: "project_gitignore.txt",
     "AGENTS.md": "AGENTS.md",
+    "research_guidance.md": "research_guidance.md",
 }
 
 

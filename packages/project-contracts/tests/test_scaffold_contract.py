@@ -14,6 +14,8 @@ def _src_root() -> Path:
 
 
 sys.path.insert(0, str(_src_root()))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts/lib"))
+from instruction_documents import read_instruction_documents
 
 from project_contracts.project_scaffold import ensure_project_scaffold
 from project_contracts.project_surface import (
@@ -31,6 +33,7 @@ from project_contracts.scaffold_template_loader import scaffold_template_dir
 
 CANONICAL_SCAFFOLD_FILES = {
     "AGENTS.md",
+    "research_guidance.md",
     "project_charter.md",
     "project_index.md",
     "research_plan.md",
@@ -198,8 +201,18 @@ class TestScaffoldContract(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must resolve outside the nullius dev repo"):
             sync_research_contract(repo_root=repo_root, create_missing=False)
 
+    def test_compact_instruction_entry_keeps_recovery_and_approval_boundaries_inline(self) -> None:
+        entry = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn(".nullius/HARNESS", entry)
+        self.assertIn("./.nullius/bin/nullius status --json", entry)
+        self.assertIn("Stop on a status error or failed", entry)
+        self.assertIn("approval is pending, stop at that boundary", entry)
+        self.assertIn("Silence never grants approval", entry)
+        self.assertIn("complete the current full-text notebook", entry)
+        self.assertIn('"nullius-guidance"', entry)
+
     def test_scaffold_agents_template_includes_markdown_link_rules(self) -> None:
-        template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
 
         self.assertIn("## Markdown and links", template)
         self.assertIn("Prefer Markdown links over bare URLs", template)
@@ -216,8 +229,8 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("use that entrypoint first for reconnect, recovery, routing, verification, and handoff", template)
         self.assertIn("routes lifecycle work to `nullius`, milestone execution to `research-team`", template)
         self.assertIn("must preserve the `.nullius/HARNESS` and `research-harness` reconnect requirements", template)
-        self.assertIn("1) [project_index.md](project_index.md)", template)
-        self.assertIn("2) [AGENTS.md](AGENTS.md)", template)
+        self.assertIn("Start with [Current Status]", template)
+        self.assertIn("Acquire complete original material", template)
         self.assertIn("Keep `research_notebook.md` organized by the problem's logic", template)
         self.assertIn("Do not append large dated run logs there", template)
         self.assertIn("## Scientific writing discipline", template)
@@ -276,14 +289,14 @@ class TestScaffoldContract(unittest.TestCase):
                 profile="mixed",
                 project_policy="real_project",
             )
-            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            agents = read_instruction_documents(root / "AGENTS.md")
 
         for snippet in LANGUAGE_DISCIPLINE_SNIPPETS:
             self.assertIn(snippet, agents)
 
     def test_literature_note_quality_contract_is_repeated_on_project_surfaces(self) -> None:
         template_root = scaffold_template_dir()
-        agents_template = (template_root / "AGENTS.md").read_text(encoding="utf-8")
+        agents_template = read_instruction_documents(template_root / "AGENTS.md")
         contract_template = (template_root / "research_contract.md").read_text(encoding="utf-8")
         notebook_template = (template_root / "research_notebook.md").read_text(encoding="utf-8")
         index_template = (template_root / "project_index.md").read_text(encoding="utf-8")
@@ -359,13 +372,13 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn(f"unrecognized arguments: {deprecated_flag}", rejected.stderr)
 
     def test_user_owned_templates_point_to_agents_for_reconnect_protocol(self) -> None:
-        agents_template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        agents_template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
         index_template = (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8")
         plan_template = (scaffold_template_dir() / "research_plan.md").read_text(encoding="utf-8")
         contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
-        # The managed file (the only one `nullius init --refresh` rewrites)
-        # carries the full session-start / reconnect protocol.
+        # The preserved instruction entry and its explicitly reachable guidance
+        # carry the session-start / reconnect protocol.
         self.assertIn("nullius status --json", agents_template)
         self.assertIn(".nullius/bin/nullius status --json", agents_template)
         self.assertIn(".nullius/HARNESS", agents_template)
@@ -388,8 +401,8 @@ class TestScaffoldContract(unittest.TestCase):
             self.assertNotIn("authoritative recovery briefing", template, msg=name)
             self.assertIn("research_notebook.md", template, msg=name)
 
-        self.assertIn("1) [project_index.md](project_index.md) — checked-in front door for restart and navigation", index_template)
-        self.assertIn("2) [AGENTS.md](AGENTS.md) — workflow anchor, reconnect discipline, and output rules", index_template)
+        self.assertIn("Read [AGENTS.md](AGENTS.md) and [Current Status]", index_template)
+        self.assertIn("Do not substitute a task brief or status summary for required original evidence", index_template)
         self.assertIn("# project_index.md\n", index_template)
         self.assertNotIn("# project_index.md (Template)", index_template)
         self.assertIn("organized by the research problem's logic", index_template)
@@ -418,7 +431,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertNotIn("[team/](team/)", plan_template)
 
     def test_handoff_protocol_semantics_live_in_managed_agents_file(self) -> None:
-        agents_template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        agents_template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
         index_template = (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8")
         contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
@@ -445,7 +458,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("durable restart truth", contract_template)
 
     def test_scaffold_agents_template_carries_verification_trigger_table(self) -> None:
-        template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
 
         self.assertIn("## Verification triggers (event → workflow)", template)
         self.assertIn("Verification runs on events, not on reminders", template)
@@ -512,7 +525,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("never as a review-round counter", template)
 
     def test_scaffold_agents_template_declares_execution_modes(self) -> None:
-        template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
 
         self.assertIn("## Execution mode (engine vs file)", template)
         self.assertIn("`nullius init --mode=<engine|file>`", template)
@@ -532,7 +545,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("The verification triggers above apply identically in both modes.", template)
 
     def test_templates_keep_team_payloads_inside_the_canonical_run(self) -> None:
-        agents_template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        agents_template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
         contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
         self.assertIn("milestone-executor review cycles use its `research_team/` child", agents_template)
@@ -654,6 +667,19 @@ class TestScaffoldRefresh(unittest.TestCase):
             profile="mixed",
             project_policy="real_project",
         )
+
+    def test_refresh_preserves_custom_guidance_bytes_and_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            guidance = root / "research_guidance.md"
+            raw = b"# Owner detail\r\n\r\nKeep custom rules.\r\n"
+            guidance.write_bytes(raw)
+            guidance.chmod(0o600)
+            result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
+            self.assertIn("research_guidance.md", result["preserved"])
+            self.assertEqual(guidance.read_bytes(), raw)
+            self.assertEqual(guidance.stat().st_mode & 0o7777, 0o600)
 
     def test_refresh_preserves_custom_instructions_bytes_and_mode(self) -> None:
         with tempfile.TemporaryDirectory() as td:

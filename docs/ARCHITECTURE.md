@@ -284,3 +284,20 @@ The configured token window is frozen before the original reviewer subprocess st
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
+
+## Task-scoped instruction context
+
+The host retains its agent loop, tools, hooks and compaction. Nullius supplies
+project recovery, source/evidence contracts and scientific acceptance. A compact
+project `AGENTS.md` routes operations to `research_guidance.md`; four long skill
+entries route to focused instruction references. Explicit `nullius-guidance`
+Markdown link titles let repository tests check reachable contracts without
+loading ordinary evidence/navigation links. This is a test convention, not a new
+host import mechanism or runtime instruction loader.
+
+An optional authored [task brief](../skills/research-harness/references/task-context.md)
+binds its body and explicitly selected source files by SHA-256. It helps detect
+stale context across phase changes or handoff, and does not certify semantic
+accuracy, complete source selection or scientific acceptance. Full original
+material and current notebook review retain their existing scope. Existing
+project guidance remains user-owned; updates require explicit merging.

@@ -154,3 +154,12 @@ The configured token window is frozen before the original reviewer subprocess st
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
+
+## Instruction context and handoff
+
+Project and research skill entrances use task-scoped references while retaining
+visible recovery and scientific verification boundaries. New scaffolds include
+`research_guidance.md`; existing project files require explicit merging and are
+preserved by refresh. The optional [task-brief helper](../skills/research-harness/references/task-context.md)
+checks authored body and selected-source byte freshness, not scientific validity.
+It adds no host agent loop, hook engine or automatic summary authority.

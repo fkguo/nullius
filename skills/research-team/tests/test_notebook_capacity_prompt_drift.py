@@ -13,6 +13,7 @@ def test_active_agent_inputs_do_not_restore_retired_text_or_snapshot_limits():
         ASSETS.parent / "RUNBOOK.md",
         ASSETS.parent / "scripts/bin/build_adjudication_response.py",
         templates / "AGENTS.md",
+        templates / "research_guidance.md",
         templates / "research_notebook.md",
     ])
     for path in paths:

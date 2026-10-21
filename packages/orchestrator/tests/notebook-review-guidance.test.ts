@@ -8,10 +8,14 @@ import { parseCliArgs } from '../src/cli-args.js';
 import { runCli } from '../src/cli.js';
 import { renderHelp } from '../src/cli-help.js';
 import { notebookBudgets } from '../src/notebook-review-batches.js';
+// @ts-expect-error Repository-only test helper is plain JavaScript.
+import { readInstructionDocuments } from '../../../scripts/lib/instruction-documents.mjs';
 
 const repository = fileURLToPath(new URL('../../../', import.meta.url));
 const template = 'packages/project-contracts/src/project_contracts/scaffold_templates/AGENTS.md';
-const read = (relative: string) => fs.readFileSync(path.join(repository, relative), 'utf8');
+const read = (relative: string) => relative === template
+  ? readInstructionDocuments(path.join(repository, relative))
+  : fs.readFileSync(path.join(repository, relative), 'utf8');
 const defaults = notebookBudgets({});
 const parsed = parseCliArgs(['notebook', 'review', '--model', 'claude/fixture']);
 if (parsed.command !== 'notebook') throw new Error('notebook argument parser unavailable');
@@ -121,10 +125,23 @@ describe('notebook review instruction drift', () => {
     expect(guidanceIssues(changed).length).toBeGreaterThan(0);
   });
 
+  it('checks reachable guidance rather than an unreferenced copy', async () => {
+    const root = project();
+    await cli(root, ['init']);
+    const entry = path.join(root, 'AGENTS.md');
+    const detail = path.join(root, 'research_guidance.md');
+    const original = fs.readFileSync(detail, 'utf8');
+    fs.writeFileSync(path.join(root, 'unreferenced.md'), original);
+    fs.writeFileSync(detail, original.replace('default 512 MiB', 'default 64 MiB'));
+    expect(guidanceIssues(readInstructionDocuments(entry))).toContain('snapshot bytes');
+    fs.unlinkSync(detail);
+    expect(() => readInstructionDocuments(entry)).toThrow();
+  });
+
   it('generates current notebook guidance through the public init command', async () => {
     const root = project();
     await cli(root, ['init']);
-    expect(guidanceIssues(fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8'))).toEqual([]);
+    expect(guidanceIssues(readInstructionDocuments(path.join(root, 'AGENTS.md')))).toEqual([]);
   });
 
   it('preserves old customized instructions and mode through every non-destructive init path', async () => {
@@ -136,16 +153,21 @@ describe('notebook review instruction drift', () => {
     const host = Buffer.from('@AGENTS.md\r\n\r\nOwner-specific host guidance.\r\n');
     fs.writeFileSync(agents, custom); fs.chmodSync(agents, 0o640);
     fs.writeFileSync(claude, host); fs.chmodSync(claude, 0o600);
+    const guidance = path.join(root, 'research_guidance.md');
+    const customDetail = Buffer.from('# Owner details\r\nPreserve guidance.\r\n');
+    fs.writeFileSync(guidance, customDetail); fs.chmodSync(guidance, 0o640);
     for (const args of [['init'], ['init', '--refresh', '--dry-run'], ['init', '--refresh'], ['init', '--runtime-only']]) {
       await cli(root, args);
       expect(fs.readFileSync(agents), args.join(' ')).toEqual(custom);
       expect(fs.statSync(agents).mode & 0o777).toBe(0o640);
       expect(fs.readFileSync(claude), args.join(' ')).toEqual(host);
       expect(fs.statSync(claude).mode & 0o777).toBe(0o600);
+      expect(fs.readFileSync(guidance)).toEqual(customDetail);
+      expect(fs.statSync(guidance).mode & 0o777).toBe(0o640);
     }
     const preview = project();
     await cli(preview, ['init']);
-    expect(guidanceIssues(fs.readFileSync(path.join(preview, 'AGENTS.md'), 'utf8'))).toEqual([]);
+    expect(guidanceIssues(readInstructionDocuments(path.join(preview, 'AGENTS.md')))).toEqual([]);
     expect(fs.readFileSync(agents)).toEqual(custom);
   });
 });

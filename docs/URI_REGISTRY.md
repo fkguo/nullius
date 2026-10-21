@@ -132,3 +132,8 @@ Local directory links leave notebook dependency closure pending and prevent acce
 [Research output storage](RUN_STORAGE.md) uses project-relative paths and SHA-256 manifests; the shared local content store is not a new URI namespace and is not transferred by Git clone or push. Ref inventory does not grant authority to rewrite host refs or recovery history.
 
 Workflow evidence acceptance introduces no URI scheme. Its state pointer contains a project-relative path and SHA-256 for an immutable receipt under `artifacts/runs/<run_id>/workflow_acceptance/<attempt>/receipt.json`. `run` and `status` expose the same acceptance view; existing `orch://` lifecycle identifiers retain their scope.
+
+Task briefs use ordinary project-relative file paths under
+`artifacts/runs/<run-id>/`, not a new URI scheme or MCP resource. Their embedded
+SHA-256 source records are byte-freshness checks rather than lifecycle or
+scientific approval identifiers.
