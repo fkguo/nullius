@@ -58,6 +58,10 @@ def safe_file(root: Path, value: str) -> Path:
     return path
 
 
+def file_identity(info):
+    return info.st_dev, info.st_ino
+
+
 def signature(info):
     return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_mode)
 
@@ -132,12 +136,17 @@ def run(args):
         changes = []
         if digest(body) != meta['body_sha256']:
             changes.append({'path': brief, 'reason': 'body_changed'})
+        seen_files = set()
         for source in meta['sources']:
             try:
-                data, _ = snapshot(root, source['path'])
+                data, source_stat = snapshot(root, source['path'])
             except FileNotFoundError:
                 changes.append({'path': source['path'], 'reason': 'missing'})
                 continue
+            identity = file_identity(source_stat)
+            if identity == file_identity(original_stat) or identity in seen_files:
+                raise Invalid('sources must be distinct files and cannot alias the brief')
+            seen_files.add(identity)
             if len(data) != source['bytes'] or digest(data) != source['sha256']:
                 changes.append({'path': source['path'], 'reason': 'source_changed'})
         return ({'status': 'stale' if changes else 'fresh', 'brief': brief, 'sources': len(meta['sources']), 'changes': changes}, 1 if changes else 0)
@@ -145,8 +154,13 @@ def run(args):
     if len(set(paths)) != len(paths) or brief in paths:
         raise Invalid('sources must be distinct and cannot include the brief')
     sources, snapshots = [], []
+    seen_files = set()
     for path in paths:
         data, info = snapshot(root, path)
+        identity = file_identity(info)
+        if identity == file_identity(original_stat) or identity in seen_files:
+            raise Invalid('sources must be distinct files and cannot alias the brief')
+        seen_files.add(identity)
         sources.append({'path': path, 'sha256': digest(data), 'bytes': len(data)})
         snapshots.append((path, info))
     meta = {'format': FORMAT, 'format_version': 1, 'body_sha256': digest(body), 'sources': sources}

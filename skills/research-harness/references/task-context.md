@@ -37,8 +37,10 @@ python /path/to/research-harness/scripts/task_brief.py check \
 `capture` adds a JSON metadata comment at the start of the existing UTF-8 Markdown
 file; the authored body bytes and file mode are preserved. It never writes sources.
 The brief must live under `artifacts/runs/<run-id>/`. Paths are relative, regular
-files with no symlink components, traversal, duplicates or self-reference. Copying
-a project to another absolute root preserves a valid relative binding.
+files with no symlink components, traversal, duplicates or self-reference. File
+identity also rejects aliases of the brief or an already selected source, including
+hard links and case variants on case-insensitive filesystems. Identity is checked
+locally, not stored in the portable metadata. Copying a project to another absolute root preserves a valid relative binding.
 
 `check` is read-only. Exit 0 / `fresh` means the body and selected source bytes
 match the capture. Exit 1 / `stale` means a changed body/source, missing source or
