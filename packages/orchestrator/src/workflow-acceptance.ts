@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { z } from 'zod';
+import { writeBytesAtomicDurable } from '@nullius/shared';
 import { assertWritableRunId, runDirFor } from './run-paths.js';
 import type { StateManager } from './state-manager.js';
 import type { RunState } from './types.js';
@@ -95,7 +96,7 @@ export function evaluateWorkflowAcceptance(manager: StateManager, deps: Workflow
     });
     const filename = path.join(directory, 'receipt.json');
     const bytes = JSON.stringify(receipt, null, 2) + '\n';
-    fs.writeFileSync(filename, bytes, { flag: 'wx' });
+    writeBytesAtomicDurable(filename, bytes);
     // Keep the original StateManager snapshot: concurrent plan/state changes
     // must fail CAS rather than attaching a verdict to a different run.
     const current = acceptanceContext(manager.projectRoot, state, deps);

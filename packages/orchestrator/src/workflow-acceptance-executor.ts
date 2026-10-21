@@ -1,9 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { z } from 'zod';
 import { inputSchema, hashSchema, localPath, readJson, verifyInputs, type AcceptanceContext, type WorkflowAcceptanceDeps } from './workflow-acceptance-bindings.js';
-import type { WorkflowAcceptanceCheckSpec } from '@nullius/shared';
+import { writeBytesAtomicDurable, writeJsonAtomicDurable, type WorkflowAcceptanceCheckSpec } from '@nullius/shared';
 import type { RunState } from './types.js';
 
 export const checkerResultSchema = z.object({
@@ -22,12 +21,12 @@ export function executeAcceptanceCheck(context: AcceptanceContext, state: RunSta
   try {
     const requestPath = path.join(directory, `${spec.id}.request.json`);
     const outputPath = path.join(directory, `${spec.id}.result.json`);
-    fs.writeFileSync(requestPath, JSON.stringify(envelope, null, 2) + '\n', { flag: 'wx' });
+    writeJsonAtomicDurable(requestPath, envelope);
     const child = spawnSync('python3', [localPath(context.runtimeRoot, spec.checker_path), '--request', requestPath, '--output', outputPath], {
       cwd: context.project, encoding: 'utf8', timeout: deps.timeoutMs ?? 30_000, maxBuffer: 1_000_000,
       env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
     });
-    fs.writeFileSync(path.join(directory, `${spec.id}.log`), `${child.stdout ?? ''}\n${child.stderr ?? ''}`, { flag: 'wx' });
+    writeBytesAtomicDurable(path.join(directory, `${spec.id}.log`), `${child.stdout ?? ''}\n${child.stderr ?? ''}`);
     if (child.error || child.signal || child.status === null) throw new Error(`checker unavailable: ${child.error?.message ?? child.signal}`);
     const outputRelative = path.relative(context.project, outputPath);
     const result = checkerResultSchema.parse(readJson(localPath(context.project, outputRelative)));

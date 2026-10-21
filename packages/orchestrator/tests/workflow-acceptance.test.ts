@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { _setAtomicWriteAuditHook } from '@nullius/shared';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readWorkflowAcceptance, evaluateWorkflowAcceptance } from '../src/workflow-acceptance.js';
@@ -27,6 +28,29 @@ describe('workflow acceptance receipts', () => {
     expect(f.manager.readState().workflow_acceptance).toEqual(view.receipt);
     expect(readWorkflowAcceptance(f.root, f.manager.readState(), f.deps).status).toBe('passed');
     expect(f.markerCount()).toBe(1);
+  });
+
+  it.each(['request', 'log', 'receipt'] as const)('does not accept evidence after a %s durability failure', artifact => {
+    const f = acceptanceFixture();
+    f.seedCommittedOutput();
+    const suffix = artifact === 'request' ? '.request.json' : artifact === 'log' ? '.log' : '/receipt.json';
+    let injected = false;
+    const restore = _setAtomicWriteAuditHook(event => {
+      if (!injected && event.kind === 'rename' && event.to.includes('/workflow_acceptance/') && event.to.endsWith(suffix)) {
+        injected = true;
+        throw new Error('injected durability failure before parent directory sync');
+      }
+    });
+    try {
+      expect(evaluateWorkflowAcceptance(f.manager, f.deps).status).toBe('unavailable');
+    } finally {
+      restore();
+    }
+    expect(injected).toBe(true);
+    expect(f.markerCount()).toBe(artifact === 'request' ? 0 : 1);
+    const state = f.manager.readState();
+    expect(readWorkflowAcceptance(f.root, state, f.deps).status).not.toBe('passed');
+    if (artifact === 'receipt') expect(state.workflow_acceptance).toBeUndefined();
   });
 
   it.each(['failed', 'incomplete', 'unavailable'] as const)('retains an actual checker %s result as nonpassing', status => {
