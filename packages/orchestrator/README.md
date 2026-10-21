@@ -29,6 +29,8 @@ The delegated runtime persists each tool attempt before dispatch and classifies 
 
 Persisted workflow-plan tool attempts use the same journal under `artifacts/runs/<run_id>/manifest.json`. A transport interruption stops uncertain replay; committed responses can recover state without another dispatch. Pause gates the next step, and canonical run-gate approval must precede retry of an approval-blocked step. Overflow compaction retains original user instructions verbatim and never separates a tool call from its results; older exchanges are dropped whole, and long results in the kept exchanges are cut to marked incomplete excerpts.
 
+Completed workflow execution returns a separate `workflow_acceptance` view. Workflow packages select checks; the control plane executes them with bounded time and captures structured verdicts, exact input hashes and checker identities in immutable per-attempt receipts. Required nonpasses return a nonzero exit code and `ok: false`, while `run_status` continues to describe execution. Read-only status revalidates freshness, and rerunning a completed plan rechecks acceptance without tool redispatch. No declared checks means `not_required`, not scientific approval. See [the literature contract](../literature-workflows/README.md#workflow-evidence-acceptance).
+
 ## Binary
 
 Build first, then point your `$PATH` at the workspace CLI:

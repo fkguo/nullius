@@ -80,6 +80,7 @@ export interface RunState {
   approval_history: ApprovalHistoryEntry[];
   artifacts: Record<string, string>;
   workflow_outputs: Record<string, WorkflowOutputView>;
+  workflow_acceptance?: { path: string; sha256: string };
   notes: string;
   /** Declared via `nullius init --mode=<engine|file>`; never inferred. */
   execution_mode?: ExecutionMode | null;

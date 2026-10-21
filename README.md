@@ -231,6 +231,8 @@ via: nullius decision list) until resolved.
 
 Persisted workflow-plan execution also journals each dispatch under `artifacts/runs/<run_id>/manifest.json`. An interrupted unknown outcome requires reconciliation; a committed response is replayed without another tool call. Pause is checked at dispatch boundaries, and an approval request keeps its step unfinished until canonical approval permits execution. Overflow recovery retains original user instructions verbatim and never separates a tool call from its results (older exchanges are dropped whole and long results become marked incomplete excerpts); an instruction that alone exceeds the window is not silently truncated.
 
+Workflow execution and evidence acceptance are separate. After the selected literature workflow finishes, `nullius run` executes the checks selected by `@nullius/literature-workflows` and returns `workflow_acceptance` alongside execution `status`. Required missing, incomplete, failed, unavailable or stale evidence cannot yield `ok: true`; `not_required` grants no research approval. Immutable acceptance receipts bind the run, semantic plan, committed tool responses, checker sources and observed project inputs. `status` checks freshness without executing gates; rerunning a completed plan rechecks evidence without calling providers again. These checks establish mechanical evidence coverage, while independent content review and scientific acceptance remain separate. See [the literature evidence contract](packages/literature-workflows/README.md#workflow-evidence-acceptance).
+
 ## 6. Where Are Deeper Architecture / Governance Docs
 
 - [Architecture Overview](./docs/ARCHITECTURE.md)

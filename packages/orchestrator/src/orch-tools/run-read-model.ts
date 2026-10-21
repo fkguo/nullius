@@ -1,3 +1,4 @@
+import { readWorkflowAcceptance } from '../workflow-acceptance.js';
 import { listRunDirectories, readRunDirectoryInventory, readRunDirFor, resolveEvidencePath } from '../run-directories.js';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -1726,6 +1727,7 @@ export function buildRunStatusView(
     gate_satisfied: state.gate_satisfied ?? {},
     artifacts: state.artifacts ?? {},
     workflow_outputs: state.workflow_outputs ?? {},
+    workflow_acceptance: readWorkflowAcceptance(projectRoot, state),
     current_run_workflow_outputs: workflowOutputs.current_run_workflow_outputs,
     current_run_workflow_outputs_error: workflowOutputs.current_run_workflow_outputs_error,
     current_run_workflow_outputs_source: workflowOutputs.current_run_workflow_outputs_source,

@@ -54,6 +54,19 @@ diff -u AGENTS.md "$guidance_preview_root/AGENTS.md"
 rm -rf "$guidance_preview_root"
 ```
 
+## 文献流程执行后的验收
+
+`nullius run` 的 `status: completed` 表示计划执行完毕；同时查看
+`workflow_acceptance.status` 和 `ok`。必需检查未通过时命令返回非零，执行状态仍保持真实的
+completed。先按 `findings` 补齐当前运行的检索记录、饱和证据、核心论文阅读笔记和原始全文，
+再用返回的 `identity.plan_sha256` 与 `identity.outputs_sha256` 绑定饱和文件。具体格式见
+[文献工作流契约](../packages/literature-workflows/README.md#workflow-evidence-acceptance)。
+
+对同一已完成计划再次运行 `nullius run` 会重新验收，不重复检索。`nullius status --json`
+只读核对验收记录是否仍然有效。旧课题不会自动获得通过记录；旧证据应保留原字节，
+在当前运行另行建立证据文件和绑定，不能把旧运行改称本次执行。已有课题的定制指令不变。
+检查通过表示文件与声明覆盖满足结构要求，不能替代全文内容复核或科学结论验收。
+
 ## Generic First-Touch（先走 generic front door）
 
 普通安装、独立 skills 和[个人插件](../packages/skills-market/docs/PERSONAL_PLUGIN.md)共用本机 Nullius CLI。先在 checkout 根目录构建并安装命令入口：

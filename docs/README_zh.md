@@ -231,6 +231,8 @@ via: nullius decision list) until resolved.
 
 持久化 workflow-plan 的每次派发也使用 `artifacts/runs/<run_id>/manifest.json`：未知副作用停止等待核对，已提交响应原样回放而不重调工具；每个派发边界检查暂停，审批请求在真实批准前不会完成步骤。溢出恢复逐字保留原始用户约束，且不拆开工具调用与其结果（较早的交换整段丢弃，过长的结果截为带标记的不完整摘录）；指令自身超出窗口时停止，不能静默截断。
 
+流程执行与证据验收分别记录。文献流程完成后，`nullius run` 执行 `@nullius/literature-workflows` 选择的检查，在执行 `status` 之外返回 `workflow_acceptance`。必需证据缺失、不完整、失败、不可用或过期时，不能返回 `ok: true`；`not_required` 不授予研究认可。不可变验收记录绑定运行、计划语义、已提交工具响应、检查器代码与实际读取的项目文件。`status` 只读核对有效性；对已完成计划再次执行 `run`，只重新验收，不重复调用 provider。这些检查确认机械证据覆盖，内容独立复核与科学验收仍需另行完成。详见[文献证据契约](../packages/literature-workflows/README.md#workflow-evidence-acceptance)。
+
 ## 6. 更深的架构 / 治理文档在哪里
 
 - [架构总览](./ARCHITECTURE.md)

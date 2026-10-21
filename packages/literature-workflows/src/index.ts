@@ -17,3 +17,4 @@ export {
 export { getWorkflowProviderProfiles } from './providerProfiles.js';
 export { getRecipeDir, loadWorkflowRecipe } from './recipeLoader.js';
 export { resolveWorkflowRecipe } from './resolver.js';
+export { resolveWorkflowAcceptanceChecks } from './workflow-acceptance.js';

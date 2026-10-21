@@ -531,3 +531,15 @@ The configured token window is frozen before the original reviewer subprocess st
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research storage fixtures cover semantic classifications, aggregate admission, bundle content detection, duplicate index objects, zero-write inspection and byte-exact restoration. Run `python3 -m pytest skills/research-harness/tests/test_run_storage.py` and `pnpm -C packages/orchestrator test tests/run-origin-foreign-paths.test.ts tests/validity-ledger.test.ts tests/traceability-stage3.test.ts`. See [Research output storage](RUN_STORAGE.md).
+
+## Workflow evidence acceptance
+
+Run the receipt/CLI tests, workflow policy tests and adapter tests when changing the execution-to-evidence boundary:
+
+```bash
+pnpm --filter @nullius/orchestrator exec vitest run tests/workflow-acceptance.test.ts tests/cli-run-workflow-acceptance.test.ts tests/cli-run-workflow.test.ts tests/cli-run-workflow-recovery.test.ts
+pnpm --filter @nullius/literature-workflows test
+python3 -m pytest skills/research-team/tests/test_workflow_literature_acceptance.py
+```
+
+These cases cover current committed-output identity, missing and unavailable evidence, explicit checker failures, partial/skipped execution, receipt substitution, changed plans/checkers/nested files and read-only freshness. A completed-plan recheck must issue zero provider calls. Fixture passes verify tooling mechanics; they establish no scientific result or semantic full-text reading.
