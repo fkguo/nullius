@@ -45,7 +45,9 @@ performance measurements. Both support standalone use.
 For bounded, tool-free file-prompt tasks through DeepSeek Harness, the catalog
 includes [`dsh-cli-runner`](../../skills/dsh-cli-runner/SKILL.md). It requires an
 explicit provider/model and retains complete session evidence; it does not
-register a review-swarm backend or install DSH.
+register a review-swarm backend or install DSH. The current adapter accepts the
+DSH Desktop 0.2.1-rc.2 macOS launcher and v4 session format; it refuses unvalidated
+versions/layouts rather than treating a launcher as an npm package directory.
 
 ## Layout
 

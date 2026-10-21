@@ -32,6 +32,13 @@ Work from the external project root, not from the `nullius` development repo.
    nullius status --json
    ```
 
+Session continuation restores only what the host durably recorded. Before a
+handoff or restart, put required inputs, intermediate results and the next action
+in project files or run evidence. Process-local tool variables and in-memory
+stores are not checkpoints; a session ID or a successful resume cannot establish
+that those values survived. Verify the needed bytes from durable material after
+reconnecting, and report missing state rather than reconstructing it as fact.
+
 A successful `status --json` call also refreshes the session-level anchor
 marker at `.nullius/HARNESS_INVOCATION`. Every `*-mcp` dispatcher
 (`arxiv-mcp`, `hep-mcp`, `hepdata-mcp`, `idea-mcp`, `openalex-mcp`,

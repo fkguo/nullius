@@ -76,6 +76,12 @@ pnpm --filter @nullius/orchestrator exec vitest run tests/run-manifest.test.ts t
 
 #### 执行恢复与第三方 runner 契约
 
+DSH runner 的回归覆盖当前桌面 launcher、完整运行时字节绑定、隔离 profile、v4 会话与
+完整输出交付；假运行时测试验证拒绝路径，不能作为真实提供商可用性证明。宿主接入验收
+应分别记录规则实际加载、允许/拒绝的工具动作，以及指定会话的恢复；临时工具变量必须
+另行落盘后才可作为检查点。无额度或未连接的宿主记为 unavailable，不计通过。
+
+
 ```bash
 pnpm --filter @nullius/orchestrator exec vitest run tests/cli-run-workflow-recovery.test.ts tests/agent-runner-history-compaction.test.ts tests/cli-run-workflow.test.ts tests/agent-runner.test.ts tests/workflow-runtime.test.ts tests/nullius-cli.test.ts
 pnpm --filter @nullius/hep-mcp exec vitest run tests/contracts/inspireLiteratureProjectRoot.test.ts tests/toolContracts.test.ts tests/docs/docToolDrift.test.ts
