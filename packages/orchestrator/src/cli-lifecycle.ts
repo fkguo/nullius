@@ -55,6 +55,10 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
   // reconnecting agent (see the undeclared-looks-file-mode drift hint).
   io.stdout(`execution_mode: ${payload.execution_mode ? String(payload.execution_mode) : 'undeclared'}\n`);
   io.stdout(`workflow_id: ${String(payload.workflow_id ?? '')}\n`);
+  if (payload.workflow_acceptance && typeof payload.workflow_acceptance === 'object') {
+    const acceptance = payload.workflow_acceptance as Record<string, unknown>;
+    io.stdout(`workflow_acceptance: ${renderInline(acceptance.status)} — ${renderInline(acceptance.summary)}\n`);
+  }
   io.stdout(`project_uri: ${String(payload.uri ?? '')}\n`);
   if (payload.current_step) {
     io.stdout(`current_step: ${JSON.stringify(payload.current_step)}\n`);
@@ -92,6 +96,9 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
     io.stdout(`resume_current_run_id: ${String(resumeContext.current_run_id ?? '')}\n`);
     io.stdout(`resume_run_status: ${String(resumeContext.run_status ?? '')}\n`);
     io.stdout(`resume_plan_md_path: ${String(resumeContext.plan_md_path ?? '')}\n`);
+    if (typeof resumeContext.context_selection === 'string') {
+      io.stdout(`context_selection: ${resumeContext.context_selection}\n`);
+    }
     const recommendedFiles = Array.isArray(resumeContext.recommended_files) ? resumeContext.recommended_files : [];
     if (recommendedFiles.length > 0) {
       io.stdout('resume_recommended_files:\n');

@@ -34,6 +34,11 @@ describe('ledger status derivation covers every status-changing event name', () 
       .toEqual({ status: 'needs_recovery', unmappedEvent: null });
   });
 
+  it.each(['idle', 'running', 'paused', 'failed', 'completed'])('acceptance observation preserves execution status %s', status => {
+    expect(deriveLedgerStatusFromOperatorEvent('workflow_acceptance_checked', { status: 'incomplete' }, status))
+      .toEqual({ status, unmappedEvent: null });
+  });
+
   it('an unknown name keeps the previous status and is reported, never dropped', () => {
     expect(deriveLedgerStatusFromOperatorEvent('fleet_claimed', {}, 'running'))
       .toEqual({ status: 'running', unmappedEvent: 'fleet_claimed' });

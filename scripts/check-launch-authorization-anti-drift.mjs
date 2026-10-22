@@ -20,8 +20,8 @@
  * (e.g. check-independent-reproduction-anti-drift.mjs).
  */
 
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { readRepositoryDocument } from './lib/instruction-documents.mjs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -55,7 +55,7 @@ const errors = [];
 
 function read(relPath) {
   try {
-    return readFileSync(path.join(repoRoot, relPath), 'utf8');
+    return readRepositoryDocument(repoRoot, relPath);
   } catch {
     errors.push(`${relPath}: file missing or unreadable`);
     return null;

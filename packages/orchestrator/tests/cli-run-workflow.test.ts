@@ -576,13 +576,14 @@ describe('workflow run consumer', () => {
       { workflowToolCaller: { callTool } },
     );
 
-    expect(code).toBe(0);
+    expect(code).toBe(2);
     expect(callTool).toHaveBeenCalledTimes(1);
     expect(callTool).toHaveBeenCalledWith('hep_export_project', { run_id: 'M-WF-EMPTY' });
     const payload = JSON.parse(stdout.join('')) as Record<string, unknown>;
     expect(payload).toMatchObject({
       status: 'completed',
-      ok: true,
+      ok: false,
+      workflow_acceptance: { status: 'unavailable' },
       executed_step_ids: ['connection_scan', 'export_project'],
     });
 

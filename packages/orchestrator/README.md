@@ -29,6 +29,8 @@ The delegated runtime persists each tool attempt before dispatch and classifies 
 
 Persisted workflow-plan tool attempts use the same journal under `artifacts/runs/<run_id>/manifest.json`. A transport interruption stops uncertain replay; committed responses can recover state without another dispatch. Pause gates the next step, and canonical run-gate approval must precede retry of an approval-blocked step. Overflow compaction retains original user instructions verbatim and never separates a tool call from its results; older exchanges are dropped whole, and long results in the kept exchanges are cut to marked incomplete excerpts.
 
+Completed workflow execution returns a separate `workflow_acceptance` view. Workflow packages select checks; the control plane executes them with bounded time and captures structured verdicts, exact input hashes and checker identities in immutable per-attempt receipts. Required nonpasses return a nonzero exit code and `ok: false`, while `run_status` continues to describe execution. Read-only status revalidates freshness, and rerunning a completed plan rechecks acceptance without tool redispatch. No declared checks means `not_required`, not scientific approval. See [the literature contract](../literature-workflows/README.md#workflow-evidence-acceptance).
+
 ## Binary
 
 Build first, then point your `$PATH` at the workspace CLI:
@@ -45,7 +47,7 @@ nullius runtime path
 
 `nullius runtime path` reports the running installation, and `nullius runtime mcp <server>` starts a registered stdio server. The package registry owns relative entrypoints; the generic CLI owns discovery and configuration validation. Host-private `servers.<server>.env` settings are read from `${XDG_CONFIG_HOME:-$HOME/.config}/nullius/runtime.json`, or an absolute `NULLIUS_RUNTIME_CONFIG`. They override ambient settings. Explicitly missing/invalid configuration fails closed. Project/data roots required by a server must be outside this installation. These installation commands add no research execution or approval authority. After moving a checkout, rebind the PATH entry above; copied skills and plugins need no source-path edits.
 
-A project-local launcher (`./.nullius/bin/nullius`) is also written during `nullius init` so already-initialized research roots can reconnect without the global wrapper. `nullius init --refresh` generates missing support guidance (`AGENTS.md`) and preserves differing existing instructions byte-for-byte, without backups or scaffold replacement of user-owned seed content. The CLI may synchronize existing machine-managed notebook and index blocks, without inserting missing blocks. To update existing guidance, render a current scaffold in a separate temporary external root and explicitly merge desired changes. For an existing project that predates the main-report registry, checkpoint it and render a current scaffold in a separate temporary external root; copy only a missing report template and manually merge the `project_index.md#Main research report` section. Refresh never performs that user-owned migration. `report-validate` returns `invalid_registry_markers` before the registry merge and `no_current_report` until a populated current report is registered.
+A project-local launcher (`./.nullius/bin/nullius`) is also written during `nullius init` so already-initialized research roots can reconnect without the global wrapper. `nullius init --refresh` generates missing support guidance (`AGENTS.md` and `research_guidance.md`) and preserves differing existing instructions byte-for-byte, without backups or scaffold replacement of user-owned seed content. The CLI may synchronize existing machine-managed notebook and index blocks, without inserting missing blocks. To update existing guidance, render a current scaffold in a separate temporary external root and explicitly merge desired changes. For an existing project that predates the main-report registry, checkpoint it and render a current scaffold in a separate temporary external root; copy only a missing report template and manually merge the `project_index.md#Main research report` section. Refresh never performs that user-owned migration. `report-validate` returns `invalid_registry_markers` before the registry merge and `no_current_report` until a populated current report is registered.
 
 ## State and artifacts
 
@@ -227,3 +229,13 @@ The configured token window is frozen before the original reviewer subprocess st
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](../../docs/RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
+
+`status.resume_context.read_order` gives `AGENTS.md`, `research_plan.md` and
+`project_index.md` first. `context_selection` preserves applicable constraints
+and complete-original verification; `recommended_files` lists source candidates.
+
+Project instructions select relevant operation guidance and original evidence
+from current status; host tools and compaction retain execution control. The
+optional [task brief](../../skills/research-harness/references/task-context.md)
+only binds authored context to selected bytes, without changing lifecycle,
+approval or notebook-review acceptance semantics.

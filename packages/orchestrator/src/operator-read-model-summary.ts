@@ -145,6 +145,7 @@ export function deriveLedgerStatusFromOperatorEvent(
     return { status: 'failed', unmappedEvent: null };
   }
   if (eventType === 'workflow_plan_completed') return { status: 'completed', unmappedEvent: null };
+  if (eventType === 'workflow_acceptance_checked') return { status: previous, unmappedEvent: null };
   if (eventType === 'approval_timeout') {
     const policyAction = typeof details.policy_action === 'string' ? details.policy_action : '';
     if (policyAction === 'reject') return { status: 'rejected', unmappedEvent: null };

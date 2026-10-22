@@ -313,11 +313,12 @@ describe('nullius CLI init/export', () => {
           },
         },
         recommended_files: [
-          'project_index.md',
           'AGENTS.md',
-          'project_charter.md',
           'research_plan.md',
+          'project_index.md',
+          'project_charter.md',
           'research_contract.md',
+          'research_guidance.md',
         ],
       },
     });

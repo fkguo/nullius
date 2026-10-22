@@ -45,3 +45,59 @@ pnpm -C packages/literature-workflows test
 
 - Root [README.md](../../README.md) §1 Surface Policy — stateful literature planning surface
 - Root [AGENTS.md](../../AGENTS.md) §Key Checked-in Authority
+
+## Workflow evidence acceptance
+
+At the end of the selected workflow, `nullius run` executes a bound evidence check.
+`status: completed` describes execution; `workflow_acceptance.status` describes
+evidence. Required nonpasses return `ok: false` and a nonzero exit code. Missing
+files are incomplete, invalid evidence fails, unavailable checker dependencies
+are unavailable, and changed bound materials make an earlier receipt stale.
+The known recipe's protected contracts cannot be removed to bypass acceptance.
+
+The check reuses the research-team literature saturation and note validators,
+without config-disabled or exploration-stage skips. It requires a nonempty
+query trace at `knowledge_base/methodology_traces/literature_queries.md`, the
+recipe's saturation artifact, actual candidate-pool contents, expected provider
+entries and pinned full-text reading coverage for every selected core paper.
+The saturation JSON retains its existing saturation fields and adds:
+
+```json
+{
+  "run_id": "<current run id>",
+  "workflow_binding": {
+    "workflow_id": "<current workflow id>",
+    "plan_sha256": "<workflow_acceptance.identity.plan_sha256>",
+    "outputs_sha256": "<workflow_acceptance.identity.outputs_sha256>"
+  },
+  "source_first_reading": {
+    "notes": [{
+      "paper_id": "<selected_core_ids entry>",
+      "note_path": "knowledge_base/literature/paper.md",
+      "source_path": "sources/paper.tex",
+      "source_sha256": "<sha256 of the actual full-text file>"
+    }]
+  }
+}
+```
+
+Paths are canonical project-relative regular files without symbolic links.
+The candidate-pool artifact must be a JSON array or JSONL records matching the
+inline candidate disposition ledger. Every selected paper needs a distinct note
+with a `Paper ID: <stable canonical locator>` header matching its validated
+canonical identity or alias, the existing strict reading fields and
+a source form of `latex_source`, `full_text_pdf` or `available_full_text`; an
+abstract or unavailable source cannot pass. Pinned nested provenance and
+bibliography records are included among the exact files observed by the gate.
+
+The first nonpassing run exposes the plan/output identity even when evidence
+is missing. Prepare the evidence against those digests and repeat `nullius run`
+for that completed plan: acceptance is rechecked without provider calls, and a
+new immutable receipt preserves the earlier attempt. `nullius status --json`
+checks current receipt/input/checker freshness without executing a checker.
+Historical evidence remains readable; create current-run bindings separately
+rather than rewriting old evidence or replacing custom project instructions.
+
+A pass establishes mechanical evidence structure and source availability. It
+does not establish that a source was understood, that its claims support a
+conclusion, or that independent scientific review or A5 approval has passed.

@@ -5,11 +5,26 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Iterator
 from urllib.parse import unquote
 
 from literature_identity_keys import PINNED_PROJECT_REF_RE
+
+
+_project_reader: ContextVar[Callable[[Path], bytes] | None] = ContextVar("literature_project_reader", default=None)
+
+
+@contextmanager
+def observed_project_reads(reader: Callable[[Path], bytes]) -> Iterator[None]:
+    """Bind nested artifact reads without changing the standalone gate's policy."""
+    token = _project_reader.set(reader)
+    try:
+        yield
+    finally:
+        _project_reader.reset(token)
 
 
 def resolve_pinned_project_json(
@@ -33,6 +48,8 @@ def resolve_pinned_project_json(
         return None, None
     root = project_root.resolve()
     path = project_root.joinpath(*parts)
+    reader = _project_reader.get()
+    observed_payload = reader(path) if reader is not None else None
     try:
         resolved = path.resolve(strict=True)
         resolved.relative_to(root)
@@ -43,7 +60,7 @@ def resolve_pinned_project_json(
         errors.append(f"{label} target is not a file: {resolved}")
         return None, None
     try:
-        payload = resolved.read_bytes()
+        payload = observed_payload if observed_payload is not None else resolved.read_bytes()
     except OSError as exc:
         errors.append(f"{label} cannot be read: {exc}")
         return None, None

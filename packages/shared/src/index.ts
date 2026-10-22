@@ -180,3 +180,5 @@ export { canonicalProjectPath, assertExternalProjectRoot, respellUnderDirectory 
 
 // Entry-point guard that sees through symlinked start paths (bin links, symlinked checkouts).
 export { isMainModule } from './entry-guard.js';
+
+export type { WorkflowAcceptanceCheckSpec, WorkflowAcceptanceInput, WorkflowAcceptanceCheckerResult } from './workflow-acceptance.js';

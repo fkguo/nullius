@@ -59,9 +59,9 @@ navigation only.
 After completing the whole notebook and refreshing its automatic block, run
 `nullius notebook review --model <SPEC>` with repeated
 `--dependency <project-relative-path>` for required supporting files, then
-`nullius notebook check --json` without a result selector. Review executes once with a
-default hard 1200-second timeout (`--timeout-secs <N>` changes it) and no automatic
-retry. It freezes the complete UTF-8 notebook, automatic block included, and
+`nullius notebook check --json` without a result selector. One semantic review uses
+bounded calls with a default hard 1200-second timeout (`--timeout-secs <N>` changes
+it), one attempt per call and no automatic retry. It freezes the complete UTF-8 notebook, automatic block included, and
 declared dependency SHA-256 from actual bytes, including uncommitted edits.
 
 The reviewer must read every section and give source-anchored reasons addressing

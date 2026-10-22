@@ -25,8 +25,8 @@
 // `research_team_config_template.json` — are NOT flagged.
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { readRepositoryDocument } from './lib/instruction-documents.mjs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -59,7 +59,7 @@ const MIGRATION_TRUTH_SNIPPETS = [
 // doc/text/json extension. Exact alternation — NOT prefix — so `project_map`,
 // `research_preflight`, and `research_team_config` do not match.
 const BASELINE_DOC_TEMPLATE =
-  /^(agents|project_charter|project_index|research_plan|research_notebook|research_contract|main_research_report)(_template)?\.(md|json|txt)$/i;
+  /^(agents|project_charter|project_index|research_plan|research_notebook|research_contract|research_guidance|main_research_report)(_template)?\.(md|json|txt)$/i;
 
 function trackedAssetFiles() {
   return execFileSync('git', ['ls-files', ASSETS_DIR], { cwd: repoRoot, encoding: 'utf-8' })
@@ -74,7 +74,7 @@ for (const rel of trackedAssetFiles()) {
   }
 }
 for (const rel of REFRESH_TRUTH_SURFACES) {
-  const content = readFileSync(path.join(repoRoot, rel), 'utf-8');
+  const content = readRepositoryDocument(repoRoot, rel);
   const normalizedContent = content.replace(/\s+/g, ' ');
   const lines = content.split('\n');
   const refreshDeclaresTemplate = lines.some((line, index) => (
@@ -97,7 +97,7 @@ for (const rel of REFRESH_TRUTH_SURFACES) {
 // (rewritable by refresh) — the exact misreading the seed classification
 // exists to prevent.
 for (const rel of GITIGNORE_TRUTH_SURFACES) {
-  const content = readFileSync(path.join(repoRoot, rel), 'utf-8');
+  const content = readRepositoryDocument(repoRoot, rel);
   const lines = content.split('\n');
   const refreshDeclaresGitignore = lines.some((line, index) => (
     (line.includes('init --refresh') || line.includes('--refresh re-applies') || line.includes('refresh=True'))

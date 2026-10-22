@@ -1,3 +1,5 @@
+// @ts-expect-error Repository-only test helper is plain JavaScript.
+import { readInstructionDocuments } from '../../../../scripts/lib/instruction-documents.mjs';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -156,7 +158,8 @@ describe('Docs tool drift guard', () => {
     for (const file of ['README.md', 'docs/QUICKSTART.md', 'docs/ARCHITECTURE.md',
       'docs/PROJECT_STATUS.md', 'packages/orchestrator/README.md',
       'skills/research-harness/SKILL.md', 'skills/research-team/references/run-layout.md']) {
-      const text = readText(root, file);
+      const text = file === 'skills/research-harness/SKILL.md'
+        ? readInstructionDocuments(path.join(root, file)) : readText(root, file);
       expect(text, file).toContain('`PROJECT_INDEX_AUTO` blocks are historical, unmaintained');
       expect(text, file).toContain('neither parses nor updates them');
     }

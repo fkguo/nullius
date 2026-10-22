@@ -64,6 +64,6 @@ linked records, not here.
 ## Restart checklist
 
 - The session-start and reconnect protocol lives in [AGENTS.md](AGENTS.md), the project instructions that `nullius init --refresh` preserves when customized; follow it there before starting new work (this file carries no copy of the protocol commands).
-- Read [project_index.md](project_index.md), then [AGENTS.md](AGENTS.md), then [project_charter.md](project_charter.md), then this file, then [research_contract.md](research_contract.md), then [research_notebook.md](research_notebook.md) if it already contains substantive content.
+- Use [AGENTS.md](AGENTS.md), this Current Status and [project_index.md](project_index.md) to select the applicable constraints and original evidence. Read the relevant [research_notebook.md](research_notebook.md) sections before relying on their conclusions.
 - Update the task board before handing work to another run.
 - If the project adds host-local support surfaces, treat them as opt-in support layers rather than the default restart path and follow their local instructions only when they already exist.

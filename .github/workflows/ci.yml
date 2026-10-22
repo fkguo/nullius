@@ -29,6 +29,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Check instruction context anti-drift
+        if: ${{ matrix.node-version == 22 }}
+        run: |
+          node --test scripts/tests/instruction-documents.test.mjs
+          node scripts/check-instruction-documents-anti-drift.mjs
+
       - name: Check shell boundary anti-drift
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-shell-boundary-anti-drift.mjs

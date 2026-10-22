@@ -76,6 +76,12 @@ pnpm --filter @nullius/orchestrator exec vitest run tests/run-manifest.test.ts t
 
 #### 执行恢复与第三方 runner 契约
 
+DSH runner 的回归覆盖当前桌面 launcher、完整运行时字节绑定、隔离 profile、v4 会话与
+完整输出交付；假运行时测试验证拒绝路径，不能作为真实提供商可用性证明。宿主接入验收
+应分别记录规则实际加载、允许/拒绝的工具动作，以及指定会话的恢复；临时工具变量必须
+另行落盘后才可作为检查点。无额度或未连接的宿主记为 unavailable，不计通过。
+
+
 ```bash
 pnpm --filter @nullius/orchestrator exec vitest run tests/cli-run-workflow-recovery.test.ts tests/agent-runner-history-compaction.test.ts tests/cli-run-workflow.test.ts tests/agent-runner.test.ts tests/workflow-runtime.test.ts tests/nullius-cli.test.ts
 pnpm --filter @nullius/hep-mcp exec vitest run tests/contracts/inspireLiteratureProjectRoot.test.ts tests/toolContracts.test.ts tests/docs/docToolDrift.test.ts
@@ -428,6 +434,21 @@ literal artifact filenames containing `%` or `?`, wrong-file URI matches, and
 headline convergence without a human rewrite. These link tests establish
 structural navigation only.
 
+The notebook guidance drift checks compare generated project instructions, active
+team inputs, rendered adjudication guidance, public budget descriptions and CLI
+help against executable review defaults. They
+include controlled outdated-limit and incomplete-original-review regressions.
+Public init, refresh preview, refresh and runtime-only refresh must preserve
+custom `AGENTS.md` and host instructions byte-for-byte, including modes and CRLF.
+The [existing-project update](QUICKSTART.md#updating-existing-project-guidance)
+uses a separate template preview and explicit merging.
+
+```bash
+pnpm --filter @nullius/orchestrator exec vitest run tests/notebook-review-guidance.test.ts tests/notebook-review-batches.test.ts
+python3 -m pytest -q packages/project-contracts/tests/test_scaffold_contract.py packages/project-contracts/tests/test_scaffold_preserves_user_contract.py
+python3 -m pytest -q skills/research-team/tests/test_notebook_capacity_prompt_drift.py skills/research-team/tests/test_build_adjudication_response.py
+```
+
 Content-review acceptance checks must additionally cover real reviewer dispatch,
 bounded original-text calls under one hard budget and no automatic retry, full UTF-8 notebook
 snapshot identity including the automatic block, declared dependency hashes,
@@ -516,3 +537,34 @@ The configured token window is frozen before the original reviewer subprocess st
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research storage fixtures cover semantic classifications, aggregate admission, bundle content detection, duplicate index objects, zero-write inspection and byte-exact restoration. Run `python3 -m pytest skills/research-harness/tests/test_run_storage.py` and `pnpm -C packages/orchestrator test tests/run-origin-foreign-paths.test.ts tests/validity-ledger.test.ts tests/traceability-stage3.test.ts`. See [Research output storage](RUN_STORAGE.md).
+
+## Workflow evidence acceptance
+
+Run the receipt/CLI tests, workflow policy tests and adapter tests when changing the execution-to-evidence boundary:
+
+```bash
+pnpm --filter @nullius/orchestrator exec vitest run tests/workflow-acceptance.test.ts tests/cli-run-workflow-acceptance.test.ts tests/cli-run-workflow.test.ts tests/cli-run-workflow-recovery.test.ts
+pnpm --filter @nullius/literature-workflows test
+python3 -m pytest skills/research-team/tests/test_workflow_literature_acceptance.py
+```
+
+These cases cover current committed-output identity, missing and unavailable evidence, explicit checker failures, partial/skipped execution, receipt substitution, changed plans/checkers/nested files and read-only freshness. A completed-plan recheck must issue zero provider calls. Fixture passes verify tooling mechanics; they establish no scientific result or semantic full-text reading.
+
+## Instruction context checks
+
+Run `pnpm check:instruction-context-anti-drift` for the four compact skill entries
+and scaffold `AGENTS.md`. Marked local references must exist inside their payload
+root; missing, escaped, cyclic, symlink or invalid references fail. Unmarked dead
+files cannot satisfy the science-contract locks. Entrypoint byte ceilings prevent
+accidental re-expansion; they are maintenance limits, not universal model context
+percentages. Notebook budget negative controls mutate the reachable guidance.
+
+Run `python3 -m pytest skills/research-harness/tests/test_task_brief.py` for authored
+body/mode preservation, explicit-source hashes, stale/missing sources, migration,
+invalid metadata and path rejection. Byte freshness is distinct from content
+verification. Scaffold refresh and public init tests preserve customized
+`research_guidance.md` as well as `AGENTS.md` and host rules. The recovery read-order test checks both small startup navigation and preservation
+of applicable constraints/original-source requirements. The brief helper help
+requires an absolute project root. Copy-installed skills
+must include referenced documents, the optional brief template and the standalone helper; symlink checks alone
+do not verify this distribution surface.

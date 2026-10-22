@@ -4,6 +4,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts/lib"))
+from instruction_documents import read_instruction_documents
+
 
 SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC_ROOT))
@@ -19,7 +22,7 @@ def test_fresh_scaffold_includes_report_template_and_agents_reference() -> None:
         ensure_project_scaffold(repo_root=root, project_policy="real_project")
 
         assert (root / "reports" / "main_research_report_template.md").is_file()
-        assert "`reports/main_research_report_template.md`" in (root / "AGENTS.md").read_text(encoding="utf-8")
+        assert "`reports/main_research_report_template.md`" in read_instruction_documents(root / "AGENTS.md")
 
 
 def test_main_research_report_template_is_distinct_and_supersession_safe() -> None:

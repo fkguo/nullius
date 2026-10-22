@@ -92,6 +92,7 @@ Persisted workflow-plan dispatch uses the existing run manifest for immutable to
 - **Generic writing/review staging workflow**: `orch_run_stage_content` stages review/draft artifacts provider-neutrally into an existing run directory; provider-specific staging tools should remain thin adapters only
 - **Generic follow-up continuation workflow**: `orch_run_progress_followups` is the canonical bounded consumer for computation-generated feedback and writing/review follow-ups; it progresses one follow-up task per call, consumes only explicit task/handoff authority, and does not invent scheduler or fallback semantics
 - **Public stateful literature planning workflow**: `nullius workflow-plan` resolves literature recipes directly via `@nullius/literature-workflows` into bounded executable steps for an initialized external project root, persists the plan substrate into `.nullius/state.json#/plan`, and derives `.nullius/plan.md`
+- **Workflow evidence acceptance**: completed literature execution now invokes existing saturation and source-first note checks through a workflow-owned adapter. `run` and `status` expose separate `workflow_acceptance`; immutable receipts bind current plan, committed outputs, checker code and actual observed files. Required nonpasses make `run` fail without rewriting execution history. Completed plans can be rechecked without another provider call. This is mechanical evidence coverage, not semantic or scientific approval.
 - **Agent-client continuation workflow**: `research-harness` recovers project truth first, then routes to `nullius`, `research-team`, `markdown-hygiene`, or `hep-mcp` as appropriate; `research-team` outputs are incomplete until durable conclusions are summarized or linked back into project artifacts and status files
 - **Research brainstorm durable harness**: `research_brainstorm` captures context, candidate angles, screening, one recommendation, and a `next_contract` that may suggest `literature_landscape` or `literature_gap_analysis`; the contract requires explicit approval and does not auto-start the heavier recipe or provide a built-in runnable tool chain
 - **Native TS run workflow**: `nullius run` remains the only execution front door; `--workflow-id computation` executes a prepared `computation/manifest.json`, while persisted workflow-plan steps advance in a bounded loop until completion or a blocking failure is reached
@@ -153,3 +154,16 @@ The configured token window is frozen before the original reviewer subprocess st
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
+
+## Instruction context and handoff
+
+Status recovery now starts with `AGENTS.md`, `research_plan.md` and
+`project_index.md`; additional files are task candidates with applicable constraints
+and complete verification sources still required.
+
+Project and research skill entrances use task-scoped references while retaining
+visible recovery and scientific verification boundaries. New scaffolds include
+`research_guidance.md`; existing project files require explicit merging and are
+preserved by refresh. The optional [task-brief helper](../skills/research-harness/references/task-context.md)
+checks authored body and selected-source byte freshness, not scientific validity.
+It adds no host agent loop, hook engine or automatic summary authority.

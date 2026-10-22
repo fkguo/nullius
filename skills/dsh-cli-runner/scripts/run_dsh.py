@@ -17,15 +17,9 @@ import tempfile
 import time
 
 
-SUPPORTED_VERSION = "0.1.0-rc.7"
-EXTRA_DISABLED = {
-    "session-title-llm", "agent-instructions", "skill-filesystem", "skill-badge",
-    "plan-mode", "repeat-tool-reminder", "settings", "credentials", "llm-deepseek",
-}
-
-
-class RunError(Exception):
-    pass
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dsh_runtime import SUPPORTED_VERSION, RunError, runtime, overlay, check_runtime_identity
+from dsh_session import check_events
 
 
 def digest(data: bytes) -> str:
@@ -36,7 +30,7 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def publish_output(path: Path, raw: bytes) -> None:
+def publish_output(path: Path, raw: bytes, deadline: float | None = None) -> None:
     """Publish complete bytes atomically without replacing an existing delivery."""
     fd, name = tempfile.mkstemp(prefix=".dsh-output-", dir=path.parent)
     temporary = Path(name)
@@ -45,6 +39,8 @@ def publish_output(path: Path, raw: bytes) -> None:
             output.write(raw)
             output.flush()
             os.fsync(output.fileno())
+        if deadline is not None and time.monotonic() >= deadline:
+            raise RunError("deadline exhausted before atomic output publication")
         os.link(temporary, path)
     finally:
         try:
@@ -53,35 +49,19 @@ def publish_output(path: Path, raw: bytes) -> None:
             pass
 
 
-def runtime(entry: str | None, node: str) -> tuple[list[str], Path, dict]:
-    binary = entry or shutil.which("dsh")
-    if not binary:
-        raise RunError("dsh not found; supply --cli-entry /absolute/path/to/dsh/lib/bin.js")
-    path = Path(binary).expanduser().resolve(strict=True)
-    root = path.parent.parent
-    package = json.loads((root / "package.json").read_text())
-    if package.get("name") != "@deepseek-ai/dsh" or package.get("version") != SUPPORTED_VERSION:
-        raise RunError(f"unsupported DSH runtime; this runner supports {SUPPORTED_VERSION}")
-    if path != (root / "lib/bin.js").resolve():
-        raise RunError("--cli-entry must resolve to the installed DSH lib/bin.js")
-    node_path = shutil.which(node)
-    if not node_path:
-        raise RunError("Node executable not found")
-    return [node_path, str(path)], root, {
-        "package": package["name"], "version": package["version"],
-        "entry": str(path), "entry_sha256": digest(path.read_bytes()),
-    }
-
-
-def provider_profile(path: Path, model: str, cap: int | None, effort: str | None) -> dict:
-    profile = json.loads(path.read_text(encoding="utf-8"))
+def provider_profile(raw: bytes, model: str, cap: int | None, effort: str | None) -> dict:
+    profile = json.loads(raw)
     if not isinstance(profile, dict):
         raise RunError("provider config must be a JSON object")
     key_ref = profile.get("apiKeyEnv")
     if not isinstance(key_ref, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key_ref):
         raise RunError("provider config requires an apiKeyEnv environment-variable reference")
     # Headers and inline credentials can leak through configuration receipts.
-    if any(key in profile for key in ("apiKey", "api_key", "headers")):
+    def has_inline_credentials(value: object) -> bool:
+        if isinstance(value, dict):
+            return any(str(key).lower() in {'apikey', 'api_key', 'headers', 'authorization'} or has_inline_credentials(item) for key, item in value.items())
+        return isinstance(value, list) and any(has_inline_credentials(item) for item in value)
+    if has_inline_credentials(profile):
         raise RunError("inline credentials and headers are unsupported; use apiKeyEnv")
     models = profile.get("models")
     if not isinstance(models, list) or not models or not all(isinstance(m, dict) for m in models):
@@ -101,77 +81,6 @@ def provider_profile(path: Path, model: str, cap: int | None, effort: str | None
         profile["reasoning"] = effort
     profile["retryPolicy"] = {"mode": "normal", "maxRetries": 0}
     return profile
-
-
-def overlay(root: Path, run: Path, profile: dict, provider: str, model: str, persona: str) -> list:
-    base = root.parent / "dsh-base/cordis.patch.yml"
-    headless = root.parent / "dsh-headless/cordis.patch.yml"
-    ids = set(re.findall(r"^\s*- id: ([\w-]+)\s*$", base.read_text() + "\n" + headless.read_text(), re.M))
-    needed = EXTRA_DISABLED | {"llm-pi-ai", "agent-default-model", "session-persistence-jsonl", "system-prompt", "tools", "headless-runner"}
-    if not needed <= ids:
-        raise RunError("installed profile rows do not match the supported isolation contract")
-    rows = [{"id": i, "disabled": True} for i in sorted(ids) if i.startswith("tool-") or i in EXTRA_DISABLED]
-    rows += [
-        {"id": "tools", "config": {"mode": "native"}},
-        {"id": "system-prompt", "config": {"persona": persona}},
-        {"id": "llm-pi-ai", "config": {"providers": {provider: profile}}},
-        {"id": "agent-default-model", "config": {"provider": provider, "model": model}},
-        {"id": "session-persistence-jsonl", "config": {
-            "root": str(run / "home/sessions"), "compression": "none", "packChunks": False,
-        }},
-    ]
-    return rows
-
-
-def check_events(events: list[dict], provider: str, model: str, cap: int | None, effort: str | None) -> tuple[str, dict]:
-    if not events or events[0].get("type") != "session" or events[0].get("version") != 0:
-        raise RunError("missing or unsupported session log header")
-    seqs = [e.get("seq") for e in events[1:]]
-    if not seqs or any(not isinstance(s, int) for s in seqs) or seqs != sorted(set(seqs)):
-        raise RunError("malformed session event sequence")
-    headers = [e["data"]["header"] for e in events if e.get("type") == "request/header"]
-    if not headers:
-        raise RunError("no durable model request header")
-    configs = []
-    for header in headers:
-        config = header.get("config", {})
-        # rc.7 canonical request headers omit tools when the catalog is empty
-        # (dsh-session/request-header); a present value must be the empty list.
-        if header.get("tools", []) != [] or (config.get("provider"), config.get("model")) != (provider, model):
-            raise RunError("unexpected model route or exposed tools")
-        if cap is not None and config.get("maxTokens") != cap:
-            raise RunError("requested output cap was not applied")
-        if effort is not None and config.get("reasoningEffort") != effort:
-            raise RunError("requested reasoning level was not applied")
-        configs.append(config)
-    turns = [e for e in events if e.get("type") == "turn/start"]
-    ends = [e for e in events if e.get("type") == "turn/end"]
-    if len(turns) != 1 or len(ends) != 1 or ends[0]["data"].get("reason", {}).get("kind") != "completed":
-        raise RunError("DSH turn did not complete normally")
-    if any(e["seq"] > ends[0]["seq"] and e.get("type") in ("assistant/message", "request/header", "assistant/chunk") for e in events[1:]):
-        raise RunError("model events occur after the terminal event")
-    texts = []
-    sources = []
-    for event in events:
-        if event.get("type") != "assistant/message":
-            continue
-        if not turns[0]["seq"] < event["seq"] < ends[0]["seq"]:
-            raise RunError("assistant message occurs outside the completed turn")
-        message = event["data"]["message"]
-        source = message.get("source", {})
-        if source.get("kind") != "model" or (source.get("provider"), source.get("model")) != (provider, model):
-            raise RunError("assistant message route differs from request")
-        response = source.get("replayState", {}).get("response", {})
-        if response.get("stopReason") != "stop" or (response.get("provider"), response.get("model")) != (provider, model):
-            raise RunError("assistant message lacks a normal provider stop")
-        if any(b.get("type") == "tool-call" for b in message["content"]):
-            raise RunError("unexpected assistant tool call")
-        sources.append({k: response.get(k) for k in ("provider", "model", "responseId", "stopReason")})
-        text = "".join(b["text"] for b in message["content"] if b.get("type") == "text")
-        texts.append(text)
-    if not texts or not texts[-1].strip():
-        raise RunError("no complete nonblank assistant text")
-    return texts[-1], {"requests": configs, "response_metadata": sources, "provider_attestation": "unknown", "assistant_messages": len(sources)}
 
 
 def terminate(proc: subprocess.Popen) -> None:
@@ -202,8 +111,7 @@ def main(argv: list[str] | None = None) -> int:
         print("dsh-cli-runner requires Python 3.10+", file=sys.stderr)
         return 1
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cli-entry", help="Installed DSH lib/bin.js (otherwise resolve dsh on PATH)")
-    parser.add_argument("--node-bin", default="node")
+    parser.add_argument("--cli-entry", help="Installed desktop dsh launcher (otherwise resolve dsh on PATH)")
     parser.add_argument("--provider", required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--provider-config-file", type=Path, required=True)
@@ -233,21 +141,22 @@ def main(argv: list[str] | None = None) -> int:
         if not prompt.strip() or "\0" in prompt:
             raise RunError("prompt must be nonblank UTF-8 without NUL")
         persona = args.system_prompt_file.read_text(encoding="utf-8") if args.system_prompt_file else ""
-        command, root, identity = runtime(args.cli_entry, args.node_bin)
-        profile = provider_profile(args.provider_config_file, args.model, args.max_tokens, args.reasoning)
+        profile_bytes = args.provider_config_file.read_bytes()
+        profile = provider_profile(profile_bytes, args.model, args.max_tokens, args.reasoning)
         if not args.dry_run and not os.environ.get(profile["apiKeyEnv"]):
             raise RunError("selected apiKeyEnv is not exported; no credential stores are copied or read")
         trace = (args.trace_dir or Path(str(out) + ".attempts")).expanduser().absolute()
         trace.mkdir(parents=True, exist_ok=True)
-        run = Path(tempfile.mkdtemp(prefix="run.", dir=trace))
+        run = Path(tempfile.mkdtemp(prefix="run.", dir=trace)).resolve(strict=True)
         run.chmod(0o700)
         (run / "workspace").mkdir()
         (run / "home").mkdir()
-        patch = run / "dispatch.patch.json"
-        write_json(patch, overlay(root, run, profile, args.provider, args.model, persona))
         env = os.environ.copy()
         env.update(DSH_HOME=str(run / "home"), DSH_TELEMETRY_DISABLED="1")
         env.pop("DSH_TOOLS_MODE", None)
+        command, entries, identity = runtime(args.cli_entry, run, env, started + args.timeout_secs)
+        patch = run / "dispatch.patch.json"
+        write_json(patch, overlay(entries, run, profile, args.provider, args.model, persona))
         task = "Task:\n" + prompt
         cmd = command + ["--profile", "headless", "--patch", str(patch), task]
         # execve limits include argv, environment and pointers; Linux also has
@@ -258,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
         if size + 16384 >= arg_max or (sys.platform.startswith("linux") and len(task.encode()) + 1 > 32 * os.sysconf("SC_PAGE_SIZE")):
             raise RunError("prompt exceeds exec argument budget; partition the task before dispatch")
         receipt.update(runtime=identity, prompt_sha256=digest(prompt.encode()), system_sha256=digest(persona.encode()),
-                       provider_config_sha256=digest(args.provider_config_file.read_bytes()), argv_bytes=size,
+                       provider_config_sha256=digest(profile_bytes), argv_bytes=size,
                        isolated_cwd=str(run / "workspace"), trace=str(run), tool_mode="none")
         if args.dry_run:
             receipt["status"] = "dry_run"
@@ -291,20 +200,23 @@ def main(argv: list[str] | None = None) -> int:
             (run / "output.partial").write_bytes(raw)
         if proc.returncode != 0:
             raise RunError("DSH exited unsuccessfully; retain stderr and session log as failure evidence")
-        logs = list((run / "home/sessions").rglob("session.jsonl"))
+        logs = list((run / "home/sessions").rglob("session.v4.jsonl"))
         if len(logs) != 1:
             raise RunError("expected exactly one durable plaintext session log")
         events = [json.loads(line) for line in logs[0].read_text(encoding="utf-8").splitlines()]
-        final, evidence = check_events(events, args.provider, args.model, args.max_tokens, args.reasoning)
+        final, evidence = check_events(events, args.provider, args.model, args.max_tokens, args.reasoning, str(run / "workspace"))
         if raw.decode("utf-8") != final + "\n":
             raise RunError("stdout differs from the complete committed final assistant text")
         if time.monotonic() - started >= args.timeout_secs:
             raise RunError("deadline exhausted before output delivery")
+        check_runtime_identity(identity)
+        if time.monotonic() >= started + args.timeout_secs:
+            raise RunError("deadline exhausted during runtime identity verification")
         out.parent.mkdir(parents=True, exist_ok=True)
         receipt.update(status="completed", evidence=evidence, output_sha256=digest(raw), session_log=str(logs[0]))
         receipt["elapsed_secs"] = time.monotonic() - started
         write_json(run / "receipt.json", receipt)
-        publish_output(out, raw)
+        publish_output(out, raw, started + args.timeout_secs)
         return 0
     except (RunError, OSError, ValueError, KeyError, TypeError) as exc:
         receipt["error"] = str(exc) if isinstance(exc, RunError) else f"invalid input or runtime evidence ({type(exc).__name__})"

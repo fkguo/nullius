@@ -74,7 +74,10 @@ def test_complete_source_payload_and_manifests(packed):
         assert not copied.is_symlink()
         assert not ({"tests", "test", "dev", "tmp", "__pycache__", ".pytest_cache"} & set(copied.relative_to(output).parts))
         assert copied.name not in {".env", "credentials.json", "oauth_creds.json"}
-    for required in ["research-harness/scripts/check_launch_authorization.py",
+    for required in ["research-harness/assets/task_brief_template.md",
+                     "research-harness/scripts/task_brief.py",
+                     "research-harness/references/task-context.md",
+                     "research-harness/scripts/check_launch_authorization.py",
                      "research-harness/scripts/compute_job_probe.py",
                      "research-harness/scripts/independent_reproduction_check.py",
                      "research-team/FULL_VALIDATION_CONTRACT.md"]:

@@ -10,8 +10,8 @@
  * grounding.
  */
 
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { readRepositoryDocument } from './lib/instruction-documents.mjs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -57,7 +57,7 @@ const failures = [];
 for (const [relativePath, anchors] of required) {
   let content;
   try {
-    content = readFileSync(path.join(repoRoot, relativePath), 'utf8');
+    content = readRepositoryDocument(repoRoot, relativePath);
   } catch (error) {
     failures.push(`${relativePath}: cannot read (${error instanceof Error ? error.message : String(error)})`);
     continue;

@@ -13,6 +13,7 @@ import { parseRunGateApprovalRequest, type RunGateApprovalRequest } from './tool
 import { resolveToolExecutionPolicy } from './tool-execution-policy.js';
 import type { RunState, WorkflowOutputView } from './types.js';
 import { utcNowIso } from './util.js';
+import { evaluateWorkflowAcceptance, workflowAcceptanceExitCode, type WorkflowAcceptanceDeps } from './workflow-acceptance.js';
 import {
   compileWorkflowRuntimeRequest,
   executeWorkflowRuntimeRequest,
@@ -53,6 +54,7 @@ type WorkflowResolvedRunInput = {
 type AnyResolvedRunInput = ResolvedRunInput | WorkflowResolvedRunInput;
 
 export type RunCommandDeps = {
+  workflowAcceptance?: WorkflowAcceptanceDeps;
   workflowToolCaller?: WorkflowRuntimeDeps['workflowToolCaller'];
 };
 
@@ -557,14 +559,17 @@ async function runWorkflowCommand(
         details: { run_id: resolved.runId, workflow_id: resolved.workflowId },
       });
     }
+    const acceptance = evaluateWorkflowAcceptance(manager, deps.workflowAcceptance);
+    const exitCode = workflowAcceptanceExitCode(acceptance);
     io.stdout(`${JSON.stringify({
       status: 'completed',
-      ok: true,
+      ok: exitCode === 0,
+      workflow_acceptance: acceptance,
       run_id: resolved.runId,
       workflow_id: resolved.workflowId,
       message: 'workflow plan has no pending executable steps',
     }, null, 2)}\n`);
-    return 0;
+    return exitCode;
   }
 
   if (resolved.dryRun) {
@@ -626,9 +631,12 @@ async function runWorkflowCommand(
         throw new Error('workflow step selection drifted after startup; retry the run command');
       }
       const finalState = manager.readState();
+      const acceptance = evaluateWorkflowAcceptance(manager, deps.workflowAcceptance);
+      const exitCode = workflowAcceptanceExitCode(acceptance);
       io.stdout(`${JSON.stringify({
         status: 'completed',
-        ok: true,
+        ok: exitCode === 0,
+        workflow_acceptance: acceptance,
         ...(sawPartial ? { partial: true } : {}),
         ...(sawSkipped ? { skipped: true } : {}),
         run_id: resolved.runId,
@@ -643,7 +651,7 @@ async function runWorkflowCommand(
         ...(sawSkipped && lastSkipReason ? { reason: lastSkipReason } : {}),
         ...(aggregateDiagnostics.length > 0 ? { diagnostics: aggregateDiagnostics } : {}),
       }, null, 2)}\n`);
-      return 0;
+      return exitCode;
     }
 
     const startedAt = utcNowIso();

@@ -12,6 +12,8 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 
 ## 1. Surface Policy
 
+旧课题更新指导文件时，按[更新已有课题指导](QUICKSTART.md#updating-existing-project-guidance)单独生成模板、比较差异并合并需要的段落。运行时刷新不会迁移已有定制规则。
+
 - `nullius` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate、主报告结构校验、proposal decisions 与 conversational decision ledger 都从这里进入。
 - `orch_*` 继续作为同一 control plane 的 MCP/operator counterpart。它是 control plane 的 host-facing bridge，不是另一个产品身份，也不是对 CLI 的替代。
 - `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。`@nullius/hep-mcp` 同时把这些 provider 工具作为入口纳入自身工具面（复用各 provider 包的 `tooling`），因此在一个 HEP 会话里即可使用文献、数据、参考与 Zotero 能力，无需分别接入各 provider MCP。
@@ -110,6 +112,8 @@ Approval packet 会落在该 run 的 `artifacts/runs/<run_id>/approvals/<approva
 像 `prompts/`、`team/`、`research_team_config.json`、`.mcp.template.json`、根级 `specs/plan.schema.json` 这类 surface 都是 opt-in support layers，只应由明确项目需要或 host-specific tooling 后续创建，不是默认工作前门。
 
 ## 5. 用户如何从 MCP clients / agent clients 接入
+
+`status.resume_context.read_order` 从 `AGENTS.md`、`research_plan.md`、`project_index.md` 开始；推荐来源是按任务选择的候选，仍须读取适用约束与验证所需的完整原文。课题 `AGENTS.md` 保留恢复入口和验证边界，按操作查阅 `research_guidance.md`。research-harness、research-team、review-swarm 和 research-integrity 入口只按当前任务读取相应参考。跨阶段或跨会话工作可用[任务 brief](../skills/research-harness/references/task-context.md)记录事实、选择、未知项和下一步验收；字节新鲜性检查不代表科学验收。旧课题按[指导更新说明](QUICKSTART.md#updating-existing-project-guidance)显式合并，保留已有定制。
 
 当前的 MCP 接入模型是本地 stdio。[`project-mcp`](../packages/project-mcp/README.md) 是绑定单个外部项目的叶层 adapter，通过 `NULLIUS_PROJECT_ROOT` 指定项目，并复用 orchestrator 的 canonical tool dispatcher 与 CLI。仓库仍没有“单体的” generic root MCP server；`nullius` 保持 stateful front door，HEP 与 idea server 保持各自职责。
 
@@ -228,6 +232,8 @@ via: nullius decision list) until resolved.
 - delegated agent 执行现在在 tool 边界持久化：attempt 明确区分 `not_started`、`outcome_unknown` 与 `committed`；副作用结果未知时停机交 operator 核对，已提交的 MCP result 原样 replay 而不再次派发。direct 与 team journal 分别位于 `artifacts/delegated-runs/direct/<run_id>/` 和 `artifacts/delegated-runs/team/<runtime_run_id>/`，caller 自选的 root/direct run id 无法冒充 team checkpoint；approval resolver 只允许 host/operator 调用。`nullius run` 启动配置的 stdio MCP server 时，非敏感配置写入 `NULLIUS_RUN_MCP_ENV_JSON`，凭据写入 `NULLIUS_RUN_MCP_CREDENTIALS_JSON`，必需凭据名可用 `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` 声明；缺值会在 spawn 前失败。
 
 持久化 workflow-plan 的每次派发也使用 `artifacts/runs/<run_id>/manifest.json`：未知副作用停止等待核对，已提交响应原样回放而不重调工具；每个派发边界检查暂停，审批请求在真实批准前不会完成步骤。溢出恢复逐字保留原始用户约束，且不拆开工具调用与其结果（较早的交换整段丢弃，过长的结果截为带标记的不完整摘录）；指令自身超出窗口时停止，不能静默截断。
+
+流程执行与证据验收分别记录。文献流程完成后，`nullius run` 执行 `@nullius/literature-workflows` 选择的检查，在执行 `status` 之外返回 `workflow_acceptance`。必需证据缺失、不完整、失败、不可用或过期时，不能返回 `ok: true`；`not_required` 不授予研究认可。不可变验收记录绑定运行、计划语义、已提交工具响应、检查器代码与实际读取的项目文件。`status` 只读核对有效性；对已完成计划再次执行 `run`，只重新验收，不重复调用 provider。这些检查确认机械证据覆盖，内容独立复核与科学验收仍需另行完成。详见[文献证据契约](../packages/literature-workflows/README.md#workflow-evidence-acceptance)。
 
 ## 6. 更深的架构 / 治理文档在哪里
 

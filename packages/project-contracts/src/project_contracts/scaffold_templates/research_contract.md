@@ -26,8 +26,7 @@ current entry point and supersession registry in
 
 - The session-start, reconnect, recovery, and approval-boundary protocol lives in [AGENTS.md](AGENTS.md), the project instructions that `nullius init --refresh` preserves when customized. Follow it there after a new session, reconnect, interruption, context reset, handoff, milestone start, or closeout; this file deliberately carries no copy of the protocol commands, because copies in user-owned files go stale.
 - If evidence is incomplete, mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
-- After the protocol, re-read [project_index.md](project_index.md), [AGENTS.md](AGENTS.md), [project_charter.md](project_charter.md), [research_plan.md](research_plan.md), and this file before resuming.
-- Read [research_notebook.md](research_notebook.md) when it already contains substantive content.
+- After the protocol, use [AGENTS.md](AGENTS.md) and [Current Status](research_plan.md#current-status) to select the applicable charter/contract constraints, notebook sections and original sources for the current task; required source coverage is unchanged.
 - Optional host/provider/support surfaces are used only when this project explicitly creates them; this contract and `.nullius/` state remain the durable restart truth.
 
 ## Skepticism And Verification Rule

@@ -126,6 +126,8 @@ Key files:
 
 Persisted workflow-plan steps share `RunManifestManager` under `artifacts/runs/<run_id>/manifest.json`: dispatch intent precedes the tool call, raw response commit precedes state projection, and unknown outcomes require operator reconciliation. Pause and canonical approval are checked at dispatch boundaries; an approval envelope is not a completed research step. These boundaries do not provide a compare-and-swap guarantee against arbitrary concurrent external state writers.
 
+Workflow evidence acceptance is a separate post-execution boundary. `@nullius/shared` defines checker request/result transport types; `@nullius/literature-workflows` selects literature policy and the existing research-team validators. The orchestrator executes those bounded checks and retains immutable `artifacts/runs/<run_id>/workflow_acceptance/<attempt>/receipt.json` records, with a hash-bound pointer in canonical state. Identity covers semantic plan fields, selected committed journal results, checker sources and observed project inputs, excluding mutable lifecycle status/timestamps. Status only revalidates freshness; a completed-plan rerun creates another receipt without provider dispatch. Missing, failed, incomplete, unavailable or stale required evidence cannot pass. The boundary verifies mechanical coverage and provenance, not semantic reading, derivation correctness, independent review or A5 approval.
+
 Overflow recovery keeps a separate immutable snapshot of original user text and evicts complete tool-call/result groups. Evidence excerpts are explicitly incomplete; required source content must be reacquired. If the instruction capsule itself cannot fit, recovery stops instead of truncating user constraints.
 
 ### 5.3 Research material placement
@@ -282,3 +284,25 @@ The configured token window is frozen before the original reviewer subprocess st
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
+
+## Task-scoped instruction context
+
+`status.resume_context.read_order` starts with the instruction entry, current
+plan and project index. Its `context_selection` keeps applicable charter/contract
+constraints and complete verification sources explicit; `recommended_files` are
+candidates, not a mandatory preload.
+
+The host retains its agent loop, tools, hooks and compaction. Nullius supplies
+project recovery, source/evidence contracts and scientific acceptance. A compact
+project `AGENTS.md` routes operations to `research_guidance.md`; four long skill
+entries route to focused instruction references. Explicit `nullius-guidance`
+Markdown link titles let repository tests check reachable contracts without
+loading ordinary evidence/navigation links. This is a test convention, not a new
+host import mechanism or runtime instruction loader.
+
+An optional authored [task brief](../skills/research-harness/references/task-context.md)
+binds its body and explicitly selected source files by SHA-256. It helps detect
+stale context across phase changes or handoff, and does not certify semantic
+accuracy, complete source selection or scientific acceptance. Full original
+material and current notebook review retain their existing scope. Existing
+project guidance remains user-owned; updates require explicit merging.

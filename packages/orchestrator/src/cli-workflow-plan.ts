@@ -120,6 +120,7 @@ export async function runWorkflowPlanCommand(input: WorkflowPlanCommandInput, io
   state.run_status = 'idle';
   state.current_step = null;
   state.plan = buildPersistedPlan(input, plan, runId);
+  delete state.workflow_acceptance;
   state.notes = `workflow plan loaded from ${plan.recipe_id}${input.phase ? ` (${input.phase})` : ''}`;
   state.checkpoints.last_checkpoint_at = utcNowIso();
   manager.saveStateWithLedger(state, 'workflow_plan_resolved', {

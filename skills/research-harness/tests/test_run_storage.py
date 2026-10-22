@@ -3220,9 +3220,13 @@ def test_walks_that_records_rest_on_stop_at_unreadable_directories(tmp_path, mon
 def test_skill_documents_exactly_the_implemented_subcommands_and_statuses():
     parser_choices = set(rs.build_parser()._subparsers._group_actions[0].choices)
     assert parser_choices == set(rs.SUBCOMMANDS)
-    text = SKILL_MD.read_text(encoding="utf-8")
-    match = re.search(r"^## Run Storage\b.*?(?=^## )", text, flags=re.S | re.M)
-    assert match, "SKILL.md must have a '## Run Storage' section"
+    reader_path = Path(__file__).resolve().parents[3] / "scripts" / "lib" / "instruction_documents.py"
+    reader_spec = importlib.util.spec_from_file_location("instruction_documents", reader_path)
+    reader = importlib.util.module_from_spec(reader_spec)
+    reader_spec.loader.exec_module(reader)
+    text = reader.read_instruction_documents(SKILL_MD)
+    match = re.search(r"^## Run Storage\b.*?(?=^## |\Z)", text, flags=re.S | re.M)
+    assert match, "reachable skill instructions must have a '## Run Storage' section"
     section = match.group(0) + RUN_STORAGE_REFERENCE_MD.read_text(encoding="utf-8")
     documented = set(re.findall(r"run_storage\.py (\b[a-z][a-z-]+\b)", section))
     assert documented == set(rs.SUBCOMMANDS), (sorted(documented ^ set(rs.SUBCOMMANDS)))

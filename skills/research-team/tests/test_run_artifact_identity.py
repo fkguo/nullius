@@ -8,6 +8,8 @@ from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SKILL_ROOT.parents[1] / "scripts/lib"))
+from instruction_documents import read_instruction_documents
 LANGUAGE_DISCIPLINE_SNIPPETS = (
     "## Scientific writing discipline",
     "use the field's native scientific language",
@@ -196,8 +198,8 @@ class TestRunArtifactIdentity(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(scaffold.returncode, 0, msg=scaffold.stdout)
-            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
-            skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+            agents = read_instruction_documents(root / "AGENTS.md")
+            skill = read_instruction_documents(SKILL_ROOT / "SKILL.md")
             kb_readme = (root / "knowledge_base" / "README.md").read_text(encoding="utf-8")
             cfg = json.loads((root / "research_team_config.json").read_text(encoding="utf-8"))
             # Scaffolded AGENTS.md is now the canonical project-contracts document

@@ -13,6 +13,75 @@
 
 运行时复制或移动到其它位置后，原开发仓及其它 Nullius 开发仓副本仍不能作为真实研究项目根。
 
+## Updating existing project guidance
+
+更新运行时不会自动更新课题里的定制指导文件。`nullius init --refresh` 会生成缺失的
+`AGENTS.md` 和 `research_guidance.md`，但保留已有且与模板不同的文件。`--runtime-only` 接续运行时握手和入口，
+不改写定制指导；CLI 仍可能同步笔记和索引中已存在的机器维护块。笔记字节改变后，
+原有审查可能过期，需要按当前材料重新核对。两种更新都不能代替对旧指导文件的合并。
+
+先用 Git 或课题已有的备份方式保存当前指导文件与研究记录。在原课题根目录执行：
+
+```bash
+nullius init --runtime-only
+./.nullius/bin/nullius status --json
+guidance_preview_root="$(mktemp -d "${TMPDIR:-/tmp}/nullius-guidance.XXXXXX")"
+nullius init --project-root "$guidance_preview_root"
+diff -u AGENTS.md "$guidance_preview_root/AGENTS.md"
+```
+
+`diff` 返回 1 表示存在差异。只把需要的指导合并回原文件，保留课题的研究约定、授权边界、
+读序与其他定制内容；不要整份复制，也不要用 `init --force` 更新既有课题。
+已有 `CLAUDE.md` 或其他宿主规则也需要按内容检查，不能用新模板覆盖。
+同时对照预览中的 `research_notebook.md`，只合并需要更新的操作说明，保留原有科学内容。
+课题已有的 prompts、team packet 或复制安装的技能操作说明也需要按来源检查；模板更新不会
+覆盖它们。复制安装应重新安装并核对来源版本；链接安装应确认仍指向所用源码。
+
+更新后的 `status.resume_context.read_order` 先给出 `AGENTS.md`、`research_plan.md`、
+`project_index.md`；`recommended_files` 是候选来源，不代表必须预加载全部内容。
+适用的章程/契约约束与验证所需原文仍须读取。
+
+新模板把简短恢复入口、验证边界与按操作查阅的 `research_guidance.md` 分开。
+如果旧课题没有该文件，`init --refresh` 可生成它；已有文件则保留原始字节与权限。
+对照预览中的两份文件，把 `AGENTS.md` 里需要精简的详细规则移入指导文件，再添加
+相应的按需链接。保留课题自己的规则和原文来源，不要把简短 brief 当作全文审查的替代。
+`project_index.md`、计划与契约的旧读序也需显式检查并合并，运行时更新不会改写它们。
+比较完成后删除上面的临时预览目录。
+
+跨阶段任务可选用[任务 brief](../skills/research-harness/references/task-context.md)：先写事实、
+选择、未知项和下一步验收，再由 `task_brief.py capture` 绑定明确选择的原文件；恢复时
+用 `check` 发现过期内容。它不判断来源是否齐全、内容是否正确，也不改变任何科学验证门。
+
+针对旧版笔记审查说明，核对以下变化：
+
+- 有效 UTF-8 文本不会因大小而变成 `opaque_links`；删除旧的 1 MiB 文本总量限制。
+  链接到的二进制或无效 UTF-8 文件仍只是不可作为已读证据的快照。
+- 用本次生成的模板与 `nullius notebook --help` 核对存储、文件数、单次请求、时间和调用次数预算，
+  替换旧的 64 MiB 快照限制。存储容量与模型上下文容量分开计算。
+- 大材料逐段读取原始文本，随后联合审查完整原文。任一必需输入或联合审查超出容量时，
+  保持 incomplete/unavailable；摘要、截断与增加批次不能替代完整原文覆盖。
+- 恢复未完成审查会创建新运行，并重新核对原材料和可复用记录；保留旧证据。
+  当前仍只接受 tool mode `none`；多个批次不构成独立复核。
+
+合并后再次查看差异，确认只有预期段落改变，再保存本次更新。检查完成后删除生成预览：
+
+```bash
+rm -rf "$guidance_preview_root"
+```
+
+## 文献流程执行后的验收
+
+`nullius run` 的 `status: completed` 表示计划执行完毕；同时查看
+`workflow_acceptance.status` 和 `ok`。必需检查未通过时命令返回非零，执行状态仍保持真实的
+completed。先按 `findings` 补齐当前运行的检索记录、饱和证据、核心论文阅读笔记和原始全文，
+再用返回的 `identity.plan_sha256` 与 `identity.outputs_sha256` 绑定饱和文件。具体格式见
+[文献工作流契约](../packages/literature-workflows/README.md#workflow-evidence-acceptance)。
+
+对同一已完成计划再次运行 `nullius run` 会重新验收，不重复检索。`nullius status --json`
+只读核对验收记录是否仍然有效。旧课题不会自动获得通过记录；旧证据应保留原字节，
+在当前运行另行建立证据文件和绑定，不能把旧运行改称本次执行。已有课题的定制指令不变。
+检查通过表示文件与声明覆盖满足结构要求，不能替代全文内容复核或科学结论验收。
+
 ## Generic First-Touch（先走 generic front door）
 
 普通安装、独立 skills 和[个人插件](../packages/skills-market/docs/PERSONAL_PLUGIN.md)共用本机 Nullius CLI。先在 checkout 根目录构建并安装命令入口：
