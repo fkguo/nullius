@@ -241,6 +241,10 @@ custody auditable.
   lost, and the rule that it must never be regenerated casually.
 - Update channel: manifest, hosting fallback, and the check that a released build sees
   the right version.
+- Release-asset pointer: if downloads resolve through `releases/latest`, a new code
+  release silently moves the data pointer. State how this is handled — keep the data
+  release latest, publish the code release with `latest=false`, or pin asset URLs — and
+  verify the asset URL after publishing.
 - Platform matrix: built / smoked / untested, per platform. A macOS build is not evidence
   for Windows.
 - Checklist: version and build number consistent across app, manifest and store metadata;
@@ -258,6 +262,9 @@ custody auditable.
 every 0.1.x install was stranded and users had to export, uninstall, reinstall and
 import. Startup "regression" of 2.5–3.5 s was a debug-build JIT artifact — release was
 43 ms. A Windows port was blocked by packaging and CI gates, not by application code.
+A citation-only release was later published without re-uploading 2 GB of data assets: it
+was created with `latest=false`, so `releases/latest/download/nds.sqlite.gz` still
+resolved to the data release, while Zenodo still archived the release and minted a DOI.
 
 **Does not prove.** Store approval, or that a future release will build.
 

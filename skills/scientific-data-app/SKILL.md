@@ -110,6 +110,7 @@ never upgraded by repetition.
 | defensive AI phrasing in user-facing copy | G1 copy rules; delete it |
 | static review treated as runtime proof | honesty grades + G4 executed checks |
 | signing key lost, installs cannot update | G5 key custody |
+| a new release moves `releases/latest` away from the data assets | G5: keep the data release latest, publish with `latest=false`, or pin asset URLs; verify after publishing |
 | debug-build performance reported as release performance | G5 measured on release hardware |
 
 ## Read next
