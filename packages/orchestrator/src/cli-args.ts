@@ -68,7 +68,7 @@ export type ParsedCliArgs =
     deps: Record<string, string>;
   }
   | { command: 'current'; projectRoot: string | null; json: boolean }
-  | { command: 'notebook'; projectRoot: string | null; action: 'sync' | 'check' | 'review'; json: boolean; resultId?: string; structureOnly?: boolean; model?: string; dependencies?: string[]; timeoutSecs?: number; budgets?: Partial<NotebookBudgets>; resume?: string }
+  | { command: 'notebook'; projectRoot: string | null; action: 'sync' | 'check' | 'review'; json: boolean; resultId?: string; structureOnly?: boolean; model?: string; dependencies?: string[]; timeoutSecs?: number; budgets?: Partial<NotebookBudgets>; resume?: string; evidenceManifest?: string }
   | { command: 'index'; projectRoot: string | null; action: 'sync'; json: boolean }
   | {
     command: 'result';
@@ -222,14 +222,14 @@ function parseStatusArgs(args: string[]): { json: boolean } {
   return { json };
 }
 
-function parseNotebookArgs(args: string[]): { action: 'sync' | 'check' | 'review'; json: boolean; resultId?: string; structureOnly?: boolean; model?: string; dependencies?: string[]; timeoutSecs?: number; budgets?: Partial<NotebookBudgets>; resume?: string } {
+function parseNotebookArgs(args: string[]): { action: 'sync' | 'check' | 'review'; json: boolean; resultId?: string; structureOnly?: boolean; model?: string; dependencies?: string[]; timeoutSecs?: number; budgets?: Partial<NotebookBudgets>; resume?: string; evidenceManifest?: string } {
   const action = args[0];
   if (action !== 'sync' && action !== 'check' && action !== 'review') {
     throw new Error('notebook: expected sync, check [--result <id>] [--structure-only], or review --model <spec> [--dependency <path>] [--timeout-secs <n>]');
   }
   let json = false;
   let resultId: string | undefined;
-  let structureOnly = false; let model: string | undefined; const dependencies: string[] = []; let timeoutSecs = 1200; const budgets: Partial<NotebookBudgets> = {}; let resume: string | undefined;
+  let structureOnly = false; let model: string | undefined; const dependencies: string[] = []; let timeoutSecs = 1200; const budgets: Partial<NotebookBudgets> = {}; let resume: string | undefined; let evidenceManifest: string | undefined;
   for (let i = 1; i < args.length; i += 1) {
     const arg = args[i]!;
     if (arg === '--json') { json = true; continue; }
@@ -243,6 +243,9 @@ function parseNotebookArgs(args: string[]): { action: 'sync' | 'check' | 'review
     if (arg === '--model' && action === 'review' && model === undefined) {
       const value = args[++i]; if (!value || value.startsWith('-') || value.includes(',')) throw new Error('--model requires one reviewer model spec');
       model = value; continue;
+    }
+    if (arg === '--evidence-manifest' && action === 'review' && evidenceManifest === undefined) {
+      const value = args[++i]; if (!value || value.startsWith('-')) throw new Error('--evidence-manifest requires a project-relative JSON path'); evidenceManifest = value; continue;
     }
     if (arg === '--dependency' && action === 'review') {
       const value = args[++i]; if (!value || value.startsWith('-')) throw new Error('--dependency requires a path'); dependencies.push(value); continue;
@@ -264,7 +267,7 @@ function parseNotebookArgs(args: string[]): { action: 'sync' | 'check' | 'review
   }
   if (action === 'review' && model === undefined) throw new Error('notebook review requires --model <spec>');
   return { action, json, ...(resultId === undefined ? {} : { resultId }),
-    ...(action === 'check' ? { structureOnly } : {}), ...(action === 'review' ? { model, dependencies, timeoutSecs, budgets, ...(resume ? { resume } : {}) } : {}) };
+    ...(action === 'check' ? { structureOnly } : {}), ...(action === 'review' ? { model, dependencies, timeoutSecs, budgets, ...(resume ? { resume } : {}), ...(evidenceManifest === undefined ? {} : { evidenceManifest }) } : {}) };
 }
 
 function parseIndexArgs(args: string[]): { action: 'sync'; json: boolean } {

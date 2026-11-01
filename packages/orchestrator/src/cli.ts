@@ -91,7 +91,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     }
     if (parsed.action === 'review') {
       const { runNotebookReview } = await import('./notebook-content-review.js');
-      return runNotebookReview(projectRoot, { model: parsed.model!, dependencies: parsed.dependencies ?? [], timeoutSecs: parsed.timeoutSecs ?? 1200, json: parsed.json, budgets: parsed.budgets, resume: parsed.resume }, io);
+      return runNotebookReview(projectRoot, { model: parsed.model!, dependencies: parsed.dependencies ?? [], timeoutSecs: parsed.timeoutSecs ?? 1200, json: parsed.json, budgets: parsed.budgets, resume: parsed.resume, evidenceManifest: parsed.evidenceManifest }, io);
     }
     const { refreshNotebookCurrentState, checkCurrentStateBlock } = await import('./notebook-current-state.js');
     try {

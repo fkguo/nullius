@@ -117,7 +117,7 @@ Run artifact URIs resolve through Nullius to the original readable run location,
 
 Capacity evidence requires an adjacent runtime observation of the actual successful invocation, including requests that fit the conservative byte bound. The local runtime binds the complete original request, actual report locator, working directory and captured bytes using its host authority; recalculating project artifact hashes cannot create that observation. Verification trusts the runtime and owning OS account, and does not authenticate provider truth or scientific correctness. Historical unsigned records remain readable, but cannot supply new capacity acceptance; they are never retrospectively signed.
 
-Interrupted notebook reviews resume in a fresh run from immutable intake and batch checkpoints, retaining original bytes and rechecking current material. Only completed, fresh, runtime-observed primary interval receipts can be reused; the complete-original joint audit is always executed again. Missing closure, stale sources or incomplete operations remain unavailable or incomplete. Member reproduction evidence requires an authenticated actual producer episode and the complete source/data inputs bound to the executed command; declared inputs and bounded static discovery do not prove arbitrary filesystem activity.
+Interrupted notebook reviews resume in a fresh run from immutable intake and batch checkpoints, retaining original bytes and rechecking current material. Only completed, fresh, runtime-observed primary interval receipts can be reused; the selected profile’s final audit is always executed again. Missing closure, stale sources or incomplete operations remain unavailable or incomplete. Member reproduction evidence requires an authenticated actual producer episode and the complete source/data inputs bound to the executed command; declared inputs and bounded static discovery do not prove arbitrary filesystem activity.
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
@@ -127,7 +127,7 @@ The owning account can read the authority key, including code executed by a memb
 
 The configured token window is frozen before the original reviewer subprocess starts and bound into its authenticated runtime observation. Changing historical window metadata cannot admit that receipt. Older observations without this policy remain readable and require a fresh execution for capacity acceptance.
 
-Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
+In recursive mode, local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 [Research output storage](RUN_STORAGE.md) uses project-relative paths and SHA-256 manifests; the shared local content store is not a new URI namespace and is not transferred by Git clone or push. Ref inventory does not grant authority to rewrite host refs or recovery history.
 
@@ -137,3 +137,5 @@ Task briefs use ordinary project-relative file paths under
 `artifacts/runs/<run-id>/`, not a new URI scheme or MCP resource. Their embedded
 SHA-256 source records are byte-freshness checks rather than lifecycle or
 scientific approval identifiers.
+
+Declared evidence (`--evidence-manifest`) uses the same ArtifactRef scheme for the frozen manifest, originals, reference inventory and canonical source/integration receipts. Unread text locators are not read evidence. See [notebook review profiles](NOTEBOOK_REVIEW.md). No new URI scheme or authority is introduced.

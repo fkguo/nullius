@@ -1238,6 +1238,20 @@ class ReviewOneTests(unittest.TestCase):
             self.assertEqual(rc, 2)
             self.assertIn("forbids --context", stderr.getvalue())
 
+    def test_declared_evidence_notebook_prompts_preserve_reading_boundaries(self):
+        context = [(Path("inventory.json"), json.dumps({"evidence_policy": "declared-evidence"}), "hash", 1)]
+        for role in ("notebook-batch", "notebook-crosscheck"):
+            self.assertEqual(self.mod._notebook_evidence_prompt(role, "unchanged-template-sentinel", []), "unchanged-template-sentinel")
+            prompt = self.mod._notebook_evidence_prompt(role, "unchanged-template-sentinel", context)
+            for key in ("reference_assessments", "reference_ids", "Empty groups", "independently re-adjudicate", "additional_context_requests", "required_for_reasoning", "EVERY"):
+                self.assertIn(key, prompt)
+            self.assertNotIn("unchanged-template-sentinel", prompt)
+        final = self.mod._notebook_evidence_prompt("notebook-crosscheck", "unchanged-template-sentinel", context)
+        for key in ("section_reviews", "original_unit_coverage", "not unseen original bytes", "Do not claim all dependency originals were jointly reread"):
+            self.assertIn(key, final)
+        with self.assertRaises(ValueError):
+            self.mod._notebook_evidence_prompt("notebook-batch", "unchanged-template-sentinel", context + context)
+
     def test_all_role_templates_carry_contract_format(self):
         for role in self.mod._ROLES:
             template = (_SKILL_ROOT / "templates" / f"{role}.md").read_text(encoding="utf-8")

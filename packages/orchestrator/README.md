@@ -127,7 +127,7 @@ complete UTF-8 notebook, including its automatic block, and required declared
 dependencies with SHA-256 digests of their actual bytes. Uncommitted edits are
 included; a commit or section version stamp alone cannot establish identity.
 
-Valid UTF-8 text remains text regardless of size; Markdown links are discovered
+In the default recursive profile: Valid UTF-8 text remains text regardless of size; Markdown links are discovered
 recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links`
 snapshots and hash locators, not read evidence. Every opaque path/hash needs a
 specific `opaque_sources` assessment; a required unread source prevents acceptance.
@@ -141,7 +141,7 @@ conservative token upper bound. A larger explicit byte packet requires captured
 backend token usage when that bound exceeds the window; missing capacity evidence,
 observed backend compaction or delivery failure supplies no acceptance.
 
-Larger materials use original UTF-8 intervals with adjacent original context,
+In that recursive profile, larger materials use original UTF-8 intervals with adjacent original context,
 followed by a joint audit receiving the COMPLETE original notebook and text
 dependencies. All intervals and the joint audit must be complete and fresh;
 selected quotations or summaries cannot replace this original input. The default
@@ -155,6 +155,9 @@ never rewrites old evidence. If the full joint input does not fit the backend,
 raise an available backend's request budget or leave the review incomplete.
 Compaction detection currently uses captured Claude system events; other routes have no equivalent event witness and use the conservative configured byte bound when token usage is absent. The configured token window is a caller constraint, not automatic backend-capability discovery. Only tool mode `none` is accepted. Multiple batches are one semantic review;
 they do not establish independent confirmations or a cross-family quorum.
+
+With `--evidence-manifest <project-relative JSON>`, declared evidence uses a different material organization: the complete notebook and every declared primary text original are read, reference candidates remain explicit unread provenance until adjudicated, and the final integration receives the complete notebook plus canonical source-review evidence and byte-checked original excerpts. Every notebook section and primary interval must be covered. Every discovered reference is re-adjudicated; a necessary unread source or additional-context request prevents acceptance. This profile never claims the entire recursive history was read. Real tool-mode-none execution, capacity evidence, freshness and immutable history requirements still apply.
+
 
 Any change to those bytes makes the previous review stale. Historical reports
 remain readable and retain their original input identity.
@@ -216,7 +219,7 @@ claims still need their applicable derivation, numerical, and source checks.
 
 Capacity evidence requires an adjacent runtime observation of the actual successful invocation, including requests that fit the conservative byte bound. The local runtime binds the complete original request, actual report locator, working directory and captured bytes using its host authority; recalculating project artifact hashes cannot create that observation. Verification trusts the runtime and owning OS account, and does not authenticate provider truth or scientific correctness. Historical unsigned records remain readable, but cannot supply new capacity acceptance; they are never retrospectively signed.
 
-Interrupted notebook reviews resume in a fresh run from immutable intake and batch checkpoints, retaining original bytes and rechecking current material. Only completed, fresh, runtime-observed primary interval receipts can be reused; the complete-original joint audit is always executed again. Missing closure, stale sources or incomplete operations remain unavailable or incomplete. Member reproduction evidence requires an authenticated actual producer episode and the complete source/data inputs bound to the executed command; declared inputs and bounded static discovery do not prove arbitrary filesystem activity.
+Interrupted notebook reviews resume in a fresh run from immutable intake and batch checkpoints, retaining original bytes and rechecking current material. Only completed, fresh, runtime-observed primary interval receipts can be reused; the selected profile’s final audit is always executed again. Missing closure, stale sources or incomplete operations remain unavailable or incomplete. Member reproduction evidence requires an authenticated actual producer episode and the complete source/data inputs bound to the executed command; declared inputs and bounded static discovery do not prove arbitrary filesystem activity.
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 

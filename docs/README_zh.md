@@ -326,7 +326,7 @@ MIT
 
 默认结构检查要求结果注册表存在且有效，并检查全部登记行，包括已被替代的行；只有当前结果须在人工正文中有直接链接。closeout 检查失败时，普通状态和历史读取仍可使用。
 
-合法 UTF-8 文本不因体积变大而归为 `opaque_links`，Markdown 依赖递归发现。只有二进制或无效 UTF-8 的自动链接来源作为不可变快照及哈希定位符；报告须逐项说明 path/hash/`required_for_reasoning`，必要但未读的来源不能通过。notebook 与显式依赖须为严格 UTF-8，并使用 LF 或 CRLF。
+默认递归模式下，合法 UTF-8 文本不因体积变大而归为 `opaque_links`，Markdown 依赖递归发现。只有二进制或无效 UTF-8 的自动链接来源作为不可变快照及哈希定位符；报告须逐项说明 path/hash/`required_for_reasoning`，必要但未读的来源不能通过。notebook 与显式依赖须为严格 UTF-8，并使用 LF 或 CRLF。
 
 完整原材料先冻结；存储预算与模型单次请求分开：`--snapshot-bytes` 默认 512 MiB、`--max-files` 默认 256，`--context-bytes` 控制请求体积，`--context-tokens` 声明可用后端的上下文窗口（默认 200,000 tokens，保留指令及输出余量）。默认以字节数作保守 token 上界；显式扩大字节预算后，如该上界超过窗口，则须有执行时记录的后端 token 用量。缺少容量证据、后端压缩原上下文或投递失败均不能通过。
 
@@ -336,7 +336,7 @@ MIT
 
 容量证据必须附带本机运行时对实际成功调用的来源记录，即使请求满足保守字节上界也一样。该记录绑定完整原始请求、报告、实际工作目录与捕获内容，重算项目摘要不能伪造运行来源。这项验证信任本机运行时及操作系统账户，不证明外部服务或科学结论的正确性。历史未签发记录仍可读取，但不能支持新的容量验收，也不得补签。
 
-Interrupted notebook reviews resume in a fresh run from immutable intake and batch checkpoints, retaining original bytes and rechecking current material. Only completed, fresh, runtime-observed primary interval receipts can be reused; the complete-original joint audit is always executed again. Missing closure, stale sources or incomplete operations remain unavailable or incomplete. Member reproduction evidence requires an authenticated actual producer episode and the complete source/data inputs bound to the executed command; declared inputs and bounded static discovery do not prove arbitrary filesystem activity.
+Interrupted notebook reviews resume in a fresh run from immutable intake and batch checkpoints, retaining original bytes and rechecking current material. Only completed, fresh, runtime-observed primary interval receipts can be reused; the selected profile’s final audit is always executed again. Missing closure, stale sources or incomplete operations remain unavailable or incomplete. Member reproduction evidence requires an authenticated actual producer episode and the complete source/data inputs bound to the executed command; declared inputs and bounded static discovery do not prove arbitrary filesystem activity.
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
@@ -349,3 +349,6 @@ The configured token window is frozen before the original reviewer subprocess st
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 研究输出保存、按用途分类、只读清单、提交检查及运行来源快照前的自动拦截见[研究输出存储](RUN_STORAGE.md)。存储命令不会删除数据、改写历史或清空恢复记录。
+
+
+可用 `--evidence-manifest <项目内JSON路径>` 显式声明科学依据：完整笔记和每份主要文本原文分批审读；不透明来源仍保持未读，其余引用保留为未读定位信息。最终核对完整笔记、真实阅读收据和经字节核验的原文片段，逐节覆盖并重新判断全部引用。必需来源未读、缺失或仍需补充原文时不能通过；不得声称全部递归历史均已阅读。见[笔记审查](NOTEBOOK_REVIEW.md)。

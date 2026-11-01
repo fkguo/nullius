@@ -17,6 +17,7 @@ import { loadVerifiedRunJson, resolveVerifiedRunArtifact } from './orch-tools/va
 import { installedRuntimeRoot } from './cli-runtime.js';
 import { stampRunDirectory } from './run-stamp.js';
 import { notebookBudgets, notebookShellWord, NotebookRequestCapacityError, assessNotebookRequestCapacity, executeNotebookBatches, assessNotebookBatches, loadNotebookBatchHistory, type NotebookBudgets, type BatchExecution, type BatchPlan } from './notebook-review-batches.js';
+import { freezeDeclaredEvidenceScope, assertDeclaredEvidenceScope, declaredEvidenceIsCurrent, type EvidenceReference } from './notebook-evidence-scope.js';
 import { textOutsideNotebookCurrentState } from './notebook-current-state.js';
 import artifactSchema from '../../../meta/schemas/artifact_ref_v1.schema.json' with { type: 'json' };
 import subjectSchema from '../../../meta/schemas/verification_subject_v1.schema.json' with { type: 'json' };
@@ -40,12 +41,13 @@ const ajv = new (Ajv2020 as any)({ allErrors: true, strict: false, validateForma
 ajv.addSchema(artifactSchema);
 const validators = [subjectSchema, checkSchema, verdictSchema, coverageSchema].map(schema => ajv.compile(schema));
 
-type Input = { path: string; sha256: string; bytes: number; snapshot_ref: ArtifactRefV1 };
+export type Input = { path: string; sha256: string; bytes: number; snapshot_ref: ArtifactRefV1 };
 export type NotebookReviewSection = { section_id: string; heading: string; start_line: number; end_line: number; sha256: string };
 export type NotebookReviewScope = {
   schema_version: 1; review_kind: 'notebook'; extraction_policy: typeof POLICY;
   notebook: Input; dependencies: Input[]; opaque_links?: Input[]; sections: NotebookReviewSection[];
   explicit_dependencies: string[]; directory_links: string[]; remote_links: string[];
+  evidence?: { policy: 'declared-evidence'; manifest: Input; references: EvidenceReference[] };
 };
 type ReviewPointer = { schema_version: 1; run_id: string; verification_refs: {
   subject_refs: ArtifactRefV1[]; check_run_refs: ArtifactRefV1[];
@@ -213,7 +215,13 @@ function canPublishNotebookReview(projectRoot: string, runId: string): boolean {
   return latestNotebookStart(notebookStarts(projectRoot))?.run_id === runId;
 }
 
-export function freezeNotebookReviewScope(projectRoot: string, runId: string, runDir: string, dependencies: string[], budgets: NotebookBudgets = notebookBudgets({})): NotebookReviewScope {
+export function freezeNotebookReviewScope(projectRoot: string, runId: string, runDir: string, dependencies: string[], budgets: NotebookBudgets = notebookBudgets({}), evidenceManifest?: string): NotebookReviewScope {
+  if (evidenceManifest !== undefined) {
+    const scope = freezeDeclaredEvidenceScope(projectRoot, runId, runDir, dependencies, budgets, evidenceManifest, notebookReviewSections);
+    const text = decodeText(readBytes(projectRoot, scope.notebook.path), scope.notebook.path);
+    if (textOutsideNotebookCurrentState(text) === null) throw new Error('notebook has ambiguous managed-block markers');
+    return scope;
+  }
   const remote = new Set<string>(); const dirs = new Set<string>();
   const inputs: Input[] = []; const opaque: Input[] = []; const seen = new Set<string>(); let notebookText = '';
   const explicit = [...new Set(dependencies.map(filename => path.relative(projectRoot,
@@ -296,6 +304,7 @@ function assertScope(scope: NotebookReviewScope, runDir: string, runId: string, 
     const snapshot = resolveVerifiedRunArtifact(runDir, runId, input.snapshot_ref, 'opaque source snapshot');
     if (hash(snapshot.bytes) !== input.sha256 || snapshot.bytes.length !== input.bytes) throw new Error('opaque source scope disagrees with frozen bytes');
   }
+  if (scope.evidence) { assertDeclaredEvidenceScope(scope, runDir, runId, projectRoot, texts); return texts; }
   // Recheck the closure from every original text snapshot. Historical scopes
   // do not gain complete coverage merely because all of their listed hashes fit.
   const recorded = new Set([...texts.keys(), ...(scope.opaque_links ?? []).map(i => i.path), ...(scope.directory_links ?? [])]);
@@ -335,6 +344,7 @@ function assertAnchors(anchors: unknown, text: string, from: number, to: number,
 }
 
 export function assessNotebookReviewReport(report: unknown, scope: NotebookReviewScope, texts: Map<string, string>, scopeSha256: string): { accepted: boolean; coverageComplete: boolean; reviewed: number; findings: unknown[]; reason: string } {
+  if (scope.evidence) throw new Error('declared evidence requires hierarchical batch report assessment');
   if (!object(report) || report.review_kind !== 'notebook' || report.schema_version !== 1
     || !['PASS', 'FAIL'].includes(report.verdict) || typeof report.summary !== 'string' || !report.summary.trim()
     || report.scope_sha256 !== scopeSha256 || !Array.isArray(report.blocking_issues)
@@ -424,6 +434,7 @@ function assessNotebookExecution(projectRoot: string, runDir: string, runId: str
       resolveVerifiedRunArtifact(runDir, runId, execution.stdout_ref, 'review stdout');
       resolveVerifiedRunArtifact(runDir, runId, execution.stderr_ref, 'review stderr');
       const scope = loadVerifiedRunJson<NotebookReviewScope>(runDir, runId, execution.scope_ref, 'notebook review scope');
+      if (scope.evidence) throw new Error('declared evidence requires canonical source batches and integration execution');
       const texts = assertScope(scope, runDir, runId, projectRoot);
       result.reviewed_notebook_sha256 = scope.notebook.sha256; result.sections_total = scope.sections.length;
       sourceRefs = [execution.scope_ref, scope.notebook.snapshot_ref, ...scope.dependencies.map(dep => dep.snapshot_ref), ...(scope.opaque_links ?? []).map(input => input.snapshot_ref), ...(execution.manifest_ref ? [execution.manifest_ref] : [])];
@@ -616,7 +627,7 @@ export function reviewerReportRef(runId: string, runDir: string, output: string)
   return fs.existsSync(filename) ? createRunArtifactRef(runId, runDir, filename, 'notebook_reviewer_report') : null;
 }
 
-export async function runNotebookReview(projectRoot: string, options: { model: string; dependencies: string[]; timeoutSecs: number; json: boolean; budgets?: Partial<NotebookBudgets>; resume?: string },
+export async function runNotebookReview(projectRoot: string, options: { model: string; dependencies: string[]; timeoutSecs: number; json: boolean; budgets?: Partial<NotebookBudgets>; resume?: string; evidenceManifest?: string },
   io: { stdout: (text: string) => void; stderr: (text: string) => void }): Promise<number> {
   const runId = `${new Date().toISOString().replace(/[-:]/g, '').replace(/\..*$/, '')}-notebook-review-${randomUUID().slice(0, 8)}`;
   let runDir = path.join(projectRoot, 'artifacts/runs', runId);
@@ -657,6 +668,7 @@ export async function runNotebookReview(projectRoot: string, options: { model: s
     if (stamped.kind === 'rejected') throw new Error(stamped.message);
     let budgetOptions = options.budgets ?? {};
     let dependencies = options.dependencies;
+    let evidenceManifest = options.evidenceManifest;
     let batchResume: string | undefined;
     if (options.resume) {
       if (!/^[a-zA-Z0-9_-]+$/.test(options.resume)) throw new Error('invalid notebook resume run ID');
@@ -677,6 +689,12 @@ export async function runNotebookReview(projectRoot: string, options: { model: s
         oldBudgets = notebookBudgets(previous.request_budgets);
         if (!same(previous.request_budgets, oldBudgets)) throw new Error('resume resource budgets are missing or invalid');
         oldDependencies = oldScope.explicit_dependencies;
+        if (evidenceManifest !== undefined && !oldScope.evidence) throw new Error('cannot resume with a different evidence policy');
+        if (oldScope.evidence) {
+          if (evidenceManifest !== undefined && evidenceManifest !== oldScope.evidence.manifest.path) throw new Error('resumed evidence manifest path must match');
+          evidenceManifest = oldScope.evidence.manifest.path;
+          if (!declaredEvidenceIsCurrent(projectRoot, oldScope)) throw new Error('resumed declared evidence changed');
+        }
         if (fs.existsSync(path.join(origin, 'batches/start.json')) || fs.existsSync(finalPath)) {
           const oldBatch = loadNotebookBatchHistory(projectRoot, options.resume);
           const oldPlan = loadVerifiedRunJson<BatchPlan>(origin, options.resume, oldBatch.plan_ref, 'resume recorded budgets');
@@ -688,6 +706,7 @@ export async function runNotebookReview(projectRoot: string, options: { model: s
         const intake = JSON.parse(fs.readFileSync(intakePath, 'utf8'));
         if (intake.schema_version !== 1 || intake.run_id !== options.resume || intake.model !== options.model || !Array.isArray(intake.dependencies)) throw new Error('invalid interrupted notebook intake');
         oldBudgets = notebookBudgets(intake.budgets); oldDependencies = intake.dependencies;
+        if (intake.evidence_manifest !== undefined || evidenceManifest !== undefined) throw new Error('declared evidence intake has no complete frozen scope; start a fresh review');
         const checkpoints = path.join(origin, 'inputs/intake');
         if (fs.existsSync(checkpoints)) for (const name of fs.readdirSync(checkpoints)) {
           if (!/^checkpoint-\d+\.json$/.test(name)) continue;
@@ -704,15 +723,15 @@ export async function runNotebookReview(projectRoot: string, options: { model: s
       dependencies = [...new Set([...oldDependencies, ...dependencies])];
     }
     const budgets = notebookBudgets(budgetOptions);
-    writeJson(path.join(runDir, 'review_intake.json'), { schema_version: 1, run_id: runId, model: options.model, budgets, dependencies, resumed_from: options.resume ?? null });
-    const scope = freezeNotebookReviewScope(projectRoot, runId, runDir, dependencies, budgets);
+    writeJson(path.join(runDir, 'review_intake.json'), { schema_version: 1, run_id: runId, model: options.model, budgets, dependencies, ...(evidenceManifest === undefined ? {} : { evidence_manifest: evidenceManifest }), resumed_from: options.resume ?? null });
+    const scope = freezeNotebookReviewScope(projectRoot, runId, runDir, dependencies, budgets, evidenceManifest);
     const scopePath = path.join(runDir, 'inputs/notebook-scope.json'); writeJson(scopePath, scope);
     const scopeRef = createRunArtifactRef(runId, runDir, scopePath, 'notebook_review_scope');
     writeJson(path.join(runDir, 'review_resume.json'), { schema_version: 1, run_id: runId, model: options.model, request_budgets: budgets, scope_ref: scopeRef });
     const script = path.join(installedRuntimeRoot(), 'skills/review-swarm/scripts/bin/review_one.py');
     let receipt: Execution;
     const totalText = [scope.notebook, ...scope.dependencies].reduce((n, input) => n + input.bytes, 0);
-    if (options.resume || totalText > Math.floor((budgets.contextBytes - 12000) / 4) || totalText + fs.statSync(scopePath).size + 12000 > budgets.contextBytes) {
+    if (scope.evidence || options.resume || totalText > Math.floor((budgets.contextBytes - 12000) / 4) || totalText + fs.statSync(scopePath).size + 12000 > budgets.contextBytes) {
       const started = new Date().toISOString();
       const batches = await executeNotebookBatches(projectRoot, runDir, runId, scope, budgets, options.model, options.timeoutSecs, batchResume);
       const batchPath = path.join(runDir, 'batch_execution.json'); writeJson(batchPath, batches);

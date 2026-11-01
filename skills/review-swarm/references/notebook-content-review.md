@@ -10,13 +10,13 @@ this same `review_one.py` and `run_multi_task.py` execution path, records the
 same `inputs/review_input_manifest.json`, and checks freshness before launch,
 after execution, and again at current-version acceptance. The public command
 defaults to a hard 1200-second budget and one attempt per bounded call. Declare
-additional necessary files with repeated `--dependency <path>`; local linked
+additional necessary files with repeated `--dependency <path>`; in the default recursive profile local linked
 Markdown text dependencies are also discovered. It refuses unsupported text,
 missing local files and resource shortfalls without truncation. Local directory
-links leave original dependency closure pending and prevent acceptance. Remote
+links leave original dependency closure pending and prevent acceptance in the default recursive profile. Remote
 links are locators; a necessary unread dependency prevents acceptance.
 
-Larger inputs use the `notebook-batch` role for each complete original interval
+In the default recursive profile, larger inputs use the `notebook-batch` role for each complete original interval
 with adjacent raw context, followed by `notebook-crosscheck` receiving every
 original byte of the full notebook and text dependency closure. All primary
 intervals and every joint-audit inventory unit must be complete and fresh.
@@ -61,3 +61,5 @@ The input manifest and execution records are content-bound evidence, not
 cryptographic signatures against an owner who deliberately rewrites the
 entire record and every hash. Preserve their hashes in a separately trusted
 closeout record when that threat is in scope.
+
+Declared evidence opts in with `--evidence-manifest`: all primary text originals are read in bounded source calls; final integration receives the complete notebook, verified source-review evidence and exact original excerpts. Every source interval, notebook section and reference judgment must be covered; necessary unread sources or further context requests block acceptance. Summaries alone are not original reading. Historical recursive records are unchanged.

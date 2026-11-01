@@ -264,7 +264,7 @@ read model that \`nullius status --json\` carries as its traceability block.
 `,
   notebook: `nullius notebook sync [--json]
 nullius notebook check [--result <id>] [--structure-only] [--json]
-nullius notebook review --model <spec> [--dependency <path>] [--resume <run-id>] [--timeout-secs <n>] [--json]
+nullius notebook review --model <spec> [--dependency <path>] [--evidence-manifest <path>] [--resume <run-id>] [--timeout-secs <n>] [--json]
   [--context-bytes <n>] [--context-tokens <n>] [--snapshot-bytes <n>]
   [--max-files <n>] [--max-batches <n>]
 
@@ -295,6 +295,15 @@ Linked binary/invalid UTF-8 files are frozen hash-only
 locators, never reported as read; a required unread locator prevents acceptance.
 Supply independently checked readable text for necessary source content. The
 complete closure is frozen with separate storage and per-request budgets.
+Opt in to declared primary originals with --evidence-manifest <project-relative JSON>:
+{"schema_version":1,"sources":["path/to/original.md"]}. No other fields are allowed.
+The complete notebook is always included; --dependency adds primary originals.
+This profile freezes manifest and source bytes and inventories outgoing references
+without recursively expanding them. Undeclared text locators remain unread provenance.
+Every primary text is source-reviewed before a complete-notebook integration audit;
+necessary unread sources, missing context or opaque originals prevent acceptance.
+Changed manifests or reference targets invalidate freshness and resume reuse.
+
 Storage defaults: 512 MiB and 256 files (--snapshot-bytes, --max-files).
 Request capacity: --context-bytes plus the available backend --context-tokens
 window (default 200000), with instruction/output reserves. Oversized token

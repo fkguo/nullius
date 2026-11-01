@@ -31,7 +31,7 @@ Scientific notebook closeout:
 - Scaffolding preserves existing prompt copies. Merge updated guidance explicitly
   into project customizations; updating a skill does not update those files.
 
-Valid UTF-8 text remains text regardless of size; Markdown links are discovered
+In the default recursive profile: Valid UTF-8 text remains text regardless of size; Markdown links are discovered
 recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links`
 snapshots and hash locators, not read evidence. Every opaque path/hash needs a
 specific `opaque_sources` assessment; a required unread source prevents acceptance.
@@ -45,7 +45,7 @@ conservative token upper bound. A larger explicit byte packet requires captured
 backend token usage when that bound exceeds the window; missing capacity evidence,
 observed backend compaction or delivery failure supplies no acceptance.
 
-Larger materials use original UTF-8 intervals with adjacent original context,
+In that recursive profile, larger materials use original UTF-8 intervals with adjacent original context,
 followed by a joint audit receiving the COMPLETE original notebook and text
 dependencies. All intervals and the joint audit must be complete and fresh;
 selected quotations or summaries cannot replace this original input. The default
@@ -59,6 +59,9 @@ never rewrites old evidence. If the full joint input does not fit the backend,
 raise an available backend's request budget or leave the review incomplete.
 Only tool mode `none` is accepted. Multiple batches are one semantic review;
 they do not establish independent confirmations or a cross-family quorum.
+
+With `--evidence-manifest <project-relative JSON>`, declared evidence uses a different material organization: the complete notebook and every declared primary text original are read, reference candidates remain explicit unread provenance until adjudicated, and the final integration receives the complete notebook plus canonical source-review evidence and byte-checked original excerpts. Every notebook section and primary interval must be covered. Every discovered reference is re-adjudicated; a necessary unread source or additional-context request prevents acceptance. This profile never claims the entire recursive history was read. Real tool-mode-none execution, capacity evidence, freshness and immutable history requirements still apply.
+
 
 Converged folds invoke the same unscoped `nullius notebook check --json` required
 for final file closeout. `none` declarations and a missing launcher grant no

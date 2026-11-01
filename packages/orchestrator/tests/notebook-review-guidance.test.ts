@@ -38,6 +38,8 @@ function guidanceIssues(text: string): string[] {
   }
   const required = [
     'Valid UTF-8 text remains text regardless of size',
+    '--evidence-manifest',
+    'necessary unread source',
     'Binary or invalid UTF-8 linked files',
     'is separate from each request',
     'joint audit receiving the COMPLETE original notebook and text dependencies',
