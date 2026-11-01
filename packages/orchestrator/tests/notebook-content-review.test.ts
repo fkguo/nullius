@@ -496,6 +496,64 @@ describe('whole-notebook execution and current-version contract', () => {
     expect(fs.readFileSync(path.join(root, 'artifacts/runs/scope-test/inputs/source-0.txt'), 'utf8')).toBe(text);
   });
 
+  it.each([
+    ['display', '$$\nG[v](z)=v(z).\n$$'],
+    ['inline', '$G[v](z)=v(z).$'],
+    ['multiple-dollar inline', 'Text $$G[v](z)=v(z).$$ text.'],
+    ['long display fence', '$$$\nG[v](z)=v(z).\n$$$$'],
+    ['quoted display', '> $$\n> G[v](z)=v(z).\n> $$'],
+    ['math images and remote links', '$![image](missing.png) + [remote](https://invalid.example/math)$'],
+    ['math escapes', '$[escape](../../outside.md)$'],
+    ['code', '`$[example](missing.md)$`\n\n```math\n[example](missing.md)\n```'],
+  ])('freezes original %s math bytes without inventing dependencies', (_kind, expression) => {
+    const text = `\ufeff# Notebook\r\n\r\n${expression.replaceAll('\n', '\r\n')}\r\n\r\n[Actual](dependencies/premises.md)\r\n`;
+    write('research_notebook.md', text);
+    const dir = path.join(root, 'artifacts/runs/math-scope');
+    const scope = freezeNotebookReviewScope(root, 'math-scope', dir, []);
+    expect(scope.dependencies.map(input => input.path)).toEqual(['dependencies/premises.md']);
+    expect(scope.remote_links).toEqual([]);
+    expect(scope.notebook.sha256).toBe(digest(Buffer.from(text)));
+    expect(fs.readFileSync(path.join(dir, 'inputs/source-0.txt'))).toEqual(Buffer.from(text));
+  });
+
+  it.each([
+    ['escaped dollar', '\\$[Actual](dependencies/premises.md)'],
+    ['unmatched inline dollar', '$[Actual](dependencies/premises.md)'],
+    ['unequal inline delimiters', 'Text $[Actual](dependencies/premises.md)$$'],
+    ['after display fence', '$$\n[ignored](missing.md)\n$$\n[Actual](dependencies/premises.md)'],
+    ['inline neighbours', '[Actual](dependencies/premises.md)$[ignored](missing.md)$[Actual](dependencies/premises.md)'],
+  ])('retains genuine links at %s boundaries', (_kind, body) => {
+    write('research_notebook.md', '# Notebook\n\n' + body + '\n');
+    const scope = freezeNotebookReviewScope(root, 'boundary-scope', path.join(root, 'artifacts/runs/boundary-scope'), []);
+    expect(scope.dependencies.map(input => input.path)).toEqual(['dependencies/premises.md']);
+  });
+
+  it('isolates reference definitions in math while recursively freezing genuine references and images', async () => {
+    const text = notebook + '\n$$\nG[v](z)=v(z).\n[hidden]: missing.md\n[actual]: missing.md\n$$\n\n[hidden]\n\n[Reference][actual]\n![Image][picture]\n\n[actual]: dependencies/reference.txt\n[picture]: figures/source.png\n';
+    const dependency = '$G[v](z)=v(z).$\n\n[Recursive](premises.md)\n';
+    const image = Buffer.from([0x89, 0x50, 0, 0xff]);
+    write('research_notebook.md', text); write('dependencies/reference.txt', dependency); write('figures/source.png', image);
+    const outcome = await review();
+    expect(outcome.code, outcome.stdout + outcome.stderr).toBe(0);
+    const scope = JSON.parse(fs.readFileSync(path.join(runDir(), 'inputs/notebook-scope.json'), 'utf8'));
+    expect(scope.dependencies.map((input: any) => input.path)).toEqual(['dependencies/premises.md', 'dependencies/reference.txt']);
+    expect(scope.opaque_links).toMatchObject([{ path: 'figures/source.png', sha256: digest(image) }]);
+    for (const input of [scope.notebook, ...scope.dependencies, ...scope.opaque_links]) {
+      const snapshot = path.join(runDir(), decodeURIComponent(input.snapshot_ref.uri.split('/artifact/')[1]));
+      const original = fs.readFileSync(path.join(root, input.path));
+      expect(fs.readFileSync(snapshot)).toEqual(original); expect(input.sha256).toBe(digest(original));
+    }
+    expect(checkNotebookContentReview(root).status).toBe('accepted');
+    write('dependencies/reference.txt', dependency + '\nChanged original.\n');
+    expect(checkNotebookContentReview(root).status).toBe('stale');
+  });
+
+  it.each(['[Escape](../../outside.md)', '[Escape](%2e%2e/%2e%2e/outside.md)', '[Missing](missing.md)', '[Redirect](redirect.md)'])('rejects genuine %s after math', link => {
+    fs.symlinkSync('dependencies/premises.md', path.join(root, 'redirect.md'));
+    write('research_notebook.md', '# Notebook\n\n$$\nG[v](z)=v(z).\n$$\n\n' + link + '\n');
+    expect(() => freezeNotebookReviewScope(root, 'unsafe-scope', path.join(root, 'artifacts/runs/unsafe-scope'), [])).toThrow();
+  });
+
   it('binds a binary image as an unread locator without preventing textual review', async () => {
     const raw = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0xff]);
     write('figures/decoration.png', raw); write('research_notebook.md', notebook + '\n![Decoration](figures/decoration.png)\n');

@@ -4,6 +4,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { TextDecoder } from 'node:util';
 import { fromMarkdown } from 'mdast-util-from-markdown';
+import { mathFromMarkdown } from 'mdast-util-math';
+import { math } from 'micromark-extension-math';
 import type { Nodes } from 'mdast';
 import Ajv2020 from 'ajv/dist/2020.js';
 import type { ArtifactRefV1, VerificationSubjectV1, VerificationCheckRunV1,
@@ -127,7 +129,9 @@ export function notebookReviewSections(text: string): NotebookReviewSection[] {
 }
 
 function destinations(text: string): string[] {
-  const tree = fromMarkdown(text);
+  // Parse math as opaque AST nodes: brackets and reference definitions inside
+  // formulas are not Markdown dependencies. The original snapshot stays intact.
+  const tree = fromMarkdown(text, { extensions: [math()], mdastExtensions: [mathFromMarkdown()] });
   const definitions = new Map<string, string>();
   visit(tree, node => { if (node.type === 'definition') definitions.set(node.identifier, node.url); });
   const targets: string[] = [];
