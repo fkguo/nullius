@@ -1176,6 +1176,9 @@ Grouping reduces repeated output only; inspect every full reference descriptor a
 independently re-adjudicate every reference in final integration.
 Reassess necessity using the actual reasoning; neither a manifest nor a prior false assessment establishes sufficiency.
 Unlisted, missing, remote, directory, locator and opaque originals are unread.
+Optional unread locator descriptors are as-of frozen observations, possibly carried
+from an earlier run on resume. They do not assert current target status or body
+content and do not establish reading or acceptance of that target's current bytes.
 Any necessary unread original, additional source or context request prevents PASS and complete coverage.
 Any detected error requires FAIL, even if coverage is complete. Do not invent a missing premise.
 Anchor objects use {path, start_byte, end_byte, quote}, exact original UTF8 bytes,

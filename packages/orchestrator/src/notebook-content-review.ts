@@ -215,9 +215,9 @@ function canPublishNotebookReview(projectRoot: string, runId: string): boolean {
   return latestNotebookStart(notebookStarts(projectRoot))?.run_id === runId;
 }
 
-export function freezeNotebookReviewScope(projectRoot: string, runId: string, runDir: string, dependencies: string[], budgets: NotebookBudgets = notebookBudgets({}), evidenceManifest?: string): NotebookReviewScope {
+export function freezeNotebookReviewScope(projectRoot: string, runId: string, runDir: string, dependencies: string[], budgets: NotebookBudgets = notebookBudgets({}), evidenceManifest?: string, evidenceReferences?: EvidenceReference[]): NotebookReviewScope {
   if (evidenceManifest !== undefined) {
-    const scope = freezeDeclaredEvidenceScope(projectRoot, runId, runDir, dependencies, budgets, evidenceManifest, notebookReviewSections);
+    const scope = freezeDeclaredEvidenceScope(projectRoot, runId, runDir, dependencies, budgets, evidenceManifest, notebookReviewSections, evidenceReferences);
     const text = decodeText(readBytes(projectRoot, scope.notebook.path), scope.notebook.path);
     if (textOutsideNotebookCurrentState(text) === null) throw new Error('notebook has ambiguous managed-block markers');
     return scope;
@@ -669,6 +669,7 @@ export async function runNotebookReview(projectRoot: string, options: { model: s
     let budgetOptions = options.budgets ?? {};
     let dependencies = options.dependencies;
     let evidenceManifest = options.evidenceManifest;
+    let evidenceReferences: EvidenceReference[] | undefined;
     let batchResume: string | undefined;
     if (options.resume) {
       if (!/^[a-zA-Z0-9_-]+$/.test(options.resume)) throw new Error('invalid notebook resume run ID');
@@ -693,6 +694,7 @@ export async function runNotebookReview(projectRoot: string, options: { model: s
         if (oldScope.evidence) {
           if (evidenceManifest !== undefined && evidenceManifest !== oldScope.evidence.manifest.path) throw new Error('resumed evidence manifest path must match');
           evidenceManifest = oldScope.evidence.manifest.path;
+          evidenceReferences = oldScope.evidence.references;
           if (!declaredEvidenceIsCurrent(projectRoot, oldScope)) throw new Error('resumed declared evidence changed');
         }
         if (fs.existsSync(path.join(origin, 'batches/start.json')) || fs.existsSync(finalPath)) {
@@ -724,7 +726,7 @@ export async function runNotebookReview(projectRoot: string, options: { model: s
     }
     const budgets = notebookBudgets(budgetOptions);
     writeJson(path.join(runDir, 'review_intake.json'), { schema_version: 1, run_id: runId, model: options.model, budgets, dependencies, ...(evidenceManifest === undefined ? {} : { evidence_manifest: evidenceManifest }), resumed_from: options.resume ?? null });
-    const scope = freezeNotebookReviewScope(projectRoot, runId, runDir, dependencies, budgets, evidenceManifest);
+    const scope = freezeNotebookReviewScope(projectRoot, runId, runDir, dependencies, budgets, evidenceManifest, evidenceReferences);
     const scopePath = path.join(runDir, 'inputs/notebook-scope.json'); writeJson(scopePath, scope);
     const scopeRef = createRunArtifactRef(runId, runDir, scopePath, 'notebook_review_scope');
     writeJson(path.join(runDir, 'review_resume.json'), { schema_version: 1, run_id: runId, model: options.model, request_budgets: budgets, scope_ref: scopeRef });

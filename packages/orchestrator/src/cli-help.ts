@@ -299,7 +299,9 @@ Opt in to declared primary originals with --evidence-manifest <project-relative 
 {"schema_version":1,"sources":["path/to/original.md"]}. No other fields are allowed.
 The complete notebook is always included; --dependency adds primary originals.
 This profile freezes manifest and source bytes and inventories outgoing references
-without recursively expanding them. Undeclared text locators remain unread provenance.
+without recursively expanding them. Undeclared text locators remain unread provenance. Their descriptors are as-of observations,
+not current-content validation; only the manifest, declared originals and their written
+references determine currentness. Necessary unread sources still prevent acceptance.
 Every primary text is source-reviewed before a complete-notebook integration audit;
 necessary unread sources, missing context or opaque originals prevent acceptance.
 Changed manifests or reference targets invalidate freshness and resume reuse.

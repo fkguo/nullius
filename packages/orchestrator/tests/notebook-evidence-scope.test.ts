@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { freezeNotebookReviewScope, assessNotebookReviewReport } from '../src/notebook-content-review.js';
 import { assertDeclaredEvidenceScope, declaredEvidenceIsCurrent } from '../src/notebook-evidence-scope.js';
-import { notebookBudgets } from '../src/notebook-review-batches.js';
+import { notebookBudgets, materialIdentity } from '../src/notebook-review-batches.js';
 import { resolveVerifiedRunArtifact } from '../src/orch-tools/validation-chain-binding.js';
 import { parseCliArgs } from '../src/cli-args.js';
 let root: string; let run: string;
@@ -25,8 +25,32 @@ describe('declared primary evidence intake', () => {
     expect(declaredEvidenceIsCurrent(root, scope)).toBe(true);
     const originals = new Map([['research_notebook.md', fs.readFileSync(path.join(root, 'research_notebook.md'), 'utf8')], ['original.md', fs.readFileSync(path.join(root, 'original.md'), 'utf8')]]);
     expect(() => assertDeclaredEvidenceScope(scope, run, 'scope-fixture', root, originals)).not.toThrow();
-    write('locator.md', 'Changed unread locator.\n'); expect(declaredEvidenceIsCurrent(root, scope)).toBe(false);
-    expect(() => assertDeclaredEvidenceScope(scope, run, 'scope-fixture', root, originals)).toThrow(/inventory changed/);
+    write('locator.md', 'Changed unread locator.\n'); expect(declaredEvidenceIsCurrent(root, scope)).toBe(true);
+    expect(() => assertDeclaredEvidenceScope(scope, run, 'scope-fixture', root, originals)).not.toThrow();
+  });
+  it('preserves as-of unread observations and read-material identity on complete-scope resume', () => {
+    write('original.md', '[index](index.md) [missing](absent.md)\n'); write('index.md', 'Index at observation.\n');
+    const scope = freeze(); const identity = materialIdentity(scope); const observations = structuredClone(scope.evidence!.references);
+    write('index.md', 'Updated navigation after checkpoint.\n'); write('absent.md', 'Created after observation.\n');
+    expect(declaredEvidenceIsCurrent(root, scope)).toBe(true);
+    const nextRun = path.join(root, 'artifacts/runs/scope-resumed'); fs.mkdirSync(nextRun, { recursive: true });
+    const resumed = freezeNotebookReviewScope(root, 'scope-resumed', nextRun, [], notebookBudgets({}), 'evidence.json', observations);
+    expect(resumed.evidence!.references).toEqual(observations); expect(materialIdentity(resumed)).toBe(identity);
+    fs.unlinkSync(path.join(root, 'index.md')); fs.symlinkSync('/etc/passwd', path.join(root, 'index.md'));
+    expect(declaredEvidenceIsCurrent(root, resumed)).toBe(true);
+    write('original.md', 'Changed primary source.\n'); expect(declaredEvidenceIsCurrent(root, resumed)).toBe(false);
+  });
+  it.each([{ id: 'reference-99' }, { quote: 'invented quote' }, { start_byte: 3 }, { destination: 'invented.md' }, { target_path: 'invented.md' }, { target_kind: 'declared' }, { target_sha256: 'invalid' }, { target_bytes: -1 }])('rejects forged lexical or malformed observation descriptors %j', change => {
+    write('original.md', '[index](index.md)\n'); write('index.md', 'Unread contents.\n'); const scope = freeze();
+    Object.assign(scope.evidence!.references[0]!, change); expect(declaredEvidenceIsCurrent(root, scope)).toBe(false);
+  });
+  it('keeps unread observation changes bound into canonical material identity', () => {
+    write('original.md', '[index](index.md)\n'); write('index.md', 'Unread contents.\n'); const scope = freeze(); const identity = materialIdentity(scope);
+    scope.evidence!.references[0]!.target_sha256 = 'a'.repeat(64); expect(materialIdentity(scope)).not.toBe(identity);
+  });
+  it('rejects forged primary target identities despite unchanged live originals', () => {
+    write('research_notebook.md', '# Notebook\n[original](original.md)\n'); const scope = freeze(); scope.evidence!.references[0]!.target_sha256 = 'a'.repeat(64);
+    expect(declaredEvidenceIsCurrent(root, scope)).toBe(false);
   });
   it('cannot use the ordinary report path to claim declared evidence acceptance', () => { const scope = freeze(); expect(() => assessNotebookReviewReport({ verdict: 'PASS' }, scope, new Map(), 'unused')).toThrow(/hierarchical/); });
   it('records opaque primary originals without claiming text coverage', () => { write('original.md', Buffer.from([0, 1, 255])); const scope = freeze(); expect(scope.dependencies).toEqual([]); expect(scope.opaque_links![0]!.path).toBe('original.md'); expect(declaredEvidenceIsCurrent(root, scope)).toBe(true); });

@@ -143,7 +143,7 @@ describe('declared evidence hierarchy transport (no semantic model judgment)', (
     expect(final).toContain('receipt_ref'); expect(final).toContain('ORIGINAL CROSS CONTEXT one.md');
     expect(final).not.toContain('Untransmitted original body.');
     expect(checkNotebookContentReview(root).status).toBe('accepted');
-    write('locator.md', '# Changed locator\n'); expect(checkNotebookContentReview(root).status).not.toBe('accepted');
+    write('locator.md', '# Changed locator\n'); expect(checkNotebookContentReview(root).status).toBe('accepted');
   }, 30000);
   it('keeps many small files in bounded multi-file packs', async () => {
     material(); const paths = Array.from({ length: 20 }, (_, i) => `small-${i}.md`);
@@ -181,15 +181,34 @@ describe('declared evidence hierarchy transport (no semantic model judgment)', (
     const result = await declared(); expect(result.code, result.stdout + result.stderr).not.toBe(0);
     expect(checkNotebookContentReview(root).status).not.toBe('accepted'); expect(notebookCloseoutGate(root).decision).not.toBe('pass');
   }, 30000);
-  it('resumes only complete packed source receipts and always repeats integration', async () => {
+  it('reuses complete source receipts across unread navigation updates while keeping primary identity mandatory', async () => {
     material(); const first = await declared(['--max-batches', '1']);
     expect(first.value.status).toBe('incomplete'); expect(first.value.progress.pending_units).toEqual([]);
     const dir = path.join(root, 'artifacts/runs', first.value.run_id); const bytes = fs.readFileSync(path.join(dir, 'batch_execution.json'));
+    const frozenScopeBytes = fs.readFileSync(path.join(dir, 'inputs/notebook-scope.json'));
+    const frozenScope = JSON.parse(frozenScopeBytes.toString('utf8'));
+    const unreadUpdate = '# Updated unread navigation index\n\n[Fresh navigation](not-provided.md)\n';
+    write('locator.md', unreadUpdate);
     const second = await declared(['--resume', first.value.run_id, '--max-batches', '64']);
     expect(second.code, second.stdout + second.stderr).toBe(0);
     const state = JSON.parse(fs.readFileSync(path.join(root, 'artifacts/runs', second.value.run_id, 'batch_execution.json'), 'utf8'));
     expect(state.entries[0].origin_run_id).toBe(first.value.run_id); expect(state.entries[1].origin_run_id).toBe(second.value.run_id);
     expect(fs.readFileSync(path.join(dir, 'batch_execution.json'))).toEqual(bytes);
+    expect(fs.readFileSync(path.join(dir, 'inputs/notebook-scope.json'))).toEqual(frozenScopeBytes);
+    const resumedDir = path.join(root, 'artifacts/runs', second.value.run_id);
+    const resumedScope = JSON.parse(fs.readFileSync(path.join(resumedDir, 'inputs/notebook-scope.json'), 'utf8'));
+    expect(resumedScope.evidence.references).toEqual(frozenScope.evidence.references);
+    const finalInventory = JSON.parse(fs.readFileSync(path.join(resumedDir, 'batches/cross-section/inventory.json'), 'utf8'));
+    expect(finalInventory.references).toEqual(frozenScope.evidence.references);
+    expect(fs.readFileSync(path.join(resumedDir, 'batches/cross-section/original-text.txt'), 'utf8')).not.toContain(unreadUpdate);
+    expect(checkNotebookContentReview(root).status).toBe('accepted');
+    const originalPrimary = fs.readFileSync(path.join(root, 'one.md'));
+    write('one.md', '# Changed primary original\n'); expect(checkNotebookContentReview(root).status).not.toBe('accepted');
+    expect(notebookCloseoutGate(root).decision).not.toBe('pass');
+    write('one.md', originalPrimary); expect(checkNotebookContentReview(root).status).toBe('accepted');
+    write('evidence.json', fs.readFileSync(path.join(root, 'evidence.json'), 'utf8') + '\n');
+    expect(checkNotebookContentReview(root).status).not.toBe('accepted');
+    expect(notebookCloseoutGate(root).decision).not.toBe('pass');
   }, 30000);
   it('does not reuse a partial packed report', async () => {
     material(); vi.stubEnv('BATCH_TEST_CASE', 'omit-unit'); const first = await declared();

@@ -8,7 +8,7 @@ import { math } from 'micromark-extension-math';
 import type { Nodes } from 'mdast';
 import { writeBytesAtomicDurable } from '@nullius/shared';
 import { createRunArtifactRef } from './computation/artifact-refs.js';
-import { assertNoSymlinkComponents, resolveWithinRoot } from './computation/path-safety.js';
+import { assertNoSymlinkComponents, resolveWithinRoot, escapesBase } from './computation/path-safety.js';
 import { resolveVerifiedRunArtifact } from './orch-tools/validation-chain-binding.js';
 import type { Input, NotebookReviewScope, NotebookReviewSection } from './notebook-content-review.js';
 import type { NotebookBudgets } from './notebook-review-batches.js';
@@ -44,8 +44,25 @@ function sources(bytes: Buffer, root: string): string[] {
   return result;
 }
 function visit(node: Nodes, fn: (node: Nodes) => void): void { fn(node); if ('children' in node) node.children.forEach(child => visit(child, fn)); }
-/** Nonrecursive provenance inventory. Locator bytes are identities, never read-coverage evidence. */
-export function declaredEvidenceReferences(root: string, texts: Map<string, string>, inputs: Input[]): EvidenceReference[] {
+/** Check source-derived identity without treating historical unread observations as current bytes. */
+function assertReferenceObservation(ref: EvidenceReference, observed: EvidenceReference, declared: Map<string, Input>): void {
+  const lexical = ['id', 'source_path', 'source_sha256', 'start_byte', 'end_byte', 'quote', 'destination', 'target_path'] as const;
+  const allowed = new Set([...lexical, 'target_kind', 'target_sha256', 'target_bytes']);
+  if (!observed || Object.keys(observed).some(key => !allowed.has(key as any))
+    || lexical.some(key => observed[key] !== ref[key])) throw new Error('reference lexical identity does not match original source');
+  const input = ref.target_path === undefined ? undefined : declared.get(ref.target_path);
+  if (input) {
+    if (observed.target_kind !== 'declared' || observed.target_sha256 !== input.sha256 || observed.target_bytes !== input.bytes) throw new Error('reference primary target identity mismatch');
+  } else if (ref.target_path === undefined) {
+    if (observed.target_kind !== ref.target_kind || observed.target_sha256 !== undefined || observed.target_bytes !== undefined) throw new Error('invalid external reference observation');
+  } else if (observed.target_kind === 'locator') {
+    if (typeof observed.target_sha256 !== 'string' || !/^[a-f\d]{64}$/.test(observed.target_sha256)
+      || !Number.isSafeInteger(observed.target_bytes) || observed.target_bytes! < 0) throw new Error('invalid unread locator observation');
+  } else if (!['directory', 'missing', 'outside'].includes(observed.target_kind)
+    || observed.target_sha256 !== undefined || observed.target_bytes !== undefined) throw new Error('invalid local reference observation');
+}
+/** Nonrecursive as-of provenance inventory. Unread locator observations never establish read coverage or current contents. */
+export function declaredEvidenceReferences(root: string, texts: Map<string, string>, inputs: Input[], observations?: EvidenceReference[]): EvidenceReference[] {
   const declared = new Map(inputs.map(i => [i.path, i])); const result: EvidenceReference[] = [];
   for (const [source, text] of texts) {
     const tree = fromMarkdown(text, { extensions: [math()], mdastExtensions: [mathFromMarkdown()] });
@@ -66,24 +83,34 @@ export function declaredEvidenceReferences(root: string, texts: Map<string, stri
       else {
         try {
           const target = decodeURIComponent(destination.split(/[?#]/, 1)[0]!);
-          const filename = target ? resolveWithinRoot(root, path.resolve(root, path.dirname(source), target), 'evidence reference') : path.join(root, source);
+          const filename = target ? path.resolve(root, path.dirname(source), target) : path.join(root, source);
+          if (escapesBase(path.relative(root, filename))) throw new Error('reference target is outside the project root');
           ref.target_path = path.relative(root, filename).split(path.sep).join('/');
-          assertNoSymlinkComponents(root, filename, 'evidence reference');
-          if (!fs.existsSync(filename)) ref.target_kind = 'missing';
-          else if (fs.statSync(filename).isDirectory()) ref.target_kind = 'directory';
-          else if (fs.statSync(filename).isFile()) {
-            const bytes = bytesAt(root, ref.target_path); ref.target_sha256 = hash(bytes); ref.target_bytes = bytes.length;
-            ref.target_kind = declared.has(ref.target_path) ? 'declared' : 'locator';
+          if (!observations) {
+            assertNoSymlinkComponents(root, filename, 'evidence reference');
+            if (!fs.existsSync(filename)) ref.target_kind = 'missing';
+            else if (fs.statSync(filename).isDirectory()) ref.target_kind = 'directory';
+            else if (fs.statSync(filename).isFile()) {
+              const bytes = bytesAt(root, ref.target_path); ref.target_sha256 = hash(bytes); ref.target_bytes = bytes.length;
+              ref.target_kind = declared.has(ref.target_path) ? 'declared' : 'locator';
+            }
           }
         } catch { ref.target_kind = 'outside'; delete ref.target_sha256; delete ref.target_bytes; }
+      }
+      if (observations) {
+        const observed = observations[result.length]!;
+        assertReferenceObservation(ref, observed, declared);
+        result.push({ ...observed });
+        return;
       }
       result.push(ref);
     });
   }
+  if (observations && observations.length !== result.length) throw new Error('reference inventory omits or adds occurrences');
   return result;
 }
 export function freezeDeclaredEvidenceScope(root: string, runId: string, runDir: string, dependencies: string[], budgets: NotebookBudgets,
-  manifestPath: string, sections: (text: string) => NotebookReviewSection[]): NotebookReviewScope {
+  manifestPath: string, sections: (text: string) => NotebookReviewSection[], observations?: EvidenceReference[]): NotebookReviewScope {
   const manifestName = relative(root, manifestPath); const manifestBytes = bytesAt(root, manifestName);
   const explicit = [...new Set(dependencies.map(d => relative(root, d)))];
   const names = [...new Set(['research_notebook.md', ...sources(manifestBytes, root), ...explicit])];
@@ -105,7 +132,7 @@ export function freezeDeclaredEvidenceScope(root: string, runId: string, runDir:
   }
   return { schema_version: 1, review_kind: 'notebook', extraction_policy: 'full_utf8_bytes_including_managed_blocks', notebook: inputs[0]!,
     dependencies: inputs.slice(1), opaque_links: opaque, sections: sections(texts.get('research_notebook.md')!), explicit_dependencies: explicit,
-    directory_links: [], remote_links: [], evidence: { policy: 'declared-evidence', manifest, references: declaredEvidenceReferences(root, texts, [...inputs, ...opaque]) } };
+    directory_links: [], remote_links: [], evidence: { policy: 'declared-evidence', manifest, references: declaredEvidenceReferences(root, texts, [...inputs, ...opaque], observations) } };
 }
 export function declaredEvidenceIdentity(scope: NotebookReviewScope): unknown {
   return scope.evidence ? { policy: scope.evidence.policy, manifest: { path: scope.evidence.manifest.path, sha256: scope.evidence.manifest.sha256, bytes: scope.evidence.manifest.bytes }, references: scope.evidence.references } : null;
@@ -125,10 +152,14 @@ export function declaredEvidenceIsCurrent(root: string, scope: NotebookReviewSco
   if (!scope.evidence) return true;
   try {
     const evidence = scope.evidence;
-    if (evidence.policy !== 'declared-evidence' || hash(bytesAt(root, evidence.manifest.path)) !== evidence.manifest.sha256) return false;
-    const texts = frozenTexts ?? new Map<string, string>(); const inputs = [scope.notebook, ...scope.dependencies, ...(scope.opaque_links ?? [])];
+    if (evidence.policy !== 'declared-evidence' || !Array.isArray(evidence.references) || hash(bytesAt(root, evidence.manifest.path)) !== evidence.manifest.sha256) return false;
+    const texts = new Map<string, string>(); const inputs = [scope.notebook, ...scope.dependencies, ...(scope.opaque_links ?? [])];
     for (const input of inputs) { const bytes = bytesAt(root, input.path); if (hash(bytes) !== input.sha256 || bytes.length !== input.bytes) return false;
-      if (!frozenTexts) { const text = textAt(bytes); if (text !== null) texts.set(input.path, text); } }
-    return JSON.stringify(declaredEvidenceReferences(root, texts, inputs)) === JSON.stringify(evidence.references);
+      const text = textAt(bytes); if (text !== null) texts.set(input.path, text); }
+    if (frozenTexts && (frozenTexts.size !== texts.size || [...texts].some(([name, text]) => frozenTexts.get(name) !== text))) return false;
+    // Validate immutable observation descriptors against exact read-source syntax.
+    // Unread targets may have changed since observation; they supply no current-content evidence.
+    declaredEvidenceReferences(root, texts, inputs, evidence.references);
+    return true;
   } catch { return false; }
 }

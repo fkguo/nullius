@@ -1243,7 +1243,7 @@ class ReviewOneTests(unittest.TestCase):
         for role in ("notebook-batch", "notebook-crosscheck"):
             self.assertEqual(self.mod._notebook_evidence_prompt(role, "unchanged-template-sentinel", []), "unchanged-template-sentinel")
             prompt = self.mod._notebook_evidence_prompt(role, "unchanged-template-sentinel", context)
-            for key in ("reference_assessments", "reference_ids", "Empty groups", "independently re-adjudicate", "additional_context_requests", "required_for_reasoning", "EVERY"):
+            for key in ("reference_assessments", "reference_ids", "as-of frozen observations", "current target status or body", "Empty groups", "independently re-adjudicate", "additional_context_requests", "required_for_reasoning", "EVERY"):
                 self.assertIn(key, prompt)
             self.assertNotIn("unchanged-template-sentinel", prompt)
         final = self.mod._notebook_evidence_prompt("notebook-crosscheck", "unchanged-template-sentinel", context)
