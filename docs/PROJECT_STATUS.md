@@ -42,15 +42,33 @@ reliability, quality and efficiency without replacing scientific verification.
 
 The [`project-mcp`](../packages/project-mcp/README.md) leaf adapter binds one
 external project through `NULLIUS_PROJECT_ROOT` and reuses canonical
-`handleToolCall` / `runCli`. Its 16 selected `orch_*` operations plus five transport
-tools expose 21 tools. The [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md)
-combines project 21, default HEP 52, and idea 6: 79 unique tool names; the live
+`handleToolCall` / `runCli`. Its 16 selected `orch_*` operations plus eight project
+tools expose 24 tools. The [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md)
+combines project 24, default HEP 52, and idea 6: 82 unique tool names; the live
 plugin check compares them against the real local stdio servers. Runtime configuration is host-private; generated
 plugin manifests and ordinary copy-install metadata do not record source-machine
 paths. Copied skill helpers discover the current runtime through an explicit
 workspace, a source ancestor, or `nullius runtime path`. Project and idea require
 an external project; HEP also supports standalone use. Real computation checks cover both checked-result
 registration and rejection after production-output corruption.
+
+The callable [research tools](RESEARCH_TOOLS.md) add bounded literal UTF-8 search
+with source hashes, line locations and scan coverage; source-line reading with
+hash-bound continuation; and PDF page text plus optional real MCP PNG image
+content through installed Poppler. PDF continuation uses page and Unicode
+character positions tied to the source hash. There is no OCR, and incomplete
+search or extraction does not establish complete reading. Delegates can call
+the read-only tools when the client supplies `sampling.tools`; basic sampling
+alone does not supply a tool loop. Images remain direct-host requests because
+the portable sampling bridge carries text. Structured task payloads are retained
+in existing team state. Parallel and stage-gated work defaults to four active
+assignments, configurable from one to sixteen; queued work remains pending and
+its deadline is checked before launch. This does not kill active external jobs.
+
+Focused local tests exercise source identity, coverage, real Poppler output when
+installed, SDK transport and bounded team execution. Model responses are
+deterministic fixtures; these checks do not establish model-quality parity or
+prove that a particular external host has been connected.
 
 Delivery uses `RunManifestManager`, not another queue or research-state authority.
 Background mutations require a stable `delivery_id`; unknown outcomes need local

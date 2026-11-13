@@ -29,6 +29,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Install PDF tools for project MCP integration tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+
       - name: Check instruction context anti-drift
         if: ${{ matrix.node-version == 22 }}
         run: |

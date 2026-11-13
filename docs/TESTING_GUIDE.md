@@ -109,7 +109,7 @@ Kimi/OpenCode 需要 Python 3.10 或更新版本；不满足时在调用模型�
 
 #### 本地个人插件与项目 MCP
 
-[`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 5 个 transport 工具，共 21 个。默认个人插件组合 project 21、HEP standard 52、idea 6，共 79 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。
+[`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。默认个人插件组合 project 24、HEP standard 52、idea 6，共 82 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。
 
 构建完成后运行以下针对性检查：
 
@@ -122,11 +122,17 @@ python3 -m pytest -q packages/skills-market/tests/test_personal_plugin.py packag
 NULLIUS_REAL_PLUGIN_SMOKE=1 python3 -m pytest -q -s packages/skills-market/tests/test_personal_plugin_live.py
 pnpm --filter @nullius/project-mcp exec vitest run tests/research-loop.test.ts
 pnpm --filter @nullius/project-mcp exec vitest run tests/harness-invocation.test.ts
+pnpm --filter @nullius/project-mcp exec vitest run tests/search.test.ts tests/text.test.ts tests/documents.test.ts tests/source-tools.test.ts tests/source-tools-stdio.test.ts
+pnpm --filter @nullius/orchestrator exec vitest run tests/team-delegation-context.test.ts tests/team-unified-runtime-concurrency.test.ts tests/agent-runner-stop-reasons.test.ts
 ```
 
 真实迁移检查先构建一次插件与普通 skills copy 安装，再搬迁这两个既有产物及运行 checkout，删除原输出，配置新 CLI 和包外私有配置后运行。在临时外部项目初始化 `.nullius/HARNESS`、state 和项目 launcher，启动真实三个 server，仅发送 `initialize` / `tools/list`，检查工具无重名及进程 cwd；还执行复制后的 harness 帮助与 team scaffold。provider 数据目录也限于临时 fixture，不调用 provider 工具。研究闭环测试分别执行正常计算并登记已核验结果，以及篡改生产输出后拒绝错误的 operator pass。
 
 项目入口核验测试显式设置 `NULLIUS_HARNESS_VERIFY=on`，覆盖首次初始化、过期记录拒绝且无副作用、status 恢复、后台执行再次核验、精确重放、符号链接边界和 sampling 内部调用；不能依赖默认测试环境跳过核验后的结果。
+
+[原文工具验收](RESEARCH_TOOLS.md)应覆盖：字面 UTF-8 搜索的哈希/行列位置、预算与不完整扫描，文本行内及 PDF 页内 Unicode 字符窗口的哈希绑定接续，源文件变化后的拒绝，路径/特殊文件边界，以及扫描 PDF 无可提取文本时不宣称已读全文。真实 PDF 验收须安装并确认 `pdfinfo`、`pdftotext`、`pdftoppm`，检查按页原文和实际 PNG image blocks、尺寸、字节数与 SHA-256；只跑缺依赖负例或跳过真实 Poppler 用例，不构成 PDF 能力验收。
+
+真实 stdio SDK 测试还检查原文工具经 sampling loopback 返回可用文本、官方 `toolUse`/`endTurn` 结束原因、只声明 basic sampling 时拒绝需要 `sampling.tools` 的委托，以及图像委托明确 `unavailable`。团队用例验证结构化 `handoff_payload` 的继承/覆盖/清空、`max_parallel` 默认 4 且范围 1–16、排队仍为 pending、启动前 deadline、部分失败保留与 stage 阻断。这些测试中的模型响应为确定性 fixture；通过不证明真实宿主连接、模型研究质量或正在运行的外部进程会被队列 deadline 杀死。
 
 交付验收必须区分传输和研究：后台变更使用稳定 `delivery_id`，`outcome_unknown` 不得自动重试，`finalizing` 等待项目锁释放，`committed` 只代表原响应已持久化。还须保留项目文件越界拒绝、本地主机审批、缺少 sampling 时 `unavailable` 等边界；本机脚本不是 OS sandbox 中的代码。上述本地验收不证明 ChatGPT Chat/Work 或 Claude 宿主已接通，tunnel/app ID 和对应宿主验收仍待用户配置。
 
@@ -154,7 +160,7 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 
 ### 0.3 在 MCP 客户端里接入当前 domain MCP front door
 
-当前公开 MCP contract 是本地 stdio 进程启动、tool `inputSchema`、紧凑 JSON/text tool result、没有 prompts。MCP env 里的路径是本地文件 / artifact / cache root，不是 URI/protocol 设置。Remote HTTP/OAuth、registry publishing 与独立 root MCP server 不属于当前验收面。
+当前公开 MCP contract 是本地 stdio 进程启动、tool `inputSchema`、有界 JSON/text 结果及显式请求的项目 PDF image content、没有 prompts。MCP env 里的路径是本地文件 / artifact / cache root，不是 URI/protocol 设置。Remote HTTP/OAuth、registry publishing 与独立 root MCP server 不属于当前验收面。
 
 最小配置示例：
 

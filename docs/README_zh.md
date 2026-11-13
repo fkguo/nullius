@@ -131,7 +131,9 @@ Approval packet 会落在该 run 的 `artifacts/runs/<run_id>/approvals/<approva
 
 当前的 MCP 接入模型是本地 stdio。[`project-mcp`](../packages/project-mcp/README.md) 是绑定单个外部项目的叶层 adapter，通过 `NULLIUS_PROJECT_ROOT` 指定项目，并复用 orchestrator 的 canonical tool dispatcher 与 CLI。仓库仍没有“单体的” generic root MCP server；`nullius` 保持 stateful front door，HEP 与 idea server 保持各自职责。
 
-当前公开 MCP contract 是：本地 stdio 进程启动、tool `inputSchema`、紧凑 JSON/text tool result、没有 prompts。研究材料放置遵循 filesystem-first：临时抓取放本机临时目录，需要后续验证或接续的材料写成 project/run artifact。`orch_*` 是 orchestrator package 暴露的 operator/tool inventory，不是单独打包的 root MCP server。Remote MCP transports、OAuth 与 registry publishing 都仍是未来部署面，不属于当前 local-stdio contract。
+[跨宿主研究工具指南](RESEARCH_TOOLS.md)介绍可直接调用的原文读取能力：`project_file_search` 对 UTF-8 文件做有界字面搜索，返回来源哈希、行位置和扫描覆盖；`project_text_read` 按行读取原文并用哈希绑定后续窗口；`project_document_read` 通过本机 Poppler 按页提取 PDF 文本，并可返回真正的 PNG image content，按页码与页内 Unicode 字符位置接续同一来源。这些读取不依赖模型 sampling。声明 `sampling.tools` 的客户端可用结构化 `handoff_payload` 委托只读工具；仅支持 basic sampling 不足以运行工具循环。当前 sampling bridge 只传文本，页图像须由支持视觉输入的宿主直接请求。PDF 提取不执行 OCR，也不构成科学结论的验证。
+
+当前公开 MCP contract 是：本地 stdio 进程启动、tool `inputSchema`、有界 JSON/text 结果及显式请求的 PDF image content、没有 prompts。研究材料放置遵循 filesystem-first：临时抓取放本机临时目录，需要后续验证或接续的材料写成 project/run artifact。`orch_*` 是 orchestrator package 暴露的 operator/tool inventory，不是单独打包的 root MCP server。Remote MCP transports、OAuth 与 registry publishing 都仍是未来部署面，不属于当前 local-stdio contract。
 
 [本地个人插件构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 同源复制现有技能，生成 Codex 与 Claude Code 清单，默认组合 `project-mcp`、`hep-mcp`、`idea-mcp`，不重复注册原子 provider。普通安装和插件均通过本机已安装的 `nullius` CLI 定位运行包，生成的清单与技能元数据不记录构建者路径。项目、provider 和数据路径由宿主环境或私有 `${XDG_CONFIG_HOME:-$HOME/.config}/nullius/runtime.json` 配置；也可用 `NULLIUS_RUNTIME_CONFIG` 指向分发目录外的绝对文件。project 和 idea 服务要求外部项目，idea 还需 `IDEA_MCP_DATA_DIR`；HEP 可独立运行，配置项目时以该项目为 cwd。外部工具仍需本机安装。文件 API 限定项目路径，但本机脚本执行没有 OS sandbox；审批留在本地主机，sampling 需要客户端支持并保持前台连接，缺少时返回 `unavailable`。本地执行与组合已验收；ChatGPT Chat/Work 与 Claude 宿主连接尚未验收，需要的 tunnel/app ID 留待用户配置，构建器不会创建应用连接或上架插件。
 

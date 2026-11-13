@@ -214,7 +214,8 @@ def test_real_plugin_composition_and_copied_skill_execution(tmp_path):
         result = run([sys.executable, "-B", str(script), "--help"], cwd=project, env=environment)
         assert "usage:" in result.stdout.lower()
         helped.append(script.name)
-    assert len(helped) == 3
+    expected_helpers = {script.name for script in (ROOT / "skills/research-harness/scripts").glob("*.py")}
+    assert set(helped) == expected_helpers, "Every current harness helper must survive plugin copying and expose its help"
     report["copied_harness_help"] = helped
     for label, tree in (("plugin", plugin / "skills"), ("ordinary", skills)):
         scaffold = tmp_path / (label + "-skill-project")

@@ -6,6 +6,15 @@ It also does not elevate optional project-root support files into URI authority.
 
 [`project-mcp`](../packages/project-mcp/README.md) and the [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md) add no URI scheme or MCP resource surface. `nullius runtime path` and host-private runtime configuration resolve local installation paths only; they add no URI authority. `project_file_read` reads permitted real files under `NULLIUS_PROJECT_ROOT` in bounded chunks; it is not a resolver for the schemes below. Provider caches outside the bound project are not exposed through that file API. A delivery ID identifies a transport response in the existing run-manifest machinery, not a new research artifact namespace.
 
+The [source-reading tools](RESEARCH_TOOLS.md) use the same project boundary.
+`project_file_search` returns project-relative paths, source hashes and line/column
+locations with explicit scan coverage. `project_text_read` and
+`project_document_read` continue using source hashes and line or page/Unicode
+character positions. These are tool-result locators, not new URI schemes or
+resolver grants. PDF PNGs are bounded MCP image content associated with page
+numbers and image hashes; they do not advertise an MCP resource. A matching
+hash establishes byte identity, not full reading, OCR or scientific acceptance.
+
 Notebook content-review evidence uses existing `ArtifactRef` references for its
 verification subject, check-run, verdict and coverage records; it introduces no
 URI scheme. The reviewed complete UTF-8 notebook (automatic block included) and

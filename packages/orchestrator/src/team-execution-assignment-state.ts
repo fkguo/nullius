@@ -190,10 +190,12 @@ export function recordHeartbeat(
 export function markTimedOutAssignments(
   state: TeamExecutionState,
   now: string = utcNowIso(),
+  assignmentIds?: ReadonlySet<string>,
 ): TeamDelegateAssignment[] {
   const nowMs = new Date(now).getTime();
   const timedOut: TeamDelegateAssignment[] = [];
   for (const assignment of state.delegate_assignments) {
+    if (assignmentIds && !assignmentIds.has(assignment.assignment_id)) continue;
     if (!assignment.timeout_at || !isActiveAssignmentStatus(assignment.status)) continue;
     const timeoutMs = new Date(assignment.timeout_at).getTime();
     if (Number.isNaN(timeoutMs) || timeoutMs > nowMs) continue;

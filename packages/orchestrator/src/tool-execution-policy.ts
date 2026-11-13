@@ -129,6 +129,19 @@ export const ORCHESTRATOR_TOOL_EXECUTION_POLICIES: ToolExecutionPolicyTable = {
   [ORCH_RUN_EXPORT]: READ_ONLY_SERIAL_POLICY,
 };
 
+// Project transport content tools are source reads. Keep their policy in the
+// authoritative runtime table so delegates can batch them without trusting
+// caller-supplied annotations or tool descriptions.
+export const PROJECT_CONTENT_TOOL_EXECUTION_POLICIES: ToolExecutionPolicyTable = {
+  project_text_read: READ_ONLY_BATCH_SAFE_POLICY,
+  project_file_search: READ_ONLY_BATCH_SAFE_POLICY,
+  project_document_read: READ_ONLY_BATCH_SAFE_POLICY,
+};
+const RUNTIME_TOOL_EXECUTION_POLICIES: ToolExecutionPolicyTable = {
+  ...ORCHESTRATOR_TOOL_EXECUTION_POLICIES,
+  ...PROJECT_CONTENT_TOOL_EXECUTION_POLICIES,
+};
+
 export function safeFallbackToolExecutionPolicy(toolName: string): ToolExecutionPolicy {
   return {
     tool_name: toolName,
@@ -141,7 +154,7 @@ export function safeFallbackToolExecutionPolicy(toolName: string): ToolExecution
 
 export function resolveToolExecutionPolicy(
   toolName: string,
-  table: ToolExecutionPolicyTable = ORCHESTRATOR_TOOL_EXECUTION_POLICIES,
+  table: ToolExecutionPolicyTable = RUNTIME_TOOL_EXECUTION_POLICIES,
 ): ToolExecutionPolicy {
   const definition = table[toolName];
   if (definition) {

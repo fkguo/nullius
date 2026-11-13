@@ -45,6 +45,7 @@ import type {
   TeamRuntimeAssignmentInput,
 } from './team-unified-runtime-types.js';
 import { utcNowIso } from './util.js';
+import { DEFAULT_TEAM_MAX_PARALLEL } from './team-unified-runtime-types.js';
 
 export function hasPendingAssistantToolUse(messages: MessageParam[]): boolean {
   const last = messages.at(-1);
@@ -625,22 +626,34 @@ export async function executeRuntimeBucket(
   normalizeTeamScopingState(state, input.runId);
   const timedOutBeforeLaunch = markTimedOutAssignments(state);
   timedOutBeforeLaunch.forEach(assignment => finalizeAssignmentSession(state, assignment));
-  const prepared = bucket.assignments.map(assignment =>
-    prepareAssignmentOutcome(input, state, manager, assignment, resumeRequested),
-  );
   manager.save(state);
-  const pendingLaunches = prepared.filter((item): item is PendingLaunch => item.kind === 'launch');
-  const outcomes = bucket.concurrent
-    ? await Promise.all(pendingLaunches.map(item => executeLaunch(input, state, item)))
-    : await pendingLaunches.reduce<Promise<LaunchOutcome[]>>(async (promise, item) => {
-      const collected = await promise;
-      collected.push(await executeLaunch(input, state, item));
-      return collected;
-    }, Promise.resolve([]));
-  const outcomeByAssignmentId = new Map(outcomes.map(outcome => [outcome.assignmentId, outcome]));
-  const results = prepared.map(item => item.kind === 'snapshot'
-    ? item.result
-    : mergeLaunchOutcome(input, state, manager, outcomeByAssignmentId.get(item.assignmentId)!));
+  const results = new Array<TeamAssignmentExecutionResult>(bucket.assignments.length);
+  let nextIndex = 0;
+  let stopScheduling = false;
+  const worker = async (): Promise<void> => {
+    try {
+      while (!stopScheduling && nextIndex < bucket.assignments.length) {
+        const index = nextIndex++;
+        const assignment = bucket.assignments[index]!;
+        // An assignment can expire while waiting for a slot. Do not mark or open
+        // a session for queued work before an execution slot is available.
+        const timedOut = markTimedOutAssignments(state, utcNowIso(), new Set([assignment.assignment_id]));
+        timedOut.forEach(item => finalizeAssignmentSession(state, item));
+        const prepared = prepareAssignmentOutcome(input, state, manager, assignment, resumeRequested);
+        manager.save(state);
+        results[index] = prepared.kind === 'snapshot'
+          ? prepared.result
+          : mergeLaunchOutcome(input, state, manager, await executeLaunch(input, state, prepared));
+      }
+    } catch (error) {
+      stopScheduling = true;
+      throw error;
+    }
+  };
+  const concurrency = bucket.concurrent ? input.maxParallel ?? DEFAULT_TEAM_MAX_PARALLEL : 1;
+  const workers = await Promise.allSettled(Array.from({ length: Math.min(concurrency, bucket.assignments.length) }, () => worker()));
+  const failedWorker = workers.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
+  if (failedWorker) throw failedWorker.reason;
   const timedOutAfterMerge = markTimedOutAssignments(state);
   timedOutAfterMerge.forEach(assignment => finalizeAssignmentSession(state, assignment));
   manager.save(state);

@@ -137,6 +137,10 @@ python3 packages/skills-market/scripts/build_personal_plugin.py \
 
 [`project-mcp`](../packages/project-mcp/README.md) 初始化项目后，先调用 `project_cli` 的 `status` 或 `orch_run_status` 获取当前项目状态；state 或 ledger 变化后再次调用，再继续项目读写。缺失、过期或属于其他项目的核验记录会阻止新操作。status、能力查询、交付查询和已有请求的精确重放仍可用于恢复。
 
+读取材料前调用 `project_capabilities` 查看实际依赖与宿主能力。用 `project_file_search` 在项目内做有界字面搜索，核对 `coverage` 后，将命中的路径、行号与来源哈希交给 `project_text_read`。PDF 用 `project_document_read` 选择页码；本机须有 Poppler，`include_images: true` 可向视觉宿主返回页图像，缺程序时明确返回 `unavailable`，不执行 OCR。把返回的 `next` 参数用于接续：文本可在行内继续，PDF 可用 `start_character` 在页内继续，Unicode 字符位置与原始来源 SHA-256 一起绑定，不能跳过被截断的内容。搜索无命中且覆盖不完整，不能证明内容不存在。下载材料须位于绑定项目内，外部 provider cache 路径不会自动获得读取权限。
+
+需要委托时，先核对 `project_capabilities.sampling_tool_calls`；带工具的委托需要宿主声明 `sampling.tools`，仅支持 basic sampling 不够。`orch_run_execute_agent` 可通过 `handoff_payload` 传任务问题、来源和约束，`team.max_parallel` 默认 4、范围 1–16。排队任务直到取得执行位置才成为 running；启动前重查 `timeout_at`，并不因此终止已经运行的外部进程。当前 sampling bridge 只传文本，PDF 图像读取由宿主直接完成。参数示例和完整能力边界见[研究工具指南](RESEARCH_TOOLS.md)；实际宿主连接及模型研究质量仍需单独验收。
+
 后台变更请求需稳定的 `delivery_id`；断线后用该 ID 查询 `project_delivery_read`，不要换 ID 重试未知副作用。`outcome_unknown` 需要本地核对，`finalizing` 要等项目锁释放，`committed` 仅表示原始响应已保存，仍须读取响应和 canonical 研究状态来判断成败。审批在本地主机完成；sampling 仅在客户端支持且前台连接持续时可用。项目文件边界不等于本机脚本的 OS sandbox。
 
 在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.nullius/HARNESS`、`.nullius/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `nullius`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。

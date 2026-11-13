@@ -162,9 +162,11 @@ function compactText(text: string, label: string, limit: number): string {
 }
 
 function summarizeRemovedMessages(messages: MessageParam[]): string {
+  const removedErrors = messages.reduce((count, message) => count + (typeof message.content === 'string' ? 0
+    : message.content.filter(block => block.type === 'tool_result' && block.is_error === true).length), 0);
   const preview = messages.slice(0, MAX_REMOVED_MESSAGE_PREVIEW).map((message, index) => `${index + 1}. ${summarizeMessage(message)}`).join('\n');
   const extra = messages.length > MAX_REMOVED_MESSAGE_PREVIEW ? `\n+ ${messages.length - MAX_REMOVED_MESSAGE_PREVIEW} more removed message(s).` : '';
-  return `removed_messages=${messages.length}\n${preview}${extra}`;
+  return `removed_messages=${messages.length}; removed_tool_result_errors=${removedErrors} (this compaction pass only)\n${preview}${extra}`;
 }
 
 function summarizeMessage(message: MessageParam): string {
@@ -173,7 +175,7 @@ function summarizeMessage(message: MessageParam): string {
   }
   const parts = message.content.map(block => {
     if (block.type === 'tool_use') return `tool_use:${block.id}:${block.name}`;
-    if (block.type === 'tool_result') return `tool_result:${block.tool_use_id} content removed`;
+    if (block.type === 'tool_result') return `tool_result:${block.tool_use_id}${block.is_error === true ? ' status=error' : ''} content removed`;
     return 'text removed';
   });
   return `${message.role} ${parts.join(' | ')}`;

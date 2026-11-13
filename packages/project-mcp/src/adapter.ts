@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { invalidParams, verifyHarnessInvocationMarker } from '@nullius/shared';
 import { readFile, writeFile } from './files.js';
 import { projectRoot, guardRuntimePaths, guardHarnessPaths, projectIdentity, assertProjectIdentity, type ProjectIdentity } from './paths.js';
-import { coreArguments, coreSpecs, isBackground, samplingTools, type Context } from './policy.js';
+import { coreArguments, isBackground, samplingTools, type Context } from './policy.js';
 import { extraSchemas, toolsList } from './registry.js';
 import { cliArguments, cliWrites, cliSchema } from './cli.js';
 import { readDelivery, submitDelivery } from './delivery.js';
@@ -11,14 +11,18 @@ import { acquireExecution, releaseExecution } from './execution-lock.js';
 import { execute } from './execute.js';
 import { errorResult, jsonResult, withStructuredContent, type Result } from './result.js';
 import { isStateTouchingProjectMcp } from './state-touch-classification.js';
+import { callResearchTool, isResearchTool, researchToolSchemas } from './research-tools.js';
+import { documentCapabilities } from './documents.js';
+import { TEXT_SOURCE_MAX_BYTES } from './text.js';
 
 const deliverySchema = z.object({ delivery_id: z.string(), timeout_seconds: z.number().int().min(1).max(3600).default(300) });
+export type ProjectHostContext = Pick<Context, 'createMessage'> & { samplingTools?: boolean };
 export class ProjectAdapter {
   readonly root: string;
   private readonly identity: ProjectIdentity;
   constructor(root: string) { this.root = projectRoot(root); this.identity = projectIdentity(this.root); }
   listTools() { return toolsList(); }
-  async call(name: string, args: Record<string, unknown>, host: Pick<Context, 'createMessage'> = {}): Promise<Result> {
+  async call(name: string, args: Record<string, unknown>, host: ProjectHostContext = {}): Promise<Result> {
     try {
       // Detect a root replaced with a symlink since server startup.
       assertProjectIdentity(this.root, this.identity);
@@ -40,12 +44,26 @@ export class ProjectAdapter {
           files: { read_max_bytes: 65536, upload_max_bytes: 1048576 },
           background: { journal: 'RunManifestManager', replay: 'committed_only', unknown: 'local_reconciliation_required', scheduler: false },
           sampling: host.createMessage ? 'available_while_connected' : 'unavailable',
+          sampling_tool_calls: !host.createMessage || host.samplingTools === false ? 'unavailable'
+            : host.samplingTools === true ? 'available_while_connected' : 'unverified',
           local_processes: 'trusted_host_code_not_os_sandboxed',
           approvals: 'local_host_only', provider_servers: 'separate_hep_and_idea',
           remote_connection: 'configured_by_host',
-          tools: coreSpecs.map(spec => spec.name),
+          research_tools: {
+            text_read: { method: 'source_text', max_source_bytes: TEXT_SOURCE_MAX_BYTES, hash_bound_continuation: true },
+            file_search: { method: 'literal_text', semantic_search: false, reports_scan_coverage: true },
+            document_read: await documentCapabilities(),
+          },
+          delegation: {
+            research_tools: Object.keys(researchToolSchemas),
+            visual_pages: 'direct_host_only',
+            coordination_policies: ['sequential', 'parallel', 'stage_gated', 'supervised_delegate'],
+            max_parallel: { default: 4, minimum: 1, maximum: 16 },
+          },
+          tools: this.listTools().map(spec => spec.name),
         });
       }
+      if (isResearchTool(name)) return await callResearchTool(this.root, name, args);
       if (name === 'project_file_read') {
         const input = extraSchemas.project_file_read.parse(args);
         return jsonResult(readFile(this.root, input.path, input.offset, input.max_bytes));
@@ -69,6 +87,12 @@ export class ProjectAdapter {
       guardRuntimePaths(this.root, typeof parsed.manifest_path === 'string' ? parsed.manifest_path : undefined);
       if (samplingTools.has(name)) {
         if (!host.createMessage) return jsonResult({ status: 'unavailable', reason: 'This client does not supply MCP sampling. Use an authenticated native host runtime; copying a skill does not provide one.' }, true);
+        // Follow-up tools are selected internally after loading task state. The
+        // public entry must check tool sampling before that runtime can write.
+        if (host.samplingTools === false && (name === 'orch_run_progress_followups'
+            || (Array.isArray(parsed.tools) && parsed.tools.length > 0))) {
+          return jsonResult({ status: 'unavailable', reason: 'This client supports basic MCP sampling but has not declared sampling.tools. Tool-using delegation requires that capability; use the host native agent loop otherwise.' }, true);
+        }
         const owner = `sampling-${randomUUID()}`;
         acquireExecution(this.root, owner);
         try {
@@ -77,6 +101,17 @@ export class ProjectAdapter {
             // Internal ownership is a closure, never a caller-supplied argument.
             callTool: (tool, input) => {
               if (samplingTools.has(tool)) throw invalidParams('Recursive delegated runtimes are not exposed.');
+              if (isResearchTool(tool)) {
+                if (tool === 'project_document_read' && input.include_images === true) {
+                  return Promise.resolve(jsonResult({
+                    status: 'unavailable',
+                    reason: 'This delegated sampling bridge carries text only. A vision-capable host must call project_document_read directly with include_images=true; page images cannot be silently discarded.',
+                  }, true));
+                }
+                // Re-enter the public read boundary: root identity and the live
+                // harness anchor are checked for every delegated source read.
+                return this.call(tool, input);
+              }
               coreArguments(this.root, tool, input);
               return execute(this.root, tool, input).catch(errorResult);
             },

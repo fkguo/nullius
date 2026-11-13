@@ -11,10 +11,13 @@ process.chdir(adapter.root);
 const server = new Server({ name: 'nullius-project-mcp', version: '0.6.1' }, { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: adapter.listTools() }));
 server.setRequestHandler(CallToolRequestSchema, async request => {
-  const supportsSampling = Boolean(server.getClientCapabilities()?.sampling);
+  const sampling = server.getClientCapabilities()?.sampling;
+  const supportsSampling = Boolean(sampling);
   const createMessage: Context['createMessage'] = supportsSampling
     ? async input => server.createMessage(input as Parameters<typeof server.createMessage>[0]) as ReturnType<NonNullable<Context['createMessage']>>
     : undefined;
-  return adapter.call(request.params.name, request.params.arguments ?? {}, { createMessage });
+  return adapter.call(request.params.name, request.params.arguments ?? {}, {
+    createMessage, samplingTools: Boolean(sampling?.tools),
+  });
 });
 await server.connect(new StdioServerTransport());

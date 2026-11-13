@@ -5,6 +5,7 @@ export type StopReasonKind = 'tool_use' | 'completion' | 'truncation';
 
 const STOP_REASON_MAP: Record<string, { normalized: NormalizedStopReason; kind: StopReasonKind }> = {
   tool_use: { normalized: 'tool_use', kind: 'tool_use' },
+  toolUse: { normalized: 'tool_use', kind: 'tool_use' },
   end_turn: { normalized: 'end_turn', kind: 'completion' },
   endTurn: { normalized: 'end_turn', kind: 'completion' },
   stop_sequence: { normalized: 'stop_sequence', kind: 'completion' },

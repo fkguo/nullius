@@ -3,6 +3,7 @@ import { riskToAnnotations, toolAnnotationsFor, zodToMcpInputSchema } from '@nul
 import { PROJECT_LOCAL_TOOL_RISK_LEVELS, PROJECT_TOOL_HINTS, PROJECT_TOOL_TITLES, riskFromExecutionPolicy } from './annotations.js';
 import { coreSpecs, isBackground } from './policy.js';
 import { cliSchema } from './cli.js';
+import { researchToolSchemas, researchToolDescriptions } from './research-tools.js';
 
 export const extraSchemas = {
   project_capabilities: z.object({}).strict(),
@@ -10,8 +11,10 @@ export const extraSchemas = {
   project_file_write: z.object({ path: z.string(), content: z.string(), expected_sha256: z.string().regex(/^[a-f0-9]{64}$/).nullable() }).strict(),
   project_delivery_read: z.object({ delivery_id: z.string(), offset: z.number().int().nonnegative().default(0), max_bytes: z.number().int().min(1).max(65536).default(65536) }).strict(),
   project_cli: cliSchema,
+  ...researchToolSchemas,
 };
 const descriptions: Record<keyof typeof extraSchemas, string> = {
+  ...researchToolDescriptions,
   project_capabilities: 'Report the bound project, transport capabilities and unavailable host-dependent features. Local code execution is trusted, not OS-sandboxed.',
   project_file_read: 'Read a project document or artifact as a bounded base64 chunk with whole-file SHA-256. Rejects traversal, symlinks and hidden credentials.',
   project_file_write: 'Upload UTF-8 project source/input or checker (up to 1 MiB). expected_sha256=null creates only; replacement requires the current hash. Generated state, receipts and managed projections are protected.',

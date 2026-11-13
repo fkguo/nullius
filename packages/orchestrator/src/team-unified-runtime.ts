@@ -23,6 +23,7 @@ import {
   executeSequentialRuntime,
 } from './team-unified-runtime-sequential.js';
 import type { TeamExecutionState } from './team-execution-types.js';
+import { DEFAULT_TEAM_MAX_PARALLEL, TEAM_MAX_PARALLEL_LIMIT } from './team-unified-runtime-types.js';
 import type {
   ExecuteUnifiedTeamRuntimeInput,
   ExecuteUnifiedTeamRuntimeResult,
@@ -56,6 +57,11 @@ function ensureAssignmentRegistration(
 export async function executeUnifiedTeamRuntime(
   input: ExecuteUnifiedTeamRuntimeInput,
 ): Promise<ExecuteUnifiedTeamRuntimeResult> {
+  const maxParallel = input.maxParallel ?? DEFAULT_TEAM_MAX_PARALLEL;
+  if (!Number.isInteger(maxParallel) || maxParallel < 1 || maxParallel > TEAM_MAX_PARALLEL_LIMIT) {
+    throw new Error(`maxParallel must be an integer between 1 and ${TEAM_MAX_PARALLEL_LIMIT}`);
+  }
+  input = { ...input, maxParallel };
   const manager = new TeamExecutionStateManager(input.projectRoot);
   const syncTaskRefRegistry = (state: TeamExecutionState): void => {
     const registry = manager.loadTaskRefRegistry(input.runId)
