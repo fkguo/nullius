@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind an authored task brief to selected file bytes; this is not content review."""
+"""Capture, check or restore a task brief; byte freshness is not content review."""
 from __future__ import annotations
 
 import argparse
@@ -128,7 +128,7 @@ def run(args):
     meta, body = unpack(original)
     if not body.decode('utf-8').strip():
         raise Invalid('brief body must be authored and nonblank')
-    if args.command == 'check':
+    if args.command in ('check', 'restore'):
         if meta is None:
             raise Invalid('brief has no capture metadata')
         if any(item['path'] == brief for item in meta['sources']):
@@ -149,7 +149,11 @@ def run(args):
             seen_files.add(identity)
             if len(data) != source['bytes'] or digest(data) != source['sha256']:
                 changes.append({'path': source['path'], 'reason': 'source_changed'})
-        return ({'status': 'stale' if changes else 'fresh', 'brief': brief, 'sources': len(meta['sources']), 'changes': changes}, 1 if changes else 0)
+        result = {'status': 'stale' if changes else 'fresh', 'brief': brief, 'sources': len(meta['sources']), 'changes': changes}
+        if args.command == 'restore':
+            result.update(body=body.decode('utf-8'), source_refs=meta['sources'],
+                          scope='continuity_only', scientific_acceptance='not_assessed')
+        return result, 1 if changes else 0
     paths = [relative(value) for value in args.source]
     if len(set(paths)) != len(paths) or brief in paths:
         raise Invalid('sources must be distinct and cannot include the brief')
@@ -193,7 +197,7 @@ def main(argv=None):
     try:
         parser = Parser(description=__doc__)
         commands = parser.add_subparsers(dest='command', required=True, parser_class=Parser)
-        for command in ('capture', 'check'):
+        for command in ('capture', 'check', 'restore'):
             sub = commands.add_parser(command)
             sub.add_argument('--project-root', required=True, help='existing absolute project root (from that directory: pwd -P)')
             sub.add_argument('--brief', required=True, help='project-relative Markdown path under artifacts/runs/<run-id>/')

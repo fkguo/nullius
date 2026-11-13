@@ -528,7 +528,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 
@@ -551,6 +551,23 @@ python3 -m pytest skills/research-team/tests/test_workflow_literature_acceptance
 These cases cover current committed-output identity, missing and unavailable evidence, explicit checker failures, partial/skipped execution, receipt substitution, changed plans/checkers/nested files and read-only freshness. A completed-plan recheck must issue zero provider calls. Fixture passes verify tooling mechanics; they establish no scientific result or semantic full-text reading.
 
 ## Instruction context checks
+
+Research continuity and final-consumer assessment regressions:
+
+```bash
+pnpm --filter @nullius/orchestrator exec vitest run tests/task-brief-navigation.test.ts tests/notebook-run-links.test.ts tests/notebook-result-links.test.ts
+python3 -m pytest -q skills/research-harness/tests/test_task_brief.py skills/research-harness/tests/test_task_brief_aliases.py skills/research-harness/tests/test_task_brief_restore.py packages/project-contracts/tests/test_research_continuity_guidance.py skills/research-team/tests/test_final_assessment_execution.py
+node scripts/check-independent-reproduction-anti-drift.mjs
+```
+
+These exercise explicit Current Status selection in file mode, hidden/history
+exclusion, exact authored-body restoration, changed or missing inputs, path and
+identity aliases, and read-only continuation without scientific acceptance.
+Final-consumer fixtures require a fresh execution, reject stale or edited
+diagnostics and preserve two independent confirmations. A later eligible check
+must execute again. These are offline implementation checks, not model-quality
+benchmarks. Research evaluations should compare scientific correctness, error
+detection, completed work, continuity and total resource use on the same tasks.
 
 Run `pnpm check:instruction-context-anti-drift` for the four compact skill entries
 and scaffold `AGENTS.md`. Marked local references must exist inside their payload

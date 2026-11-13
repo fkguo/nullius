@@ -275,7 +275,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 
@@ -286,6 +286,17 @@ Local directory links leave notebook dependency closure pending and prevent acce
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
 
 ## Task-scoped instruction context
+
+The host's main agent owns scientific reasoning and task selection. Continuation
+checkpoints preserve unfinished reasoning without changing lifecycle, approval or
+acceptance state. An explicit Task brief link in the opening Current Status area
+selects navigation; `task-brief-navigation.ts` exposes one read-only restore argv
+through the existing status views, including file mode with no active engine run.
+The Python task-brief helper remains the sole metadata/freshness implementation.
+Status does not hash the selected inputs or choose the newest run by timestamp.
+Current accepted results can be restored without another acceptance cycle; new
+adoption, substantive revision and formal scientific delivery retain full checks.
+This does not implement native computation resume or unknown-outcome retry.
 
 `status.resume_context.read_order` starts with the instruction entry, current
 plan and project index. Its `context_selection` keeps applicable charter/contract

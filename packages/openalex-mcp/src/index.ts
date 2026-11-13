@@ -16,7 +16,7 @@ import { SERVER_INSTRUCTIONS } from './serverInstructions.js';
 const TOOL_MODE: ToolExposureMode = process.env.OPENALEX_TOOL_MODE === 'full' ? 'full' : 'standard';
 
 const server = new Server(
-  { name: 'openalex-mcp', version: '0.6.0' },
+  { name: 'openalex-mcp', version: '0.6.1' },
   { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
 );
 

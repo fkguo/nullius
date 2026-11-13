@@ -7,7 +7,19 @@ description: Recover and continue an external Nullius research project, route it
 
 Use the external project as authority. `nullius` owns lifecycle, approvals and
 state; the host owns its agent loop, tools and session compaction. This skill
-routes work and records results, rather than replacing either runtime.
+routes work and records results.
+
+## Own the research
+
+The primary agent retains the scientific judgment: formulate the question, work
+through the central argument or computation, choose the next discriminating test,
+and reconcile the evidence. Use the host's native reasoning, tools and subagents;
+an isolated CLI runner serves a delegated task, not a replacement research loop.
+Delegate bounded work when it adds independent evidence or useful parallelism.
+Give blind verification its neutral question and original inputs, not the answer
+being checked. Keep routine routing and record maintenance with the agent; ask
+the user when a scientific choice or authorization boundary actually needs them.
+Report scientific findings, uncertainty and the next step.
 
 ## Recover the current task
 
@@ -26,11 +38,14 @@ routes work and records results, rather than replacing either runtime.
    failures, unknowns, next action and acceptance command in durable project
    material. Process-local stores are not checkpoints. A resumed session ID
    does not establish that needed bytes survived.
+   A continuation checkpoint may preserve explicitly unverified work even when
+   a gate or approval is pending. It neither accepts results nor clears that
+   boundary; subsequent work still follows the applicable gates and approvals.
 
 Read [recovery details](references/recovery.md "nullius-guidance") for anchor
 freshness, status classifications, missing state, initialization or migration.
 For task-scoped context and phase changes, use
-[task briefs and handoff](references/task-context.md "nullius-guidance").
+[task briefs and continuation](references/task-context.md "nullius-guidance").
 
 ## Route only the work that applies
 
@@ -39,6 +54,8 @@ research milestone requiring execution and independent verification. Keep
 lifecycle/status/approval/export operations on `nullius`; provider MCP tools are
 capabilities, not a second project authority. For an unscoped question,
 `nullius workflow-plan --recipe research_brainstorm` records planning only.
+Check a load-bearing result before dependent work relies on it; do not defer
+verification until an expensive downstream calculation or final writeup.
 
 | Trigger | Required route |
 | --- | --- |
@@ -68,7 +85,8 @@ scope or the required verification for a result.
 | The project opts into a fresh-state reproduction | [Independent reproduction](references/reproduction-workflow.md "nullius-guidance") |
 | Authorize a production computation under the adopted A3 preflight | [Production launch authorization](references/production-launch-workflow.md "nullius-guidance") |
 | Scientific literature discovery and source admission | [Literature workflow](references/literature-workflow.md "nullius-guidance") |
-| Fold results, close a milestone, prepare approval, export or hand off | [Closeout and result folding](references/closeout.md "nullius-guidance") |
+| Save unfinished work for continuation | [Task briefs and checkpoints](references/task-context.md "nullius-guidance") |
+| Fold results, close a milestone, prepare approval, export or hand off adopted results | [Closeout and result folding](references/closeout.md "nullius-guidance") |
 
 ## Durable conclusions
 

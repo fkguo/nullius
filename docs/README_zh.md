@@ -10,6 +10,20 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 
 原生计算将启用的 A3 审批绑定到当前 manifest、脚本、声明的输入与依赖文件、解析后的可执行文件字节、生产环境和审批策略。packet 缺失、历史审批没有内容绑定或输入发生变化时，必须在派发前申请新的根审批；仅有步骤级 A3 而绑定失效时直接拒绝，不创建根审批请求。暂停请求允许当前直接子进程返回，保留该步骤证据，并将整体运行保持为 paused；最后一步也适用。原生计算不支持原地续行：同一运行重入和 `resume --force` 均在修改暂停产物前拒绝；另行审批的新运行是独立执行。`execution_status.json` 持久化一个覆盖 preflight、后续直接子进程与本地结果发布的绝对截止时间，重试不重置，每个子进程使用剩余总预算与步骤上限的较小值。硬 CPU、内存和磁盘约束在 preparation 阶段拒绝；这些限制不负责任意后代进程或远程作业。规范状态写入在短独占锁内比较调用者的读取快照，比较通过后才追加组合事件；过期快照拒绝，过期锁须在写入者停止后人工修复。CLI 与项目传输共用外部根目录准入，并解析未创建路径的已存在软链接祖先。
 
+## 持续推进研究
+
+使用宿主原生的 agent loop、工具和可用子 agent。主 agent 负责研究问题、核心推导和
+综合判断；分派任务应增加具体证据或独立检验能力。Nullius 保留原始来源核查、独立推导、
+数值验证、结果追溯和科学验收。隔离的 `dsh-cli-runner` 用于有明确范围的文本任务；
+在 DSH 内持续研究应使用它的原生任务设施。
+
+压缩上下文或更换会话前，用[任务简报](../skills/research-harness/references/task-context.md)
+保存当前科学状态，并在 `research_plan.md#Current Status` 的开头状态区、首个子标题之前，
+添加 `[Task brief](artifacts/runs/<run-id>/task_brief.md)` 链接。`nullius status` 返回
+`restore_argv`，只读 helper 提供简报正文、所选原文路径和字节新鲜度；status 自身不做该校验。
+恢复此前已验收且当前仍有效的结果，不会触发新的验收周期。新采纳、实质改写和正式科学
+交付仍须完成相应验证与整本笔记审查。保存检查点不会解除审批或恢复已暂停的计算。
+
 ## 1. Surface Policy
 
 旧课题更新指导文件时，按[更新已有课题指导](QUICKSTART.md#updating-existing-project-guidance)单独生成模板、比较差异并合并需要的段落。运行时刷新不会迁移已有定制规则。
@@ -340,7 +354,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 

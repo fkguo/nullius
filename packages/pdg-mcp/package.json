@@ -1,6 +1,6 @@
 {
   "name": "@nullius/pdg-mcp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "PDG (Review of Particle Physics) MCP server for local, reproducible queries over PDG SQLite snapshots",
   "author": "Feng-Kun Guo",
   "type": "module",

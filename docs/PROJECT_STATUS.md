@@ -1,6 +1,6 @@
 # Project Status Report (front-door rebaseline)
 
-**Date**: 2026-10-16
+**Date**: 2026-11-13
 **Status**: Active local-first, evidence-first harness for agent-assisted research (one pnpm workspace)
 **Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity
 
@@ -10,6 +10,16 @@
 Native computation binds an enabled A3 approval to the current manifest, scripts, declared input and dependency files, resolved executable bytes, production environment and approval policy. Missing packets, unbound historical approvals and changed inputs require fresh root approval before dispatch; a step-only A3 mismatch fails closed without creating a root request. A requested pause lets the current direct child return, preserves its step evidence and stops the run as paused, including after the last step. Native continuation in place is unsupported: same-run execution and `resume --force` refuse without changing the paused attempt; a new separately approved run is a distinct execution. `execution_status.json` persists one absolute deadline covering preflight, later direct children and local outcome publication; retries keep that deadline, and each child receives the smaller remaining or step limit. Hard CPU, memory and disk constraints are rejected during preparation. These limits do not supervise arbitrary descendants or remote jobs. Canonical state writes compare the caller's read snapshot under a short exclusive lock before appending combined events; stale snapshots refuse, and stale locks require quiescent manual repair. CLI and project transport share canonical external-root admission, including uncreated paths beneath existing symlink ancestors.
 
 ## QA snapshot
+
+Current development version: **0.6.1** (not a tagged release). Research continuity
+uses the existing task brief and status front door; the main host agent keeps
+scientific reasoning and native tools. Explicit selection, read-only restoration
+and stale-source diagnostics do not grant acceptance or clear approvals. Eligible
+full-access team convergence executes one fresh source assessment rather than
+repeating it in postflight. Independent research routes and full notebook review
+remain required. The regression tests cover these mechanisms; they do not measure
+end-to-end research quality or establish parity with a model product. The release
+baseline below remains historical.
 
 - Closeout baseline: the 0.6.0 release candidate (`main` at `427f5f4e` plus the release branch)
 - `pnpm -r build` ✅
@@ -145,7 +155,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 

@@ -50,7 +50,20 @@ diff -u AGENTS.md "$guidance_preview_root/AGENTS.md"
 
 跨阶段任务可选用[任务 brief](../skills/research-harness/references/task-context.md)：先写事实、
 选择、未知项和下一步验收，再由 `task_brief.py capture` 绑定明确选择的原文件；恢复时
-用 `check` 发现过期内容。它不判断来源是否齐全、内容是否正确，也不改变任何科学验证门。
+用 `check` 发现过期内容，或用 `restore` 同时返回作者正文、所选原文路径和字节校验结果。
+在 `research_plan.md#Current Status` 开头状态区的 `Evidence pointers` 单元格中放入一个
+`[Task brief](artifacts/runs/<run-id>/task_brief.md)` 链接；它必须位于首个子标题之前，
+以免将 Milestone history 中的旧工作误作当前任务。`status --json` 的两种恢复视图会提供
+同一个 `task_brief.restore_argv`，按参数数组直接执行；它不是 shell 命令字符串。
+`status` 只提供导航，不扫描历史运行或散列大输入，`freshness` 保持 `unchecked`。
+`restore` 返回 0 / `fresh`、1 / `stale`、2 / `invalid`；stale 保留工作正文并列出变化，
+须回原文解决差异，invalid 不返回可依赖的正文。重复选择、缺失文件和非法路径是导航诊断，
+不会关闭正常 status 读取。
+
+这保留既有科学验收能力：fresh 只说明所选字节匹配，不判断来源是否齐全、内容是否正确，
+也不改变任何科学验证门。普通接续可引用此前已验收且仍有效的结果及其证据；新采纳、实质
+修改或正式交付科学成果仍执行完整要求。检查点不会解除已有审批、继续 paused 的原生计算，
+或重派发 outcome_unknown 的操作。新指引仍需按上面的方式显式合并到既有项目。
 
 针对旧版笔记审查说明，核对以下变化：
 
@@ -327,7 +340,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 

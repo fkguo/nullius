@@ -4,6 +4,10 @@ Read the section relevant to the current operation. Commands and script paths ar
 
 ## Route The Work
 
+- The primary agent owns the research question, central reasoning and synthesis.
+  Use the current host directly; isolated runners remain tools for scoped work
+  and independent verification. Do not delegate merely to satisfy a role count
+  or ask the user to manage routine tool selection and record keeping.
 - If the research question is still not scoped, create a plan with:
   ```bash
   nullius workflow-plan --recipe research_brainstorm
@@ -16,6 +20,12 @@ Read the section relevant to the current operation. Commands and script paths ar
 - If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `nullius`.
 
 **Verification dispatch by result type.** This uses the same event → workflow vocabulary as the trigger table the scaffolded `AGENTS.md` carries (extended here with two harness-local rows, literature survey and prose; the integrity boundary lives in [closeout](closeout.md)); run the matching workflow at the moment the result appears, not on user reminder, and record the result as unverified when the named skill is unavailable:
+
+Verify a load-bearing definition, formula, branch or numerical conclusion before
+dependent work relies on it. Independent checks can run in parallel with work
+that does not rely on the unverified result. Preserve blocked or unfinished work
+in a [continuation checkpoint](task-context.md#preserve-work-without-accepting-it);
+the checkpoint cannot provide scientific acceptance or override an approval.
 
 | Result type | The moment | Verification workflow |
 |---|---|---|

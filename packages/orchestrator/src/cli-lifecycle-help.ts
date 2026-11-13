@@ -13,6 +13,10 @@ Behavior:
   and \`current_run_workflow_outputs\` so a reconnecting agent can recover the current run,
   reuse bounded workflow outputs, and fall back to \`.nullius/bin/nullius status --json\`
   when the canonical \`nullius\` command is not available on PATH.
+  Both recovery views expose \`task_brief\` navigation from an explicit [Task brief](artifacts/runs/<run-id>/task_brief.md)
+  link in research_plan.md#Current Status. Its \`restore_argv\` reads the authored brief and checks selected original bytes.
+  Status does not search historical runs or hash those inputs: freshness stays unchecked until restore.
+  A missing or ambiguous brief is a navigation diagnostic; no checkpoint grants scientific acceptance or clears approvals.
   Status JSON also includes \`project_surface_drift\`, a diagnostic-only warning block for stale legacy scaffold surfaces or optional host-local guidance noise in the current project root.
   Status JSON also includes \`execution_mode\` (declared via \`nullius init --mode=<engine|file>\`; null when never declared) and \`decision_ledger\`, the conversational-decision record with any still-open items.
   When durable workflow outputs are missing for an older run, status rebuilds a best-effort legacy workflow projection from ledger/artifact conventions and reports the projection source.

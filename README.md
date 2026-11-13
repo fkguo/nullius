@@ -10,6 +10,26 @@ Nullius is an evidence-first harness for agent-assisted research. It gives AI co
 
 Native computation binds an enabled A3 approval to the current manifest, scripts, declared input and dependency files, resolved executable bytes, production environment and approval policy. Missing packets, unbound historical approvals and changed inputs require fresh root approval before dispatch; a step-only A3 mismatch fails closed without creating a root request. A requested pause lets the current direct child return, preserves its step evidence and stops the run as paused, including after the last step. Native continuation in place is unsupported: same-run execution and `resume --force` refuse without changing the paused attempt; a new separately approved run is a distinct execution. `execution_status.json` persists one absolute deadline covering preflight, later direct children and local outcome publication; retries keep that deadline, and each child receives the smaller remaining or step limit. Hard CPU, memory and disk constraints are rejected during preparation. These limits do not supervise arbitrary descendants or remote jobs. Canonical state writes compare the caller's read snapshot under a short exclusive lock before appending combined events; stale snapshots refuse, and stale locks require quiescent manual repair. CLI and project transport share canonical external-root admission, including uncreated paths beneath existing symlink ancestors.
 
+## Research continuity
+
+Use the host's native agent loop, tools and available subagents. The main agent
+owns the research question, core reasoning and synthesis; delegate bounded work
+when it adds evidence or an independent check. Nullius retains source grounding,
+independent derivation, numerical verification, provenance and result acceptance.
+The isolated `dsh-cli-runner` serves bounded text tasks; use DSH's native task
+facilities for ongoing research inside DSH.
+
+Before context compaction or a session change, save the current scientific state
+in an authored [task brief](skills/research-harness/references/task-context.md).
+Link it as `[Task brief](artifacts/runs/<run-id>/task_brief.md)` in the opening
+`research_plan.md#Current Status` area, before its first subheading. `nullius status`
+exposes its `restore_argv`; the read-only helper returns the brief, selected source
+references and byte freshness. Status itself leaves freshness unchecked.
+Restoring previously accepted, still-current results does not require a new
+acceptance cycle. New adoption, substantive revision and formal scientific
+delivery retain their result-specific checks and full notebook review.
+A checkpoint clears no approval and does not resume a paused computation.
+
 ## 1. Surface Policy
 
 - `nullius` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, main-report structural validation, proposal decisions, and the conversational decision ledger.
@@ -375,7 +395,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 

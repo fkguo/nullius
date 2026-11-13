@@ -51,6 +51,17 @@ A project-local launcher (`./.nullius/bin/nullius`) is also written during `null
 
 ## State and artifacts
 
+`status` includes the same `task_brief` navigation in `resume_context` and
+`recovery_context`. Select it with one plain inline `[Task brief](...)` link in the
+opening `research_plan.md#Current Status` area, before the next heading. The target
+must be Markdown under `artifacts/runs/<run-id>/` without symlink components.
+Missing or ambiguous selections remain navigation diagnostics. `restore_argv`
+invokes the existing Python helper to return authored scientific state and check
+selected source bytes; status itself reports `freshness: unchecked`.
+Restoration grants no verification, approval, result adoption or computation
+resume authority. It can retain provisional reasoning and locate previously
+accepted results that remain current.
+
 Writes to **external project roots only**:
 
 ```text
@@ -220,7 +231,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 
