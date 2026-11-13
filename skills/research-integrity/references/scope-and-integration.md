@@ -5,12 +5,14 @@ Command, script and asset paths in this reference are relative to the `research-
 - Not a substitute for the citation and reference graph verification
   that provider MCP tools perform (`inspire_*`, `openalex_*`,
   `arxiv_*`, `pdg_*`, `hepdata_*`). Those are the **evidence** tools;
-  this is the **discipline** that decides which evidence calls are
-  required per boundary crossing and verifies they were made.
+  this is the **discipline** that selects the evidence required per
+  boundary crossing and verifies that it was inspected.
 - Not a re-implementation of any provider tool. When a [mode](../SKILL.md#boundary-walk-and-focused-reading)
-  lists tool names under "Required evidence calls", those names point
-  at existing MCP capabilities; the skill does not duplicate their
-  logic, it only mandates when to call them.
+  lists tool names, those names point at existing MCP capabilities.
+  Where that mode permits equivalent authoritative source access, use
+  it to obtain the same evidence. A successful call alone does not
+  establish that the source or citation relationship was checked;
+  each mode's identity, support and relationship checks still apply.
 - Not a structured artifact. There is no `integrity_report.json` schema.
   The check result is recorded inline in the response or notebook entry
   next to the boundary-crossing action. When the boundary itself was a

@@ -102,7 +102,7 @@ export function isStateTouchingHepMcp(
   // Default for unknown / no-state-touch tools (hep_health, arxiv_*, openalex_*,
   // hepdata_*, zotero_*, inspire_search_next / inspire_literature /
   // inspire_resolve_citekey / inspire_grade_evidence /
-  // inspire_detect_measurement_conflicts / inspire_critical_analysis /
+  // inspire_critical_analysis /
   // inspire_classify_reviews / inspire_topic_analysis /
   // inspire_network_analysis / inspire_find_connections /
   // inspire_trace_original_source / inspire_find_crossover_topics /

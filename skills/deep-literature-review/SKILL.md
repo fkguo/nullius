@@ -302,7 +302,7 @@ Produce the `literature_survey_v1`:
   `read_locators`, `read_sections`, `identity_triangulation`, and
   `source_fidelity_audit` for each core paper.
 - `synthesis.consensus[]`: statements the read papers agree on, each citing the `ref_key`s that support it.
-- `synthesis.tensions[]`: disagreements/conflicts, each citing the `ref_key`s involved (HEP: seed these with `inspire_detect_measurement_conflicts` / `inspire_theoretical_conflicts`; general: reason over the read notes).
+- `synthesis.tensions[]`: disagreements/conflicts established from the read sources, each citing the `ref_key`s and relevant table/equation/figure locators. For numerical comparisons, first establish the same observable, definitions, conditions, units and uncertainty conventions; check shared inputs and correlations before computing a difference or combination. Preserve asymmetric errors and limits. When comparability or covariance is unresolved, report that limitation without declaring agreement or forming an average. Use existing numerical execution for the calculation; a source path or search hit alone is not a read source.
 - `synthesis.gaps[]`: open questions / what the literature does NOT cover.
 
 **Referential integrity (enforced by the contract):** every `ref_key` you cite in

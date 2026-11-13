@@ -35,8 +35,8 @@ reliability, quality and efficiency without replacing scientific verification.
 - all 27 `scripts/check-*.mjs` locks ✅ (the 20 `pnpm check:*` entries plus the CI-only scripts; package-freshness runs inside the hep-mcp build); current main has 31 and 24 after the locks added since that baseline (skill-frontmatter, unreachable-modules, publishable-package-deps, source-language)
 - CI pytest groups (project-contracts, research-team, idea-posterior, citation-triangulation, figure-hygiene, idea-generation, literature-to-package, research-harness, review-swarm) ✅
 - `pnpm --filter @nullius/hep-mcp docs:tool-counts:check` ✅
-- `standard=52`, `full=58` (tool counts are kept in sync with the live registry by `docs:tool-counts:sync`, not frozen at the baseline above)
-- `HEP_ENABLE_ZOTERO=0` → `standard=43`, `full=49`
+- `standard=51`, `full=57` (tool counts are kept in sync with the live registry by `docs:tool-counts:sync`, not frozen at the baseline above)
+- `HEP_ENABLE_ZOTERO=0` → `standard=42`, `full=48`
 
 ## Local installation and personal plugin
 
@@ -44,7 +44,7 @@ The [`project-mcp`](../packages/project-mcp/README.md) leaf adapter binds one
 external project through `NULLIUS_PROJECT_ROOT` and reuses canonical
 `handleToolCall` / `runCli`. Its 16 selected `orch_*` operations plus eight project
 tools expose 24 tools. The [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md)
-combines project 24, default HEP 52, and idea 6: 82 unique tool names; the live
+combines project 24, default HEP 51, and idea 6: 81 unique tool names; the live
 plugin check compares them against the real local stdio servers. Runtime configuration is host-private; generated
 plugin manifests and ordinary copy-install metadata do not record source-machine
 paths. Copied skill helpers discover the current runtime through an explicit

@@ -109,7 +109,7 @@ Kimi/OpenCode 需要 Python 3.10 或更新版本；不满足时在调用模型�
 
 #### 本地个人插件与项目 MCP
 
-[`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。默认个人插件组合 project 24、HEP standard 52、idea 6，共 82 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。
+[`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。默认个人插件组合 project 24、HEP standard 51、idea 6，共 81 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。
 
 构建完成后运行以下针对性检查：
 
@@ -223,8 +223,8 @@ EOF
 
 **预期**
 
-- `standard` 模式工具数为 `52`
-- `full` 模式工具数为 `58`
+- `standard` 模式工具数为 `51`
+- `full` 模式工具数为 `57`
 - `bad` 为空数组
 
 ### 0.5 可选依赖：Zotero / PDG

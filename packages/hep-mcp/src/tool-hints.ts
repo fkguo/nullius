@@ -65,12 +65,6 @@ export const HEP_TOOL_HINTS: ToolBehaviourHintTable = {
   },
   [T.INSPIRE_RESOLVE_CITEKEY]: { openWorld: true, reason: INSPIRE_READ },
   [T.INSPIRE_GRADE_EVIDENCE]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
-  [T.INSPIRE_DETECT_MEASUREMENT_CONFLICTS]: {
-    destructive: true,
-    idempotent: true,
-    openWorld: true,
-    reason: 'Queries INSPIRE, downloads sources from arxiv.org into the arXiv source dir shared with arxiv_paper_source (replacing an earlier archive there), reads the local PDG database, may use sampling.',
-  },
   [T.INSPIRE_CRITICAL_ANALYSIS]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
   [T.INSPIRE_CLASSIFY_REVIEWS]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
   [T.INSPIRE_THEORETICAL_CONFLICTS]: {

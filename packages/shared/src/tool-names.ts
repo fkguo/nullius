@@ -22,7 +22,6 @@ export const INSPIRE_PAPER_SOURCE = 'inspire_paper_source' as const;
 export const INSPIRE_PARSE_LATEX = 'inspire_parse_latex' as const;
 export const INSPIRE_RESOLVE_CITEKEY = 'inspire_resolve_citekey' as const;
 export const INSPIRE_GRADE_EVIDENCE = 'inspire_grade_evidence' as const;
-export const INSPIRE_DETECT_MEASUREMENT_CONFLICTS = 'inspire_detect_measurement_conflicts' as const;
 export const INSPIRE_CRITICAL_ANALYSIS = 'inspire_critical_analysis' as const;
 export const INSPIRE_CLASSIFY_REVIEWS = 'inspire_classify_reviews' as const;
 export const INSPIRE_THEORETICAL_CONFLICTS = 'inspire_theoretical_conflicts' as const;

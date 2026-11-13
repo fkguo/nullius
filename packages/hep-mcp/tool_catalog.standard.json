@@ -1,6 +1,6 @@
 {
   "mode": "standard",
-  "count": 52,
+  "count": 51,
   "tools": [
     "arxiv_get_metadata",
     "arxiv_paper_source",
@@ -15,7 +15,6 @@
     "hepdata_search",
     "inspire_classify_reviews",
     "inspire_critical_analysis",
-    "inspire_detect_measurement_conflicts",
     "inspire_find_connections",
     "inspire_grade_evidence",
     "inspire_literature",
