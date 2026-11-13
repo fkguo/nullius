@@ -21,6 +21,13 @@ remain required. The regression tests cover these mechanisms; they do not measur
 end-to-end research quality or establish parity with a model product. The release
 baseline below remains historical.
 
+Engineering review evaluates responsibilities, dependencies and executable
+checks for the affected behavior. File sizes and their changes are review
+context with no acceptance threshold. Code-health diagnostics reject unreadable
+inputs and invalid change selection; actual type-escape and swallowed-error
+checks remain blocking. These engineering rules serve scientific correctness,
+reliability, quality and efficiency without replacing scientific verification.
+
 - Closeout baseline: the 0.6.0 release candidate (`main` at `427f5f4e` plus the release branch)
 - `pnpm -r build` ✅
 - `pnpm -r test` ✅ (13 packages with real tests — `agent-arxiv`, whose `test` script is a no-tests placeholder, is not counted; orchestrator 1525 passed + 10 skipped, hep-mcp 664 + 4 skipped, shared 565, project-mcp 31)

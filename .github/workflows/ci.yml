@@ -209,6 +209,9 @@ jobs:
       - name: Python tests (generated verification bindings)
         run: python -m pytest meta/tests/test_generated_verification_bindings.py -q
 
+      - name: Python tests (code-health diagnostics and real failure gates)
+        run: python -m pytest meta/tests/code-health -q
+
       - name: Python tests (close-prior bound-ledger write gate behavior)
         run: |
           python -m pytest \

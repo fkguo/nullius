@@ -1,18 +1,19 @@
 # Nullius 生态圈开发规范 (Ecosystem Development Contract)
 
-> **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01; R7: LOG-03 开放词表+格式守卫, REL-01 对齐 make release 检查清单, SYNC-02 确定性清单, PLUG-01 允许叶子包 @nullius/shared, LANG-01 `_zh` 后缀约定)
-> **日期**: 2026-10-17
+> **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值; R7: LOG-03 开放词表+格式守卫, REL-01 对齐 make release 检查清单, SYNC-02 确定性清单, PLUG-01 允许叶子包 @nullius/shared, LANG-01 `_zh` 后缀约定; R8: CODE-01 源码审查与非门禁行数报告)
+> **日期**: 2026-11-13
 > **适用范围**: hep-mcp, idea-engine, orchestrator, project-contracts, skills/, skills-market, meta/
 > **强制级别**: 所有新增/修改代码必须遵守；存量代码按当前 checked-in 架构/治理文档分阶段对齐
 > **违规默认行为**: **fail-closed**（除非规则明确标注 fail-open）
 
 ## 总则
 
-1. 本规范定义 15 个域的强制约束，防止增量开发引入新的跨组件不一致
-2. 每条规则附 CI/lint 可执行的验证方式
-3. 违规时的失败行为明确标注为 `fail-closed`（阻断 CI/运行）或 `fail-open`（警告但不阻断）
+1. 本规范服务于正确、可靠、高质量、高效率地完成科研任务，并防止跨组件不一致。框架实现、工程规则、检查时机和研究流程均可根据具体问题、预期收益和适用的验证证据修订；格式、行数或流程完成不能代替结果质量。
+2. 规则使用可执行检查或源码审查验证，明确自动化覆盖范围及其局限；不能把诊断报告成功视为质量验收。
+3. 违规时的失败行为明确标注为 `fail-closed`（阻断验收、CI 或运行）或 `fail-open`（警告但不阻断）；纯诊断度量不构成违规门槛。
 4. 规则编号格式: `{域缩写}-{序号}`，如 `ERR-01`
 5. **语言规范**: 所有源代码（含注释、commit message、PR description）使用英文；用户手册提供英文版为 canonical source，中文版作为翻译产物在功能完工后生成
+6. **科研验收**: 科研正确性、原始证据完整性、来源可追踪性、独立验证和适用的结果验收要求保持有效。规则调整须同步文档、实现与测试，不得借减少工程开销把未验证内容晋级为科学结果，也不得改写历史证据来取得通过。
 
 ---
 
@@ -709,93 +710,36 @@ make codegen && cp -r */generated/ /tmp/gen1 && make codegen && diff -r */genera
 
 ## 13. 代码质量 (CODE)
 
-### CODE-01: 模块化与反模式强制
+### CODE-01: 职责、可验证性与反模式约束
 
 **规则**: 所有新增/修改代码必须遵守以下约束：
 
-1. **单文件 ≤200 LOC** (有效代码行，不含空行和注释)。超过时必须拆分。
+1. **基于源码审查职责与可验证性**: 按受影响实现及其依赖检查职责边界、数据与控制流是否可追踪，关键不变量与失败路径是否有可执行的验证。拆分、合并或保留文件应有降低耦合、澄清职责、改善测试或维护效率的具体理由。行数只提供变更上下文和审阅提示，不设单文件硬上限、增长棘轮或强制拆分；大文件不自动判坏，小文件不自动判好。
 2. **禁止万能文件名**: `utils.{ts,py}`, `helpers.{ts,py}`, `common.{ts,py}`, `service.{ts,py}`, `misc.{ts,py}` 禁止作为业务逻辑容器。按功能域命名。
 3. **入口文件仅 re-export**: `index.ts` / `__init__.py` 禁止包含业务逻辑。
 4. **禁止类型安全逃逸**: `as any`, `@ts-ignore`, `@ts-expect-error`, `# type: ignore` 禁止使用。
 5. **禁止静默吞错**: 空 catch 块 `catch(e) {}` / `except: pass` 禁止。
 6. **禁止删测试过关**: 删除或 skip 失败测试以通过 CI 禁止。
 
-**CI 验证**:
+**验证与源码审查**:
+
 ```bash
-# LOC 检查 (TS + Python, diff-scoped 模式)
-# 正式实现: meta/scripts/check_loc.py (计算非空非注释行，含缩进行)
-# 已知局限 (Phase 3 升级为 AST-based lint 后消除):
-#   - Python 多行 docstring ("""...""") 内容行被误计为代码
-#   - TS 多行注释 (/* ... */) 中不以 * 开头的行被误计
-#   - 方向偏保守 (高估 LOC)，不会漏报
-# 临时 heuristic:
-find . -name '*.ts' -o -name '*.py' | grep -v node_modules | grep -v __pycache__ | grep -v generated | \
-  xargs -I{} sh -c 'LOC=$(grep -cvE "^\s*$|^\s*//|^\s*#|^\s*\*|^\s*/\*" "$1"); \
-  if [ "$LOC" -gt 200 ]; then echo "$1: $LOC LOC"; fi' _ {}
-# 万能文件名检查
-find . -regex '.*\(utils\|helpers\|common\|service\|misc\)\.\(ts\|py\)' \
-  -not -path '*/node_modules/*' -not -path '*/generated/*' && exit 1 || exit 0
-# 类型逃逸检查 (CODE-01.4)
-grep -rn 'as any\|@ts-ignore\|@ts-expect-error\|# type: ignore' \
-  --include='*.ts' --include='*.py' \
-  | grep -v 'node_modules\|__pycache__\|generated\|CONTRACT-EXEMPT' && exit 1 || exit 0
-# 入口文件业务逻辑检查 (CODE-01.3, heuristic)
-# 检查 index.ts/__init__.py 是否包含非 import/export/空行/注释 的代码
-python3 meta/scripts/check_entry_files.py
-# 静默吞错检查 (CODE-01.5, heuristic)
-grep -Pzn 'catch\s*\([^)]*\)\s*\{\s*\}' --include='*.ts' -r . \
-  | grep -v 'node_modules\|generated\|CONTRACT-EXEMPT' && exit 1 || exit 0
-grep -rn 'except:\s*pass\|except\s.*:\s*pass' --include='*.py' \
-  | grep -v '__pycache__\|generated\|CONTRACT-EXEMPT' && exit 1 || exit 0
+make code-health-check
+# Optional machine-readable size context for the same change scope:
+python3 meta/scripts/check_loc.py --base-ref origin/main --json
 ```
 
-**违规行为**: **fail-closed** — 违反任一条阻断 CI
+`make code-health-check` 先运行行数报告，再运行 `check_as_any.sh --vs-main` 的新增类型逃逸和静默吞错检查。后者仍阻断其覆盖的违规模式；Git 枚举失败不能被当成无改动。自动检查未覆盖的模式、入口职责和删/跳失败测试等行为，仍须通过受影响源码、调用链与行为测试审查，不能宣称该目标自动覆盖 CODE-01 全部规则。`check_entry_files.py` 是 CODE-01.2 的文件名检查，不是入口业务逻辑分析器。
 
-**豁免**: `# CONTRACT-EXEMPT: CODE-01 {原因}` (需附具体条目编号，如 CODE-01.4)
+`check_loc.py` 接受 `--files PATH...` 或 stdin 路径列表（`--null` 使用 NUL 分隔），也可用 `--base-ref REF` 从 merge-base 至当前工作树选择仍存在的变更文件，包括已提交、staged、unstaged 和 untracked 变更的当前内容；`--json` 输出机器可读报告。支持后缀的手写源码进入计数，非源码及声明的生成文件显式列入 `excluded`。eLOC 是近似的非空非注释行数，复杂注释等情况可能影响计数。退出 `0` 仅表示诊断成功，无可统计源码标为 `no_files`；输入、枚举或读取失败退出 `2`。报告没有阈值、strict 模式或豁免机制，也不输出质量通过结论。
 
-> **存量代码**: Phase 1 起新代码强制（diff-scoped: 仅检查 git diff 中的新增/修改文件）；存量代码在 Phase 2 H-16b 契约测试 CI 中逐步对齐。
+使用基线时，选择包含 base→worktree 与 base→index 的路径并集，排除 Git 确认的合法删除；`base_eloc`、`eloc`、`delta_eloc` 分别记录基线、当前工作树和变化的源码行数。尚未暂存的改写即使与 index 变化抵消，路径仍可见；行数变化为 `0` 不表示 index 未改变，也不代表内容等价。`base_eloc: 0` 表示该路径在基线没有常规手写源码文件，可能是路径不存在，也可能原为 symlink 或 gitlink；它不声明历史路径不存在。由非源码对象改为常规源码按新增源码统计。
 
-> **CI 升级路径**: 当前 LOC 计数 + 入口文件 + 静默吞错检查均为 grep/heuristic 临时实现。Phase 3 升级为 AST-based lint（TS: ESLint custom rule; Python: `ast` 模块），覆盖 CODE-01 全部 6 条子规则。
+**违规行为**: **fail-closed** — 实际反模式和源码审查中确认的职责、依赖或可测试性缺陷须修复后验收；应指出具体路径、影响和验证依据。文件规模、增减行数或报告生成成功本身均不构成验收结论。
 
-#### AMEND-01: CODE-01.1 文件级豁免 + 日落强制 (待批准)
+**例外说明**: CODE-01.2–01.6 的既有例外仍需明确条目、具体原因并在 review 中说明；保留对应实际风险检查。行数不需要豁免，旧 CODE-01.1 与 sunset 注释不授予任何验收权限。
 
-> **状态**: 提案 (pending governance approval)
-> **来源**: 2026-02 深度重构分析（现仅保留在本地 archive）, Codex R16/R23 审查反馈
-> **依赖**: NEW-R02a (CI 脚本实际存在 + 金丝雀测试)
-> **提出日期**: 2026-02-21
-
-**背景**: CODE-01.1 (单文件 ≤200 LOC) 的现有豁免机制 `# CONTRACT-EXEMPT: CODE-01.1 {原因}` 设计为行内注释。但 LOC 检查的本质是文件级度量 — 在超标文件中添加行内豁免注释不会改变该文件的 LOC 计数。存量代码中存在大量超标文件 (深度重构分析统计: TS ≥200 LOC 文件约 30+, Python ≥200 LOC 文件约 15+)，需要一个文件级豁免机制来支持渐进式清理。
-
-**提案内容**:
-
-1. **文件级豁免标记** — 在文件**首 5 行**内放置以下注释即可豁免该文件的 CODE-01.1 LOC 检查:
-   ```
-   // CONTRACT-EXEMPT: CODE-01.1 sunset:YYYY-MM-DD {原因}    (TS)
-   # CONTRACT-EXEMPT: CODE-01.1 sunset:YYYY-MM-DD {原因}     (Python)
-   ```
-   - `sunset:YYYY-MM-DD` 为**必填**字段，标注豁免到期日期
-   - 不含 `sunset:` 的文件级 CODE-01.1 豁免 CI 拒绝
-   - 其他 CODE-01 子规则 (CODE-01.2~01.6) 的行内豁免不受影响，无需 sunset
-
-2. **日落强制执行** — CI 脚本 (`check_loc.py`) 检查日落日期:
-   - 距日落 ≤30 天: CI **warn** (fail-open)
-   - 超过日落日期: CI **fail-closed** — 豁免过期，必须拆分文件或延期 (需新 PR 更新日期)
-
-3. **LOC 棘轮 (ratchet) 机制** (互补，不依赖本提案):
-   - 维护本仓 checked-in 的 LOC ratchet baseline（若启用）: 记录每个超标文件的当前 LOC 上限
-   - CI 检查: 文件 LOC 只允许 ≤ 记录值，不允许增长
-   - 文件拆分后从棘轮清单移除
-   - 此机制**不需要契约修订** — 作为 NEW-R02a CI 脚本的实现细节
-
-4. **CI 验证脚本变更**:
-   ```bash
-   # check_loc.py 增强: 文件级豁免 + 日落检查
-   python3 meta/scripts/check_loc.py --mode diff-scoped --sunset-warn 30
-   ```
-
-**影响范围**: 仅 CODE-01.1 (LOC 限制)。CODE-01.2~01.6 的现有行内豁免机制不变。
-
-**批准后生效**: 合并至 ECOSYSTEM_DEV_CONTRACT.md 的 CODE-01 豁免段落，替换当前通用豁免说明。
+**存量代码**: 按改动影响与实际风险审查；既有文件的规模不是质量缺陷的证据。重构须有可说明的收益并验证行为，不要求无关历史大文件为满足计数而拆分。
 
 ---
 
@@ -892,8 +836,7 @@ node scripts/check-version-consistency.mjs
 | **MIG** | MIG-01 Schema 迁移链强制 | fail-closed | 迁移注册表 lint |
 | **REL** | REL-01 发布偏差防护 | fail-closed | make release 检查清单 |
 | | REL-02 生成产物确定性 | fail-closed | 连续生成 diff 检查 |
-| **CODE** | CODE-01 模块化与反模式强制 | fail-closed | LOC + 文件名 + 类型逃逸 lint |
-| | ↳ AMEND-01 文件级豁免+日落 (待批准) | — | check_loc.py sunset 检查 |
+| **CODE** | CODE-01 职责、可验证性与反模式约束 | fail-closed（具体风险；行数仅报告） | 源码审查 + 行为测试 + 反模式检查 |
 | **LANG** | LANG-01 代码与文档语言 | fail-closed | check-source-language-anti-drift |
 | **PLUG** | PLUG-01 独立发布能力 | fail-closed | check-publishable-package-deps-anti-drift |
 
@@ -905,9 +848,8 @@ node scripts/check-version-consistency.mjs
 
 1. **新代码**: 本规范发布后，所有新增/修改代码必须遵守全部规则
 2. **存量代码**: 按当前 checked-in 架构/治理文档分阶段对齐，fail-open 规则允许渐进迁移
-3. **豁免**: 特殊情况可通过在代码中添加 `# CONTRACT-EXEMPT: {规则ID} {原因}` 注释豁免，但必须在 PR review 中说明。CODE-01.1 文件级豁免需额外包含 `sunset:YYYY-MM-DD` (待 AMEND-01 批准后生效)
-4. **版本演进**: 规则变更需经当前 monorepo 的 checked-in 治理流程审批
-5. **待批准修订**: 标记为 `AMEND-{NN}` 的提案在治理审批前不具有强制力，仅供参考实施
+3. **例外**: 对允许例外的规则，须使用 `CONTRACT-EXEMPT: {规则ID} {原因}` 注明具体原因并在 PR review 中说明；注释不能自行授权绕过科研验收。行数报告没有豁免或到期制度。
+4. **规则演进**: 对已获授权的规范调整，在同一变更中说明实际问题、预期收益与验证依据，并同步规则、实现和测试；不新增重复审批或自动豁免流程。保持科研正确性、原始证据和独立验证等结果要求，按已发布的现行规则验收。
 
 独立复现的运行时须保留完整原始输入、成员输出、精确源码来源与执行证据。团队循环在启用复现门时通过 `--reproduction-packet` 或 `independent_reproduction.blind_packet` 接收独立的中性输入，不以候选材料的数字遮蔽替代。实际后续读取仍须审查；同一可靠方法或模型家族不自动拒绝，原实现重跑、输入污染、相关方法缺陷与作者声明不能计为独立确认。多评审汇总只接受源锚定且完整的共同判断，不拼接不同评审的部分判断；未通过的结果不得发布约定答案。
 

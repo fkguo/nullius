@@ -30,6 +30,7 @@
 
 ## Working Norms
 
+- 框架实现、工程规范与研究流程均服务于正确、可靠、高质量、高效率地完成科研任务。具体实现、阈值、检查时机和流程应依据实际问题、预期收益与适用的验证证据修订，并同步文档、实现和测试；不为遵守形式而增加无益拆分或重复流程。科研正确性、原始证据完整性、独立验证与适用的结果验收要求仍须满足，具体检查方式可以改进。
 - 若本轮使用 Serena MCP，先在当前 worktree `activate_project`，随后 `check_onboarding_performed`；未激活前不要把 Serena 输出当 authority。
 - 新开 lane 或进入已有 lane 时，先确认当前 `cwd`、worktree 与分支符合该 lane 指定目标；若不一致，先切换到正确 worktree/branch，再开始阅读、测试或编辑。
 - 架构、LLM 能力、retrieval/reranking/evidence 策略或“某功能是否仍值得保留”的判断，应优先基于最新论文、benchmark、最佳实践和竞品实现，而不是旧记忆。
@@ -73,6 +74,7 @@
 
 ## Review Guidance
 
+- 按受影响源码与调用链评估职责边界、依赖及数据/控制流是否可追踪、关键不变量与失败路径是否可测试。文件行数只提供规模和变更上下文，不设硬上限、自动豁免或强制拆分；拆分应有降低耦合、澄清职责或改善测试的具体收益。行数报告成功不构成代码或科研验收。
 - 对 substantive implementation lane，默认分配一个 source-grounded reviewer 与一个 verifier 作为独立质量保障；docs-only、纯机械改名、或显然微小且可由本地验证充分覆盖的改动除外。主实现责任仍由当前主 agent 持有，不得把判断与整合外包给 reviewer/verifier。
 - 高风险 cross-package 或不可逆 public-surface 变更，推荐使用 `Opus`、`Gemini(auto)`、`OpenCode(zhipuai-coding-plan/glm-5.1)` 做独立 formal review；若某 reviewer 失败，先做 same-model rerun，再判断是否需要 fallback。
 - `Gemini(auto)` 是 reviewer seat 名称；默认模型选择器保持 `auto`，不要静默换成旧 alias。

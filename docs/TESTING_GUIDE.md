@@ -74,6 +74,21 @@ pnpm --filter @nullius/orchestrator exec vitest run tests/run-manifest.test.ts t
 
 每次 vitest 运行把 `TMPDIR` 指向一个专属临时根 `<系统临时目录>/ntest-<uid>/<标签>-<进程号>-XXXXXX/`（标签取包目录名中的字母数字与 `._`，截取前 6 个字符；为空时用 `tests`）（`ntest-<uid>` 必须是本用户所有、权限 0700 的真实目录，被预先放置的符号链接或他人目录会被拒绝）（名字刻意短：测试工具会在 `TMPDIR` 下建本地套接字，macOS 上套接字路径超过约 104 字节就无法建立）：每个测试都跑完（通过、跳过或待办）、没有失败、运行没有被中断（如监视模式下按 Ctrl-C）、命令的退出状态仍为成功（如覆盖率门槛未达标会使其失败）、且监视模式下此前各次重跑都干净时才删除；失败或中断则保留供检查（空目录也保留；唯一的例外是未被中断、退出状态干净、一个测试都没跑且临时根也是空的命令，如 `vitest list`，静默删除），其中 7 天无任何改动、创建它的进程已结束、且带有创建时写入的来源标记文件 `.nullius-test-root`（内容与格式完全吻合的普通文件）的，由之后的运行清除，没有标记或标记不符的目录一律保留；设 `NULLIUS_KEEP_TEST_TMP=1` 时一律保留。各包 `vitest.config.ts` 的 `globalSetup` 接入 `scripts/lib/vitest-test-temp-root.mjs`；`scripts/tests/vitest-test-temp-root.test.mjs` 锁定接线，并用真实的 vitest 3 与 4 各跑一次通过、失败与只列不跑。
 
+#### 工程质量与行数诊断
+
+工程规范与测试应服务科研正确性、可靠性、质量和效率。按实际改动审查职责边界、依赖与数据/控制流、关键不变量和失败路径，并运行对应的行为测试。规则的调整须说明实际收益并同步验证；减少形式性开销不改变原始证据、独立验证和科学结果验收要求。
+
+```bash
+make code-health-check
+python3 meta/scripts/check_loc.py --base-ref origin/main --json
+```
+
+`make code-health-check` 先生成行数报告，再执行新增类型逃逸与静默吞错的阻断检查。`check_loc.py --base-ref REF` 从 merge-base 到当前工作树选择仍存在的变更文件，包括已提交、staged、unstaged 与 untracked 变更的当前内容；也可用 `--files PATH...` 或 stdin 指定路径，stdin 的 NUL 分隔列表使用 `--null`。它报告支持后缀的手写源码 eLOC；非源码和声明的生成文件显式列入 `excluded`。报告没有大小阈值、strict 模式或行数豁免；退出码 `0` 只表示诊断成功，无可统计源码标为 `no_files`，输入、枚举或读取错误退出 `2`。行数是近似规模信息，不能自动判定代码质量、授予验收或要求拆分。
+
+行数报告选择 base→worktree 与 base→index 的路径并集，尺寸仍取当前工作树；变化量为 `0` 不代表 index 无改动或内容等价。基线为 `0` 也可能表示该路径原为 symlink/gitlink 等非源码对象，不能据此断言历史路径不存在。类型逃逸检查分别核验这两个快照，尚未暂存的安全改写不能遮蔽仍可提交的 index 违规。
+
+源码审查仍须覆盖自动检查未识别的类型逃逸、吞错和删/跳测试行为，以及职责、依赖和可测试性问题。只为通过检查而删/跳失败测试不可接受；对具体风险的修复和适用测试仍是验收条件。工程检查通过不构成研究结论的独立验证；科学验收继续使用下文对应的原始输入、执行证据和独立评审要求。
+
 #### 执行恢复与第三方 runner 契约
 
 DSH runner 的回归覆盖当前桌面 launcher、完整运行时字节绑定、隔离 profile、v4 会话与
