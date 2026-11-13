@@ -99,6 +99,14 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
     if (typeof resumeContext.context_selection === 'string') {
       io.stdout(`context_selection: ${resumeContext.context_selection}\n`);
     }
+    if (resumeContext.task_brief && typeof resumeContext.task_brief === 'object') {
+      const brief = resumeContext.task_brief as Record<string, unknown>;
+      if (brief.status !== 'unselected') {
+        io.stdout(`task_brief: ${renderInline(brief.status)} — ${renderInline(brief.path)} (freshness unchecked; no scientific acceptance)\n`);
+        if (brief.restore_argv) io.stdout(`task_brief_restore_argv: ${renderInline(JSON.stringify(brief.restore_argv))}\n`);
+        if (brief.reason) io.stdout(`task_brief_reason: ${renderInline(brief.reason)}\n`);
+      }
+    }
     const recommendedFiles = Array.isArray(resumeContext.recommended_files) ? resumeContext.recommended_files : [];
     if (recommendedFiles.length > 0) {
       io.stdout('resume_recommended_files:\n');

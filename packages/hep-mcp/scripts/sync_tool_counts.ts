@@ -182,6 +182,15 @@ function main(): void {
     { relPath: 'docs/PROJECT_STATUS.md', transform: source => syncProjectStatus(source, zoteroOn, zoteroOff) },
     { relPath: 'docs/TESTING_GUIDE.md', transform: source => syncTestingGuide(source, zoteroOn) },
     {
+      relPath: 'packages/hep-mcp/tests/toolContracts.test.ts',
+      transform: source => replaceOrThrow(
+        source,
+        /expect\(tools\)\.toHaveLength\(\d+\);/,
+        `expect(tools).toHaveLength(${zoteroOn.full});`,
+        'tool contract full count'
+      ),
+    },
+    {
       relPath: 'packages/skills-market/tests/test_personal_plugin_live.py',
       transform: source => syncPersonalPluginLiveTest(source, zoteroOn),
     },

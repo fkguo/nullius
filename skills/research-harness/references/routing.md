@@ -4,18 +4,36 @@ Read the section relevant to the current operation. Commands and script paths ar
 
 ## Route The Work
 
-- If the research question is still not scoped, create a plan with:
+- The primary agent owns the research question, central reasoning and synthesis.
+  Use the current host directly; isolated runners remain tools for scoped work
+  and independent verification. Do not delegate merely to satisfy a role count
+  or ask the user to manage routine tool selection and record keeping.
+- Clarify the current question and the next useful action in the existing plan.
+  Use a durable brainstorming recipe when comparing research directions needs it:
   ```bash
   nullius workflow-plan --recipe research_brainstorm
   ```
-- If the user needs milestone execution, invoke `research-team` and keep the milestone boundary explicit.
+- Use host-native bounded delegation when it helps the current question. Invoke
+  `research-team` when the project adopts its formal independent-member milestone
+  and convergence workflow; keep that boundary explicit.
 - If a compute environment, tool build, or documented invocation is new, rebuilt, or reconfigured, pass the three-layer readiness validation (see [compute readiness](compute-readiness.md)) before routing real work onto it.
 - If the task is Markdown formatting, Markdown math escaping, generated TOC LaTeX cleanup, link/citation clickability, or pre-handoff note hygiene, invoke `markdown-hygiene` first, then rerun the relevant project gate.
 - If developing or auditing a Julia computational package, use [`julia-package`](../../julia-package/SKILL.md) for its API, numerical contracts and package lifecycle; combine with `julia-perf` for kernels and performance claims.
-- If the task is physics or adjacent scientific literature research, evidence, INSPIRE/arXiv/OpenAlex provider lookup, source reading, bibliography, or literature search exports into project files, use `hep-mcp`. Web search may supplement broad discovery, but it does not replace the [literature workflow](literature-workflow.md) citation graph gate.
+- For scientific sources, use the available original-file access and the relevant
+  provider capabilities. `hep-mcp` supplies physics metadata, sources and citation
+  graphs. Route fixed-source reading, reference resolution and literature surveys
+  by the claims being made in the [literature workflow](literature-workflow.md).
+  A fixed-paper question does not automatically require a field-wide survey;
+  claims about the literature's coverage or relationships still need that evidence.
 - If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `nullius`.
 
-**Verification dispatch by result type.** This uses the same event → workflow vocabulary as the trigger table the scaffolded `AGENTS.md` carries (extended here with two harness-local rows, literature survey and prose; the integrity boundary lives in [closeout](closeout.md)); run the matching workflow at the moment the result appears, not on user reminder, and record the result as unverified when the named skill is unavailable:
+**Verification dispatch by result type.** This uses the same event → workflow vocabulary as the trigger table the scaffolded `AGENTS.md` carries (extended here with two harness-local rows, literature survey and prose; the integrity boundary lives in [closeout](closeout.md)). Perform the required checks when the result appears. If a named skill is not installed, read its requirements and use available capabilities to execute the same checks where the project permits it. Unknown requirements, unavailable execution or missing evidence leave the result unverified. This does not replace a required executable gate, evidence format or approval, or authorize claiming that an unavailable tool ran.
+
+Verify a load-bearing definition, formula, branch or numerical conclusion before
+dependent work relies on it. Independent checks can run in parallel with work
+that does not rely on the unverified result. Preserve blocked or unfinished work
+in a [continuation checkpoint](task-context.md#preserve-work-without-accepting-it);
+the checkpoint cannot provide scientific acceptance or override an approval.
 
 | Result type | The moment | Verification workflow |
 |---|---|---|

@@ -234,11 +234,11 @@ def test_check_without_attached_metadata_is_invalid(tmp_path):
     expect(root, "check", status="invalid", code=2)
 
 
-@pytest.mark.parametrize("operation", ["capture", "check"])
+@pytest.mark.parametrize("operation", ["capture", "check", "restore"])
 @pytest.mark.parametrize("link_kind", ["source-file", "source-directory", "brief-file", "brief-directory"])
 def test_all_symlink_components_are_rejected(tmp_path, operation, link_kind):
     root = project(tmp_path)
-    if operation == "check":
+    if operation != "capture":
         capture(root)
     if link_kind == "source-file":
         target = root / "research_plan.md"
@@ -252,7 +252,7 @@ def test_all_symlink_components_are_rejected(tmp_path, operation, link_kind):
     target.rename(saved)
     target.symlink_to(saved, target_is_directory=saved.is_dir())
     source = "inputs/raw sample.bin" if link_kind == "source-directory" else "research_plan.md"
-    if operation == "check" and link_kind == "source-directory":
+    if operation != "capture" and link_kind == "source-directory":
         # Ensure the replaced directory is one of the recorded source paths.
         root2 = project(tmp_path / "selected-directory")
         capture(root2, "inputs/raw sample.bin")
@@ -264,7 +264,7 @@ def test_all_symlink_components_are_rejected(tmp_path, operation, link_kind):
     expect(root, operation, *((source,) if operation == "capture" else ()), status="invalid", code=2)
 
 
-@pytest.mark.parametrize("operation", ["capture", "check"])
+@pytest.mark.parametrize("operation", ["capture", "check", "restore"])
 @pytest.mark.parametrize("corruption", ["unknown-field", "malformed-json", "version", "duplicate-key", "duplicate-comment"])
 def test_invalid_existing_metadata_is_never_silently_replaced(tmp_path, operation, corruption):
     root = project(tmp_path)

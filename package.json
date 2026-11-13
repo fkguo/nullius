@@ -1,6 +1,6 @@
 {
   "name": "nullius",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Nullius: an evidence-first harness for agent-assisted research — control plane, research skills, and provider packages",
   "type": "module",

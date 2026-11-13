@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import { getToolSpecs, handleToolCall } from '@nullius/orchestrator';
 import { invalidParams, zodToMcpInputSchema } from '@nullius/shared';
 import { boundPath, safeId } from './paths.js';
+import { researchToolDefinition } from './research-tools.js';
 
 // Transport scope is explicit: fleet ownership and operator decisions stay local.
 const allowed = new Set([
@@ -56,6 +57,8 @@ export function coreArguments(root: string, name: string, raw: Record<string, un
     args.tools = args.tools.map(item => {
       const tool = item as Record<string, unknown>;
       if (typeof tool.name !== 'string' || samplingTools.has(tool.name)) throw invalidParams('Nested delegated runtimes are not exposed.');
+      const research = researchToolDefinition(tool.name);
+      if (research) return research;
       const trusted = requireSpec(tool.name);
       return { name: trusted.name, description: trusted.description, input_schema: zodToMcpInputSchema(trusted.zodSchema) };
     });

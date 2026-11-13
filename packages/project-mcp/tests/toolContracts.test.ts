@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ProjectAdapter } from '../src/adapter.js';
 import { coreSpecs } from '../src/policy.js';
-import { toolsList } from '../src/registry.js';
+import { extraSchemas, toolsList } from '../src/registry.js';
 
 const roots: string[] = [];
 function fixture() {
@@ -18,7 +18,7 @@ describe('MCP annotations and titles', () => {
   it('every listed tool carries a non-empty title and all four boolean hints', () => {
     const issues: string[] = [];
     const tools = toolsList();
-    expect(tools).toHaveLength(5 + coreSpecs.length);
+    expect(tools).toHaveLength(Object.keys(extraSchemas).length + coreSpecs.length);
     for (const tool of tools) {
       if (typeof tool.title !== 'string' || tool.title.trim() === '') issues.push(`${tool.name}: missing title`);
       const annotations = tool.annotations as unknown as Record<string, unknown>;

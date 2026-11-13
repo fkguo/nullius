@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_TEAM_MAX_PARALLEL, TEAM_MAX_PARALLEL_LIMIT } from '../team-unified-runtime-types.js';
 
 const TaskKindSchema = z.enum(['literature', 'idea', 'compute', 'evidence_search', 'finding', 'draft_update', 'review']);
 const HandoffKindSchema = z.enum(['compute', 'feedback', 'literature', 'review', 'writing']);
@@ -49,6 +50,7 @@ const InjectTaskPayloadSchema = z.object({
   task_kind: TaskKindSchema,
   handoff_id: z.string().optional().nullable(),
   handoff_kind: HandoffKindSchema.optional().nullable(),
+  handoff_payload: z.record(z.string(), z.unknown()).optional().nullable(),
   checkpoint_id: z.string().optional().nullable(),
   timeout_at: z.string().datetime().optional().nullable(),
 });
@@ -81,6 +83,8 @@ const TeamAssignmentConfigSchema = z.object({
   delegate_id: z.string().min(1).optional(),
   handoff_id: z.string().optional().nullable(),
   handoff_kind: HandoffKindSchema.optional().nullable(),
+  handoff_payload: z.record(z.string(), z.unknown()).optional().nullable()
+    .describe('Task context passed intact to the delegate. Omitted values inherit the team payload; null explicitly clears it.'),
   checkpoint_id: z.string().optional().nullable(),
   timeout_at: z.string().datetime().optional().nullable(),
 });
@@ -93,8 +97,12 @@ export const TeamExecutionConfigSchema = z.object({
   delegate_role: z.string().min(1).optional(),
   delegate_id: z.string().min(1).optional(),
   coordination_policy: z.enum(['sequential', 'parallel', 'stage_gated', 'supervised_delegate']).optional(),
+  max_parallel: z.number().int().min(1).max(TEAM_MAX_PARALLEL_LIMIT).default(DEFAULT_TEAM_MAX_PARALLEL)
+    .describe('Maximum simultaneous delegate assignments for parallel or stage_gated execution; queued assignments remain pending.'),
   handoff_id: z.string().optional().nullable(),
   handoff_kind: HandoffKindSchema.optional().nullable(),
+  handoff_payload: z.record(z.string(), z.unknown()).optional().nullable()
+    .describe('Shared structured task context, such as the question, source refs, constraints, and expected output; assignments may override it.'),
   checkpoint_id: z.string().optional().nullable(),
   timeout_at: z.string().datetime().optional().nullable(),
   assignments: z.array(TeamAssignmentConfigSchema).min(1).optional(),

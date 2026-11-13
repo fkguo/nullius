@@ -4,19 +4,14 @@ import { createHash, randomUUID } from 'node:crypto';
 import { invalidParams, writeBytesAtomicDurable } from '@nullius/shared';
 import { filePath } from './paths.js';
 import { acquireExecution, releaseExecution } from './execution-lock.js';
+import { readProjectBytes } from './content.js';
 
 const hash = (value: Buffer) => createHash('sha256').update(value).digest('hex');
 export function readFile(root: string, value: string, offset: number, maxBytes: number) {
-  const target = filePath(root, value, false);
-  const fd = fs.openSync(target, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-  try {
-    const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || stat.size > 64 * 1024 * 1024) throw invalidParams('File transport accepts regular files up to 64 MiB.');
-    const bytes = fs.readFileSync(fd);
-    if (offset > bytes.length) throw invalidParams('Offset is beyond the file.');
-    const end = Math.min(offset + maxBytes, bytes.length);
-    return { path: path.relative(root, target), encoding: 'base64', data: bytes.subarray(offset, end).toString('base64'), sha256: hash(bytes), size: bytes.length, offset, next_offset: end < bytes.length ? end : null };
-  } finally { fs.closeSync(fd); }
+  const source = readProjectBytes(root, value);
+  if (offset > source.size) throw invalidParams('Offset is beyond the file.');
+  const end = Math.min(offset + maxBytes, source.size);
+  return { path: source.path, encoding: 'base64', data: source.bytes.subarray(offset, end).toString('base64'), sha256: source.sha256, size: source.size, offset, next_offset: end < source.size ? end : null };
 }
 export function writeFile(root: string, value: string, content: string, expected: string | null) {
   const bytes = Buffer.from(content, 'utf8');

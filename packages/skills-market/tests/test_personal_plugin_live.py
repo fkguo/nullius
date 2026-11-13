@@ -207,14 +207,15 @@ def test_real_plugin_composition_and_copied_skill_execution(tmp_path):
         all_names.extend(inventory["tools"])
     assert len(all_names) == len(set(all_names)), "Composed tools must not collide"
     assert 20 <= report["servers"]["project-mcp"]["count"] <= 30
-    assert report["servers"]["hep-mcp"]["count"] == 52
+    assert report["servers"]["hep-mcp"]["count"] == 51
     assert report["servers"]["idea-mcp"]["count"] == 6
     helped = []
     for script in sorted((plugin / "skills/research-harness/scripts").glob("*.py")):
         result = run([sys.executable, "-B", str(script), "--help"], cwd=project, env=environment)
         assert "usage:" in result.stdout.lower()
         helped.append(script.name)
-    assert len(helped) == 3
+    expected_helpers = {script.name for script in (ROOT / "skills/research-harness/scripts").glob("*.py")}
+    assert set(helped) == expected_helpers, "Every current harness helper must survive plugin copying and expose its help"
     report["copied_harness_help"] = helped
     for label, tree in (("plugin", plugin / "skills"), ("ordinary", skills)):
         scaffold = tmp_path / (label + "-skill-project")

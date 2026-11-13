@@ -13,17 +13,23 @@ The directory must exist, be outside the development checkout, and not be a pare
 
 ## Tools and project advancement
 
-`project_capabilities` reports the connected runtime, limits and sampling availability. The public inventory comes from `src/registry.ts` and a restricted view of the canonical orchestrator registry.
+`project_capabilities` reports the connected runtime, limits, local Poppler availability and separate `sampling` / `sampling_tool_calls` support. The public inventory comes from `src/registry.ts` and a restricted view of the canonical orchestrator registry: eight project tools plus 16 selected `orch_*` operations, for 24 tools.
 
 | Entry | Behavior |
 | --- | --- |
+| `project_capabilities` | Report all advertised tools, source-reading limits, PDF dependencies and host sampling availability. |
 | `project_cli` | Typed init, status, current, notebook/index sync, report validation, result registration, run stamping and decision recording through the canonical CLI. No caller-supplied argv. |
 | `project_file_read` | Project-relative file bytes, base64 encoded in chunks up to 64 KiB; whole-file SHA-256, size and next offset. Regular files up to 64 MiB. |
+| `project_file_search` | Bounded literal UTF-8 search with source hashes, line/column locations, surrounding lines and explicit scanned/skipped/unavailable coverage. |
+| `project_text_read` | Read source lines and Unicode columns with source SHA-256 and hash-bound continuation, including continuation within a long line. |
+| `project_document_read` | Extract selected PDF pages through local Poppler and optionally return actual PNG image content. Source hash, page coverage and truncation are explicit; no OCR. |
 | `project_file_write` | UTF-8 source/input/checker upload up to 1 MiB. `expected_sha256: null` creates a new file; replacing a file requires its current hash. |
 | `project_delivery_read` | Read a persistent response for a submitted mutation. |
 | Selected `orch_*` | Existing create/status/list, pause/resume/export, approval inspection, policy query, staging, computation, verification, final-conclusion evaluation and sampling-dependent delegation. |
 
 An MCP-only client can initialize a project, upload a method handoff, stage and plan it, execute its manifest, upload and execute a checker, read the actual output, register a result, and refresh project projections. A successful tool response is not proof that a scientific claim is correct. Verification retains the canonical checker contract; A5 remains unavailable with the current incomplete dependency closure.
+
+For source inspection and delegation examples, see the [research tools guide](../../docs/RESEARCH_TOOLS.md). Read-only source tools work without sampling. Search coverage describes a bounded scan; zero matches do not establish absence when that scan is incomplete. Pass the returned `next` object to continue text within a line or PDF text within a page using `start_character`. Its Unicode-character position advances only past the content actually returned, and its expected source hash rejects changed files. PDF extraction reads one regular-file snapshot and passes its bytes through stdin to `pdfinfo`, `pdftotext` and, when requested, `pdftoppm`. Missing programs return `unavailable`; absent extracted text does not establish a blank page. Limits are reported by `project_capabilities`, including at most five PDF pages per call, a 32 MiB source, 100,000 returned text characters and 4 MiB per PNG. Image edge length defaults to 1600 and accepts 256–2400 pixels.
 
 The bound root fills `project_root` when omitted. A supplied root must match. Its filesystem identity is checked before calls, detached execution and response commits; replacing or moving the project requires local reconciliation. Run directories must be `artifacts/runs/<run_id>`. Explicit paths and implicit control metadata reject symlinks and traversal. Unreferenced data, environments and provider caches are not recursively inspected. File uploads protect hidden configuration, journals, generated results/receipts, `research_team_config.json` and managed project projections; use canonical commands for those. Research plan and contract prose remain editable source documents; edits do not grant approval or verify a result. Input/checker uploads are allowed under run `inputs/`, `verification/` (Python/JS source), and `computation/scripts/`, `computation/inputs/`, `computation/manifest.json`. Hash checks coordinate cooperating writers; they are not an OS-level transaction against arbitrary local processes.
 
@@ -50,11 +56,22 @@ Responses larger than 64 KiB are transferred by `project_delivery_read` as `base
 
 ## Host capabilities and trust
 
-Sampling-dependent delegation runs in the foreground through the client's MCP sampling callback and a bound, restricted tool loopback. It requires a connected host and uses the existing delegated journal for recovery. Missing sampling returns unavailable. Callers cannot grant team permissions, inject approval interventions, supply arbitrary executable tool definitions, or call operator approval resolvers. Provider tools remain separate servers; this loopback exposes only the listed control-plane tools. Native hosts may use the existing research-team/review-swarm skills and their authenticated runners directly.
+Sampling-dependent delegation runs in the foreground through the client's MCP sampling callback and a bound, restricted tool loopback. It requires a connected host and uses the existing delegated journal for recovery. Missing sampling returns unavailable. Delegation with tools additionally requires the client's `sampling.tools` capability; basic sampling alone is insufficient and returns `unavailable` for such requests. Callers cannot grant team permissions, inject approval interventions, supply arbitrary executable tool definitions, or call operator approval resolvers. Provider tools remain separate servers. The loopback exposes the permitted control-plane tools and read-only project search/text/PDF tools using canonical schemas; delegated reads recheck project identity and the harness anchor. Sampling carries text only: PDF `include_images: true` returns `unavailable` through this bridge rather than dropping the images. A vision-capable host can call the PDF tool directly.
+
+The primary host agent can use its native tools and bounded delegation for the
+[research workflow](../../skills/research-harness/SKILL.md#advance-the-current-question).
+This MCP delegation transport does not automatically select a formal
+`research-team` cycle or supply its independent-member execution evidence.
+Projects that adopt that cycle retain its configured gates and supported runner
+requirements. Scoped answers retain result-specific verification; result
+registration, notebook folding, report promotion and milestone closeout retain
+the full project acceptance requirements.
+
+`orch_run_execute_agent` accepts a structured `team.handoff_payload` and per-assignment payloads. Omission inherits the team context, an object overrides it, and `null` clears it. The nested payload is preserved in the delegated transcript and existing task state. `team.max_parallel` defaults to 4 and accepts 1–16 for parallel or stage-gated execution. Queued assignments stay pending without a session until a slot is available; `timeout_at` is checked again before launch. Queue time consumes that absolute deadline, but this setting does not terminate an already-running external operation. Sequential execution remains one assignment at a time, and failed or blocked outcomes do not grant scientific acceptance.
 
 The file API and tool parameters are project-bound. Uploaded methods and checkers execute as trusted code under the local user's account, using existing Nullius runtime checks. This is **not an OS sandbox**; scripts can access resources available to that user. HEP and idea servers retain their own trust and confirmation contracts. A provider URI or external cache path is not automatically readable through this project's file API.
 
-Local SDK integration tests cover real planning/computation/checker execution, deliberate wrong outputs, result projections and delivery replay. They do not certify host sampling quality, external model authentication, provider network access, ChatGPT Chat/Work connections or Claude-host integration. Those need the actual configured clients. No tunnel, remote app registration, app ID or credentials are created by this package.
+Local SDK integration tests cover real source files and processes, planning/computation/checker execution, deliberate wrong outputs, result projections and delivery replay. PDF tests use real Poppler when installed; unavailable-dependency cases remain explicit. Model sampling in these tests uses deterministic fixtures. They do not certify host sampling quality, external model authentication, provider network access, ChatGPT Chat/Work connections or Claude-host integration. Those need the actual configured clients. No tunnel, remote app registration, app ID or credentials are created by this package.
 
 ## Tests
 

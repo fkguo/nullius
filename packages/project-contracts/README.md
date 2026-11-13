@@ -11,7 +11,7 @@ This package is intentionally narrow:
 
 Refresh mode (`ensure_project_scaffold(..., refresh=True)`, surfaced as `nullius init --refresh`) generates missing support guidance and preserves differing existing `AGENTS.md` and `research_guidance.md` bytes and mode. Render a scaffold in a temporary external root and merge changes explicitly to update existing instructions. The scaffold helper never writes the user-owned seed files (`research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, `reports/main_research_report_template.md`, `.gitignore`). The public CLI may separately synchronize existing machine-managed notebook and index blocks, preserving user-owned content and not inserting missing blocks.
 
-For the notebook-review guidance update, follow [updating existing project guidance](../../docs/QUICKSTART.md#updating-existing-project-guidance). Render the current template separately, compare the notebook-review paragraphs, and merge only the intended changes; preserve existing project and host instructions.
+For research-workflow and notebook-review guidance updates, follow [updating existing project guidance](../../docs/QUICKSTART.md#updating-existing-project-guidance). Render the current template separately, compare the relevant guidance, and merge only the intended changes; preserve existing project and host instructions.
 
 `nullius report-validate` delegates to this package. It checks the current-report
 entry, immutable registered hashes, supersession relations, report structure,
@@ -47,9 +47,16 @@ All newly generated managed project runs use `artifacts/runs/<run_id>/`; team an
 
 The generic scaffold creates `project_index.md`; the team helper updates only executor-local latest pointers and requires `nullius init` when the root index is missing. Selected-result and derived-block writers share a short path lock, reread their inputs, and make at most three attempts when edits are detected while preserving human bytes, mode and EOL outside their marked region. Arbitrary writers that ignore the lock remain outside its guarantee. Generic run counts do not interpret execution round limits; the Python executor resolver and suffix gate own those settings.
 
-The compact `AGENTS.md` keeps recovery and verification boundaries visible and
-links to operation-specific sections in `research_guidance.md`. Both are support
+The compact `AGENTS.md` keeps the host-agent research route, recovery and
+verification boundaries visible and links to operation-specific sections in
+`research_guidance.md`. A scoped answer follows its applicable scientific checks;
+project adoption, result registration, accepted notebook folds, report promotion
+and milestone closeout retain their full requirements. Both are support
 files: missing files can be generated; existing custom content is preserved.
 Seed files start with current status and task-specific source selection. Updating
 an old project's read order or splitting its custom rules remains an explicit
 merge from a separately rendered scaffold, never a blanket template replacement.
+
+The canonical charter records the primary goal, validation goals and non-goals.
+The team entry gate reads those fields and preserves the reviewed-status and
+configured-profile checks. A KB or additional commitments form is optional.

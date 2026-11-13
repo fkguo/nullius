@@ -1,6 +1,6 @@
 # Project Status Report (front-door rebaseline)
 
-**Date**: 2026-10-16
+**Date**: 2026-11-13
 **Status**: Active local-first, evidence-first harness for agent-assisted research (one pnpm workspace)
 **Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity
 
@@ -11,6 +11,26 @@ Native computation binds an enabled A3 approval to the current manifest, scripts
 
 ## QA snapshot
 
+Current development version: **0.6.1** (not a tagged release). Research continuity
+uses the existing task brief and status front door; the main host agent advances
+the current question with native tools, useful bounded delegation and the
+applicable scientific checks, then answers within scope and records the next step.
+Formal team cycles apply when adopted by the project. Scoped answers and read-only
+restoration do not adopt results or clear approvals. Eligible
+full-access team convergence executes one fresh source assessment rather than
+repeating it in postflight. Result-specific scientific verification and the full
+gates for project adoption, notebook folding, report promotion and milestone
+closeout remain required. The regression tests cover these mechanisms; they do not measure
+end-to-end research quality or establish parity with a model product. The release
+baseline below remains historical.
+
+Engineering review evaluates responsibilities, dependencies and executable
+checks for the affected behavior. File sizes and their changes are review
+context with no acceptance threshold. Code-health diagnostics reject unreadable
+inputs and invalid change selection; actual type-escape and swallowed-error
+checks remain blocking. These engineering rules serve scientific correctness,
+reliability, quality and efficiency without replacing scientific verification.
+
 - Closeout baseline: the 0.6.0 release candidate (`main` at `427f5f4e` plus the release branch)
 - `pnpm -r build` ✅
 - `pnpm -r test` ✅ (13 packages with real tests — `agent-arxiv`, whose `test` script is a no-tests placeholder, is not counted; orchestrator 1525 passed + 10 skipped, hep-mcp 664 + 4 skipped, shared 565, project-mcp 31)
@@ -18,22 +38,40 @@ Native computation binds an enabled A3 approval to the current manifest, scripts
 - all 27 `scripts/check-*.mjs` locks ✅ (the 20 `pnpm check:*` entries plus the CI-only scripts; package-freshness runs inside the hep-mcp build); current main has 31 and 24 after the locks added since that baseline (skill-frontmatter, unreachable-modules, publishable-package-deps, source-language)
 - CI pytest groups (project-contracts, research-team, idea-posterior, citation-triangulation, figure-hygiene, idea-generation, literature-to-package, research-harness, review-swarm) ✅
 - `pnpm --filter @nullius/hep-mcp docs:tool-counts:check` ✅
-- `standard=52`, `full=58` (tool counts are kept in sync with the live registry by `docs:tool-counts:sync`, not frozen at the baseline above)
-- `HEP_ENABLE_ZOTERO=0` → `standard=43`, `full=49`
+- `standard=51`, `full=57` (tool counts are kept in sync with the live registry by `docs:tool-counts:sync`, not frozen at the baseline above)
+- `HEP_ENABLE_ZOTERO=0` → `standard=42`, `full=48`
 
 ## Local installation and personal plugin
 
 The [`project-mcp`](../packages/project-mcp/README.md) leaf adapter binds one
 external project through `NULLIUS_PROJECT_ROOT` and reuses canonical
-`handleToolCall` / `runCli`. Its 16 selected `orch_*` operations plus five transport
-tools expose 21 tools. The [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md)
-combines project 21, default HEP 52, and idea 6: 79 unique tool names; the live
+`handleToolCall` / `runCli`. Its 16 selected `orch_*` operations plus eight project
+tools expose 24 tools. The [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md)
+combines project 24, default HEP 51, and idea 6: 81 unique tool names; the live
 plugin check compares them against the real local stdio servers. Runtime configuration is host-private; generated
 plugin manifests and ordinary copy-install metadata do not record source-machine
 paths. Copied skill helpers discover the current runtime through an explicit
 workspace, a source ancestor, or `nullius runtime path`. Project and idea require
 an external project; HEP also supports standalone use. Real computation checks cover both checked-result
 registration and rejection after production-output corruption.
+
+The callable [research tools](RESEARCH_TOOLS.md) add bounded literal UTF-8 search
+with source hashes, line locations and scan coverage; source-line reading with
+hash-bound continuation; and PDF page text plus optional real MCP PNG image
+content through installed Poppler. PDF continuation uses page and Unicode
+character positions tied to the source hash. There is no OCR, and incomplete
+search or extraction does not establish complete reading. Delegates can call
+the read-only tools when the client supplies `sampling.tools`; basic sampling
+alone does not supply a tool loop. Images remain direct-host requests because
+the portable sampling bridge carries text. Structured task payloads are retained
+in existing team state. Parallel and stage-gated work defaults to four active
+assignments, configurable from one to sixteen; queued work remains pending and
+its deadline is checked before launch. This does not kill active external jobs.
+
+Focused local tests exercise source identity, coverage, real Poppler output when
+installed, SDK transport and bounded team execution. Model responses are
+deterministic fixtures; these checks do not establish model-quality parity or
+prove that a particular external host has been connected.
 
 Delivery uses `RunManifestManager`, not another queue or research-state authority.
 Background mutations require a stable `delivery_id`; unknown outcomes need local
@@ -49,7 +87,7 @@ This is a local build and validation result, not an installed marketplace releas
 - **Main generic lifecycle + native TS computation + workflow-plan entrypoint**: `nullius` CLI for external project roots and `.nullius/` state
 - **Canonical generic MCP/operator counterpart**: public `orch_*` control-plane surface documented in `meta/docs/orchestrator-mcp-tools-spec.md` (no separate monolithic root MCP server binary yet)
 - **Generic control plane**: `nullius` / `orch_*` are the generic stateful control plane for run state, bounded execution, verification, proposal lifecycle, and read-model visibility
-- **Agent project harness skill**: `research-harness` is the thin Codex / Claude Code / OpenCode entry skill for external project continuation. It restores `.nullius/` plus durable project files, routes lifecycle work to `nullius`, milestone execution to `research-team`, Markdown note cleanup to `markdown-hygiene`, HEP evidence work to `hep-mcp`, and folds stable results back into `research_contract.md`, `research_plan.md#Current Status`, and `artifacts/runs/<run_id>/`. Its `run_storage.py` keeps bulk run outputs (5 MiB or more by default) out of git history behind a tracked hash manifest and a content store shared by all worktrees (`stow` / `verify` / `materialize`), and lists bulk files about to be committed (`check --staged`).
+- **Agent project harness skill**: `research-harness` guides the host's primary agent through investigation, useful bounded delegation, verification, scoped answers and continuation in external projects. It selects existing capabilities and routes a project-adopted formal independent-member cycle to `research-team`; lifecycle authority remains with `nullius`. Its `run_storage.py` keeps bulk run outputs (5 MiB or more by default) out of git history behind a tracked hash manifest and a content store shared by all worktrees (`stow` / `verify` / `materialize`), and lists bulk files about to be committed (`check --staged`).
 - **Human notebook closeout**: `notebook.result_links` remains structural navigation; `notebook.content_review` exposes a real, current full-text reviewer report. `nullius notebook review --model claude/opus` freezes the complete UTF-8 notebook and required declared dependencies by byte SHA-256, including uncommitted edits and automatic blocks; execution has a default hard 1200-second budget, up to 64 calls and one attempt per call without automatic retry. `nullius notebook check` reports structure and content separately and requires structural success plus current accepted review in file and engine mode. `--result` scopes only links; `--structure-only` establishes navigation alone. Missing, partial, failed, unavailable, invalid or stale review does not pass. Historical reports remain readable and status/current do not launch reviewers. Semantic acceptance, even with complete source-anchored section coverage, does not prove scientific truth or replace claim-specific validation.
 - **Notebook material capacity**: Valid UTF-8 text remains text regardless of size; Markdown links are discovered recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links` snapshots and hash locators, not read evidence. Every opaque path/hash needs a specific `opaque_sources` assessment; a required unread source prevents acceptance. Notebook and explicit dependencies require strict UTF-8 and LF or CRLF endings.  The complete material is frozen before review. Storage (`--snapshot-bytes`, default 512 MiB; `--max-files`, default 256) is separate from each request's `--context-bytes` and configured backend `--context-tokens` window (default 200,000 tokens, with instruction/output reserves). Default request bytes use a conservative token upper bound. A larger explicit byte packet requires captured backend token usage when that bound exceeds the window; missing capacity evidence, observed backend compaction or delivery failure supplies no acceptance.  Larger materials use original UTF-8 intervals with adjacent original context, followed by a joint audit receiving the COMPLETE original notebook and text dependencies. All intervals and the joint audit must be complete and fresh; selected quotations or summaries cannot replace this original input. The default execution budget is 1200 seconds and 64 calls (`--timeout-secs`, `--max-batches`), with one attempt per call and no automatic retry. Shortfalls expose total frozen material, pending intervals and joint scope, the reason and a resumable command. An unfinished intake reports discovered material and incomplete dependency enumeration. `--resume <run-id>` creates a new run, revalidates original receipts and material identity, retains explicit dependencies and storage budgets, and never rewrites old evidence. If the full joint input does not fit the backend, raise an available backend's request budget or leave the review incomplete. Only tool mode `none` is accepted. Multiple batches are one semantic review; they do not establish independent confirmations or a cross-family quorum.
 - **Final notebook check scope**: converged folds and final file closeout both invoke unscoped `nullius notebook check --json`; `none` declarations and missing launchers grant no exception. `--result` is a scoped structural diagnostic and cannot replace the full default check over every current result.
@@ -145,7 +183,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 

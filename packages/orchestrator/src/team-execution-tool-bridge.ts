@@ -1,8 +1,17 @@
 import type { MessageContent, MessageParam, MessagesCreateFn } from './backends/chat-backend.js';
 import type { AgentToolHandlerContext } from './orch-tools/agent-runtime.js';
-import type { ExecuteTeamDelegatedRuntimeInput } from './team-execution-runtime.js';
-import type { TeamPermissionMatrix } from './team-execution-types.js';
+import type { TeamExecutionAssignmentInput, TeamPermissionMatrix } from './team-execution-types.js';
 import type { TeamRuntimeAssignmentInput } from './team-unified-runtime-types.js';
+
+type TeamAssignmentToolInput = Pick<TeamExecutionAssignmentInput, 'task_id'> & Partial<Pick<
+  TeamExecutionAssignmentInput,
+  'stage' | 'task_kind' | 'owner_role' | 'delegate_role' | 'delegate_id'
+  | 'handoff_id' | 'handoff_kind' | 'handoff_payload' | 'checkpoint_id' | 'timeout_at'
+>>;
+
+export type TeamAssignmentsToolConfig = Omit<Partial<TeamAssignmentToolInput>, 'stage'> & {
+  assignments?: TeamAssignmentToolInput[];
+};
 
 type SamplingTextBlock = { type: 'text'; text: string };
 type SamplingToolUseBlock = { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> };
@@ -10,6 +19,7 @@ type SamplingToolResultBlock = {
   type: 'tool_result';
   toolUseId: string;
   content: SamplingTextBlock[];
+  isError?: boolean;
 };
 type SamplingBlock = SamplingTextBlock | SamplingToolUseBlock | SamplingToolResultBlock;
 
@@ -61,14 +71,22 @@ export function createLoopbackToolCaller(ctx: AgentToolHandlerContext) {
 function toSamplingContent(content: MessageParam['content']): SamplingBlock | SamplingBlock[] {
   if (typeof content === 'string') return { type: 'text', text: content };
   return content.map(block => block.type === 'tool_result'
-    ? { type: 'tool_result' as const, toolUseId: block.tool_use_id, content: [{ type: 'text' as const, text: block.content }] }
+    ? {
+        type: 'tool_result' as const, toolUseId: block.tool_use_id,
+        content: [{ type: 'text' as const, text: block.content }],
+        ...(block.is_error === true ? { isError: true } : {}),
+      }
     : block);
 }
 
 function fromSamplingContent(content: SamplingBlock | SamplingBlock[]): MessageContent[] {
   const blocks = Array.isArray(content) ? content : [content];
   return blocks.map(block => block.type === 'tool_result'
-    ? { type: 'tool_result' as const, tool_use_id: block.toolUseId, content: block.content.map(item => item.text).join('\n') }
+    ? {
+        type: 'tool_result' as const, tool_use_id: block.toolUseId,
+        content: block.content.map(item => item.text).join('\n'),
+        ...(block.isError === true ? { is_error: true } : {}),
+      }
     : block);
 }
 
@@ -79,8 +97,10 @@ export function createSamplingAdapter(ctx: AgentToolHandlerContext): MessagesCre
       messages: createParams.messages.map(message => ({ role: message.role, content: toSamplingContent(message.content) })),
       maxTokens: createParams.max_tokens,
       modelPreferences: { hints: [{ name: createParams.model }] },
-      tools: createParams.tools.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.input_schema })),
-      toolChoice: { mode: 'auto' },
+      ...(createParams.tools.length > 0 ? {
+        tools: createParams.tools.map(tool => ({ name: tool.name, description: tool.description, inputSchema: tool.input_schema })),
+        toolChoice: { mode: 'auto' as const },
+      } : {}),
     });
     return {
       content: fromSamplingContent(response.content),
@@ -91,28 +111,7 @@ export function createSamplingAdapter(ctx: AgentToolHandlerContext): MessagesCre
 }
 
 export function buildTeamAssignments(
-  team: {
-    task_id?: string;
-    task_kind?: ExecuteTeamDelegatedRuntimeInput['taskKind'];
-    delegate_role?: string;
-    delegate_id?: string;
-    handoff_id?: string | null;
-    handoff_kind?: ExecuteTeamDelegatedRuntimeInput['handoffKind'];
-    checkpoint_id?: string | null;
-    timeout_at?: string | null;
-    assignments?: Array<{
-      stage?: number;
-      task_id: string;
-      task_kind?: ExecuteTeamDelegatedRuntimeInput['taskKind'];
-      owner_role?: string;
-      delegate_role?: string;
-      delegate_id?: string;
-      handoff_id?: string | null;
-      handoff_kind?: ExecuteTeamDelegatedRuntimeInput['handoffKind'];
-      checkpoint_id?: string | null;
-      timeout_at?: string | null;
-    }>;
-  },
+  team: TeamAssignmentsToolConfig,
   fallbackTaskId: string,
   fallbackOwnerRole: string,
   fallbackDelegateRole: string,
@@ -129,6 +128,9 @@ export function buildTeamAssignments(
       delegate_id: assignment.delegate_id ?? team.delegate_id ?? `${fallbackDelegateId}-${index + 1}`,
       handoff_id: assignment.handoff_id ?? null,
       handoff_kind: assignment.handoff_kind ?? null,
+      handoff_payload: structuredClone(assignment.handoff_payload === undefined
+        ? team.handoff_payload ?? null
+        : assignment.handoff_payload),
       checkpoint_id: assignment.checkpoint_id ?? null,
       timeout_at: assignment.timeout_at ?? null,
     }));
@@ -142,6 +144,7 @@ export function buildTeamAssignments(
     delegate_id: team.delegate_id ?? fallbackDelegateId,
     handoff_id: team.handoff_id ?? null,
     handoff_kind: team.handoff_kind ?? null,
+    handoff_payload: structuredClone(team.handoff_payload ?? null),
     checkpoint_id: team.checkpoint_id ?? null,
     timeout_at: team.timeout_at ?? null,
   }];

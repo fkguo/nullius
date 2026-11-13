@@ -216,7 +216,7 @@ fail_host_native_shell_runner() {
 should_warn_gate_in_exploration() {
   local gate="${1:-}"
   case "${gate}" in
-    project_map_gate|agents_anchor_gate|notebook_integrity_gate|research_plan_gate|project_charter_gate|milestone_dod_gate|scan_dependency_gate|branch_semantics_gate|knowledge_layers_gate|literature_trace_gate|problem_framing_snapshot_gate|markdown_math_hygiene_gate|markdown_math_portability_gate|double_backslash_math_gate|markdown_link_hygiene_gate|latex_macro_hygiene_gate|references_gate|packet_completeness_gate|evidence_manifest_gate|claim_graph_gate|claim_trajectory_link_gate|pointer_lint_gate|evidence_schema_gate|clean_room_gate|logic_isolation_gate|independent_reproduction_gate|convention_mapping_gate)
+    project_map_gate|agents_anchor_gate|notebook_integrity_gate|research_plan_gate|project_charter_gate|milestone_dod_gate|scan_dependency_gate|branch_semantics_gate|knowledge_layers_gate|literature_trace_gate|problem_framing_snapshot_gate|markdown_math_hygiene_gate|markdown_math_portability_gate|double_backslash_math_gate|markdown_link_hygiene_gate|latex_macro_hygiene_gate|references_gate|packet_completeness_gate|evidence_manifest_gate|claim_graph_gate|claim_trajectory_link_gate|pointer_lint_gate|evidence_schema_gate|clean_room_gate|logic_isolation_gate|convention_mapping_gate)
       return 0
       ;;
     *)
@@ -2993,11 +2993,12 @@ if [[ ${#sidecar_outs[@]} -gt 0 ]]; then
 fi
 cycle_state_update "member_reports" "done" "running" ""
 
-# Postflight (full_access): evidence + clean-room + independent reproduction gates.
+# Postflight: deterministic evidence, clean-room and isolation checks.
+# Fresh source assessment belongs to the mandatory final convergence consumer.
+# Phase 2 consultation can examine reports but cannot grant confirmation.
 post_gates=(
   "evidence_schema_gate:${GATES_DIR}/check_member_evidence.py"
   "clean_room_gate:${GATES_DIR}/check_clean_room.py"
-  "independent_reproduction_gate:${GATES_DIR}/check_independent_reproduction.py"
   "logic_isolation_gate:${GATES_DIR}/check_logic_isolation.py"
   "convention_mapping_gate:${GATES_DIR}/check_convention_mappings.py"
 )
@@ -3031,10 +3032,6 @@ for entry in "${post_gates[@]}"; do
       [[ -n "${MEMBER_A_WORKSPACE_ID}" ]] && _clean_room_args+=( --workspace-id-a "${MEMBER_A_WORKSPACE_ID}" )
       [[ -n "${MEMBER_B_WORKSPACE_ID}" ]] && _clean_room_args+=( --workspace-id-b "${MEMBER_B_WORKSPACE_ID}" )
       python3 "${gate_script}" "${_clean_room_args[@]}"
-      gate_code=$?
-      ;;
-    independent_reproduction_gate)
-      python3 "${gate_script}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --member-a "${member_a_evidence}" --member-b "${member_b_evidence}" --project-root "${PROJECT_ROOT}" --assessor-model "${INDEPENDENCE_ASSESSOR_SPEC:-claude/opus}" "${independence_assessor_capacity_flags[@]}" --out-json "${run_dir}/independent_reproduction_gate.json"
       gate_code=$?
       ;;
     logic_isolation_gate)

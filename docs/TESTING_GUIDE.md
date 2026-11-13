@@ -39,7 +39,7 @@ julia --startup-file=no --project=skills/julia-perf/scripts skills/julia-perf/te
 ### 0.0 先确认 front-door 角色
 
 - `nullius` = generic lifecycle + workflow-plan + main-report structural-validation front door
-- `research-harness` = Codex / Claude Code / OpenCode 的薄 external project skill；它只负责恢复项目真相、路由到 `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`、并要求结果折回 durable artifacts，不是新的 CLI 或第二套 control plane
+- `research-harness` = 宿主主 agent 的研究与接续指导：调查当前问题、有用的有限委派、结果类型核验、回答与保存下一步；项目采用正式独立成员与收敛流程时才路由到 `research-team`，生命周期仍归 `nullius`
 - `.nullius/HARNESS` = `nullius init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `nullius status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff
 - `orch_*` = 同一 control plane 的 MCP/operator counterpart，不是第二个产品前门
 - `@nullius/hep-mcp` = 当前最成熟的 domain MCP front door
@@ -74,6 +74,21 @@ pnpm --filter @nullius/orchestrator exec vitest run tests/run-manifest.test.ts t
 
 每次 vitest 运行把 `TMPDIR` 指向一个专属临时根 `<系统临时目录>/ntest-<uid>/<标签>-<进程号>-XXXXXX/`（标签取包目录名中的字母数字与 `._`，截取前 6 个字符；为空时用 `tests`）（`ntest-<uid>` 必须是本用户所有、权限 0700 的真实目录，被预先放置的符号链接或他人目录会被拒绝）（名字刻意短：测试工具会在 `TMPDIR` 下建本地套接字，macOS 上套接字路径超过约 104 字节就无法建立）：每个测试都跑完（通过、跳过或待办）、没有失败、运行没有被中断（如监视模式下按 Ctrl-C）、命令的退出状态仍为成功（如覆盖率门槛未达标会使其失败）、且监视模式下此前各次重跑都干净时才删除；失败或中断则保留供检查（空目录也保留；唯一的例外是未被中断、退出状态干净、一个测试都没跑且临时根也是空的命令，如 `vitest list`，静默删除），其中 7 天无任何改动、创建它的进程已结束、且带有创建时写入的来源标记文件 `.nullius-test-root`（内容与格式完全吻合的普通文件）的，由之后的运行清除，没有标记或标记不符的目录一律保留；设 `NULLIUS_KEEP_TEST_TMP=1` 时一律保留。各包 `vitest.config.ts` 的 `globalSetup` 接入 `scripts/lib/vitest-test-temp-root.mjs`；`scripts/tests/vitest-test-temp-root.test.mjs` 锁定接线，并用真实的 vitest 3 与 4 各跑一次通过、失败与只列不跑。
 
+#### 工程质量与行数诊断
+
+工程规范与测试应服务科研正确性、可靠性、质量和效率。按实际改动审查职责边界、依赖与数据/控制流、关键不变量和失败路径，并运行对应的行为测试。规则的调整须说明实际收益并同步验证；减少形式性开销不改变原始证据、独立验证和科学结果验收要求。
+
+```bash
+make code-health-check
+python3 meta/scripts/check_loc.py --base-ref origin/main --json
+```
+
+`make code-health-check` 先生成行数报告，再执行新增类型逃逸与静默吞错的阻断检查。`check_loc.py --base-ref REF` 从 merge-base 到当前工作树选择仍存在的变更文件，包括已提交、staged、unstaged 与 untracked 变更的当前内容；也可用 `--files PATH...` 或 stdin 指定路径，stdin 的 NUL 分隔列表使用 `--null`。它报告支持后缀的手写源码 eLOC；非源码和声明的生成文件显式列入 `excluded`。报告没有大小阈值、strict 模式或行数豁免；退出码 `0` 只表示诊断成功，无可统计源码标为 `no_files`，输入、枚举或读取错误退出 `2`。行数是近似规模信息，不能自动判定代码质量、授予验收或要求拆分。
+
+行数报告选择 base→worktree 与 base→index 的路径并集，尺寸仍取当前工作树；变化量为 `0` 不代表 index 无改动或内容等价。基线为 `0` 也可能表示该路径原为 symlink/gitlink 等非源码对象，不能据此断言历史路径不存在。类型逃逸检查分别核验这两个快照，尚未暂存的安全改写不能遮蔽仍可提交的 index 违规。
+
+源码审查仍须覆盖自动检查未识别的类型逃逸、吞错和删/跳测试行为，以及职责、依赖和可测试性问题。只为通过检查而删/跳失败测试不可接受；对具体风险的修复和适用测试仍是验收条件。工程检查通过不构成研究结论的独立验证；科学验收继续使用下文对应的原始输入、执行证据和独立评审要求。
+
 #### 执行恢复与第三方 runner 契约
 
 DSH runner 的回归覆盖当前桌面 launcher、完整运行时字节绑定、隔离 profile、v4 会话与
@@ -94,7 +109,7 @@ Kimi/OpenCode 需要 Python 3.10 或更新版本；不满足时在调用模型�
 
 #### 本地个人插件与项目 MCP
 
-[`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 5 个 transport 工具，共 21 个。默认个人插件组合 project 21、HEP standard 52、idea 6，共 79 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。
+[`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。默认个人插件组合 project 24、HEP standard 51、idea 6，共 81 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。
 
 构建完成后运行以下针对性检查：
 
@@ -107,11 +122,17 @@ python3 -m pytest -q packages/skills-market/tests/test_personal_plugin.py packag
 NULLIUS_REAL_PLUGIN_SMOKE=1 python3 -m pytest -q -s packages/skills-market/tests/test_personal_plugin_live.py
 pnpm --filter @nullius/project-mcp exec vitest run tests/research-loop.test.ts
 pnpm --filter @nullius/project-mcp exec vitest run tests/harness-invocation.test.ts
+pnpm --filter @nullius/project-mcp exec vitest run tests/search.test.ts tests/text.test.ts tests/documents.test.ts tests/source-tools.test.ts tests/source-tools-stdio.test.ts
+pnpm --filter @nullius/orchestrator exec vitest run tests/team-delegation-context.test.ts tests/team-unified-runtime-concurrency.test.ts tests/agent-runner-stop-reasons.test.ts
 ```
 
 真实迁移检查先构建一次插件与普通 skills copy 安装，再搬迁这两个既有产物及运行 checkout，删除原输出，配置新 CLI 和包外私有配置后运行。在临时外部项目初始化 `.nullius/HARNESS`、state 和项目 launcher，启动真实三个 server，仅发送 `initialize` / `tools/list`，检查工具无重名及进程 cwd；还执行复制后的 harness 帮助与 team scaffold。provider 数据目录也限于临时 fixture，不调用 provider 工具。研究闭环测试分别执行正常计算并登记已核验结果，以及篡改生产输出后拒绝错误的 operator pass。
 
 项目入口核验测试显式设置 `NULLIUS_HARNESS_VERIFY=on`，覆盖首次初始化、过期记录拒绝且无副作用、status 恢复、后台执行再次核验、精确重放、符号链接边界和 sampling 内部调用；不能依赖默认测试环境跳过核验后的结果。
+
+[原文工具验收](RESEARCH_TOOLS.md)应覆盖：字面 UTF-8 搜索的哈希/行列位置、预算与不完整扫描，文本行内及 PDF 页内 Unicode 字符窗口的哈希绑定接续，源文件变化后的拒绝，路径/特殊文件边界，以及扫描 PDF 无可提取文本时不宣称已读全文。真实 PDF 验收须安装并确认 `pdfinfo`、`pdftotext`、`pdftoppm`，检查按页原文和实际 PNG image blocks、尺寸、字节数与 SHA-256；只跑缺依赖负例或跳过真实 Poppler 用例，不构成 PDF 能力验收。
+
+真实 stdio SDK 测试还检查原文工具经 sampling loopback 返回可用文本、官方 `toolUse`/`endTurn` 结束原因、只声明 basic sampling 时拒绝需要 `sampling.tools` 的委托，以及图像委托明确 `unavailable`。团队用例验证结构化 `handoff_payload` 的继承/覆盖/清空、`max_parallel` 默认 4 且范围 1–16、排队仍为 pending、启动前 deadline、部分失败保留与 stage 阻断。这些测试中的模型响应为确定性 fixture；通过不证明真实宿主连接、模型研究质量或正在运行的外部进程会被队列 deadline 杀死。
 
 交付验收必须区分传输和研究：后台变更使用稳定 `delivery_id`，`outcome_unknown` 不得自动重试，`finalizing` 等待项目锁释放，`committed` 只代表原响应已持久化。还须保留项目文件越界拒绝、本地主机审批、缺少 sampling 时 `unavailable` 等边界；本机脚本不是 OS sandbox 中的代码。上述本地验收不证明 ChatGPT Chat/Work 或 Claude 宿主已接通，tunnel/app ID 和对应宿主验收仍待用户配置。
 
@@ -139,7 +160,7 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 
 ### 0.3 在 MCP 客户端里接入当前 domain MCP front door
 
-当前公开 MCP contract 是本地 stdio 进程启动、tool `inputSchema`、紧凑 JSON/text tool result、没有 prompts。MCP env 里的路径是本地文件 / artifact / cache root，不是 URI/protocol 设置。Remote HTTP/OAuth、registry publishing 与独立 root MCP server 不属于当前验收面。
+当前公开 MCP contract 是本地 stdio 进程启动、tool `inputSchema`、有界 JSON/text 结果及显式请求的项目 PDF image content、没有 prompts。MCP env 里的路径是本地文件 / artifact / cache root，不是 URI/protocol 设置。Remote HTTP/OAuth、registry publishing 与独立 root MCP server 不属于当前验收面。
 
 最小配置示例：
 
@@ -202,8 +223,8 @@ EOF
 
 **预期**
 
-- `standard` 模式工具数为 `52`
-- `full` 模式工具数为 `58`
+- `standard` 模式工具数为 `51`
+- `full` 模式工具数为 `57`
 - `bad` 为空数组
 
 ### 0.5 可选依赖：Zotero / PDG
@@ -528,7 +549,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 
@@ -551,6 +572,29 @@ python3 -m pytest skills/research-team/tests/test_workflow_literature_acceptance
 These cases cover current committed-output identity, missing and unavailable evidence, explicit checker failures, partial/skipped execution, receipt substitution, changed plans/checkers/nested files and read-only freshness. A completed-plan recheck must issue zero provider calls. Fixture passes verify tooling mechanics; they establish no scientific result or semantic full-text reading.
 
 ## Instruction context checks
+
+Research continuity and final-consumer assessment regressions:
+
+```bash
+pnpm --filter @nullius/orchestrator exec vitest run tests/task-brief-navigation.test.ts tests/notebook-run-links.test.ts tests/notebook-result-links.test.ts
+python3 -m pytest -q skills/research-harness/tests/test_task_brief.py skills/research-harness/tests/test_task_brief_aliases.py skills/research-harness/tests/test_task_brief_restore.py packages/project-contracts/tests/test_research_continuity_guidance.py skills/research-team/tests/test_final_assessment_execution.py
+python3 -m pytest -q skills/research-team/tests/test_check_project_charter.py
+node scripts/check-independent-reproduction-anti-drift.mjs
+```
+
+These exercise explicit Current Status selection in file mode, hidden/history
+exclusion, exact authored-body restoration, changed or missing inputs, path and
+identity aliases, and read-only continuation without scientific acceptance.
+Generated-guidance checks distinguish a scoped answer from project adoption,
+result registration, notebook folding, report promotion and milestone closeout;
+load-bearing claims retain their result-specific checks. The charter tests use
+the actual canonical scaffold: meaningful reviewed goals pass without an optional
+KB or commitments form, while missing goals and unreviewed status still fail.
+Final-consumer fixtures require a fresh execution, reject stale or edited
+diagnostics and preserve two independent confirmations. A later eligible check
+must execute again. These are offline implementation checks, not model-quality
+benchmarks. Research evaluations should compare scientific correctness, error
+detection, completed work, continuity and total resource use on the same tasks.
 
 Run `pnpm check:instruction-context-anti-drift` for the four compact skill entries
 and scaffold `AGENTS.md`. Marked local references must exist inside their payload

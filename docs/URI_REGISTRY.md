@@ -6,6 +6,15 @@ It also does not elevate optional project-root support files into URI authority.
 
 [`project-mcp`](../packages/project-mcp/README.md) and the [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md) add no URI scheme or MCP resource surface. `nullius runtime path` and host-private runtime configuration resolve local installation paths only; they add no URI authority. `project_file_read` reads permitted real files under `NULLIUS_PROJECT_ROOT` in bounded chunks; it is not a resolver for the schemes below. Provider caches outside the bound project are not exposed through that file API. A delivery ID identifies a transport response in the existing run-manifest machinery, not a new research artifact namespace.
 
+The [source-reading tools](RESEARCH_TOOLS.md) use the same project boundary.
+`project_file_search` returns project-relative paths, source hashes and line/column
+locations with explicit scan coverage. `project_text_read` and
+`project_document_read` continue using source hashes and line or page/Unicode
+character positions. These are tool-result locators, not new URI schemes or
+resolver grants. PDF PNGs are bounded MCP image content associated with page
+numbers and image hashes; they do not advertise an MCP resource. A matching
+hash establishes byte identity, not full reading, OCR or scientific acceptance.
+
 Notebook content-review evidence uses existing `ArtifactRef` references for its
 verification subject, check-run, verdict and coverage records; it introduces no
 URI scheme. The reviewed complete UTF-8 notebook (automatic block included) and
@@ -121,7 +130,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 
@@ -137,3 +146,7 @@ Task briefs use ordinary project-relative file paths under
 `artifacts/runs/<run-id>/`, not a new URI scheme or MCP resource. Their embedded
 SHA-256 source records are byte-freshness checks rather than lifecycle or
 scientific approval identifiers.
+The explicit Current Status link selects `task_brief` navigation in both status
+recovery views. `restore_argv` is an ephemeral local invocation for the current
+runtime and project location; it is not a portable persisted identifier. The
+brief and its recorded source paths remain project-relative after relocation.

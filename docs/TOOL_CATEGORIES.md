@@ -1,4 +1,4 @@
-# Tool Categories（standard=52 / full=58）
+# Tool Categories（standard=51 / full=57）
 
 本文件把 `hep-mcp` 的 **standard 暴露**工具按“场景/闭环”分组，目的是让你不必理解全部工具，也能快速完成闭环。它描述的是当前 HEP 领域工具面，不是仓库的 root 产品身份。
 
@@ -33,7 +33,7 @@
 | 引用/合作网络分析 | `inspire_network_analysis` | 模式: `citation/collaboration` |
 | 发现跨论文关联 | `inspire_find_connections` | 输入 `recids`；可选 external hubs。若上游 workflow 的 paper set 为空，高层 consumer 会跳过该步并写出结构化 no-op 结果，而不会放宽原子工具契约 |
 | 追溯原始来源链 | `inspire_trace_original_source` | 输入 `recid` |
-| 证据质量/冲突分析 | `inspire_grade_evidence` / `inspire_detect_measurement_conflicts` / `inspire_critical_analysis` / `inspire_classify_reviews` / `inspire_theoretical_conflicts` | 原子 surface；不再通过 mode bag 混装 |
+| 证据质量/冲突分析 | `inspire_grade_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` / `inspire_theoretical_conflicts` | 原子 surface；不再通过 mode bag 混装 |
 | 下载论文源码 (LaTeX/PDF) | `inspire_paper_source` (`mode=content`) | |
 | LaTeX 结构解析 | `inspire_parse_latex` | 需 `project_root` + `output_dir`；在该目录写出 `parse_latex_<hash>.json`，返回项目相对路径 + summary |
 | 解析 BibTeX citekey | `inspire_resolve_citekey` | 批量 citekey + BibTeX 解析 |
@@ -97,7 +97,7 @@
 
 ## C) 数值与理论冲突（有界论文集）
 
-- `inspire_detect_measurement_conflicts`（测量值张力检测；不是权威 world-average 组合器）
+- 数值测量比较：用 `inspire_paper_source` / `arxiv_paper_source` 取得并实际阅读原文；按需用 `pdg_get_measurements` / `hepdata_get_table` 核对数据。主 agent 确认物理量定义、条件、单位和误差/相关性后，通过已有数值执行能力计算。不可比较或缺少协方差时明确保留未解决项，不自动给出兼容结论或平均值。
 - `inspire_theoretical_conflicts`（理论冲突图；需 `project_root` + `output_dir`，中间记录与结果都写入该目录）
 
 ## D) Zotero（Local API，本地库管理）
@@ -129,7 +129,6 @@
 - `inspire_find_connections`
 - `inspire_trace_original_source`
 - `inspire_grade_evidence`
-- `inspire_detect_measurement_conflicts`
 - `inspire_critical_analysis`
 - `inspire_classify_reviews`
 - `inspire_theoretical_conflicts`

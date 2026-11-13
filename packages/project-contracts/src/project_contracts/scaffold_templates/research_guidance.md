@@ -2,12 +2,45 @@
 
 Use the section linked by [AGENTS.md](AGENTS.md) for the current operation. This file contains detailed project instructions; it is not a task history or a replacement for scientific evidence.
 
+## Research workflow
+
+After recovering the project, identify the current question, requested output and
+scope. Use the existing plan to choose the next source reading, derivation,
+computation or diagnostic that resolves an important uncertainty. The primary
+agent develops the central analysis and reconciles the evidence. Delegate bounded
+parallel work or an independent check with the question, original inputs, expected
+output and stopping condition. A native subagent call does not by itself adopt a
+formal `research-team` cycle or prove independent confirmation.
+
+Inspect actual outputs and complete the result-specific checks before depending
+on a claim. Respond to failed checks by fixing the cause or changing the research
+approach. Repeating review of unchanged material does not advance the question.
+Deliver the requested answer with reasoning, source locators, executed calculations
+where needed and explicit limits. Distinguish missing evidence that prevents this
+answer from work needed only for a stronger claim. Save the next concrete action
+when work remains; resume from still-current evidence rather than repeating it.
+
+A fixed-source question needs the actual source versions, relevant full text,
+definitions and supporting evidence. It does not automatically require a field-wide
+survey. Claims about literature coverage, priority, relationships or gaps require
+the corresponding provider and citation/reference evidence. An adopted formal
+workflow still owes its configured trace and saturation gates.
+
+Completing a scoped answer is ordinary task completion, not project acceptance.
+Adopting or revising project conclusions, registering current results, folding them
+into the accepted record, promoting a main report or closing a milestone requires
+the existing formal checks below. The operation's content determines this boundary;
+calling it an answer or checkpoint cannot exempt it. Verification of load-bearing
+claims is required in either case. Choose `research-team` only when the project
+adopts its formal independent-member milestone and convergence workflow; ordinary
+host-native assistance does not supply its execution receipts or acceptance.
+
 ## Quick rules
 
 - Human notebook: `research_notebook.md`
 - Main research report entry point: `project_index.md#Main research report`
 - Machine contract: `research_contract.md`
-- Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/`; milestone-executor review cycles use its `research_team/` child. Cite the file that actually holds the evidence. A run directory records a unit of work worth auditing — a milestone candidate, a computation, a review cycle; development iteration toward that unit (diagnostics, build fixes, retries) is logged inside the unit's run directory, not minted as a fresh run per attempt.
+- Preserve the original sources, calculations, outputs and decisions needed to assess or continue the research under `artifacts/runs/<run_id>/`; formal team review cycles use its `research_team/` child. Cite the file that actually holds the evidence. A run directory records a unit of work worth auditing — a milestone candidate, a computation, a review cycle; development iteration toward that unit (diagnostics, build fixes, retries) is logged inside the unit's run directory, not minted as a fresh run per attempt. Reuse the current record; routine reasoning and tool selection do not need separate artifacts.
 - `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
 - Approval checkpoints: final-conclusion approval (A5) is always enforced through the finalize flow. Heavy-compute approval (A3) is opt-in — off by default so interactive work is not paused; set `require_approval_for.compute_runs: true` in `.nullius/approval_policy.json` to gate unattended runs. A1/A2/A4 (broad search, code/logic changes, manuscript edits) are advisory reminders, not hard blocks.
 - Keep `research_plan.md#Current Status` current enough that a researcher can see the final target, completion state, blocker, next step, and stop condition without reading the full log — and small enough to actually be read: the status field table stays within one screen: its progress cells (`Done`, `Evidence pointers`) describe the **current phase only**, while the target and closure fields (`Final target`, `Closure / stop condition`) remain project-global; each **completed** milestone collapses to one line in the plan's Milestone history table, linking its closeout record. Narrative detail, per-round histories, and long evidence inventories sink into the linked closeout documents and `artifacts/runs/<run_id>/`; a status section every coordination session must re-read is a standing tax on every session.
@@ -52,9 +85,40 @@ the full default check, whose structural scope includes every current result.
 
 - Keep checkpoint/status/closeout summaries, immutable main research reports, and machine provenance distinct. Before promoting a report, create a new file under `reports/`, update the current pointer and supersession registry in `project_index.md`, and run `nullius report-validate`. Never overwrite a registered report or use JSON/JSONL/hash/receipt artifacts in place of explanatory narrative and clickable human-readable evidence.
 
+## Continuation checkpoints
+
+Save unfinished work before interruption, context reset or a change of session.
+The primary agent preserves the research question, notation and assumptions,
+original source pointers, adopted results with evidence, explicitly unverified
+candidates, failed approaches and their reasons, pending checks or approvals,
+and the next concrete action. Use a task brief in the current run and an explicit
+`Task brief` link in the existing `research_plan.md#Current Status` Evidence
+pointers cell, before the first following heading; no second project state
+system is needed. Keep originals needed for verification, not only their summaries.
+
+Saving a continuation checkpoint is allowed while a gate or approval is pending
+or failed. It neither clears that boundary nor adopts scientific results. Do not
+mark a milestone complete, call `nullius result set-current`, or rely on a
+candidate as an accepted premise just because it was saved. When using the
+research-harness task-brief helper, `fresh` means selected bytes match; it does
+not mean scientific acceptance. On recovery, read status, check the selected
+originals and their validity, and resume only work allowed by the relevant gates
+and authorizations. Do not repeat completed work whose evidence remains current.
+
+A checkpoint may locate previously accepted results and their still-current
+acceptance evidence. Restoring that existing state does not itself require a new
+full-text review. Newly adopting or revising scientific conclusions in the
+project's accepted record, treating a candidate as an accepted project premise,
+or formally delivering or exporting adopted results still requires all result-specific gates, `research-integrity` M1-M7,
+the current full-text notebook review and unscoped `nullius notebook check --json`.
+A checkpoint label cannot exempt that handoff. Check load-bearing results before
+dependent work relies on them; parallel work may proceed only when it does not
+rely on the unverified result and its own authorization permits it. Run-storage
+rules still apply to retained evidence; never stow live output.
+
 ## Verification triggers (event → workflow)
 
-Verification runs on events, not on reminders: each moment below is the trigger, and each names the workflow that gates that kind of result. When the host agent exposes the named skill, run it at that moment without waiting to be asked; when it does not, record the result as unverified instead of skipping the check silently.
+Verification runs on events, not on reminders: each moment below names the workflow for that kind of result. When the host exposes the skill, use it. If it is not installed but its requirements can be read, available capabilities may perform those same checks and preserve the required evidence where the project permits it. Unknown requirements, unavailable execution or missing evidence leave the result unverified. Do not claim an unavailable skill ran, or replace a required executable gate, evidence format or approval with a declaration of equivalence.
 
 | The moment | Verification workflow |
 |---|---|
@@ -67,7 +131,7 @@ Verification runs on events, not on reminders: each moment below is the trigger,
 | Claimed a speedup or performance regression, or wrote performance-critical numerical code | `julia-perf` — language-scoped benchmark gating; use an equivalent gate for other languages |
 | Created or changed a computational package's public API, dependency, supported representation, tests or documentation | Language-scoped package checks (`julia-package` where applicable, an equivalent for other languages), with `julia-perf` for applicable kernels; package tests do not replace scientific acceptance |
 | A result-bearing surface needs independent review: a headline result, manuscript, load-bearing derivation, public contract, or an irreversible change (internal scaffolding diffs close on local tests plus a single reviewer — never on the author's own tests alone) | `review-swarm` — clean-room cross-model review |
-| Before conclusions, a milestone closeout, or a handoff | `research-integrity` M1-M7 — record the outcome inline and land run evidence under `artifacts/runs/<run_id>/`, with review payloads in its `research_team/` child |
+| Before adopting project conclusions, a milestone closeout, or a handoff of adopted scientific results | `research-integrity` M1-M7 — record the outcome inline and land run evidence under `artifacts/runs/<run_id>/`, with formal team review payloads in its `research_team/` child; preserving unfinished work alone follows Continuation checkpoints |
 | Before scientific notebook closeout, in file or engine mode | `nullius notebook review --model claude/opus` with required dependencies, then `nullius notebook check`; structural navigation and current whole-notebook content acceptance are separate requirements |
 | Before promoting or superseding the main research report | `nullius report-validate` — fail closed on structural incompleteness, stale current pointers, mutated history, machine-only evidence, or replay mislabeled as independent validation |
 | Created a run directory under `artifacts/runs/` | `nullius trace stamp <run_dir>` (for example `artifacts/runs/<run_id>`) — bind the run to the exact code state producing it, at the moment the binding is exact |
@@ -114,7 +178,7 @@ The triggers above bind to result-bearing moments; how much verification a momen
 ## Nullius session start protocol
 
 - If `.nullius/HARNESS` exists, this is a managed nullius project. Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout, run `.nullius/bin/nullius status --json`; if that project-local launcher is unavailable, run `nullius status --json`.
-- If the host agent exposes a `research-harness` skill or equivalent project-harness entrypoint, use that entrypoint first for reconnect, recovery, routing, verification, and handoff. It restores this project's durable state and then routes lifecycle work to `nullius`, milestone execution to `research-team`, and provider/domain work to the relevant tool layer.
+- If the host agent exposes a `research-harness` skill or equivalent project-harness entrypoint, use that entrypoint first for reconnect, recovery, routing, verification, and handoff. It restores this project's durable state and routes lifecycle work to `nullius`, an adopted formal team cycle to `research-team`, and provider/domain work to the relevant tool layer. The current host's primary agent owns ordinary research and useful bounded delegation.
 - On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.nullius/` exists but `.nullius/HARNESS` is missing, run `nullius status --json` before taking any new action, then repair the runtime handshake with `nullius init --runtime-only`.
 - If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` instead.
 - Treat `nullius` as the guaranteed root entrypoint for this scaffold.
@@ -160,6 +224,9 @@ If this project already has host-local support surfaces, follow the host's local
 If it does not, keep using task-specific source selection in [AGENTS.md](AGENTS.md) and update `research_plan.md` directly.
 
 ## Minimal checkpoints
+
+These are the durable project records used at scientific closeout. Saving
+unfinished work follows [Continuation checkpoints](#continuation-checkpoints).
 
 - `project_charter.md` declares the goal hierarchy and profile.
 - `research_plan.md` has a short Current Status section plus an actionable Task Board and Progress Log.

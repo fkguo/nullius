@@ -3,7 +3,7 @@
   "package_type": "skill-pack",
   "repo": "nullius/skills-market",
   "channel": "dev",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "summary": "Thin research project harness entry skill for nullius state recovery, routing, verification, and handoff.",
   "platforms": [
     "claude_code",

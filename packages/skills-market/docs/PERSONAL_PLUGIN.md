@@ -5,11 +5,28 @@ execution surfaces: `project-mcp`, `hep-mcp`, and `idea-mcp`. Codex and Claude C
 manifests share the same skill payload and MCP configuration. The composed HEP
 server already includes its atomic providers, so those are not registered again.
 
+The default composition exposes 82 distinct tool names: project 24 (16 selected
+`orch_*` operations and eight project tools), HEP standard 52, and idea 6. Other
+HEP modes or disabled providers change its count; the live composition check
+compares the actual server inventories.
+
 The plugin directory can be copied to another directory or machine unchanged.
 Each destination still needs the Nullius CLI and its built runtime. Python,
 Node, pnpm, external model CLIs, scientific programs, credentials, and provider
 databases remain dependencies of the relevant skills. Packaging the existing
 local MCP servers adds no operating-system sandbox.
+
+The [research tools guide](../../../docs/RESEARCH_TOOLS.md) covers callable
+project search, source-line reading and PDF page inspection. Search is bounded
+literal UTF-8 matching with hashes, line locations and scan coverage. Text and
+PDF continuation bind the original source hash. PDF text extraction needs local
+Poppler; optional page images are actual MCP PNG content and no OCR is performed.
+Call `project_capabilities` on the destination to inspect these dependencies and
+the separate `sampling` / `sampling_tool_calls` capabilities. Delegates need
+`sampling.tools` to use the read-only tools; their portable bridge carries text,
+so image requests go directly through the visual host. Installing the plugin
+does not supply model authentication, visual input or native subagents that the
+host lacks, and does not establish equivalent research quality across hosts.
 
 Build the skill payload and manifests from a source checkout:
 

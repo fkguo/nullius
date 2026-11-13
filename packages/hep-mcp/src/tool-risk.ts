@@ -35,9 +35,6 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   [T.INSPIRE_PARSE_LATEX]: 'write',
   [T.INSPIRE_RESOLVE_CITEKEY]: 'read',
   [T.INSPIRE_GRADE_EVIDENCE]: 'read',
-  // Downloads paper sources into the arXiv source dir shared with
-  // arxiv_paper_source, where earlier downloads are visible to callers.
-  [T.INSPIRE_DETECT_MEASUREMENT_CONFLICTS]: 'write',
   [T.INSPIRE_CRITICAL_ANALYSIS]: 'read',
   [T.INSPIRE_CLASSIFY_REVIEWS]: 'read',
   // Writes its records and map into the caller's output_dir.

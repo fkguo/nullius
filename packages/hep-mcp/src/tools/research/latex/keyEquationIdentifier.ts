@@ -4,7 +4,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import { latexParser } from 'latex-utensils';
 import { buildToolSamplingMetadata } from '../../../core/sampling-metadata.js';
-import { extractSamplingText } from '../../../core/semantics/quantitySampling.js';
+import { extractSamplingText } from '../../../core/semantics/samplingUtils.js';
 import { extractEquations, type Equation } from './equationExtractor.js';
 import {
   buildKeyEquationAssessmentPrompt,

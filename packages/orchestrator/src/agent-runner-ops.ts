@@ -93,7 +93,9 @@ function snapshotAssistantContent(blocks: MessageContent[]): MessageContent[] {
     }
     if (type === 'tool_result'
       && (typeof (block as Record<string, unknown>)['tool_use_id'] !== 'string'
-        || typeof (block as Record<string, unknown>)['content'] !== 'string')) {
+        || typeof (block as Record<string, unknown>)['content'] !== 'string'
+        || ((block as Record<string, unknown>)['is_error'] !== undefined
+          && typeof (block as Record<string, unknown>)['is_error'] !== 'boolean'))) {
       throw internalError(`Assistant response tool-result block ${index} is malformed.`);
     }
   }
@@ -179,6 +181,7 @@ function committedExecution(params: {
       type: 'tool_result',
       tool_use_id: params.frozen.toolUse.id,
       content: params.result.rawText,
+      ...(params.result.isError === true ? { is_error: true } : {}),
     },
     done: false,
     signature: toolExecutionSignature(params.frozen.toolUse, params.result),

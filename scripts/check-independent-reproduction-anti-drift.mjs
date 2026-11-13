@@ -21,9 +21,9 @@
  *      keeps "independent_reproduction" in the meta.gate_id enum (the gate's
  *      emitted verdict validates against the shared SSOT).
  *
- *   3. RUNNER WIRING. run_team_cycle.sh still wires the gate into the
- *      full_access postflight AND persists the machine verdict via
- *      --out-json.
+ *   3. RUNNER WIRING. run_team_cycle.sh reaches the final convergence
+ *      consumer, which runs the fresh full_access gate once and persists
+ *      diagnostics via --out-json without accepting a stored verdict.
  *
  *   4. PROSE + TESTS. The research-team SKILL.md still states the
  *      trace-divergence-not-majority discipline, and the behavior tests for
@@ -41,6 +41,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const GATE_FILE = 'skills/research-team/scripts/gates/check_independent_reproduction.py';
 const SCHEMA_FILE = 'meta/schemas/convergence_gate_result_v1.schema.json';
 const RUNNER_FILE = 'skills/research-team/scripts/bin/run_team_cycle.sh';
+const CONSUMER_FILE = 'skills/research-team/scripts/gates/check_team_convergence.py';
 const SKILL_FILE = 'skills/research-team/SKILL.md';
 const TESTS_FILE = 'skills/research-team/tests/test_independent_reproduction_gate.py';
 
@@ -96,9 +97,20 @@ if (schemaText !== null) {
 
 // 3. Runner wiring.
 requireAll(RUNNER_FILE, read(RUNNER_FILE), [
-  ['postflight gate wiring', 'independent_reproduction_gate:${GATES_DIR}/check_independent_reproduction.py'],
-  ['persisted machine verdict', '--out-json "${run_dir}/independent_reproduction_gate.json"'],
+  ['final convergence wiring', 'GATE_SCRIPT="${GATES_DIR}/check_team_convergence.py"'],
 ]);
+requireAll(CONSUMER_FILE, read(CONSUMER_FILE), [
+  ['fresh gate execution', 'checked = subprocess.run([sys.executable, str(Path(__file__).with_name("check_independent_reproduction.py"))'],
+  ['original executed report binding', 'validate_original_transport(evidence, args.project_root.resolve())'],
+  ['persisted diagnostic', '"--out-json", str(reproduction_result)'],
+  ['canonical diagnostic location', 'research_team/independent_reproduction_gate.json'],
+  ['current process output', 'json.loads(checked.stdout)'],
+  ['shared verdict schema', 'validate_convergence_result(receipt)'],
+  ['two independent confirmations', 'meta["independent_confirmations"] < 2'],
+]);
+if (read(RUNNER_FILE)?.includes('independent_reproduction_gate:${GATES_DIR}/check_independent_reproduction.py')) {
+  errors.push(`${RUNNER_FILE}: duplicate postflight assessor; the final consumer owns the fresh assessment.`);
+}
 
 // 4. Prose + tests.
 requireAll(SKILL_FILE, read(SKILL_FILE), [

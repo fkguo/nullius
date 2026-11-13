@@ -4,15 +4,47 @@ Read the section relevant to the current operation. Commands and script paths ar
 
 ## Closeout
 
+First distinguish the requested answer from formal project acceptance.
+A scoped research question can be answered with checked reasoning, original
+sources, executed calculations where needed and explicit limits. Explain which
+part is resolved and which missing evidence prevents a stronger conclusion.
+Unknowns outside the requested scope do not require an endless investigation.
+This is ordinary task completion, not a new acceptance grade or permission to
+rely on unverified work. Result-specific verification is required before any
+load-bearing use, including inside a bounded task.
+
+Adopting or revising the project's accepted conclusions, registering a current
+result, folding it into the accepted record, closing a milestone, promoting a
+main report or handing off material as accepted project results still requires
+the formal checks below. The actual operation determines this boundary; calling
+it a small task, answer or checkpoint cannot exempt it.
+
+Choose the operation by what it does. A continuation checkpoint preserves
+unfinished work for another session; it does not adopt a result, close a
+milestone or deliver an accepted scientific account. Save it through
+[task briefs and checkpoints](task-context.md#preserve-work-without-accepting-it),
+including explicit unverified candidates, failed checks and pending approvals.
+Saving remains allowed while a gate is pending or failed; resuming the gated
+action does not. Do not run a result-promotion or approval command just to save.
+
+A checkpoint may locate previously accepted results and their still-current
+acceptance evidence. Restoring that existing state does not itself require a new
+full-text review. Newly adopting or revising scientific conclusions in the
+project's accepted record, treating a new candidate as an accepted project
+premise, formal delivery or export of adopted results, a result fold, milestone
+closeout, or project-completion claim retains every requirement below.
+Calling that operation a checkpoint does not exempt it. Complete scientific
+verification before downstream reliance, not only before the final handoff.
+
 Once producers have stopped, complete [Run Storage](run-storage-workflow.md#run-storage-bulk-outputs-out-of-git-history) before a
-run-output commit or handoff: classify outputs, stow and verify selected
+run-output commit or formal research handoff: classify outputs, stow and verify selected
 files, and commit their manifest/ignore records with the small evidence.
 Run `check --staged --strict` before committing and `inventory` before
 considering local retention. Never stow live output or infer deletion safety
 from age, size or duplicate bytes. This is a storage check, not scientific
 acceptance; the commands below keep their own research requirements.
 
-Before handing off or claiming completion, finish the human-notebook rewrite, result-link check and accepted current full-text review described in **Fold Results Back**, identically in file and engine mode. `nullius notebook sync` refreshes only the automatic table; neither an in-sync table nor a fresh version stamp establishes that the human account was updated. If the task changes no scientific understanding, no notebook rewrite is owed. Record unresolved content gaps in the plan rather than declaring the scientific stage complete.
+Before a formal research handoff of adopted results or claiming project or milestone completion, finish the human-notebook rewrite, result-link check and accepted current full-text review described in **Fold Results Back**, identically in file and engine mode. `nullius notebook sync` refreshes only the automatic table; neither an in-sync table nor a fresh version stamp establishes that the human account was updated. If the task changes no scientific understanding, no notebook rewrite is owed. Record unresolved content gaps in the plan rather than declaring the scientific stage complete.
 
 Run the narrowest applicable closeout command:
 
@@ -35,7 +67,7 @@ machine-only evidence, and replay mislabeled as independent validation. Its
 pass is structural; scientific sufficiency remains a judgment on the report.
 
 Run the `research-integrity` skill's M1-M7 checklist at the moments
-work becomes durable. These triggers are observable file events — none
+scientific results become adopted or are handed off. These triggers are observable file events — none
 of them requires the engine's approval flow to be active:
 
 - before folding a new number, claim, or result into
@@ -47,7 +79,7 @@ of them requires the engine's approval flow to be active:
   the walk owed at their parent boundary,
 - before a milestone closeout commit,
 - when a `research-team` convergence gate reports the cycle converged,
-- before assembling submission or handoff material,
+- before assembling submission or formal research handoff material,
 - and before invoking `nullius approve` for any A1-A5 gate, in
   projects that use the engine's approval flow.
 
@@ -57,6 +89,8 @@ graph claims, bugs-as-insights, methodology fabrication, and frame-lock
 before they reach the durable record. The machine gates and the
 `HARNESS_INVOCATION_REQUIRED` anchor remain authoritative; the
 integrity check is owed to the next agent who reads your work.
+Merely recording an unfinished candidate and its missing checks for continuation
+does not claim acceptance; adopting that candidate still triggers this checklist.
 
 Optional closeout retrospective (recommended at milestone or project
 closeout): list the workflow lessons from the finished stretch of work;

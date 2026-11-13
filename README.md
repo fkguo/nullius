@@ -10,6 +10,40 @@ Nullius is an evidence-first harness for agent-assisted research. It gives AI co
 
 Native computation binds an enabled A3 approval to the current manifest, scripts, declared input and dependency files, resolved executable bytes, production environment and approval policy. Missing packets, unbound historical approvals and changed inputs require fresh root approval before dispatch; a step-only A3 mismatch fails closed without creating a root request. A requested pause lets the current direct child return, preserves its step evidence and stops the run as paused, including after the last step. Native continuation in place is unsupported: same-run execution and `resume --force` refuse without changing the paused attempt; a new separately approved run is a distinct execution. `execution_status.json` persists one absolute deadline covering preflight, later direct children and local outcome publication; retries keep that deadline, and each child receives the smaller remaining or step limit. Hard CPU, memory and disk constraints are rejected during preparation. These limits do not supervise arbitrary descendants or remote jobs. Canonical state writes compare the caller's read snapshot under a short exclusive lock before appending combined events; stale snapshots refuse, and stale locks require quiescent manual repair. CLI and project transport share canonical external-root admission, including uncreated paths beneath existing symlink ancestors.
 
+## Research continuity
+
+Use the host's native agent loop, tools and available subagents. The main agent
+owns the current question, core reasoning and synthesis: read original sources,
+derive or compute, delegate bounded work when it adds evidence, complete the
+result-specific checks, then deliver the requested answer with its limits.
+Continue from still-current evidence and a concrete next action. A bounded
+question needs neither a new recipe nor a formal team cycle by default; use
+`research-team` when the project adopts its formal independent-member milestone
+and convergence workflow. See the [research workflow](skills/research-harness/SKILL.md#advance-the-current-question).
+
+Completing a scoped answer does not adopt project conclusions, register current
+results, fold them into the accepted notebook, promote a main report or close a
+milestone. Those operations retain their full acceptance requirements; every
+load-bearing claim still needs its applicable scientific checks. Reading specified
+papers does not automatically require a field-wide survey; coverage or relationship
+claims and an adopted formal literature workflow retain their corresponding gates.
+If a skill is not installed, available capabilities may perform its known checks
+where the project permits, preserving the required evidence. A declaration of
+equivalence cannot replace a required executable gate, evidence format or approval.
+The isolated `dsh-cli-runner` serves bounded text tasks; use DSH's native task
+facilities for ongoing research inside DSH.
+
+Before context compaction or a session change, save the current scientific state
+in an authored [task brief](skills/research-harness/references/task-context.md).
+Link it as `[Task brief](artifacts/runs/<run-id>/task_brief.md)` in the opening
+`research_plan.md#Current Status` area, before its first subheading. `nullius status`
+exposes its `restore_argv`; the read-only helper returns the brief, selected source
+references and byte freshness. Status itself leaves freshness unchecked.
+Restoring previously accepted, still-current results does not require a new
+acceptance cycle. New adoption or revision of accepted project conclusions and
+formal delivery of adopted results retain their full checks and notebook review.
+A checkpoint clears no approval and does not resume a paused computation.
+
 ## 1. Surface Policy
 
 - `nullius` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, main-report structural validation, proposal decisions, and the conversational decision ledger.
@@ -17,7 +51,7 @@ Native computation binds an enabled A3 approval to the current manifest, scripts
 - `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring. `@nullius/hep-mcp` also surfaces these provider tools as entry points inside its own tool set (reusing the provider packages' `tooling`), so a HEP session reaches literature, data, reference, and Zotero access without wiring each provider MCP separately.
 - `idea-mcp` remains an experimental runtime bridge onto the restarted, probability-managed `idea-engine` portfolio. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract. The idea-engine search/eval runtime is archived; contracts + store are retained, scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4), and idea-engine is still not a default capability-expansion lane. The belief, decision, and generation layers around it live in four skills, not in the runtime: `idea-posterior` (decompose an idea into source-grounded sub-criteria, compute a Gaia posterior, write it back), `idea-pairwise-match` (criteria-committed cross-family judged comparison, one capped non-eliminating observation), `idea-allocation` (Thompson-sampling allocation plus activation monitoring), and `idea-generation` (derived idea nodes generated from research-progress evidence deltas — survey tensions, re-anchored gaps, failed-approach entries, and parent-bearing follow-on mutations of existing nodes — imported through the engine's `node.import_generated` as auditable generation packs; retrieval receipts before evidence URIs, mechanical dedup, novelty as a falsifiable closest-prior delta claim, no generator-side scoring).
 - `@nullius/hep-mcp` is the current most mature domain pack and strongest end-to-end example built on the domain-neutral root.
-- `research-harness` is the thin Codex / Claude Code / OpenCode skill entrypoint for external research projects: it restores `nullius` project state, routes milestone execution to `research-team`, routes Markdown note cleanup to `markdown-hygiene`, routes HEP evidence work to `hep-mcp`, and folds durable results back into project files and artifacts. It is not a new CLI or a second control plane.
+- `research-harness` guides the host's primary agent through research, verification, scoped answers and continuation in external projects. It restores `nullius` state, selects existing capabilities, and routes an adopted formal team cycle to `research-team`. Lifecycle authority remains with `nullius`; project adoption retains the existing evidence gates.
 - `research_brainstorm` is a checked-in durable harness recipe under `nullius workflow-plan`, not a new top-level CLI command, not the idea-engine, not a full research-team workflow, and not a root front-door expansion.
 - `.nullius/HARNESS` is the machine-readable runtime handshake written by `nullius init`; when it is present, agents must obtain an `nullius status --json` receipt before new work, milestone execution, closeout, or handoff.
 - Strict fail-closed research quality remains in force. `.nullius/HARNESS`, project-local durable memory, plus `.nullius/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
@@ -30,7 +64,7 @@ Native computation binds an enabled A3 approval to the current manifest, scripts
 | Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |
 | Project-bound MCP adapter | [`@nullius/project-mcp`](./packages/project-mcp/README.md) | Local stdio leaf adapter for canonical control-plane operations and bounded project-file transport, bound by `NULLIUS_PROJECT_ROOT` |
 | Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md` |
-| Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `nullius`, `research-team`, `markdown-hygiene`, and `hep-mcp`, and fold results back into durable project artifacts |
+| Agent research project harness skill | `research-harness` | Host-agent research workflow: recover the question, investigate, delegate useful bounded work, verify, answer and continue; route formal project acceptance to the existing gates |
 | Experimental idea runtime bridge | `node /absolute/path/to/nullius/packages/idea-mcp/dist/server.js` | TS-hosted campaign lifecycle bridge for `idea_campaign_*` on explicit external data roots; posterior-based rank/promote, node posterior/lifecycle/grounding-audit/card-revision updates, provenance correction, and generation-pack import (`node.import_generated`) remain `idea-engine` runtime-contract truth, not a root front door |
 | Current most mature domain MCP front door | `node /absolute/path/to/nullius/packages/hep-mcp/dist/index.js` | HEP domain MCP server for literature research and provider-local composition; its research-output tools write their files into a caller-chosen `output_dir` inside the project |
 | Bounded provider MCP operators | `@nullius/openalex-mcp`, `@nullius/arxiv-mcp`, `@nullius/hepdata-mcp`, `@nullius/pdg-mcp`, `@nullius/zotero-mcp` | Atomic literature, data, reference, and evidence operators that stay MCP-first |
@@ -43,7 +77,7 @@ The live HEP tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE`; 
 | --- | --- | --- |
 | Workflow authority | checked-in recipes consumed by `nullius workflow-plan` | High-level workflow meaning lives above provider packs |
 | Stateful control plane | `nullius` plus `orch_*` | Persistent project/run state, approvals, bounded execution, verification, and read models belong to one shared control plane |
-| Agent project harness | `research-harness` skill | Host-client guidance for recovery, routing, verification, and handoff; it delegates execution to the control plane and domain/executor layers |
+| Agent project harness | `research-harness` skill | Host-agent research and continuation, using existing control-plane, scientific and domain capabilities |
 | Experimental runtime bridge | `idea-mcp` | Runtime bridge stays explicit and narrower than the full engine contract |
 | Domain workflow pack | `@nullius/hep-mcp`, `hep_*` | Current strongest end-to-end example without becoming root identity |
 | Provider atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded, schema-driven MCP operators are easier to compose than provider-local CLI mirrors |
@@ -117,7 +151,9 @@ For existing projects, follow [updating project guidance](docs/QUICKSTART.md#upd
 
 The current MCP connection story is local stdio. [`project-mcp`](./packages/project-mcp/README.md) is a leaf adapter bound to one external project by `NULLIUS_PROJECT_ROOT`; it delegates to the canonical orchestrator tool dispatcher and CLI. There is still no single monolithic generic root MCP server: `nullius` remains the stateful front door, and HEP and idea servers retain their separate responsibilities.
 
-Current public MCP contract: local stdio process launch, tool `inputSchema`, compact JSON/text tool results, and no prompts. Research material placement is filesystem-first: transient fetches stay in local temp, while material needed for verification or continuation becomes a project/run artifact. `orch_*` is an operator/tool inventory exposed by the orchestrator package; it is not a separately packaged root MCP server. Remote MCP transports, OAuth, and registry publishing remain future deployment work outside the current local-stdio contract.
+The [research tools guide](docs/RESEARCH_TOOLS.md) covers callable source inspection across hosts: `project_file_search` performs bounded literal UTF-8 search with hashes, line locations and scan coverage; `project_text_read` returns source lines with hash-bound continuation; `project_document_read` extracts selected PDF pages and optionally returns actual PNG image content through local Poppler, with page/Unicode-character continuation tied to the source hash. These operations work without model sampling. A client declaring `sampling.tools` can delegate the read-only tools with structured `handoff_payload`; basic sampling alone does not provide a tool loop. The portable sampling bridge carries text, so page images must be requested directly by a vision-capable host. PDF extraction performs no OCR and does not establish that a scientific claim has been checked.
+
+Current public MCP contract: local stdio process launch, tool `inputSchema`, bounded JSON/text results and explicitly requested PDF image content, and no prompts. Research material placement is filesystem-first: transient fetches stay in local temp, while material needed for verification or continuation becomes a project/run artifact. `orch_*` is an operator/tool inventory exposed by the orchestrator package; it is not a separately packaged root MCP server. Remote MCP transports, OAuth, and registry publishing remain future deployment work outside the current local-stdio contract.
 
 The [local personal-plugin builder](./packages/skills-market/docs/PERSONAL_PLUGIN.md) copies the existing skills and generates Codex and Claude Code manifests with `project-mcp`, `hep-mcp`, and `idea-mcp`; it does not register the atomic providers again. Both ordinary installation and the plugin resolve runtime packages through the installed `nullius` CLI. Generated manifests and skill metadata contain no build-machine paths. Configure project, provider and data paths in the host environment or private `${XDG_CONFIG_HOME:-$HOME/.config}/nullius/runtime.json`; `NULLIUS_RUNTIME_CONFIG` can select another absolute file outside the distribution. Project and idea servers require an external project, and idea also requires `IDEA_MCP_DATA_DIR`; HEP can run standalone. A configured project becomes the server working directory. External tools remain local dependencies. Project-file access is bounded, while executed local scripts remain trusted code without an OS sandbox. Approval decisions stay on the local host; model sampling requires a supporting client and a live foreground connection, otherwise it is `unavailable`. Local execution and composition are tested; ChatGPT Chat/Work and Claude-host connections remain untested, with any required tunnel and app ID left for user configuration. No app connection or marketplace publication is created by the builder.
 
@@ -201,11 +237,16 @@ with no_current_report until a complete current report is registered.
 If `nullius` is not available, first prepare the CLI from the source checkout
 as described in this README, then retry the same startup sequence.
 
-Use research-harness if your agent supports it. Treat nullius as the lifecycle
-authority, research-team as the milestone executor, and fold stable results back into
-research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
-Promote a complete immutable report through project_index.md#Main research report,
-then run: nullius report-validate
+Use research-harness if your agent supports it. The primary host agent advances
+the current question with original sources, derivation or computation, useful
+bounded delegation and result-specific checks, then answers within the requested
+scope and records the next action. Treat nullius as the lifecycle authority.
+Use research-team when the project adopts its formal independent-member cycle.
+Project adoption, result registration, notebook folding, report promotion and
+milestone closeout retain the full gates; a scoped answer does not grant them.
+Keep research_contract.md, research_plan.md#Current Status and relevant artifacts current.
+When promoting a main report, register the complete immutable report through
+project_index.md#Main research report, then run: nullius report-validate
 Stamp each run's code origin at creation with: nullius trace stamp <run_dir>
 Retry a resultless crash under the same run id with: nullius trace retry <run_dir>
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
@@ -375,7 +416,7 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 

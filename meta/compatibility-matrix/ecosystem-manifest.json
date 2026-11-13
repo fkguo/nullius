@@ -1,6 +1,6 @@
 {
   "manifest_version": "1.1.5",
-  "updated_at": "2026-07-08T00:00:00Z",
+  "updated_at": "2026-11-13T00:00:00Z",
   "org": "nullius",
   "channels": [
     "stable",
@@ -88,7 +88,7 @@
       "type": "tool-pack",
       "repo": "nullius/nullius",
       "channel": "beta",
-      "version": "0.6.0"
+      "version": "0.6.1"
     },
     "hep-mcp-usage": {
       "type": "skill-pack",
@@ -246,7 +246,7 @@
       "type": "skill-pack",
       "repo": "nullius/skills-market",
       "channel": "dev",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source_path": "skills/research-harness/SKILL.md",
       "depends_on": {
         "hep-mcp": ">=0.6.0 <0.7.0",
@@ -268,7 +268,7 @@
       "type": "skill-pack",
       "repo": "nullius/skills-market",
       "channel": "dev",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source_path": "skills/research-team/SKILL.md",
       "depends_on": {
         "literature-workflows": ">=0.1.0 <0.2.0"

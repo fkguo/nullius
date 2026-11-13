@@ -135,6 +135,32 @@ Agent / operator
 
 ---
 
+### 2.1 Delegated source work
+
+`orch_run_execute_agent` accepts structured `team.handoff_payload` and
+per-assignment payloads. An omitted assignment value inherits the shared context,
+an object overrides it, and `null` clears it. Nested source references,
+constraints and expected outputs are preserved in the task transcript and
+existing team state; they do not create execution or approval authority.
+
+For `parallel` and `stage_gated` policies, `team.max_parallel` defaults to 4 and
+accepts 1–16. Waiting assignments remain pending without a runtime session until
+a worker slot is available. The absolute `timeout_at` is checked again before
+launch, so time in the queue consumes that deadline. This does not terminate an
+already running external operation. Each outcome is persisted before the slot
+is reused; failures remain explicit and a blocked stage does not advance.
+Sequential execution remains one assignment at a time.
+
+The project-bound adapter exposes canonical read-only `project_file_search`,
+`project_text_read` and `project_document_read` tools to delegated calls, checking
+the project identity and harness anchor again. Tool-using delegation requires
+the client's `sampling.tools` capability; basic sampling alone is insufficient.
+The portable sampling bridge carries text only. PDF images must be requested
+directly by a vision-capable host and are never silently discarded in the
+loopback. See [research tools across hosts](../../docs/RESEARCH_TOOLS.md) for
+source coverage, hash-bound continuation and Poppler limits. Scientific
+verification, canonical approvals and unknown-outcome recovery remain unchanged.
+
 ## 3. Threat Model
 
 ### 3.1 Agent self-approval

@@ -94,7 +94,7 @@ export function submitDelivery(request: DeliveryRequest, beforeDispatch: () => v
 }
 export function commitDelivery(request: DeliveryRequest, result: Result): void {
   assertProjectIdentity(request.root, request.root_identity);
-  const rawText = result.content.map(item => item.text).join('\n');
+  const rawText = result.content.flatMap(item => item.type === 'text' ? [item.text] : []).join('\n');
   let json: unknown = null;
   try { json = JSON.parse(rawText); } catch { /* Preserve the original text. */ }
   journal(request.root).commitToolAttempt(request.delivery_id, attempt(request), {

@@ -12,12 +12,16 @@ import type {
 import type { TeamDelegationProtocol } from './delegation-protocol.js';
 import type { TeamLiveStatusView, TeamReplayEntry } from './team-execution-view.js';
 
+export const DEFAULT_TEAM_MAX_PARALLEL = 4;
+export const TEAM_MAX_PARALLEL_LIMIT = 16;
+
 export interface TeamRuntimeAssignmentInput extends TeamExecutionAssignmentInput {}
 
 export interface ExecuteUnifiedTeamRuntimeInput
   extends Pick<ExecuteDelegatedAgentRuntimeInput, 'backendFactory' | 'maxTurns' | 'mcpClient' | 'model' | 'projectRoot' | 'routingConfig' | 'runId' | 'spanCollector' | '_messagesCreate'> {
   workspaceId: string;
   coordinationPolicy: TeamCoordinationPolicy;
+  maxParallel?: number;
   permissions: TeamPermissionMatrix;
   assignments: TeamRuntimeAssignmentInput[];
   messages: MessageParam[];
