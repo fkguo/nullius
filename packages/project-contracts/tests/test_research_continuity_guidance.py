@@ -34,6 +34,10 @@ class TestResearchContinuityGuidance(unittest.TestCase):
             target, anchor = match.groups()
             guidance = (root / target).read_text(encoding="utf-8")
             self.assertIn("## " + anchor.replace("-", " ").capitalize(), guidance)
+            self.assertIn(
+                '[Research workflow](research_guidance.md#research-workflow "nullius-guidance")',
+                entry,
+            )
             instructions = normalized(read_instruction_documents(root / "AGENTS.md"))
 
         # These obligations must survive actual scaffold generation and marked
@@ -42,6 +46,10 @@ class TestResearchContinuityGuidance(unittest.TestCase):
             "The primary agent retains the scientific judgment",
             "Use the current host's native reasoning and tools",
             "when it adds independent evidence or useful parallelism",
+            "A native subagent call does not by itself adopt a formal `research-team` cycle",
+            "Completing a scoped answer is ordinary task completion, not project acceptance",
+            "Verification of load-bearing claims is required in either case",
+            "A fixed-source question needs the actual source versions",
             "Saving a continuation checkpoint is allowed while a gate or approval is pending or failed",
             "It neither clears that boundary nor adopts scientific results",
             "`fresh` means selected bytes match; it does not mean scientific acceptance",
@@ -76,6 +84,8 @@ class TestResearchContinuityGuidance(unittest.TestCase):
         instructions = normalized(read_instruction_documents(entry_path))
         for obligation in (
             "Give blind verification its neutral question and original inputs",
+            "Calling a subagent does not by itself require adopting the formal `research-team` cycle",
+            "A fixed-paper question does not automatically require a field-wide survey",
             "Check a load-bearing result before dependent work relies on it",
             "Recording a pending check does not discharge that check",
             "recovering that existing state does not itself require a new full-text review",

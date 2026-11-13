@@ -227,7 +227,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("nullius status --json", template)
         self.assertIn("If the host agent exposes a `research-harness` skill", template)
         self.assertIn("use that entrypoint first for reconnect, recovery, routing, verification, and handoff", template)
-        self.assertIn("routes lifecycle work to `nullius`, milestone execution to `research-team`", template)
+        self.assertIn("routes lifecycle work to `nullius`, an adopted formal team cycle to `research-team`", template)
         self.assertIn("must preserve the `.nullius/HARNESS` and `research-harness` reconnect requirements", template)
         self.assertIn("Start with [Current Status]", template)
         self.assertIn("Acquire complete original material", template)
@@ -462,7 +462,8 @@ class TestScaffoldContract(unittest.TestCase):
 
         self.assertIn("## Verification triggers (event → workflow)", template)
         self.assertIn("Verification runs on events, not on reminders", template)
-        self.assertIn("record the result as unverified instead of skipping the check silently", template)
+        self.assertIn("Unknown requirements, unavailable execution or missing evidence leave the result unverified", template)
+        self.assertIn("replace a required executable gate, evidence format or approval", template)
         for workflow in (
             "`derivation-verify`",
             "`numerical-reliability-gate`",
@@ -485,7 +486,7 @@ class TestScaffoldContract(unittest.TestCase):
             "schematic, process, or geometry diagram",
             "Claimed a speedup or performance regression",
             "needs independent review",
-            "Before conclusions, a milestone closeout, or a handoff",
+            "Before adopting project conclusions, a milestone closeout, or a handoff",
         ):
             self.assertIn(moment, template)
         # The gates bind to result-bearing quantities; exercised-only numbers
@@ -500,7 +501,7 @@ class TestScaffoldContract(unittest.TestCase):
         )
         # The integrity row states where run evidence lands.
         self.assertIn("land run evidence under `artifacts/runs/<run_id>/`", template)
-        self.assertIn("with review payloads in its `research_team/` child", template)
+        self.assertIn("with formal team review payloads in its `research_team/` child", template)
         self.assertNotIn("`team/runs/<run>/`", template)
         # Granularity and severity rules ship with the trigger table: the
         # reviewed unit is a stable candidate, findings are severity-graded
@@ -548,7 +549,7 @@ class TestScaffoldContract(unittest.TestCase):
         agents_template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
         contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
-        self.assertIn("milestone-executor review cycles use its `research_team/` child", agents_template)
+        self.assertIn("formal team review cycles use its `research_team/` child", agents_template)
         self.assertIn("`artifacts/runs/<run_id>/research_team/` within the canonical run directory", contract_template)
         self.assertIn("`run_origin.json` belongs to the parent run", contract_template)
         self.assertIn("Cite the actual payload file", contract_template)

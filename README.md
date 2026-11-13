@@ -13,9 +13,23 @@ Native computation binds an enabled A3 approval to the current manifest, scripts
 ## Research continuity
 
 Use the host's native agent loop, tools and available subagents. The main agent
-owns the research question, core reasoning and synthesis; delegate bounded work
-when it adds evidence or an independent check. Nullius retains source grounding,
-independent derivation, numerical verification, provenance and result acceptance.
+owns the current question, core reasoning and synthesis: read original sources,
+derive or compute, delegate bounded work when it adds evidence, complete the
+result-specific checks, then deliver the requested answer with its limits.
+Continue from still-current evidence and a concrete next action. A bounded
+question needs neither a new recipe nor a formal team cycle by default; use
+`research-team` when the project adopts its formal independent-member milestone
+and convergence workflow. See the [research workflow](skills/research-harness/SKILL.md#advance-the-current-question).
+
+Completing a scoped answer does not adopt project conclusions, register current
+results, fold them into the accepted notebook, promote a main report or close a
+milestone. Those operations retain their full acceptance requirements; every
+load-bearing claim still needs its applicable scientific checks. Reading specified
+papers does not automatically require a field-wide survey; coverage or relationship
+claims and an adopted formal literature workflow retain their corresponding gates.
+If a skill is not installed, available capabilities may perform its known checks
+where the project permits, preserving the required evidence. A declaration of
+equivalence cannot replace a required executable gate, evidence format or approval.
 The isolated `dsh-cli-runner` serves bounded text tasks; use DSH's native task
 facilities for ongoing research inside DSH.
 
@@ -26,8 +40,8 @@ Link it as `[Task brief](artifacts/runs/<run-id>/task_brief.md)` in the opening
 exposes its `restore_argv`; the read-only helper returns the brief, selected source
 references and byte freshness. Status itself leaves freshness unchecked.
 Restoring previously accepted, still-current results does not require a new
-acceptance cycle. New adoption, substantive revision and formal scientific
-delivery retain their result-specific checks and full notebook review.
+acceptance cycle. New adoption or revision of accepted project conclusions and
+formal delivery of adopted results retain their full checks and notebook review.
 A checkpoint clears no approval and does not resume a paused computation.
 
 ## 1. Surface Policy
@@ -37,7 +51,7 @@ A checkpoint clears no approval and does not resume a paused computation.
 - `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring. `@nullius/hep-mcp` also surfaces these provider tools as entry points inside its own tool set (reusing the provider packages' `tooling`), so a HEP session reaches literature, data, reference, and Zotero access without wiring each provider MCP separately.
 - `idea-mcp` remains an experimental runtime bridge onto the restarted, probability-managed `idea-engine` portfolio. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract. The idea-engine search/eval runtime is archived; contracts + store are retained, scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4), and idea-engine is still not a default capability-expansion lane. The belief, decision, and generation layers around it live in four skills, not in the runtime: `idea-posterior` (decompose an idea into source-grounded sub-criteria, compute a Gaia posterior, write it back), `idea-pairwise-match` (criteria-committed cross-family judged comparison, one capped non-eliminating observation), `idea-allocation` (Thompson-sampling allocation plus activation monitoring), and `idea-generation` (derived idea nodes generated from research-progress evidence deltas — survey tensions, re-anchored gaps, failed-approach entries, and parent-bearing follow-on mutations of existing nodes — imported through the engine's `node.import_generated` as auditable generation packs; retrieval receipts before evidence URIs, mechanical dedup, novelty as a falsifiable closest-prior delta claim, no generator-side scoring).
 - `@nullius/hep-mcp` is the current most mature domain pack and strongest end-to-end example built on the domain-neutral root.
-- `research-harness` is the thin Codex / Claude Code / OpenCode skill entrypoint for external research projects: it restores `nullius` project state, routes milestone execution to `research-team`, routes Markdown note cleanup to `markdown-hygiene`, routes HEP evidence work to `hep-mcp`, and folds durable results back into project files and artifacts. It is not a new CLI or a second control plane.
+- `research-harness` guides the host's primary agent through research, verification, scoped answers and continuation in external projects. It restores `nullius` state, selects existing capabilities, and routes an adopted formal team cycle to `research-team`. Lifecycle authority remains with `nullius`; project adoption retains the existing evidence gates.
 - `research_brainstorm` is a checked-in durable harness recipe under `nullius workflow-plan`, not a new top-level CLI command, not the idea-engine, not a full research-team workflow, and not a root front-door expansion.
 - `.nullius/HARNESS` is the machine-readable runtime handshake written by `nullius init`; when it is present, agents must obtain an `nullius status --json` receipt before new work, milestone execution, closeout, or handoff.
 - Strict fail-closed research quality remains in force. `.nullius/HARNESS`, project-local durable memory, plus `.nullius/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
@@ -50,7 +64,7 @@ A checkpoint clears no approval and does not resume a paused computation.
 | Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |
 | Project-bound MCP adapter | [`@nullius/project-mcp`](./packages/project-mcp/README.md) | Local stdio leaf adapter for canonical control-plane operations and bounded project-file transport, bound by `NULLIUS_PROJECT_ROOT` |
 | Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md` |
-| Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `nullius`, `research-team`, `markdown-hygiene`, and `hep-mcp`, and fold results back into durable project artifacts |
+| Agent research project harness skill | `research-harness` | Host-agent research workflow: recover the question, investigate, delegate useful bounded work, verify, answer and continue; route formal project acceptance to the existing gates |
 | Experimental idea runtime bridge | `node /absolute/path/to/nullius/packages/idea-mcp/dist/server.js` | TS-hosted campaign lifecycle bridge for `idea_campaign_*` on explicit external data roots; posterior-based rank/promote, node posterior/lifecycle/grounding-audit/card-revision updates, provenance correction, and generation-pack import (`node.import_generated`) remain `idea-engine` runtime-contract truth, not a root front door |
 | Current most mature domain MCP front door | `node /absolute/path/to/nullius/packages/hep-mcp/dist/index.js` | HEP domain MCP server for literature research and provider-local composition; its research-output tools write their files into a caller-chosen `output_dir` inside the project |
 | Bounded provider MCP operators | `@nullius/openalex-mcp`, `@nullius/arxiv-mcp`, `@nullius/hepdata-mcp`, `@nullius/pdg-mcp`, `@nullius/zotero-mcp` | Atomic literature, data, reference, and evidence operators that stay MCP-first |
@@ -63,7 +77,7 @@ The live HEP tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE`; 
 | --- | --- | --- |
 | Workflow authority | checked-in recipes consumed by `nullius workflow-plan` | High-level workflow meaning lives above provider packs |
 | Stateful control plane | `nullius` plus `orch_*` | Persistent project/run state, approvals, bounded execution, verification, and read models belong to one shared control plane |
-| Agent project harness | `research-harness` skill | Host-client guidance for recovery, routing, verification, and handoff; it delegates execution to the control plane and domain/executor layers |
+| Agent project harness | `research-harness` skill | Host-agent research and continuation, using existing control-plane, scientific and domain capabilities |
 | Experimental runtime bridge | `idea-mcp` | Runtime bridge stays explicit and narrower than the full engine contract |
 | Domain workflow pack | `@nullius/hep-mcp`, `hep_*` | Current strongest end-to-end example without becoming root identity |
 | Provider atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded, schema-driven MCP operators are easier to compose than provider-local CLI mirrors |
@@ -223,11 +237,16 @@ with no_current_report until a complete current report is registered.
 If `nullius` is not available, first prepare the CLI from the source checkout
 as described in this README, then retry the same startup sequence.
 
-Use research-harness if your agent supports it. Treat nullius as the lifecycle
-authority, research-team as the milestone executor, and fold stable results back into
-research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
-Promote a complete immutable report through project_index.md#Main research report,
-then run: nullius report-validate
+Use research-harness if your agent supports it. The primary host agent advances
+the current question with original sources, derivation or computation, useful
+bounded delegation and result-specific checks, then answers within the requested
+scope and records the next action. Treat nullius as the lifecycle authority.
+Use research-team when the project adopts its formal independent-member cycle.
+Project adoption, result registration, notebook folding, report promotion and
+milestone closeout retain the full gates; a scoped answer does not grant them.
+Keep research_contract.md, research_plan.md#Current Status and relevant artifacts current.
+When promoting a main report, register the complete immutable report through
+project_index.md#Main research report, then run: nullius report-validate
 Stamp each run's code origin at creation with: nullius trace stamp <run_dir>
 Retry a resultless crash under the same run id with: nullius trace retry <run_dir>
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."

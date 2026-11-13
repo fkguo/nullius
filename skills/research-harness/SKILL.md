@@ -1,25 +1,44 @@
 ---
 name: research-harness
-description: Recover and continue an external Nullius research project, route its current task, maintain durable checkpoints, and close results through existing evidence gates. Use for reconnects, approvals, full-text notebook review, compute readiness and checkpointed jobs, result provenance/storage, optional reproduction, production-launch preflight and handoff.
+description: Lead research in an external Nullius project through source reading, analysis, delegation, verification and delivery. Use for research tasks, reconnects, checkpoints and formal closeout.
 ---
 
 # Research Harness
 
 Use the external project as authority. `nullius` owns lifecycle, approvals and
-state; the host owns its agent loop, tools and session compaction. This skill
-routes work and records results.
+state; the host owns its agent loop, tools and compaction.
 
 ## Own the research
 
-The primary agent retains the scientific judgment: formulate the question, work
-through the central argument or computation, choose the next discriminating test,
-and reconcile the evidence. Use the host's native reasoning, tools and subagents;
-an isolated CLI runner serves a delegated task, not a replacement research loop.
-Delegate bounded work when it adds independent evidence or useful parallelism.
+The primary agent retains the scientific judgment and central analysis. Use the
+host's native reasoning, tools and subagents; isolated runners serve scoped tasks.
+Delegate when it adds independent evidence or useful parallelism.
 Give blind verification its neutral question and original inputs, not the answer
 being checked. Keep routine routing and record maintenance with the agent; ask
 the user when a scientific choice or authorization boundary actually needs them.
-Report scientific findings, uncertainty and the next step.
+Report findings, uncertainty and the next step.
+
+## Advance the current question
+
+1. Recover the project; identify the question, requested output and scope. Use
+   the existing plan. A bounded question needs no new recipe or team cycle.
+2. Resolve the next important uncertainty through original-source reading,
+   derivation, computation or a diagnostic. Use available host tools and existing
+   Nullius capabilities. Survey literature when the question requires it.
+3. Delegate useful parallel work or independent checks with a question, original
+   inputs, expected output and stopping condition; integrate the findings yourself.
+   Calling a subagent does not by itself require adopting the formal `research-team` cycle.
+4. Inspect actual outputs, reconcile disagreement and verify load-bearing results.
+   Fix the cause of a failed check or change approach; repeating review of
+   unchanged material is not progress.
+5. Deliver the answer with reasoning, evidence, checks and limits. Separate gaps
+   preventing this answer from work needed only for a stronger claim. Preserve a
+   concrete next action and reuse still-current evidence when continuing.
+
+Completing a scoped answer is distinct from project acceptance. Adopting project
+conclusions, registering or folding results into the accepted record, promoting a
+main report or closing a milestone still requires [closeout](references/closeout.md "nullius-guidance"),
+regardless of the task's size or name. Scope never waives checks of load-bearing claims.
 
 ## Recover the current task
 
@@ -30,49 +49,35 @@ Report scientific findings, uncertainty and the next step.
 2. Stop on a status error or failed machine gate. Carry out a reported repair
    and continue; advisory warnings become recorded work, not automatic blocks.
    If any A1-A5 approval is pending, stop at that boundary. Silence is not approval.
-3. Read `research_plan.md#Current Status`, then use `project_index.md` to locate
-   the current adopted result and the original files relevant to this task.
-   Read applicable charter/contract constraints and relevant notebook sections.
-   Reacquire complete source whenever a claim or verification depends on it.
-4. Before restart, context reset or handoff, save required inputs, choices,
-   failures, unknowns, next action and acceptance command in durable project
-   material. Process-local stores are not checkpoints. A resumed session ID
-   does not establish that needed bytes survived.
+3. Read `research_plan.md#Current Status`; use `project_index.md` for the current
+   adopted result and relevant originals. Read applicable charter/contract and
+   notebook sections. Obtain complete source wherever verification requires it.
+4. Before restart or handoff, save required inputs, choices, failures, unknowns,
+   next action and acceptance command. Process-local stores are not checkpoints.
    A continuation checkpoint may preserve explicitly unverified work even when
-   a gate or approval is pending. It neither accepts results nor clears that
-   boundary; subsequent work still follows the applicable gates and approvals.
+   a gate or approval is pending; saving neither accepts results nor clears it.
 
-Read [recovery details](references/recovery.md "nullius-guidance") for anchor
-freshness, status classifications, missing state, initialization or migration.
-For task-scoped context and phase changes, use
+Read [recovery details](references/recovery.md "nullius-guidance") for missing state
+or migration; for context and phase changes, use
 [task briefs and continuation](references/task-context.md "nullius-guidance").
 
 ## Route only the work that applies
 
-Ordinary bounded edits stay with the current owner. Use `research-team` for a
-research milestone requiring execution and independent verification. Keep
-lifecycle/status/approval/export operations on `nullius`; provider MCP tools are
-capabilities, not a second project authority. For an unscoped question,
-`nullius workflow-plan --recipe research_brainstorm` records planning only.
+Use `research-team` when the project adopts its formal independent-member milestone
+and convergence workflow. Keep lifecycle/status/approval/export on `nullius`;
+provider MCPs supply capabilities. `nullius workflow-plan --recipe research_brainstorm`
+records planning when needed; it is not required for every question.
 Check a load-bearing result before dependent work relies on it; do not defer
 verification until an expensive downstream calculation or final writeup.
 
-| Trigger | Required route |
-| --- | --- |
-| A derived formula, sign, branch, normalization or boundary choice will support later work | `derivation-verify` |
-| A computed value will support a durable conclusion or displayed quantity | `numerical-reliability-gate` |
-| A citation supports a durable claim; a bibliography is frozen | `claim-grounding`; `citation-triangulation` |
-| A source survey is too thin or will support an introduction | `deep-literature-review` |
-| A data/results figure or schematic is delivered | `figure-hygiene` or `physics-diagrams` |
-| Julia package development or a performance claim | `julia-package`; `julia-perf` where applicable |
-| A result-bearing surface needs independent review | `review-swarm` |
-| Markdown math, links or note formatting need repair | `markdown-hygiene` |
-
-An unavailable required skill leaves the result unverified. Tooling fixtures and
-ordinary code tests do not become scientific results. Review identity, method
-and input independence must be assessed separately. Read
-[routing details](references/routing.md "nullius-guidance") when deciding the
-scope or the required verification for a result.
+Use the [result-specific routes](references/routing.md "nullius-guidance") when a
+formula, number, citation, figure or code result needs verification.
+Skills specify checks; the host supplies execution. When a skill is not installed
+but its requirements are readable, available capabilities may perform the same
+checks and retain their evidence. Unknown requirements or unavailable checks leave
+results unverified. Required executable gates, evidence formats and approvals
+cannot be replaced by a declaration of equivalence. Do not claim an unavailable
+tool ran. Assess model, method and input independence separately.
 
 ## Load operational detail when triggered
 
@@ -90,13 +95,12 @@ scope or the required verification for a result.
 
 ## Durable conclusions
 
-Engine and file mode owe the same result-specific evidence. Fold verified
-reasoning into the human notebook, contract and immutable report with source
-pointers. Structural links, status, hashes, receipts and reviewer agreement do
-not by themselves prove scientific truth. Closeout requires the current
+Engine and file mode owe the same evidence and acceptance requirements. Fold
+verified reasoning into the notebook, contract and immutable report with sources.
+Links, hashes, receipts and reviewer agreement do not prove scientific truth.
+Closeout requires the current
 unscoped notebook structure check and accepted full-text content review;
 selected-claim or delta reviews cannot replace it. Keep complete original
 material available to verification even when the working context is brief.
 Walk `research-integrity` M1–M7 before folding or requesting final approval.
-Do not treat missing, partial, failed, unavailable, invalid or stale evidence as
-accepted. Read the closeout reference before performing these operations.
+Missing, partial, failed, unavailable, invalid or stale evidence is not accepted.

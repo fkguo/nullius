@@ -39,7 +39,7 @@ julia --startup-file=no --project=skills/julia-perf/scripts skills/julia-perf/te
 ### 0.0 先确认 front-door 角色
 
 - `nullius` = generic lifecycle + workflow-plan + main-report structural-validation front door
-- `research-harness` = Codex / Claude Code / OpenCode 的薄 external project skill；它只负责恢复项目真相、路由到 `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`、并要求结果折回 durable artifacts，不是新的 CLI 或第二套 control plane
+- `research-harness` = 宿主主 agent 的研究与接续指导：调查当前问题、有用的有限委派、结果类型核验、回答与保存下一步；项目采用正式独立成员与收敛流程时才路由到 `research-team`，生命周期仍归 `nullius`
 - `.nullius/HARNESS` = `nullius init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `nullius status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff
 - `orch_*` = 同一 control plane 的 MCP/operator counterpart，不是第二个产品前门
 - `@nullius/hep-mcp` = 当前最成熟的 domain MCP front door
@@ -578,12 +578,18 @@ Research continuity and final-consumer assessment regressions:
 ```bash
 pnpm --filter @nullius/orchestrator exec vitest run tests/task-brief-navigation.test.ts tests/notebook-run-links.test.ts tests/notebook-result-links.test.ts
 python3 -m pytest -q skills/research-harness/tests/test_task_brief.py skills/research-harness/tests/test_task_brief_aliases.py skills/research-harness/tests/test_task_brief_restore.py packages/project-contracts/tests/test_research_continuity_guidance.py skills/research-team/tests/test_final_assessment_execution.py
+python3 -m pytest -q skills/research-team/tests/test_check_project_charter.py
 node scripts/check-independent-reproduction-anti-drift.mjs
 ```
 
 These exercise explicit Current Status selection in file mode, hidden/history
 exclusion, exact authored-body restoration, changed or missing inputs, path and
 identity aliases, and read-only continuation without scientific acceptance.
+Generated-guidance checks distinguish a scoped answer from project adoption,
+result registration, notebook folding, report promotion and milestone closeout;
+load-bearing claims retain their result-specific checks. The charter tests use
+the actual canonical scaffold: meaningful reviewed goals pass without an optional
+KB or commitments form, while missing goals and unreviewed status still fail.
 Final-consumer fixtures require a fresh execution, reject stale or edited
 diagnostics and preserve two independent confirmations. A later eligible check
 must execute again. These are offline implementation checks, not model-quality

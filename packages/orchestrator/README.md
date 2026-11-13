@@ -245,8 +245,13 @@ Research output preservation, path classification, read-only inventory, commit c
 `project_index.md` first. `context_selection` preserves applicable constraints
 and complete-original verification; `recommended_files` lists source candidates.
 
-Project instructions select relevant operation guidance and original evidence
-from current status; host tools and compaction retain execution control. The
+Project instructions guide the primary host agent through the current question,
+original sources, derivation or computation, useful bounded delegation,
+result-specific checks, an answer within scope and continuation. Use the formal
+`research-team` cycle when the project adopts it. A scoped answer grants no
+project adoption, result registration, notebook fold, report promotion or
+milestone closeout; those operations retain their full existing gates. Host tools
+and compaction retain execution control. The
 optional [task brief](../../skills/research-harness/references/task-context.md)
 only binds authored context to selected bytes, without changing lifecycle,
 approval or notebook-review acceptance semantics.

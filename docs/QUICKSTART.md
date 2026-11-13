@@ -61,8 +61,8 @@ diff -u AGENTS.md "$guidance_preview_root/AGENTS.md"
 不会关闭正常 status 读取。
 
 这保留既有科学验收能力：fresh 只说明所选字节匹配，不判断来源是否齐全、内容是否正确，
-也不改变任何科学验证门。普通接续可引用此前已验收且仍有效的结果及其证据；新采纳、实质
-修改或正式交付科学成果仍执行完整要求。检查点不会解除已有审批、继续 paused 的原生计算，
+也不改变任何科学验证门。普通接续可引用此前已验收且仍有效的结果及其证据；新采纳或修订
+项目已接受结论、正式交付已采用结果，仍执行完整要求。检查点不会解除已有审批、继续 paused 的原生计算，
 或重派发 outcome_unknown 的操作。新指引仍需按上面的方式显式合并到既有项目。
 
 针对旧版笔记审查说明，核对以下变化：
@@ -143,7 +143,9 @@ python3 packages/skills-market/scripts/build_personal_plugin.py \
 
 后台变更请求需稳定的 `delivery_id`；断线后用该 ID 查询 `project_delivery_read`，不要换 ID 重试未知副作用。`outcome_unknown` 需要本地核对，`finalizing` 要等项目锁释放，`committed` 仅表示原始响应已保存，仍须读取响应和 canonical 研究状态来判断成败。审批在本地主机完成；sampling 仅在客户端支持且前台连接持续时可用。项目文件边界不等于本机脚本的 OS sandbox。
 
-在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.nullius/HARNESS`、`.nullius/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `nullius`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
+在支持的宿主中开始或继续外部研究项目时，使用 [`research-harness`](../skills/research-harness/SKILL.md#advance-the-current-question) 的研究主流程：恢复状态，明确当前问题与交付范围，读取原文、推导或计算，按需委派有范围的工作，检查实际输出，完成结果类型对应的科学核验，再回答并保存下一步。主 agent 持有核心分析与综合判断，生命周期操作仍由 `nullius` 管理。
+
+普通问题默认不需要新 recipe 或正式 team cycle；只有项目采用正式独立成员与收敛流程时才进入 `research-team`。有范围的回答不等于正式采纳结论、登记结果、折入已接受的 notebook、提升主报告或关闭里程碑，后者保留完整验收。未安装某个 skill 时，可在项目允许范围内用现有能力完成其已知要求并保留证据；要求不明、检查不可执行或证据缺失时保持 unverified，不能用“等价”声明代替必须执行的机器门禁或审批。
 
 若项目已提升主研究报告，还要从 `project_index.md#Main research report` 读取唯一当前报告及其 supersession registry。
 
@@ -180,11 +182,16 @@ temporary project_index.md#Main research report section into the existing index.
 report-validate fails closed with invalid_registry_markers before that merge and
 with no_current_report until a complete current report is registered.
 
-Use research-harness if your agent supports it. Treat nullius as the lifecycle
-authority, research-team as the milestone executor, and fold stable results back into
-research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
-Promote a complete immutable report through project_index.md#Main research report,
-then run: nullius report-validate
+Use research-harness if your agent supports it. The primary host agent advances
+the current question with original sources, derivation or computation, useful
+bounded delegation and result-specific checks, then answers within the requested
+scope and records the next action. Treat nullius as the lifecycle authority.
+Use research-team when the project adopts its formal independent-member cycle.
+Project adoption, result registration, notebook folding, report promotion and
+milestone closeout retain the full gates; a scoped answer does not grant them.
+Keep research_contract.md, research_plan.md#Current Status and relevant artifacts current.
+When promoting a main report, register the complete immutable report through
+project_index.md#Main research report, then run: nullius report-validate
 Stamp each run's code origin at creation with: nullius trace stamp <run_dir>
 Retry a resultless crash under the same run id with: nullius trace retry <run_dir>
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
@@ -236,6 +243,10 @@ nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-
 
 先在外部研究项目执行 `nullius init` 和 `nullius status --json`，并在每次持久 HEP 调用中传入其绝对 `project_root`。run、审批与通用生命周期只由 orchestrator 管理（`artifacts/runs/<run_id>/`）；`hep-mcp` 没有自己的 run，也不建项目或 evidence catalog。
 
+指定论文的阅读或比较先核对版本、原文位置、定义和所需计算，不自动要求全领域综述。
+讨论文献覆盖、优先权、关系或空白时，再完成相应 provider 与引文图核查。项目已经采用的
+正式 team 或文献 workflow 仍须满足其 trace 与 saturation 门禁；这里不改变可执行验收要求。
+
 1) 把检索结果导出成项目文件：`hep_inspire_search_export`（或带 `output_dir` 的 `inspire_search`）、`hep_inspire_resolve_identifiers`
 - 关键参数：`project_root` + `output_dir`。`output_dir` 相对 `project_root` 或写成绝对路径，不存在时创建；不得经过 project root 以下的符号链接，不得位于 `.nullius/`、`team/runs/`、`artifacts/hep-mcp/` 之下，也不能是 project root 本身。通常取当前 orchestrator run 目录下的子目录，例如 `artifacts/runs/<run_id>/literature/`。
 - 返回项目相对路径（`export_path`、`meta_path`、`mapping_path` 等）；导出所用的每次 INSPIRE 请求/响应记录在 `<output_dir>/external_api/`。`inspire_parse_latex`、`inspire_theoretical_conflicts` 与 `hep_import_from_zotero` 同样写入 `output_dir`。
@@ -243,7 +254,7 @@ nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-
 2) 读论文原文：`arxiv_paper_source` / `inspire_paper_source`（`mode=content`）取得 LaTeX 源码或 PDF
 - 论断是否得到支持须对照原文核对；把核对所用的位置（章节、公式号、页码）记入项目笔记。
 
-3) `nullius workflow-plan --recipe literature_landscape`
+3) 需要领域文献综述时：`nullius workflow-plan --recipe literature_landscape`
 - 先在目标外部 project root 执行 `nullius init`，然后在该 root 内或通过 `--project-root` 调用；这是一个公开的 stateful front door，会直接通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。对受限论文集分析使用 `inspire_critical_analysis`、`inspire_classify_reviews`、`inspire_theoretical_conflicts` 等 bounded operators。
 
 > 说明：较底层的 checked-in Python `workflow-plan` consumer 与 internal regression/parser-residue 路径见 `docs/TESTING_GUIDE.md`；不要把它们当成新的 quickstart 默认入口。
@@ -335,6 +346,8 @@ Converged folds invoke the same unscoped `nullius notebook check --json` require
 for final file closeout. `none` declarations and a missing launcher grant no
 exception. `--result` is a scoped structural diagnostic; it cannot substitute for
 the full default check, whose structural scope includes every current result.
+
+For a project that adopts the formal `research-team` cycle, the shell runner's default `host_native` mode supports `--preflight-only`; the shell cannot launch native host subagents. Actual member execution through this runner requires explicitly configured supported CLI runner kinds and paths. The current authenticated `full_access` execution-observation route is CLI-backed; ordinary native delegation or a successful preflight does not produce its acceptance evidence.
 
 For an enabled full-access independent reproduction gate, supply `--reproduction-packet <neutral-input-file>` to the team cycle or set `independent_reproduction.blind_packet` to its project-relative path in `research_team_config.json`. Put the question, conventions and complete original inputs there; omit candidate answers and candidate implementation. The cycle freezes it for both member stages with reproduction instructions, while other review steps retain the full candidate packet. Missing neutral input refuses dispatch. Every subsequent actual file read and command input still needs the fresh source assessor's blindness and method checks; selecting this route does not prove independence. Each member supplies complete source through `files_written`, then requests its execution. At least two accepted independent constructions are required, including when their sound method or family is shared.
 

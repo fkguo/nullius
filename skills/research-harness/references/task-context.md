@@ -46,11 +46,13 @@ The status entry may report that a candidate exists; it must not present that
 candidate as an adopted conclusion. A checkpoint may refer to previously accepted
 results and their still-current acceptance evidence to restore working context;
 recovering that existing state does not itself require a new full-text review.
-Newly adopting or revising a scientific conclusion, using a new candidate as an
-established premise, or formally delivering or exporting results still owes the
-full [closeout requirements](closeout.md), including result-specific verification
-and current full-text notebook review. The operation's content, not its label,
-determines the boundary. Run-storage rules still protect retained evidence;
+Newly adopting or revising the project's accepted conclusions, registering or
+folding results into that record, or formally delivering or exporting adopted
+results still owes the full [closeout requirements](closeout.md), including
+result-specific verification and current full-text notebook review. A scoped
+answer can finish without declaring project acceptance; all load-bearing claims
+in that answer still need their applicable scientific checks. The operation's
+content, not its label, determines the boundary. Run-storage rules still protect retained evidence;
 never stow live output or make saving wait for scientific acceptance.
 
 ## Bind selected bytes

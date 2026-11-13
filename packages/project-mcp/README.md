@@ -56,7 +56,16 @@ Responses larger than 64 KiB are transferred by `project_delivery_read` as `base
 
 ## Host capabilities and trust
 
-Sampling-dependent delegation runs in the foreground through the client's MCP sampling callback and a bound, restricted tool loopback. It requires a connected host and uses the existing delegated journal for recovery. Missing sampling returns unavailable. Delegation with tools additionally requires the client's `sampling.tools` capability; basic sampling alone is insufficient and returns `unavailable` for such requests. Callers cannot grant team permissions, inject approval interventions, supply arbitrary executable tool definitions, or call operator approval resolvers. Provider tools remain separate servers. The loopback exposes the permitted control-plane tools and read-only project search/text/PDF tools using canonical schemas; delegated reads recheck project identity and the harness anchor. Sampling carries text only: PDF `include_images: true` returns `unavailable` through this bridge rather than dropping the images. A vision-capable host can call the PDF tool directly. Native hosts may use the existing research-team/review-swarm skills and their authenticated runners directly.
+Sampling-dependent delegation runs in the foreground through the client's MCP sampling callback and a bound, restricted tool loopback. It requires a connected host and uses the existing delegated journal for recovery. Missing sampling returns unavailable. Delegation with tools additionally requires the client's `sampling.tools` capability; basic sampling alone is insufficient and returns `unavailable` for such requests. Callers cannot grant team permissions, inject approval interventions, supply arbitrary executable tool definitions, or call operator approval resolvers. Provider tools remain separate servers. The loopback exposes the permitted control-plane tools and read-only project search/text/PDF tools using canonical schemas; delegated reads recheck project identity and the harness anchor. Sampling carries text only: PDF `include_images: true` returns `unavailable` through this bridge rather than dropping the images. A vision-capable host can call the PDF tool directly.
+
+The primary host agent can use its native tools and bounded delegation for the
+[research workflow](../../skills/research-harness/SKILL.md#advance-the-current-question).
+This MCP delegation transport does not automatically select a formal
+`research-team` cycle or supply its independent-member execution evidence.
+Projects that adopt that cycle retain its configured gates and supported runner
+requirements. Scoped answers retain result-specific verification; result
+registration, notebook folding, report promotion and milestone closeout retain
+the full project acceptance requirements.
 
 `orch_run_execute_agent` accepts a structured `team.handoff_payload` and per-assignment payloads. Omission inherits the team context, an object overrides it, and `null` clears it. The nested payload is preserved in the delegated transcript and existing task state. `team.max_parallel` defaults to 4 and accepts 1–16 for parallel or stage-gated execution. Queued assignments stay pending without a session until a slot is available; `timeout_at` is checked again before launch. Queue time consumes that absolute deadline, but this setting does not terminate an already-running external operation. Sequential execution remains one assignment at a time, and failed or blocked outcomes do not grant scientific acceptance.
 

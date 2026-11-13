@@ -12,17 +12,26 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 
 ## 持续推进研究
 
-使用宿主原生的 agent loop、工具和可用子 agent。主 agent 负责研究问题、核心推导和
-综合判断；分派任务应增加具体证据或独立检验能力。Nullius 保留原始来源核查、独立推导、
-数值验证、结果追溯和科学验收。隔离的 `dsh-cli-runner` 用于有明确范围的文本任务；
+使用宿主原生的 agent loop、工具和可用子 agent。主 agent 负责当前问题、核心推导和
+综合判断：读取原始来源，推导或计算，在有助于获取证据时分派有范围的任务，完成适用的
+科学核验，再交付所求回答及其限制。后续工作从仍有效的证据和明确下一步继续。
+有范围的问题默认不需要新 recipe 或正式 team cycle；项目选择正式独立成员与收敛流程时，
+再使用 `research-team`。完整说明见[研究主流程](../skills/research-harness/SKILL.md#advance-the-current-question)。
+
+完成有范围的回答，不等于正式采纳项目结论、登记当前结果、折入已接受的 notebook、提升
+主报告或关闭里程碑；这些操作仍须完成完整验收，回答所依赖的关键论断也必须接受适用的
+科学核验。阅读指定论文不自动要求全领域综述；覆盖、关系等更广主张，以及项目已采用的
+正式文献流程，仍须满足相应检查。未安装某个 skill 时，可在项目允许范围内用现有能力
+执行其已知要求并保留证据；不能用“等价”声明替代必须执行的机器门禁、证据格式或审批。
+隔离的 `dsh-cli-runner` 用于有明确范围的文本任务；
 在 DSH 内持续研究应使用它的原生任务设施。
 
 压缩上下文或更换会话前，用[任务简报](../skills/research-harness/references/task-context.md)
 保存当前科学状态，并在 `research_plan.md#Current Status` 的开头状态区、首个子标题之前，
 添加 `[Task brief](artifacts/runs/<run-id>/task_brief.md)` 链接。`nullius status` 返回
 `restore_argv`，只读 helper 提供简报正文、所选原文路径和字节新鲜度；status 自身不做该校验。
-恢复此前已验收且当前仍有效的结果，不会触发新的验收周期。新采纳、实质改写和正式科学
-交付仍须完成相应验证与整本笔记审查。保存检查点不会解除审批或恢复已暂停的计算。
+恢复此前已验收且当前仍有效的结果，不会触发新的验收周期。新采纳或修订项目已接受结论，
+以及正式交付已采用的结果，仍须完成完整检查与整本笔记审查。保存检查点不会解除审批或恢复已暂停的计算。
 
 ## 1. Surface Policy
 
@@ -33,7 +42,7 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 - `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。`@nullius/hep-mcp` 同时把这些 provider 工具作为入口纳入自身工具面（复用各 provider 包的 `tooling`），因此在一个 HEP 会话里即可使用文献、数据、参考与 Zotero 能力，无需分别接入各 provider MCP。
 - `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。idea-engine 的 search/eval runtime 已归档；contracts + store 保留，打分消费外部 belief-graph posterior（pinned tool，当前 pin gaia-lang==0.5.0a4），idea-engine 仍不是默认 capability expansion lane。围绕它的 belief、decision 与 generation 层放在四个 skill 中，而不在 runtime 里：`idea-posterior`（把 idea 分解为有来源依据的子判据，计算 Gaia posterior 并写回）、`idea-pairwise-match`（按事先承诺的判据做跨模型家族的成对比较，每次只给出一条有上限、不淘汰的观测）、`idea-allocation`（Thompson 采样式的研究投入分配，加上对暂缓 idea 的激活监测）、`idea-generation`（从研究进展的证据增量生成派生 idea 节点——综述中的张力、重新锚定的空白、失败路径条目，以及对已有节点带父节点的后续变异——经引擎的 `node.import_generated` 作为可审计的生成包导入；先有检索回执才有证据 URI，机械去重，新颖性表述为可证伪的最近先例差异主张，生成端不打分）。
 - `@nullius/hep-mcp` 是在 domain-neutral root 之上构建的、当前最成熟的 domain pack 与最强的端到端示例。
-- `research-harness` 是面向 Codex / Claude Code / OpenCode 的薄 external research project 入口 skill：它恢复 `nullius` 项目状态，把里程碑执行路由给 `research-team`，把 Markdown 笔记清理路由给 `markdown-hygiene`，把 HEP 证据工作路由给 `hep-mcp`，并把长期结论折回项目文件与 artifacts。它不是新的 CLI，也不是第二套 control plane。
+- `research-harness` 指导宿主主 agent 在外部项目中开展研究、核验、回答和接续：恢复 `nullius` 状态，选择既有能力，将项目已采用的正式 team cycle 路由给 `research-team`。生命周期仍由 `nullius` 管理，项目正式采纳结果仍走既有证据门禁。
 - `.nullius/HARNESS` 是 `nullius init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `nullius status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff。
 - `research_brainstorm` 是 `nullius workflow-plan` 下的 checked-in durable harness recipe，不是新的顶层 CLI 命令，不是 idea-engine，不是 full research-team workflow，也不是 root front-door expansion。
 - strict fail-closed research quality 继续成立。`.nullius/HARNESS`、project-local durable memory 加 `.nullius/` state 仍是 reconnect truth；可选 support surfaces 继续只是 opt-in layers。
@@ -46,7 +55,7 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 | Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |
 | 绑定项目的 MCP adapter | [`@nullius/project-mcp`](../packages/project-mcp/README.md) | 通过 `NULLIUS_PROJECT_ROOT` 绑定外部项目的本地 stdio 叶层，复用 canonical control-plane 操作并提供受限项目文件传输 |
 | Stateful 文献规划入口 | `nullius workflow-plan` | 通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md` |
-| Agent research project harness skill | `research-harness` | 面向 Codex / Claude Code / OpenCode 的薄客户端 skill，用于恢复外部项目状态、把工作路由到 `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`，并把结果折回长期 artifacts |
+| Agent research project harness skill | `research-harness` | 宿主 agent 的研究流程：恢复问题、调查、有用的有限委派、核验、回答与接续；正式项目验收仍走既有门禁 |
 | 实验性 idea runtime bridge | `node /absolute/path/to/nullius/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted campaign lifecycle bridge，覆盖 `idea_campaign_*`；posterior 排序的 rank/promote、节点 posterior/lifecycle/grounding-audit/card-revision 更新、溯源修正与 generation-pack 导入（`node.import_generated`）属于 `idea-engine` runtime-contract truth，不是 root front door |
 | 当前最成熟的领域 MCP front door | `node /absolute/path/to/nullius/packages/hep-mcp/dist/index.js` | 面向文献研究与 provider-local 组合的 HEP 领域 MCP server；其研究输出工具把文件写入调用方指定的项目内 `output_dir` |
 | Bounded provider MCP operators | `@nullius/openalex-mcp`、`@nullius/arxiv-mcp`、`@nullius/hepdata-mcp`、`@nullius/pdg-mcp`、`@nullius/zotero-mcp` | 保持 MCP-first 的原子化文献、数据、参考与证据 operators |
@@ -59,7 +68,7 @@ HEP 工具清单由代码拥有，并由 `HEP_TOOL_MODE` 做模式过滤；精�
 | --- | --- | --- |
 | Workflow authority | 由 `nullius workflow-plan` 消费的 checked-in recipes | 高层 workflow 语义继续位于 provider packs 之上 |
 | Stateful control plane | `nullius` 加 `orch_*` | 持久 project/run state、审批、bounded execution、verification 与 read models 继续归于同一个 control plane |
-| Agent project harness | `research-harness` skill | 面向 host client 的恢复、路由、验证、交接说明；执行仍委托给 control plane 与 domain/executor layers |
+| Agent project harness | `research-harness` skill | 宿主 agent 的研究与接续指导，调用既有 control-plane、科学核验与领域能力 |
 | Experimental runtime bridge | `idea-mcp` | runtime bridge 继续显式存在，并保持比完整 engine contract 更窄 |
 | Domain workflow pack | `@nullius/hep-mcp`、`hep_*` | 当前最强的端到端示例，但不升级成 root identity |
 | Provider atoms | `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` | bounded、schema-driven MCP operators 比 provider-local CLI mirrors 更易组合 |
@@ -217,11 +226,16 @@ with no_current_report until a complete current report is registered.
 If `nullius` is not available, first prepare the CLI from the source checkout
 as described in this README, then retry the same startup sequence.
 
-Use research-harness if your agent supports it. Treat nullius as the lifecycle
-authority, research-team as the milestone executor, and fold stable results back into
-research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
-Promote a complete immutable report through project_index.md#Main research report,
-then run: nullius report-validate
+Use research-harness if your agent supports it. The primary host agent advances
+the current question with original sources, derivation or computation, useful
+bounded delegation and result-specific checks, then answers within the requested
+scope and records the next action. Treat nullius as the lifecycle authority.
+Use research-team when the project adopts its formal independent-member cycle.
+Project adoption, result registration, notebook folding, report promotion and
+milestone closeout retain the full gates; a scoped answer does not grant them.
+Keep research_contract.md, research_plan.md#Current Status and relevant artifacts current.
+When promoting a main report, register the complete immutable report through
+project_index.md#Main research report, then run: nullius report-validate
 Stamp each run's code origin at creation with: nullius trace stamp <run_dir>
 Retry a resultless crash under the same run id with: nullius trace retry <run_dir>
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."

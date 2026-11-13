@@ -4,6 +4,21 @@ Read the section relevant to the current operation. Commands and script paths ar
 
 ## Closeout
 
+First distinguish the requested answer from formal project acceptance.
+A scoped research question can be answered with checked reasoning, original
+sources, executed calculations where needed and explicit limits. Explain which
+part is resolved and which missing evidence prevents a stronger conclusion.
+Unknowns outside the requested scope do not require an endless investigation.
+This is ordinary task completion, not a new acceptance grade or permission to
+rely on unverified work. Result-specific verification is required before any
+load-bearing use, including inside a bounded task.
+
+Adopting or revising the project's accepted conclusions, registering a current
+result, folding it into the accepted record, closing a milestone, promoting a
+main report or handing off material as accepted project results still requires
+the formal checks below. The actual operation determines this boundary; calling
+it a small task, answer or checkpoint cannot exempt it.
+
 Choose the operation by what it does. A continuation checkpoint preserves
 unfinished work for another session; it does not adopt a result, close a
 milestone or deliver an accepted scientific account. Save it through
@@ -14,9 +29,10 @@ action does not. Do not run a result-promotion or approval command just to save.
 
 A checkpoint may locate previously accepted results and their still-current
 acceptance evidence. Restoring that existing state does not itself require a new
-full-text review. Newly adopting or revising scientific conclusions, treating a
-new candidate as an established premise, formal result delivery or export, a
-result fold, milestone closeout, or completion claim retains every requirement below.
+full-text review. Newly adopting or revising scientific conclusions in the
+project's accepted record, treating a new candidate as an accepted project
+premise, formal delivery or export of adopted results, a result fold, milestone
+closeout, or project-completion claim retains every requirement below.
 Calling that operation a checkpoint does not exempt it. Complete scientific
 verification before downstream reliance, not only before the final handoff.
 
@@ -28,7 +44,7 @@ considering local retention. Never stow live output or infer deletion safety
 from age, size or duplicate bytes. This is a storage check, not scientific
 acceptance; the commands below keep their own research requirements.
 
-Before a formal research handoff or claiming completion, finish the human-notebook rewrite, result-link check and accepted current full-text review described in **Fold Results Back**, identically in file and engine mode. `nullius notebook sync` refreshes only the automatic table; neither an in-sync table nor a fresh version stamp establishes that the human account was updated. If the task changes no scientific understanding, no notebook rewrite is owed. Record unresolved content gaps in the plan rather than declaring the scientific stage complete.
+Before a formal research handoff of adopted results or claiming project or milestone completion, finish the human-notebook rewrite, result-link check and accepted current full-text review described in **Fold Results Back**, identically in file and engine mode. `nullius notebook sync` refreshes only the automatic table; neither an in-sync table nor a fresh version stamp establishes that the human account was updated. If the task changes no scientific understanding, no notebook rewrite is owed. Record unresolved content gaps in the plan rather than declaring the scientific stage complete.
 
 Run the narrowest applicable closeout command:
 
