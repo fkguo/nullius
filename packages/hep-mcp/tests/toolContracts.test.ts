@@ -258,7 +258,7 @@ describe('MCP annotations and titles', () => {
   it('every listed tool carries a non-empty title and all four boolean hints', () => {
     const issues: string[] = [];
     const tools = getTools('full');
-    expect(tools).toHaveLength(58);
+    expect(tools).toHaveLength(57);
     for (const tool of tools) {
       if (typeof tool.title !== 'string' || tool.title.trim() === '') issues.push(`${tool.name}: missing title`);
       const annotations = tool.annotations as unknown as Record<string, unknown> | undefined;
