@@ -207,7 +207,7 @@ def test_real_plugin_composition_and_copied_skill_execution(tmp_path):
         all_names.extend(inventory["tools"])
     assert len(all_names) == len(set(all_names)), "Composed tools must not collide"
     assert 20 <= report["servers"]["project-mcp"]["count"] <= 30
-    assert report["servers"]["hep-mcp"]["count"] == 52
+    assert report["servers"]["hep-mcp"]["count"] == 51
     assert report["servers"]["idea-mcp"]["count"] == 6
     helped = []
     for script in sorted((plugin / "skills/research-harness/scripts").glob("*.py")):

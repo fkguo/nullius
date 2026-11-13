@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { clamp01, extractSamplingText } from './quantitySampling.js';
+import { clamp01, extractSamplingText } from './samplingUtils.js';
 import type { ClaimReasonCodeV1, ClaimStanceV1, EvidenceLevel, ExtractedClaimV1 } from './claimTypes.js';
 
 const ClaimSchema = z.object({

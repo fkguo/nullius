@@ -10,6 +10,23 @@ Domain workflow pack. The strongest end-to-end example in the repo, but **not th
 
 Historical HEP run directories (`runs/<run_id>/` under a HEP data root) and paper/evidence project directories (`projects/<project_id>/`, including evidence catalogs) written by earlier versions are evidence: they stay readable in place and no tool creates or rewrites them. [docs/URI_REGISTRY.md](../../docs/URI_REGISTRY.md) gives the reading rules for historical `hep://runs/...` and `hep://projects/...` references.
 
+## Numerical comparisons
+
+The automated `inspire_detect_measurement_conflicts` operator has been retired.
+It no longer appears in either exposure mode, and calls to that name return an
+unknown-tool error. Existing saved outputs remain readable; they are not
+recomputed, rewritten or promoted to accepted evidence by this change.
+
+Use `inspire_paper_source` or `arxiv_paper_source` to obtain sources, then read
+the returned files with the host's available tools. A downloaded path is not
+read content. `inspire_parse_latex` still provides structural tables and
+locators; PDG and HEPData retain their independent data-access tools. Establish
+observable definitions, conditions, units, uncertainty conventions and shared
+inputs before using existing numerical execution to compare or combine values.
+Preserve asymmetric errors and limits. Unresolved comparability or correlations
+must remain explicit; absence of a comparable pair is not evidence of agreement.
+See the [numeric-source guidance](../../skills/research-integrity/references/m3-numeric-sources.md).
+
 ## Aggregated providers
 
 `hep-mcp` re-exposes the bounded provider MCP atoms (`arxiv-mcp`, `openalex-mcp`, `hepdata-mcp`, `pdg-mcp`, `zotero-mcp`) under their own tool names (`arxiv_*`, `openalex_*`, `hepdata_*`, `pdg_*`, `zotero_*`), with the same `standard`/`full` exposure as in the provider packages. Zotero aggregation is gated by `HEP_ENABLE_ZOTERO` (set to `0` to hide `hep_import_from_zotero` and friends); the other providers are always included when present.

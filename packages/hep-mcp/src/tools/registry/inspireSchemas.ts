@@ -194,13 +194,6 @@ export const InspireGradeEvidenceToolSchema = z.object({
   max_search_results: optionalBudgetInt({ min: 1 }).optional(),
 }).strict();
 
-export const InspireDetectMeasurementConflictsToolSchema = z.object({
-  recids: z.array(z.string().min(1)).min(1),
-  target_quantities: z.array(z.string().min(1)).optional(),
-  min_tension_sigma: z.number().optional(),
-  include_tables: z.boolean().optional(),
-}).strict();
-
 export const InspireCriticalAnalysisToolSchema = z.object({
   recid: z.string().min(1),
   include_evidence: z.boolean().optional(),

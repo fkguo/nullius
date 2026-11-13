@@ -8,9 +8,6 @@ import {
   getConfig,
   updateConfig,
   resetConfig,
-  canonicalizeUnit,
-  detectUnitCategory,
-  getConversionFactor,
   validateRecid,
   validateRecids,
   validateMaxDepth,
@@ -168,27 +165,5 @@ describe('Parameter Validation', () => {
     it('should handle NaN', () => {
       expect(validateMaxDepth(NaN)).toBe(2);
     });
-  });
-});
-
-describe('Physical unit normalization', () => {
-  it('canonicalizes common HEP unit spellings', () => {
-    expect(canonicalizeUnit(' GeV ')).toBe('GeV');
-    expect(canonicalizeUnit('gev')).toBe('GeV');
-    expect(canonicalizeUnit('GeV/c²')).toBe('GeV/c^2');
-    expect(canonicalizeUnit('cm^{-2}')).toBe('cm^-2');
-    expect(canonicalizeUnit('fb^{-1}')).toBe('/fb');
-    expect(canonicalizeUnit('1/fb')).toBe('/fb');
-  });
-
-  it('detects unit categories and conversion factors', () => {
-    expect(detectUnitCategory('GeV/c²')).toBe('mass');
-    expect(detectUnitCategory('fb^{-1}')).toBe('luminosity');
-
-    expect(getConversionFactor('GeV', 'MeV')).toBe(1e3);
-    expect(getConversionFactor('MeV', 'GeV')).toBeCloseTo(1e-3);
-    expect(getConversionFactor('GeV/c²', 'MeV/c²')).toBe(1e3);
-    expect(getConversionFactor('fb^{-1}', '/pb')).toBe(1e3);
-    expect(getConversionFactor('GeV', 's')).toBeNull();
   });
 });

@@ -53,8 +53,8 @@ involves a tool whose name contains `hep`, `inspire`, or `pdg`.
 **Criterion for whether a check is truly HEP-bound** (judge by what
 the check *does*, not by the package it would live in):
 
-- A PDG-drift check that compares a cited mass / branching fraction
-  against the current PDG record and flags excess deviation **is**
+- A PDG-drift check that compares a value claimed to be the current
+  PDG reference against that edition's record and flags a mismatch **is**
   HEP-bound — PDG only tracks HEP particle properties, no equivalent
   exists in other disciplines.
 - A FeynRules / FeynArts model consistency check **is** HEP-bound —
