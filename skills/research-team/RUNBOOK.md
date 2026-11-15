@@ -117,7 +117,8 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - `<tag>_draft_convergence_log.md`
   - `<tag>_draft_converged_summary.md`
 - Run ledger: `team/trajectory_index.json` (machine-readable run history; linked from `team/LATEST.md` and any live cycle pointers).
-- Optional paper bundle export (project-local wrapper): `bash scripts/export_paper_bundle.sh --tag <run_id> --out export`.
+- Optional research file bundle (project-local wrapper): `bash scripts/export_paper_bundle.sh --tag <run_id> --out export`. It retains project-relative paths and source bytes, includes the human notebook and selected run, and follows local Markdown links and literal TeX inputs, figures and bibliography. Referenced directories and other runs are included in full; `MANIFEST.md` lists the actual scope. Missing or outside-project dependencies fail the export instead of producing a successful but broken bundle.
+- For a focused stage handoff, select its actual report/PDF and dependencies: `bash scripts/export_paper_bundle.sh --tag <run_id> --without-project-docs --include reports/stage.md --include paper/main.pdf`. Add `--writer-export paper/export_manifest.json` to consume an existing research-writer output record. A requested but unsuccessful writer compilation is not accepted. Files are checked again in the isolated bundle; a file bundle does not establish scientific acceptance, reproduce arbitrary code imports, or create a host download link. Use the host's existing file delivery capability to hand over the selected reading file and archive.
 
 ## Common failures (what failed → how to fix → how to rerun)
 
@@ -393,20 +394,13 @@ the full default check, whose structural scope includes every current result.
 - Rerun:
   - Preflight-only command.
 
-### Double-backslash math gate (global scan)
+### Ambiguous math escapes
 
-- Gate: [check_double_backslash_math.py](scripts/gates/check_double_backslash_math.py)
-- Symptom: `double-backslash math gate failed`
-- Scope: uses the same scan targets as the Markdown math hygiene gate (`markdown_math_hygiene.targets` / `exclude_globs`).
-- Fix:
-  - Deterministic fix (recommended; targets key docs only): `python3 "${SKILL_DIR}/scripts/bin/fix_markdown_double_backslash_math.py" --notes research_contract.md --in-place`
-  - Check-only helper (warn or fail): `bash "${SKILL_DIR}/scripts/bin/check_md_double_backslash.sh" --notes research_contract.md [--fail]`
-  - Notes:
-    - The fixer only rewrites inside Markdown math regions (`$...$`, `$$...$$`) and never touches fenced code blocks.
-    - It does NOT rewrite real LaTeX line breaks (`\\`) or spacing commands (`\\[2pt]`).
-- For generated TOC math escapes such as `$\\gamma\\_{\\rm lin}$`, use `markdown-hygiene` (`fix-toc`) before rerunning preflight.
-- Rerun:
-  - Preflight-only command.
+Inspect the source and intended rendered surface. Doubled backslashes may be
+legitimate TeX row breaks, including immediately before a letter in an aligned
+expression or matrix. Resolve ambiguous escaping from context; do not apply a
+bulk backslash replacement. The generic Markdown math hygiene and portability
+checks remain available for their documented formatting diagnostics.
 
 ### LaTeX macro hygiene gate (global scan)
 

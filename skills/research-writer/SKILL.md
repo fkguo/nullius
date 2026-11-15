@@ -1,142 +1,103 @@
 ---
 name: research-writer
-description: Scaffold or validate an arXiv-ready RevTeX4-2 (12pt, onecolumn) paper from a `research-team` project, with provenance wiring, BibTeX hygiene, and deterministic Markdown/LaTeX checks (optional multi-backend section drafting).
+description: Write and review a scientific manuscript from the project's research notebook, sources and results using the active host agent. Includes blank RevTeX scaffolding, external paper-manifest interoperability, bibliography/cross-reference checks, result traceability and delivery preparation. Use for manuscript drafting or synthesis; keep the complete research notebook as the human scientific record.
 ---
 
 # Research Writer
 
-Agent-first skill: given an existing `research-team` project root (with `research_notebook.md`, `research_contract.md`, `knowledge_base/`, and `artifacts/`), scaffold a **coherent, arXiv-ready paper folder** and provide deterministic hygiene checks so the draft is auditable and safe to iterate.
+The host agent owns scientific reading, selection, argument, writing and revision.
+Use its normal tools and delegation in the current harness. Read the actual
+research, write the manuscript files that will be built, and reconcile review
+findings before handing the result to the user.
 
-Key entry points:
-- `scripts/bin/research_writer_scaffold.sh`: deterministic scaffold `paper/` from a `research-team` project.
-- `scripts/bin/research_writer_draft_sections.sh`: opt-in section drafting (writer → auditor) with trace logs + evidence gate.
-- `scripts/bin/research_writer_consume_paper_manifest.sh`: deterministic “publisher” for an externally produced `paper/` scaffold with `paper/paper_manifest.json` (validate/hygiene/optional compile).
+`research_notebook.md` is the complete human research notebook: derivations,
+reasoning, experiments, failures, interpretation and open questions belong there.
+`research_contract.md` holds stable project pointers and acceptance conditions.
+A manuscript synthesizes the research for a particular audience; it does not
+replace the notebook or turn it into an index of artifacts.
 
-> Note: the `.sh` entry points are thin wrappers around the corresponding `.py` CLIs and accept the same flags (so `--help` works either way).
+## Main workflow
 
-Default paper style:
-- RevTeX 4.2, `12pt`, `onecolumn` (English-first).
+1. **Establish the writing task.** Read the user's requested deliverable, current
+   notebook, contract, relevant knowledge-base notes and source/run artifacts.
+   Read enough of each dependency to assess the intended claim. Headings,
+   abstracts and an automatically selected excerpt are discovery aids, not the
+   writing context. Choose structure, level of detail and journal conventions
+   from this research task.
+2. **Write the real manuscript.** Use an existing paper directory when present;
+   compare versions before editing. Otherwise initialize the blank template
+   below, or use a suitable existing project template. Write directly to
+   `main.tex` and/or files included through `\input` or `\include`. Check that
+   revised sections actually belong to the build. Save a separate draft or diff
+   only when it helps review; it must not silently become a disconnected final.
+3. **Ground the scientific content.** Use the existing `claim-grounding` procedure
+   for citation-backed statements: read the relevant source, bind its identity,
+   record its supporting span and scope, and read the resulting verdicts.
+   Correct or qualify unsupported and conflicting claims. Citation existence or
+   a path written in prose does not establish support. For calculated results,
+   read the derivation/run evidence and perform the applicable verification from
+   `research-integrity`, `numerical-reliability-gate` or the project workflow.
+   Distinguish assumptions, literature statements and independently checked
+   results; do not manufacture verification details to fill a template.
+4. **Review and revise.** For a substantive manuscript, delegate a source-aware
+   scientific review using `referee-review` or the host's agents. Give the
+   reviewer the actual manuscript, research question, relevant source passages
+   and artifact paths with access to the files. Ask for counterexamples,
+   unsupported steps and missing checks. A different provider may help but is
+   not a substitute for independent examination. Read the findings, perform the
+   necessary checks, edit the real files and re-review the changed claims. When
+   an independent reviewer is unavailable, disclose that limitation rather than
+   inventing a passed review. Do not require a fixed provider pair, section
+   count or number of review rounds.
+5. **Check the current deliverable.** Run the applicable checks below and read
+   their outputs. Mechanical success checks file integrity and declared
+   bindings; the agent still checks scientific adequacy and coverage. For a PDF
+   deliverable, compile the current source and inspect the rendered PDF,
+   including equations, captions, tables and references. A failed or unavailable
+   build remains incomplete unless the user requested source only.
+6. **Complete the handoff.** Read the current `export_manifest.json`, verify which
+   files and statuses it actually describes, and include those files plus any
+   required dependencies in the project's export. Use the existing
+   `research-team` export workflow (`--writer-export` / explicit `--include`),
+   then open the exported manuscript and check the copied dependencies. Include
+   review/verification evidence needed for the claimed status. Link the readable
+   result and source bundle to the user and state material open issues. Record
+   handoff status in `research_plan.md` / `project_index.md`; keep scientific
+   conclusions and useful result links in the notebook, without tool-delivery
+   logs. Creating a manifest alone does not deliver files.
 
-## Which path do I want?
+## Blank format template
 
-- **Scaffold a new paper** from a research-team project → `research_writer_scaffold.sh` (Quick start below).
-- **Draft/revise section prose** (writer → auditor, evidence-gated) → `research_writer_draft_sections.sh` (opt-in).
-- **Ground every claim in the cited sources** (read through hep-mcp when available) → the evidence lookup workflow.
-- **Publish an externally produced `paper/`** (validate + hygiene + optional compile) → `research_writer_consume_paper_manifest.sh`.
-- **Check a draft before delivery** → the deterministic hygiene tools (math, cross-refs/citations, evidence gate, result-traceability, arXiv packaging).
-- **Tracked-change revision / response-to-referee** on a finished LaTeX manuscript → the sibling `paper-reviser` skill (this skill scaffolds + checks; it does not own the revise/resubmit cycle).
-
-## Prereqs
-
-Required:
-- `bash`, `python3`
-
-Optional (only needed for specific workflows):
-- TeX toolchain (e.g., TeX Live/MiKTeX) with RevTeX 4.2; `latexmk` for `--compile` (consume-manifest path).
-- Network access for `--fetch-bibtex` (INSPIRE/DOI).
-- Local `claude` + `gemini` CLIs (and their runner skills) for `--run-models` (draft-sections path).
-
-## Run-card + export manifest (orchestrator interop)
-
-All three main entry points accept an optional `--run-card <path>`:
-- The run-card is treated as an **opaque JSON blob**: it is copied verbatim into the output directory (no schema assumptions).
-- A best-effort **summary** (`run_id`, `backend`, `approval_trace_id`, …) is logged into `paper/run.json` (scaffold/draft-sections) or `paper/build_trace.jsonl` (consume).
-
-All entry points also write a minimal `export_manifest.json` to help upstream orchestrators import the paper output into their own `artifacts/` layout.
-
-## Quick start (one-shot scaffold)
+Run commands with paths relative to this skill directory (or its installed copy).
+`bash` and Python 3 are required; TeX and `latexmk` are needed for a PDF build.
 
 ```bash
 bash scripts/bin/research_writer_scaffold.sh \
-  --project-root /path/to/research-team-project \
+  --project-root /path/to/research-project \
   --tag M1-r1 \
-  --out paper/
+  --out /path/to/research-project/paper
 ```
 
-Scaffold outputs (`--out paper/`):
-- `paper/main.tex`
-- `paper/references.bib`
-- `paper/figures/` (created; may symlink/copy an artifacts figure if one is discoverable)
-- `paper/latexmkrc`
-- `paper/README.md`
-- `paper/run.json` (run metadata; includes run-card pointer/summary if provided)
-- `paper/export_manifest.json` (minimal export for upstream tooling)
-- If `--run-card`: `paper/run_card.json` (or `paper/run_card.<sha12>.json`)
+This initializes `main.tex`, an empty `references.bib`, `figures/`, `latexmkrc`,
+`README.md`, `run.json` and `export_manifest.json`. It reads no notebook passages,
+chooses no equations/figures/results and invokes no model or network provider.
+The RevTeX 4.2 template is a format starting point, not an arXiv-ready paper.
+Existing output paths are refused so a prior manuscript cannot be erased.
+`--title` and `--authors` accept plain text; edit TeX for formulas and affiliations.
+Optional `--run-card <path>` copies valid opaque JSON byte-for-byte, recording its
+path and hash. The initial manifest declares `blank_scaffold` and `not_run`.
 
-Optional (best-effort online BibTeX fetch from INSPIRE/DOI; writes `paper/bibtex_trace.jsonl`):
+Add bibliography records through the existing source providers after checking
+the cited work. Keep unresolved metadata explicit; do not invent it. For HEP,
+`inspire_paper_source` / `arxiv_paper_source` retrieve content and
+`inspire_resolve_citekey` supplies metadata. Other domains use their available
+source providers. See [RUNBOOK.md](RUNBOOK.md) for operational examples.
 
-```bash
-bash scripts/bin/research_writer_scaffold.sh \
-  --project-root /path/to/research-team-project \
-  --tag M1-r1 \
-  --out paper/ \
-  --fetch-bibtex
-```
+## Existing manuscript interoperability
 
-## Optional: draft sections (opt-in; writer → auditor)
-
-This is an **opt-in** helper that produces a single human-readable `*_final.tex` per section, while preserving the writer draft, a unified diff, and trace logs. It does **not** modify `paper/main.tex`.
-
-It will only call external LLM CLIs if you pass `--run-models` (otherwise use `--stub-models` or `--dry-run`).
-
-```bash
-bash scripts/bin/research_writer_draft_sections.sh \
-  --project-root /path/to/research-team-project \
-  --paper-dir paper/ \
-  --tag M1-r1 \
-  --run-id D1 \
-  --all \
-  --run-models
-```
-
-Outputs are written under `paper/drafts/<run-id>/`:
-- `draft_<section>_writer.tex` (raw writer draft)
-- `draft_<section>_final.tex` (auditor-revised; primary file for humans)
-- `draft_<section>.diff` (writer → final unified diff)
-- `trace.jsonl` + `run.json` (auditable run log/config)
-- `export_manifest.json` (minimal export for upstream tooling)
-- If `--run-card`: `run_card.json` (or `run_card.<sha12>.json`)
-- If the evidence gate fails: `draft_<section>_unsafe.tex` + `evidence_gate_report_<section>.md`
-
-Advanced flags (optional; see `--help` for full surface):
-- Backends: `--writer-backend` / `--auditor-backend` pick the model FAMILY for each role from `{claude, gemini, codex, opencode, kimi}` (defaults: writer `claude`, auditor `gemini`). The auditor is an independent pass — prefer a family OTHER than the writer's for genuine cross-family independence. Each backend auto-resolves its `<family>-cli-runner`.
-- Models: `--writer-model` (default: `opus`), `--auditor-model` (default: empty → the backend CLI's own configured default model, so it tracks the latest you've set rather than pinning a version)
-- Runner scripts: `--writer-runner` / `--auditor-runner` override the resolved runner path for either role; `--claude-runner` / `--gemini-runner` remain as family-specific overrides. Defaults are auto-detected under your agent skills home, e.g. `~/.claude` / `~/.codex` / `~/.config/opencode` / `~/.kimi-code`.
-- Evidence gate: `--evidence-scan=all|macros` (default `all`); if `macros`, set one or more `--evidence-macro` (e.g. `revadd`)
-- Testing: `--stub-models` (no external calls), `--stub-variant=safe|unsafe` (`unsafe` should fail the evidence gate by design)
-
-## Evidence lookup via hep-mcp (recommended when available)
-
-When hep-mcp is available, ground claim-bearing sentences in the cited sources before drafting — this greatly reduces hallucinated claims and improves citation accuracy.
-
-The workflow is a three-step loop:
-1. **Fetch each cited source** — `arxiv_paper_source` or `inspire_paper_source` with `mode: "content"` returns the paper's LaTeX source (or PDF).
-2. **Read per section** — before writing prose, read in that source the passages the section will rely on, and note where each one is (section, equation number, page).
-3. **Draft and cite** — write each claim-bearing sentence against the passages actually read, cite it with a key present in `paper/references.bib` (`inspire_resolve_citekey` returns INSPIRE citekeys and BibTeX for recids), and note the passage locations and recids each sentence relies on.
-
-**Grounding rule:** check that the cited source actually supports each specific claim before treating the sentence as supported (the `claim-grounding` skill records this check per cited claim). Unchecked draft text must not be presented as a verified result. Complete BibTeX entries are a separate requirement from source support.
-
-hep-mcp provides no draft rendering, project export, or paper bundling tools; the manuscript itself lives in the `paper/` folder produced by the scaffold path. Full tool-call payloads: see `RUNBOOK.md` section 9 ("Evidence lookup via hep-mcp — detailed tool-call recipes").
-
-### Integration with existing research-writer paths
-
-The evidence lookup workflow complements the existing scaffold and draft-sections paths:
-
-- **Scaffold path** (`research_writer_scaffold.sh`): Use for initial `paper/` directory creation from a research-team project; use the evidence lookup above while writing its sections.
-- **Draft-sections path** (`research_writer_draft_sections.sh`): The `--run-models` writer/auditor pair can consume the passages read in step 2 as additional context. Pass them, with their locations, as part of the writer system prompt.
-- **Consume path** (`research_writer_consume_paper_manifest.sh`): Use when another pipeline has produced a `paper/` directory with `paper/paper_manifest.json`, to validate and compile it.
-
-## Consume an externally produced paper scaffold (deterministic publisher)
-
-If another agent pipeline already produced a `paper/` directory, this skill can validate + apply deterministic hygiene + (optionally) compile it using `paper/paper_manifest.json` as the only entrypoint.
-
-From the project root (default manifest path `paper/paper_manifest.json`):
-
-```bash
-bash scripts/bin/research_writer_consume_paper_manifest.sh --compile
-```
-
-Or explicitly:
+An external producer can supply `paper_manifest.json` describing its paper.
+This remains a supported input contract, separate from the scaffold's output
+`export_manifest.json`. Do not rename one manifest to impersonate the other.
 
 ```bash
 bash scripts/bin/research_writer_consume_paper_manifest.sh \
@@ -144,121 +105,52 @@ bash scripts/bin/research_writer_consume_paper_manifest.sh \
   --compile
 ```
 
-Outputs:
-- `paper/build_trace.jsonl` (audit log: checksums, validate results, hygiene/compile actions)
-- `paper/export_manifest.json` (minimal export for upstream tooling; includes compile status + run-card pointer if provided)
+The consumer validates the manifest/files, applies its documented bibliography
+hygiene and optionally compiles, recording `build_trace.jsonl` and a current
+`export_manifest.json`. Without `--compile`, it does not certify a PDF. With
+`--compile`, missing `latexmk` or a failed build is a failure; a pre-existing PDF
+is not evidence of current compilation. Read the exit status and manifest before
+exporting. This mechanical consumer does not execute scientific review for you.
 
-`--compile` runs `latexmk -pdf main.tex` if `latexmk` is available; otherwise it records a deterministic `SKIPPED` result in `paper/build_trace.jsonl` (not a failure).
+A successful compilation binds the current source and output bytes through
+`input_hashes` / `output_hashes` in that same export manifest. The current TeX
+`.fls` recorder adds actual project-local inputs to the binding. The exporter
+rechecks these hashes; changes to a bound source or output require a new build.
+An older compiled receipt without these bindings must be rebuilt before it can
+serve as current compilation evidence. Historical files remain available through
+explicit inclusion with their historical status stated.
 
-## Calling from an orchestrator (recommended pattern)
+For a paper without that external manifest, build its actual entry point with
+`latexmk -pdf main.tex` inside the paper directory. Explicitly include the current
+PDF and source dependencies at export; the initial scaffold manifest still
+records initialization, not that later build.
 
-An orchestrator should:
-1) Prepare a JSON run-card that records prompts/tools/approvals (owned by the orchestrator).
-2) Call `research-writer` with `--run-card` so the paper output is self-describing and traceable.
-3) Ingest `paper/export_manifest.json` and copy/snapshot the referenced files into the orchestrator’s `artifacts/` structure (owned by the orchestrator).
+## Checks and their consumers
 
-Example smoke (scaffold + run-card; optional compile):
+| Check | When it applies | Action after the check |
+| --- | --- | --- |
+| `claim-grounding` | Literature-backed or attribution claims | Read the report's source identities, supporting spans and verdicts; revise unsupported claims and carry the report into the research handoff. |
+| Scientific/result review | Substantive claims, derivations or computed results | Execute the required checks, reconcile findings in the actual paper and keep evidence for the conclusion. |
+| `check_latex_xrefs.py --root paper` | LaTeX manuscripts | Fix dangling references, duplicate labels and undefined citation keys. |
+| `check_result_traceability.py --root paper --report paper/result_traceability_report.md` | A paper using project result figures or numbers | Read the report; correct missing/stale bindings and changed bytes. Review result coverage separately. |
+| `figure-hygiene` display acceptance | Scientific result figures/tables | Verify the values, units and final rendered surfaces; run its acceptance checker, read the saved result and reconcile failures before inclusion. |
+| `markdown-hygiene` | Human-readable Markdown notes/deliverables | Check the intended rendering surface and inspect proposed edits. Preserve legitimate TeX line breaks. |
+| `fix_bibtex_revtex4_2.py --bib paper/references.bib` | RevTeX bibliography compatibility | Inspect proposed changes; use `--in-place` when appropriate. This does not validate metadata or claims. |
+| TeX build and visual inspection | A requested PDF | Read the log and inspect the current PDF; fix material rendering problems. |
+| `research_writer_package_arxiv.py` | A requested portable submission bundle | Use its documented CLI, inspect the packaged files and manifest; retain the review evidence separately as appropriate. |
 
-```bash
-cat > /tmp/run_card.json <<'JSON'
-{"run_id":"SMOKE-1","workflow_id":"draft","backend":{"name":"research-writer"}}
-JSON
+Do not create placeholder `pass` reports or marks to make these steps green.
+Report a check as not applicable with a concrete reason when the manuscript has
+no corresponding claims or displays. A notebook-only stage does not require a
+paper, arXiv package or publication-specific checks.
 
-bash scripts/bin/research_writer_scaffold.sh \
-  --project-root /path/to/research-team-project \
-  --tag SMOKE-1 \
-  --out /tmp/paper_smoke \
-  --run-card /tmp/run_card.json
+## Result traceability
 
-# Optional: compile (if latexmk exists)
-if command -v latexmk >/dev/null 2>&1; then (cd /tmp/paper_smoke && latexmk -pdf main.tex); fi
-```
-
-Upstream “artifacts triplet” example mapping (done by the orchestrator, not this skill):
-- `artifacts/runs/<run_id>/run_card.json`: copy the orchestrator’s run-card (or the `paper/run_card*.json` captured by this skill).
-- `artifacts/runs/<run_id>/manifest.json`: store `paper/export_manifest.json` (or embed it).
-- `artifacts/runs/<run_id>/analysis.json`: store compile summaries/warnings extracted from the paper build (or from `paper/build_trace.jsonl` if you use the consume step).
-
-## Translations
-
-- Chinese: `SKILL.zh.md` (best-effort; `SKILL.md` remains the SSOT for the contract).
-
-## What it does (conceptually)
-
-1) Reads `research_notebook.md` for human narrative plus `research_contract.md` for machine-stable pointers, then builds a paper skeleton that **points back to source sections** (no hallucinated derivations).
-2) Pulls headline numbers/figures from `artifacts/` manifests/summaries and writes a **Results provenance** table (artifact path + JSON/CSV key).
-3) Produces a BibTeX file with **RevTeX4-2 hygiene** (APS-style safety: ensure `@article` has `journal = ""` if unknown).
-4) Runs deterministic hygiene checks, including the **double-backslash-in-math** bug (`\\Delta` instead of `\Delta`) with optional auto-fix.
-
-## Hard policies (must follow)
-
-1) **Scientific skepticism is mandatory**: any external claim used in core reasoning/headline results must be either:
-   - independently validated (derivation, limit check, or artifact reproduction), or
-   - labeled `UNVERIFIED` with a validation plan + kill criterion.
-2) **No hard cutoff on real workflows**: citations/links to software/data archives are allowed (Zenodo/Figshare/institutional repos/experiment pages). Prefer stable anchors; require trace logging rather than forbidding.
-3) **Network/DNS robustness**: if metadata/BibTeX fetch fails, degrade gracefully by writing stable links + minimal placeholders for later backfill.
-4) **Markdown/LaTeX hygiene**: avoid accidental LaTeX over-escaping in math; provide deterministic check + optional deterministic fix.
-
-## Out of scope
-
-This skill does **not**:
-- run the underlying simulations/derivations that produce `artifacts/`
-- guarantee compilation success (TeX environment must be configured)
-- replace human scientific review (the evidence gate is a heuristic safety net)
-- submit to arXiv / journals
-
-## Artifact contract (inputs)
-
-This skill assumes a `research-team`-style project root, with best-effort fallbacks.
-
-### Required
-- `research_notebook.md` — human derivation notebook (equations, explanations, figures).
-- `research_contract.md` — machine-stable contract (capsule, pointers, headline provenance).
-
-### Strongly recommended
-- `knowledge_base/` — background, priors, methodology traces, and reference notes (for auditability and “UNVERIFIED” validation plans).
-- `artifacts/` — reproducibility outputs for a given tag (see below).
-
-### Artifacts: accepted layouts (best-effort detection)
-
-For a given `--tag <TAG>`, the scaffold searches (in order):
-- `artifacts/runs/<TAG>/` (preferred)
-- `artifacts/<TAG>/`
-- `artifacts/<TAG>_manifest.json` + `artifacts/<TAG>_analysis.json` (demo layout)
-
-Within an artifacts run dir, common files are recognized:
-- `manifest.json` / `*_manifest.json`
-- `summary.json` / `summary.csv`
-- `analysis.json` / `*_analysis.json`
-
-Minimum expectations for provenance:
-- A manifest lists produced outputs (plots/tables/data paths) and (ideally) parameters/versions.
-- A summary/analysis provides headline numbers with definitions/keys.
-
-## Deterministic hygiene tools
-
-- Double-backslash math check/fix (Markdown math only): see `scripts/bin/check_md_double_backslash.sh` and `scripts/bin/fix_md_double_backslash_math.py`.
-- Broader Markdown math/TOC cleanup before paper scaffolding: use the standalone `markdown-hygiene` skill.
-- Evidence-gate checker (revision additions via `\revadd{...}`, or full-text via `--scan-all`): see `scripts/bin/check_latex_evidence_gate.py`.
-- Result-traceability gate (delivered figures/result numbers must trace to a run): see `scripts/bin/check_result_traceability.py` and the "Result traceability" section below.
-- BibTeX RevTeX 4.2 hygiene: see `scripts/bin/fix_bibtex_revtex4_2.py`.
-- Cross-reference + citation integrity (`\label`/`\ref`/`\cref` resolve; no dangling refs, duplicate labels, or undefined `\cite` keys): see `scripts/bin/check_latex_xrefs.py`.
-- arXiv packaging (offline: dereference figure symlinks to bytes, inline `main.bbl`, drop build cruft, fail-closed portability gate, checksum manifest): see `scripts/bin/research_writer_package_arxiv.py`.
-- BibTeX fetch trace (when `--fetch-bibtex` is used): see `paper/bibtex_trace.jsonl`.
-
-## Result traceability (results and figures traceable to runs)
-
-Complementary to the evidence gate, not overlapping with it: the evidence gate checks that risky *claims* carry a literature/evidence anchor; this gate checks that every *result figure and annotated result number* in the manuscript is machine-traceable to the run that produced it (run id, code revision, environment fingerprint). One binds prose to sources; the other binds deliverables to runs.
-
-Workflow position:
-1. When a run produces a manuscript figure or a headline number, register it in `paper/traceability_manifest.json` **at that moment** (not at delivery time), copying `run_id`, `code_rev` (e.g. the analysis-code commit), and `env_fingerprint` (e.g. a lockfile or container digest) from the run's manifest / reproducibility capsule.
-2. Before delivering a draft, run the gate over the whole paper directory:
-
-```bash
-python3 scripts/bin/check_result_traceability.py --root paper/ --report paper/result_traceability_report.md
-```
-
-Manifest shape (domain-neutral; one entry per bound figure or number):
+When a result enters the manuscript, add its real producing run to
+`paper/traceability_manifest.json`, including `run_id`, `code_rev` and
+`env_fingerprint`. Copy these from the run/reproducibility capsule. Copy figures
+as real bytes inside the paper directory and bind their checksums to the same
+files checked by `figure-hygiene`.
 
 ```json
 {
@@ -269,87 +161,77 @@ Manifest shape (domain-neutral; one entry per bound figure or number):
       "kind": "figure",
       "artifact": "figures/scan_summary.pdf",
       "run_id": "M3-r2",
-      "code_rev": "a1b2c3d",
-      "env_fingerprint": "lockfile-sha256:<hex>",
-      "checksum": "sha256:<hex>",
-      "notes": "optional"
+      "code_rev": "<analysis commit>",
+      "env_fingerprint": "<lockfile or container digest>",
+      "checksum": "sha256:<actual file digest>"
     },
     {
       "id": "num:fitted-width",
       "kind": "number",
       "run_id": "M3-r2",
-      "code_rev": "a1b2c3d",
-      "env_fingerprint": "lockfile-sha256:<hex>",
-      "notes": "e.g. a fitted parameter quoted in the results section"
+      "code_rev": "<analysis commit>",
+      "env_fingerprint": "<lockfile or container digest>",
+      "notes": "<result artifact path and value/key locator>"
     }
   ]
 }
 ```
 
-Author-side annotation for result numbers is a LaTeX comment anchor placed adjacent to the value, whose id **is** the manifest entry id:
+Place the number entry's id adjacent to its use in a LaTeX comment:
 
 ```latex
 The fitted width is 12.3(4) units. % origin: num:fitted-width
 ```
 
-Why a comment anchor rather than a wrapper macro such as `\resultnum{<id>}{<value>}`: a comment is zero-intrusion (no preamble macro definition, no change to the compiled document, nothing unfamiliar in the submitted source) and parses deterministically with the same escaped-percent rule the evidence gate already uses — no brace nesting or macro-expansion concerns. The accepted trade-off: anchor-to-value adjacency is an authoring convention the checker cannot verify; reviewers check placement, the gate checks the binding.
+Run the whole-paper check before handoff:
 
-Gate semantics (deterministic, fail-closed — deliberately stricter than the evidence gate's warn-by-default):
-- Every `\includegraphics` target must match a figure entry (path as written, extension-optional; for a dotted basename write the extension explicitly in the manuscript); a recorded checksum must match the file on disk. Artifact paths must stay inside the paper directory — absolute paths and paths with a parent-directory segment are rejected and never bind, artifacts resolve against the manuscript root (not the manifest's location), and a file that resolves outside that root (e.g. a symlink target elsewhere) fails the gate: at delivery time the paper directory must carry the real bytes.
-- Every origin anchor must match a number entry; anchors binding to a figure entry are a kind mismatch.
-- Every matched entry must carry non-empty `run_id`, `code_rev`, and `env_fingerprint` — all three, no partial credit.
-- In `--root` mode (the delivery invocation), manifest entries that bind to nothing in the manuscript are stale and fail the gate; in partial `--tex` scans they downgrade to warnings.
-- Any violation means non-zero exit plus a NOT_READY report. There is no warn-only mode. The only escape hatch for incremental adoption on legacy manuscripts is an explicit exemption list (`--exempt-id` / `--exempt-file`) keyed by manifest entry id — or, for a figure that has no manifest entry yet, by the figure path as written in the manuscript. Wildcard tokens are rejected, and structural failures (a missing or invalid manifest, an anchor with a missing or malformed id) are never exemptible.
+```bash
+python3 scripts/bin/check_result_traceability.py \
+  --root paper --report paper/result_traceability_report.md
+```
 
-What the gate deliberately does not do: it cannot detect result numbers that were never anchored — "every reported result value gets an anchor" is authoring discipline enforced in review. On the figure side, the figure-reproduction bundle defined in the figure-hygiene skill is the figure-side instantiation of this manifest: reuse its checksum here so the manuscript gate and the figure re-render check verify the same bytes.
+The checker validates declared figure/number bindings and required run metadata;
+it checks a figure's checksum when supplied. It rejects paths outside the paper,
+missing bindings and, in whole-root mode, unused manifest entries. Non-zero exit
+means `NOT_READY`. For legacy adoption, explicit individual exemptions exist;
+record their scientific impact and do not use wildcard exemptions.
 
-## Research and manuscript guardrails
+The checker cannot discover all unannotated result values or establish that an
+adjacent number equals the claimed result. The writing agent and reviewer must
+check that coverage and compare values with their source artifacts. Empty or
+syntactically valid manifests do not supply missing scientific evidence.
 
-When drafting, revising, or synchronizing a manuscript:
-- Do not use specialized symbols in the abstract or introduction before they have been defined. Introduce notation only where the physical or mathematical decomposition naturally requires it.
-- Remove writing-process residue: assistant reasoning, internal deliberation, referee-response explanations, self-justifying prose, and workflow notes. The manuscript body should contain only scholarly argumentation.
-- Minimize new notation. If a clear expression already exists, do not name it. Once notation is introduced, use it consistently.
-- Use domain-standard physics terminology. Avoid engineering or vague terms such as inaccurate uses of "proxy", "coefficient", or "plotted quantity"; prefer precise terms like approximation, diagnostic quantity, observable, model component, benchmark, or reconstructed quantity when those are actually meant.
-- Keep the main text focused on logic, definitions, and comparable quantities. Move long explicit formulas, full matrices, and derivational details to appendices.
-- In figure and table captions, state whether each object is data, a reconstructed quantity, a model prediction, a model component, or a benchmark. Do not imply that the data separate mechanisms that only the model decomposes.
-- Round table values to a number of decimal places justified by the physical precision.
-- Before synchronizing edits into another paper directory, compare the local and synchronized directories so collaborator changes are not overwritten.
-- After compilation, inspect undefined references/citations, overfull boxes, pagination anomalies, and orphaned headings or formulas.
+## Writing guidance and optional source reading
 
-## Style profile (physics writing register)
+Keep notation defined, assumptions visible and comparisons commensurate. Connect
+equations to their interpretation; distinguish measurements, reconstructed
+quantities and model components. Use precision justified by the calculation and
+uncertainty. Remove assistant/process residue from the manuscript body, while
+preserving meaningful reasoning and unresolved questions in the research notes.
 
-Use the writing style profile when drafting or rewriting text:
-- `assets/style/style_profile.md`
-- `assets/style/writing_voice_system_prompt.txt`
-- Anti-hallucination guardrails (evidence gate): `assets/style/research_writer_guardrails_system_prompt.txt`
-- Physics discussion logic playbook: `assets/style/physics_discussion_logic_playbook.md`
-- Exemplar corpus downloader (INSPIRE → arXiv sources): `assets/style/prl_style_corpus.md` (script: `scripts/bin/fetch_prl_style_corpus.py`)
-- Additional exemplar corpus (PRL hep-ph multi-author filter): `assets/style/prl_style_corpus_hep_ph_multi_author.md`
-- N=10 reading-pack generator (corpus → per-paper excerpts + optional dual-model argument maps): `scripts/bin/research_writer_learn_discussion_logic.py` (writes `PROGRESS.md`/`PROGRESS.json` into `--out-dir`)
-- Deterministic distiller (dual-model outputs → consensus/disagreement reports): `scripts/bin/distill_discussion_logic.py` (writes `distill/` under the chosen `--out-dir`)
+For physics writing, consult [the style profile](assets/style/style_profile.md)
+and [discussion guidance](assets/style/physics_discussion_logic_playbook.md) as
+optional aids. Their examples are not a compulsory section order or scientific
+acceptance rules. For tracked referee revisions use the sibling `paper-reviser`.
 
-Example (prepare N=10 packs; recommended masking on). The query below is an example — replace `<author1>`/`<author2>`/`<author3>` with your own exemplar authors:
+The existing corpus downloader and reading-pack generator remain available for
+source acquisition and bounded reading work:
 
 ```bash
 python3 scripts/bin/research_writer_learn_discussion_logic.py \
-  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett." \
-  --fetch \
-  --fetch-n 50 \
-  --n 10 \
-  --resume \
-  --out-dir /tmp/research_writer_discussion_logic \
-  --mask-math \
-  --mask-cites
+  --corpus-dir /path/to/exemplar-corpus \
+  --out-dir /path/to/reading-packs --n 10 --resume
 ```
 
-Example (distill a completed run into auditable reports):
-
-```bash
-python3 scripts/bin/distill_discussion_logic.py \
-  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_example"
-```
+Read the original passages behind a pack before applying a lesson. The optional
+model-generated argument maps are analysis inputs, not votes or automatic
+consensus. Compare the underlying arguments and counterexamples yourself;
+frequency or matching vocabulary does not establish agreement. Preserve source
+locators and limitations in any synthesis. Source fetching, shared semantic
+curation and general model runners retain their existing roles.
 
 ## Operational docs
 
-- Quickstart: `README.md`
-- Workflows/debugging: `RUNBOOK.md`
+- [Quickstart](README.md)
+- [Runbook](RUNBOOK.md)
+- [Chinese guide](SKILL.zh.md) (`SKILL.md` defines the contract)

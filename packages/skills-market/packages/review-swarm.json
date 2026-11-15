@@ -3,7 +3,7 @@
   "package_type": "skill-pack",
   "repo": "nullius/skills-market",
   "channel": "dev",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "summary": "Clean-room multi-agent review loops across Claude/Gemini/Codex/OpenCode/Kimi with strict review-contract checks, a one-command single-reviewer entry with role templates, fallback policy, and convergence gates.",
   "platforms": [
     "claude_code",

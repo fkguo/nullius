@@ -51,6 +51,11 @@ report['opaque_sources'] = [{'path': item['path'], 'sha256': item['sha256'], 're
 if case == 'opaque-missing': report['opaque_sources'] = []
 if case == 'partial': report['sections'] = sections[:-1]
 if case == 'dependency-gap': report['dependencies'] = []
+if case == 'navigation-required':
+    report['missing_dependencies'] = ['The derivation behind the navigation link is required.']
+    report['dependency_closure'] = 'incomplete'
+    report['coverage_status'] = 'incomplete'
+    report['verdict'] = 'FAIL'
 if case == 'wrong-anchor': report['sections'][0]['anchors'][0]['quote'] = 'absent source bytes'
 if case == 'empty-anchors': report['sections'][0]['anchors'] = []
 if case == 'duplicate': report['sections'].append(sections[0])
@@ -78,6 +83,7 @@ if case == 'nonzero': sys.exit(1)
 `;
 
 let root: string;
+let scaffoldNotebook: string;
 const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 const notebook = '# Notebook\n\nA bounded question.\n\n## Premises\n\nAll variables are finite real values.\nSee [premises](dependencies/premises.md).\n\n### Reasoning\n\nStarting relation and intermediate reasoning are recorded here.\n\n## Limits\n\nThe stated scope excludes undefined operations.\n';
 async function cli(args: string[]) {
@@ -99,6 +105,7 @@ async function review(caseName = 'complete') {
 beforeEach(async () => {
   root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'notebook-review-contract-')));
   expect((await cli(['init', '--mode', 'file'])).code).toBe(0);
+  scaffoldNotebook = fs.readFileSync(path.join(root, 'research_notebook.md'), 'utf8');
   write('research_notebook.md', notebook);
   write('dependencies/premises.md', '# Premises\n\nFinite real variables.\n');
   const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args], { stdio: 'pipe' });
@@ -112,6 +119,61 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); fs.rmSync(root, { recursive: true, force: true }); });
 
 describe('whole-notebook execution and current-version contract', () => {
+  it('reviews the actual scaffold without following index navigation into its own review run', async () => {
+    write('research_notebook.md', scaffoldNotebook);
+    const result = await review();
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    const scope = JSON.parse(fs.readFileSync(path.join(runDir(), 'inputs/notebook-scope.json'), 'utf8'));
+    expect(scope.navigation_links).toContainEqual({ source: 'research_notebook.md', destination: 'project_index.md#main-research-report' });
+    expect(scope.dependencies.map((d: any) => d.path)).not.toContain('project_index.md');
+    const before = fs.readFileSync(path.join(root, 'project_index.md'), 'utf8');
+    write('artifacts/runs/unrelated-navigation/summary.json', '{}\n');
+    expect((await cli(['index', 'sync'])).code).toBe(0);
+    expect(fs.readFileSync(path.join(root, 'project_index.md'), 'utf8')).not.toBe(before);
+    expect(checkNotebookContentReview(root).status).toBe('accepted');
+  });
+
+  it('keeps ordinary cross-run evidence recursive and stale when an original input changes', async () => {
+    write('research_notebook.md', '# Notebook\n\n[Stage result](artifacts/runs/stage/report.md).\n');
+    write('artifacts/runs/stage/report.md', '# Result\n\n[Input](../original/input.md) supports this result.\n');
+    write('artifacts/runs/original/input.md', '# Input\n\nOriginal scientific premise.\n');
+    expect((await review()).code).toBe(0);
+    write('artifacts/runs/original/input.md', '# Input\n\nChanged premise.\n');
+    expect(checkNotebookContentReview(root).status).toBe('stale');
+  });
+
+  it('freezes a mixed-use target and reference links while images cannot declare themselves navigation', () => {
+    write('research_notebook.md', '# Notebook\n\n[Index][index]. [Route](route.md "nullius-navigation").\n\n[Evidence](route.md). ![Data](data.txt "nullius-navigation").\n\n[index]: project_index.md "nullius-navigation"\n');
+    write('route.md', '# Evidence\n\n[Nested](nested.md).\n'); write('nested.md', 'Original dependency.\n'); write('data.txt', 'Image target bytes.\n');
+    const scope = freezeNotebookReviewScope(root, 'mixed-links', path.join(root, 'artifacts/runs/mixed-links'), []);
+    expect(scope.navigation_links).toEqual([{ source: 'research_notebook.md', destination: 'project_index.md' }, { source: 'research_notebook.md', destination: 'route.md' }]);
+    expect(scope.dependencies.map(d => d.path)).toEqual(['route.md', 'data.txt', 'nested.md']);
+  });
+
+  it('freezes explicit dependencies even when they are linked only for navigation', async () => {
+    write('research_notebook.md', '# Notebook\n\n[Route](route.md "nullius-navigation").\n');
+    write('route.md', '# Evidence\n\n[Nested](nested.md).\n'); write('nested.md', 'Original dependency.\n');
+    const result = await cli(['notebook', 'review', '--model', 'claude/contract-fixture', '--dependency', 'route.md', '--json']);
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    write('nested.md', 'Changed original dependency.\n');
+    expect(checkNotebookContentReview(root).status).toBe('stale');
+  });
+
+  it('refuses an omitted scientific premise despite its navigation title', async () => {
+    write('research_notebook.md', '# Notebook\n\nThe needed derivation is in [the route](route.md "nullius-navigation").\n');
+    write('route.md', '# Original\n\nA required derivation.\n');
+    const result = await review('navigation-required');
+    expect(result.code).not.toBe(0);
+    expect(checkNotebookContentReview(root).status).toBe('incomplete');
+    expect(notebookCloseoutGate(root).decision).not.toBe('pass');
+  });
+
+  it.each(['missing.md', '../outside.md'])('does not hide invalid navigation destinations: %s', async target => {
+    write('research_notebook.md', `# Notebook\n\n[Navigation](${target} "nullius-navigation").\n`);
+    expect((await review()).code).not.toBe(0);
+    expect(checkNotebookContentReview(root).status).not.toBe('accepted');
+  });
+
   it('retains historical failed capacity as unavailable after runtime authority recovers', async () => {
     // Lookups 1 and 2 locate the origin-capture storage check and the reviewer launcher; later lookups are capacity assessment.
     const originalRuntime = runtime.installedRuntimeRoot; let calls = 0;

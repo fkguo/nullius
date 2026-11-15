@@ -30,6 +30,11 @@ explicitly supplied in another section; preserve that dependency in your reasons
 and original passages for joint evaluation. You cannot resolve whole-notebook
 consistency from a single local interval.
 
+`navigation_links` exposes explicit `nullius-navigation` links. This title is an
+author's routing declaration, not scientific support. If the primary argument
+needs an original behind such a link that was not supplied, record it in
+`missing_dependencies`; do not certify a missing premise because of its label.
+
 Return one JSON object without a fence:
 
 ```

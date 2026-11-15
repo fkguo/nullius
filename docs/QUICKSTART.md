@@ -34,6 +34,10 @@ diff -u AGENTS.md "$guidance_preview_root/AGENTS.md"
 读序与其他定制内容；不要整份复制，也不要用 `init --force` 更新既有课题。
 已有 `CLAUDE.md` 或其他宿主规则也需要按内容检查，不能用新模板覆盖。
 同时对照预览中的 `research_notebook.md`，只合并需要更新的操作说明，保留原有科学内容。
+对已有 notebook 及其实际证据文件，按链接用途标注纯导航，例如
+`[Project index](project_index.md "nullius-navigation")`。普通证据链接继续递归冻结；
+不要给承载科学前提的链接加此标记来回避审查。若导航目标本身需要审阅，显式传入
+`--dependency`。修改笔记后重新完成适用的审查，旧审阅原件保持不变。
 课题已有的 prompts、team packet 或复制安装的技能操作说明也需要按来源检查；模板更新不会
 覆盖它们。复制安装应重新安装并核对来源版本；链接安装应确认仍指向所用源码。
 
@@ -300,8 +304,8 @@ with one attempt per call (`--timeout-secs <N>` changes it), freezing SHA-256 fo
 entire UTF-8 notebook, automatic block included, and declared dependency bytes,
 including uncommitted edits.
 
-Valid UTF-8 text remains text regardless of size; Markdown links are discovered
-recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links`
+Valid UTF-8 text remains text regardless of size; Ordinary Markdown evidence links are discovered
+recursively; explicit `"nullius-navigation"` link titles declare navigation only. Binary or invalid UTF-8 linked files are immutable `opaque_links`
 snapshots and hash locators, not read evidence. Every opaque path/hash needs a
 specific `opaque_sources` assessment; a required unread source prevents acceptance.
 Notebook and explicit dependencies require strict UTF-8 and LF or CRLF endings.
@@ -363,6 +367,6 @@ The owning account can read the authority key, including code executed by a memb
 
 The configured token window is frozen before the original reviewer subprocess starts and bound into its authenticated runtime observation. Changing historical window metadata cannot admit that receipt. Older observations without this policy remain readable and require a fresh execution for capacity acceptance.
 
-Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
+Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.

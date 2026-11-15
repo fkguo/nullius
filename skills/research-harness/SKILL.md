@@ -31,9 +31,12 @@ Report findings, uncertainty and the next step.
 4. Inspect actual outputs, reconcile disagreement and verify load-bearing results.
    Fix the cause of a failed check or change approach; repeating review of
    unchanged material is not progress.
-5. Deliver the answer with reasoning, evidence, checks and limits. Separate gaps
+5. Deliver the answer and actual stage outputs with reasoning, evidence, checks and limits. Separate gaps
    preventing this answer from work needed only for a stronger claim. Preserve a
    concrete next action and reuse still-current evidence when continuing.
+   Name the main reading file, link it in Current Status and hand it to the user
+   through the host's real file capability; a manifest or local export command
+   alone does not deliver a file. See [stage delivery](references/closeout.md#deliver-the-stage-output "nullius-guidance").
 
 Completing a scoped answer is distinct from project acceptance. Adopting project
 conclusions, registering or folding results into the accepted record, promoting a
@@ -94,6 +97,12 @@ tool ran. Assess model, method and input independence separately.
 | Fold results, close a milestone, prepare approval, export or hand off adopted results | [Closeout and result folding](references/closeout.md "nullius-guidance") |
 
 ## Durable conclusions
+
+The notebook is the user's living research notes. Keep the connected reasoning,
+load-bearing derivations, useful failed approaches, provisional ideas and open
+questions with their actual verification status. Update the scientific account
+as understanding changes; keep raw tool transcripts in run artifacts. A concise
+status pointer or publication-ready paper cannot replace these notes.
 
 Engine and file mode owe the same evidence and acceptance requirements. Fold
 verified reasoning into the notebook, contract and immutable report with sources.

@@ -39,11 +39,13 @@ ajv.addSchema(artifactSchema);
 const validators = [subjectSchema, checkSchema, verdictSchema, coverageSchema].map(schema => ajv.compile(schema));
 
 type Input = { path: string; sha256: string; bytes: number; snapshot_ref: ArtifactRefV1 };
+type NavigationLink = { source: string; destination: string };
 export type NotebookReviewSection = { section_id: string; heading: string; start_line: number; end_line: number; sha256: string };
 export type NotebookReviewScope = {
   schema_version: 1; review_kind: 'notebook'; extraction_policy: typeof POLICY;
   notebook: Input; dependencies: Input[]; opaque_links?: Input[]; sections: NotebookReviewSection[];
   explicit_dependencies: string[]; directory_links: string[]; remote_links: string[];
+  navigation_links?: NavigationLink[];
 };
 type ReviewPointer = { schema_version: 1; run_id: string; verification_refs: {
   subject_refs: ArtifactRefV1[]; check_run_refs: ArtifactRefV1[];
@@ -126,18 +128,32 @@ export function notebookReviewSections(text: string): NotebookReviewSection[] {
   });
 }
 
-function destinations(text: string): string[] {
+function destinations(text: string): { url: string; navigation: boolean }[] {
   const tree = fromMarkdown(text);
-  const definitions = new Map<string, string>();
-  visit(tree, node => { if (node.type === 'definition') definitions.set(node.identifier, node.url); });
-  const targets: string[] = [];
+  const definitions = new Map<string, { url: string; title?: string | null }>();
+  visit(tree, node => { if (node.type === 'definition' && !definitions.has(node.identifier)) definitions.set(node.identifier, node); });
+  const targets: { url: string; navigation: boolean }[] = [];
   visit(tree, node => {
-    if (node.type === 'link' || node.type === 'image') targets.push(node.url);
+    if (node.type === 'link' || node.type === 'image') targets.push({ url: node.url,
+      navigation: node.type === 'link' && node.title === 'nullius-navigation' });
     if (node.type === 'linkReference' || node.type === 'imageReference') {
-      const target = definitions.get(node.identifier); if (target) targets.push(target);
+      const target = definitions.get(node.identifier); if (target) targets.push({ url: target.url,
+        navigation: node.type === 'linkReference' && target.title === 'nullius-navigation' });
     }
   });
   return targets;
+}
+
+// A navigation declaration stays visible in the full original text and the
+// review inventory. It cannot stand for an unread scientific dependency.
+// Validate local destinations without freezing a changing index or walking it.
+function checkNavigationTarget(projectRoot: string, source: string, destination: string): void {
+  if (destination.startsWith('#') || /^[a-z][a-z\d+.-]*:/i.test(destination) || destination.startsWith('//')) return;
+  const target = decodeURIComponent(destination.split(/[?#]/, 1)[0]!);
+  const filename = resolveWithinRoot(projectRoot, path.resolve(projectRoot, path.dirname(source), target), 'notebook navigation');
+  assertNoSymlinkComponents(projectRoot, filename, 'notebook navigation');
+  const stat = fs.statSync(filename);
+  if (!stat.isFile() && !stat.isDirectory()) throw new Error(`notebook navigation target is not a file or directory: ${destination}`);
 }
 
 function writeJson(filename: string, value: unknown): void {
@@ -211,6 +227,7 @@ function canPublishNotebookReview(projectRoot: string, runId: string): boolean {
 
 export function freezeNotebookReviewScope(projectRoot: string, runId: string, runDir: string, dependencies: string[], budgets: NotebookBudgets = notebookBudgets({})): NotebookReviewScope {
   const remote = new Set<string>(); const dirs = new Set<string>();
+  const navigation: NavigationLink[] = [];
   const inputs: Input[] = []; const opaque: Input[] = []; const seen = new Set<string>(); let notebookText = '';
   const explicit = [...new Set(dependencies.map(filename => path.relative(projectRoot,
     resolveWithinRoot(projectRoot, filename, '--dependency')).split(path.sep).join('/')))];
@@ -252,7 +269,13 @@ export function freezeNotebookReviewScope(projectRoot: string, runId: string, ru
     if (text === null) continue;
     // Every valid UTF-8 text source can carry Markdown links. File extensions
     // do not define the recursively frozen material boundary.
-    for (const raw of destinations(text)) {
+    for (const link of destinations(text)) {
+      const raw = link.url;
+      if (link.navigation) {
+        checkNavigationTarget(projectRoot, relative, raw);
+        navigation.push({ source: relative, destination: raw });
+        continue;
+      }
       if (raw.startsWith('#')) continue;
       if (/^[a-z][a-z\d+.-]*:/i.test(raw) || raw.startsWith('//')) { remote.add(raw); continue; }
       let target: string;
@@ -271,7 +294,7 @@ export function freezeNotebookReviewScope(projectRoot: string, runId: string, ru
   const notebook = inputs[0]!;
   return { schema_version: 1, review_kind: 'notebook', extraction_policy: POLICY, notebook,
     dependencies: inputs.slice(1), opaque_links: opaque, sections: notebookReviewSections(notebookText),
-    explicit_dependencies: explicit, directory_links: [...dirs].sort(), remote_links: [...remote].sort() };
+    explicit_dependencies: explicit, directory_links: [...dirs].sort(), remote_links: [...remote].sort(), navigation_links: navigation };
 }
 
 function assertScope(scope: NotebookReviewScope, runDir: string, runId: string, projectRoot: string): Map<string, string> {
@@ -295,14 +318,27 @@ function assertScope(scope: NotebookReviewScope, runDir: string, runId: string, 
   // Recheck the closure from every original text snapshot. Historical scopes
   // do not gain complete coverage merely because all of their listed hashes fit.
   const recorded = new Set([...texts.keys(), ...(scope.opaque_links ?? []).map(i => i.path), ...(scope.directory_links ?? [])]);
+  const navigation: NavigationLink[] = [];
   for (const [relative, text] of texts) {
-    for (const raw of destinations(text)) {
+    for (const link of destinations(text)) {
+      const raw = link.url;
+      // Historical scopes retain their original all-links closure. New scopes
+      // must bind the declared navigation inventory to the actual source bytes.
+      if (scope.navigation_links !== undefined && link.navigation) {
+        checkNavigationTarget(projectRoot, relative, raw);
+        navigation.push({ source: relative, destination: raw });
+        continue;
+      }
       if (raw.startsWith('#') || /^[a-z][a-z\d+.-]*:/i.test(raw) || raw.startsWith('//')) continue;
       const target = decodeURIComponent(raw.split(/[?#]/, 1)[0]!);
       const filename = resolveWithinRoot(projectRoot, path.resolve(projectRoot, path.dirname(relative), target), 'original dependency closure');
       const local = path.relative(projectRoot, filename).split(path.sep).join('/');
       if (!recorded.has(local)) throw new Error(`whole-original dependency closure omits ${local}`);
     }
+  }
+  if (scope.navigation_links !== undefined && !same(scope.navigation_links, navigation)) throw new Error('notebook navigation inventory disagrees with frozen sources');
+  for (const relative of scope.explicit_dependencies) {
+    if (!texts.has(relative)) throw new Error(`explicit notebook dependency was not frozen: ${relative}`);
   }
   return texts;
 }

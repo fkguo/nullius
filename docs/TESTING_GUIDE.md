@@ -1,5 +1,22 @@
 # 功能测试指南（front-door 当前真相）
 
+## Research writing and file continuity regressions
+
+```bash
+python3 -m pytest skills/research-writer/tests skills/research-team/tests/test_export_paper_bundle.py -q
+pnpm --filter @nullius/orchestrator exec vitest run tests/notebook-content-review.test.ts tests/notebook-review-batches.test.ts tests/notebook-review-guidance.test.ts
+```
+
+The writer tests cover empty-scaffold initialization, manifest-selected TeX entry
+points, failed/missing compiler behavior, current PDF selection and portable arXiv
+staging. Bundle tests move the output to another root and remove the source before
+checking notebook/report links, cross-run inputs, symlinks, figures and BibTeX.
+Path fixtures are not PDF rendering or scientific validation. Notebook cases
+separate changing navigation from original scientific dependencies, check mixed
+links and explicit dependencies, and reject incomplete single-call or joint
+reviews. Deterministic reviewer transports test the contract, not model reasoning.
+Actual research acceptance still requires the applicable real scientific checks.
+
 本指南面向手工验收当前 front-door truth。`nullius` 是 generic lifecycle + workflow-plan front door；`@nullius/hep-mcp` 是当前最成熟的 domain MCP front door，提供 literature/data、项目内研究输出、Zotero、PDG 能力。本页重点覆盖两者的衔接，而不是把 `hep-mcp` 重新写成 root 产品身份。
 
 > 说明
@@ -501,8 +518,8 @@ content acceptance is absent. Fixtures and mocked dispatch test these contracts;
 they do not establish scientific correctness or substitute for executing a real
 reviewer on a research notebook.
 
-Valid UTF-8 text remains text regardless of size; Markdown links are discovered
-recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links`
+Valid UTF-8 text remains text regardless of size; Ordinary Markdown evidence links are discovered
+recursively; explicit `"nullius-navigation"` link titles declare navigation only. Binary or invalid UTF-8 linked files are immutable `opaque_links`
 snapshots and hash locators, not read evidence. Every opaque path/hash needs a
 specific `opaque_sources` assessment; a required unread source prevents acceptance.
 Notebook and explicit dependencies require strict UTF-8 and LF or CRLF endings.
@@ -555,7 +572,7 @@ The owning account can read the authority key, including code executed by a memb
 
 The configured token window is frozen before the original reviewer subprocess starts and bound into its authenticated runtime observation. Changing historical window metadata cannot admit that receipt. Older observations without this policy remain readable and require a fresh execution for capacity acceptance.
 
-Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
+Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research storage fixtures cover semantic classifications, aggregate admission, bundle content detection, duplicate index objects, zero-write inspection and byte-exact restoration. Run `python3 -m pytest skills/research-harness/tests/test_run_storage.py` and `pnpm -C packages/orchestrator test tests/run-origin-foreign-paths.test.ts tests/validity-ledger.test.ts tests/traceability-stage3.test.ts`. See [Research output storage](RUN_STORAGE.md).
 

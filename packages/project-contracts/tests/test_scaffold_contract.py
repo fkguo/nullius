@@ -393,7 +393,7 @@ class TestScaffoldContract(unittest.TestCase):
             ("research_plan.md", plan_template),
             ("research_contract.md", contract_template),
         ):
-            self.assertIn("lives in [AGENTS.md](AGENTS.md)", template, msg=name)
+            self.assertRegex(template, r'lives in \[AGENTS\.md\]\(AGENTS\.md(?: "nullius-navigation")?\)', msg=name)
             self.assertIn("nullius init --refresh", template, msg=name)
             self.assertNotIn("nullius status --json", template, msg=name)
             self.assertNotIn(".nullius/bin/nullius", template, msg=name)
@@ -612,8 +612,8 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("artifacts/runs/<run_id>/", rendered)
         self.assertIn("<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN", rendered)
 
-    def test_research_notebook_template_is_a_self_contained_memo(self) -> None:
-        """The notebook is a paper-like research memo, not a change log.
+    def test_research_notebook_template_is_a_human_research_notebook(self) -> None:
+        """The notebook preserves useful scientific understanding, including unfinished work.
 
         Contract (2026-07): the memo carries the complete current
         understanding — full derivations, computations, analysis — organized
@@ -623,18 +623,20 @@ class TestScaffoldContract(unittest.TestCase):
         """
         template = (scaffold_template_dir() / "research_notebook.md").read_text(encoding="utf-8")
 
-        # Positioning: self-contained, paper-like, complete-detail memo.
-        self.assertIn("research memo", template)
+        # Positioning: human scientific notes with complete load-bearing reasoning.
+        self.assertIn("human research notebook", template)
+        self.assertIn("provisional ideas, meaningful failed", template)
+        self.assertIn("Publication polish", template)
         self.assertIn("derivation, computation, and piece of analysis", template)
         self.assertIn("Organize by the structure of the problem, never by time.", template)
         self.assertIn("Update by rewriting, not appending.", template)
         self.assertIn("revision history is git's job", template)
         # Process detail stays out of the memo.
-        self.assertIn("dated logs live in [research_plan.md](research_plan.md)", template)
+        self.assertIn('dated logs live in [research_plan.md](research_plan.md "nullius-navigation")', template)
         # Two content substrings (not one string spanning a hard wrap, which
         # would pin the paragraph's line-break position instead of its text).
         self.assertIn("Tool-use logs, metadata checks, download attempts,", template)
-        self.assertIn("belong in [research_plan.md](research_plan.md)", template)
+        self.assertIn('belong in [research_plan.md](research_plan.md "nullius-navigation")', template)
         # Run evidence is named by its canonical root, not a bare runs/ dir.
         self.assertIn("artifacts/runs/<run_id>/", template)
         # Paper-shaped skeleton, including the derivation/result sections the

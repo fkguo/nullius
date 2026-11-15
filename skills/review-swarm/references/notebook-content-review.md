@@ -13,7 +13,11 @@ defaults to a hard 1200-second budget and one attempt per bounded call. Declare
 additional necessary files with repeated `--dependency <path>`; local linked
 Markdown text dependencies are also discovered. It refuses unsupported text,
 missing local files and resource shortfalls without truncation. Local directory
-links leave original dependency closure pending and prevent acceptance. Remote
+evidence links leave original dependency closure pending and prevent acceptance.
+Pure navigation links use the title `"nullius-navigation"`; their local targets
+must exist but are not frozen or recursively followed. Their declarations remain
+visible in the original text and inventory. A needed source behind any such link
+must be supplied as an ordinary evidence link or explicit `--dependency`. Remote
 links are locators; a necessary unread dependency prevents acceptance.
 
 Larger inputs use the `notebook-batch` role for each complete original interval

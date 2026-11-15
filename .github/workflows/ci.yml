@@ -260,6 +260,9 @@ jobs:
       - name: Python tests (research-team skill suite)
         run: python -m pytest skills/research-team/tests -q
 
+      - name: Python tests (host-led writing and portable paper delivery)
+        run: python -m pytest skills/research-writer/tests -q
+
       - name: Python tests (research-harness skill suite)
         run: python -m pytest skills/research-harness/tests -q
 

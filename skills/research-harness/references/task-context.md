@@ -103,6 +103,13 @@ or scientific acceptance. Changed files after a check need another check. This i
 not an OS sandbox or protection against a hostile same-account writer. Required
 verification remains on complete original material and its existing gates.
 
+Select the actual inputs needed for the next action, including files from earlier
+runs. If the current report relies on an earlier dataset or derivation, capture
+that original as another `--source`; selecting the report alone does not bind the
+files it links. Inspect these paths before handoff and after restore. Keep the
+phase's main reading output alongside the Task brief in Current Status, so the
+user and next agent can find the result without decoding the run manifest.
+
 ## Resume from durable material
 
 Before reset, persist a runnable next action, its inputs and actual result paths.

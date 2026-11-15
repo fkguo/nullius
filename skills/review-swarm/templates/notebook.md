@@ -39,6 +39,15 @@ that were not supplied. If an input is truncated, unreadable, absent, or
 the coverage inventory does not include every section, return FAIL and
 incomplete coverage. Preserve uncertainty rather than guessing.
 
+`navigation_links` records links explicitly titled `nullius-navigation` in the
+original source. These are visible routing declarations, not evidence that their
+targets were read. Their targets are not recursively frozen unless also supplied
+as dependencies. Check the surrounding reasoning: if a purported navigation link
+actually carries a needed premise, list the missing original in
+`missing_dependencies`, return incomplete closure and request that original as a
+normal source link or `--dependency`. Do not infer scientific support from a
+navigation label. Images are never excluded by this title.
+
 The inventory's `opaque_links` are binary or invalid UTF-8 local targets whose
 original bytes are snapshotted and hashed, but whose content is NOT embedded
 or reviewed. Assess each in `opaque_sources`, with its exact path, hash,

@@ -10,6 +10,37 @@ the version to cite.
 
 ## [Unreleased]
 
+### Changed
+- Scientific writing is owned by the host agent. The writer skill now guides
+  original-source reading, integration into the actual manuscript, applicable
+  scientific checks and delivery; its scaffold creates an empty paper only.
+- Notebook review distinguishes explicit `nullius-navigation` links from scientific
+  dependencies. Full original text remains reviewed, ordinary evidence links
+  remain recursive, and explicitly requested files remain frozen. Existing
+  notebooks require an authored navigation update; history is not rewritten.
+- Stage outputs are linked from Current Status and actually received and handed
+  off by the host, using existing reports, writer manifests and bundle tooling.
+
+### Fixed
+- Paper bundles preserve project-relative layouts, include the human notebook
+  and referenced local material across runs, and check dependencies before
+  publication. Explicit stage selections can omit unrelated project documents.
+- Writer builds use the manifest's TeX entry point, reject unavailable or failed
+  requested compilation, and do not advertise a stale PDF as a current build.
+  Export rechecks recorded project-input and output hashes before packaging a
+  compiled paper; changed source, bibliography, figures or PDF require a rebuild.
+- Main-report validation accepts Markdown link titles and requires actual
+  evidence links; inline-code examples cannot satisfy clickable-link checks.
+- arXiv staging rejects missing or escaping dependencies and preserves prose
+  adjacent to bibliography commands. Markdown hygiene preserves legitimate
+  aligned/matrix line breaks.
+
+### Removed
+- The fixed writer/auditor chapter pipeline, keyword-based LaTeX evidence gate,
+  first-formula/first-figure composition, keyword-overlap discussion verdicts,
+  and ambiguous double-backslash math auto-rewrites. Existing scientific
+  verification and traceability tools remain available.
+
 ## [0.6.0] - 2026-10-17
 
 First archived release. Nullius is positioned as an evidence-first harness for

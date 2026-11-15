@@ -115,8 +115,6 @@ def _run_markdown_safety_fixes(*, root: Path, notes: Path) -> int:
     common Markdown hazards instead of stopping on avoidable preflight failures.
     """
     fixes: list[tuple[str, list[str]]] = [
-        # Fix over-escaped LaTeX backslashes in math regions, e.g. \\Delta -> \Delta.
-        ("fix_markdown_double_backslash_math.py", ["--notes", str(notes), "--in-place"]),
         # Make Capsule I) KB links human-readable: RefKey — Authors — Title.
         ("format_kb_reference_links.py", ["--notes", str(notes), "--in-place"]),
     ]

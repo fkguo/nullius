@@ -50,8 +50,6 @@ DEFAULT_CONFIG: dict = {
         "markdown_math_hygiene_gate": True,
         # Markdown math portability warnings (renderer-agnostic): e.g. table pipes inside $...$; \slashed.
         "markdown_math_portability_gate": True,
-        # Global "double-backslash in math" hygiene gate (scan key docs + knowledge_base; common TOC/LLM over-escape hazard).
-        "double_backslash_math_gate": True,
         # Global Markdown link hygiene gate (scan key docs + knowledge_base; enforce clickable KB pointers).
         "markdown_link_hygiene_gate": True,
         # Global LaTeX macro hygiene gate (scan key docs + knowledge_base; forbid custom macros like \Rc).

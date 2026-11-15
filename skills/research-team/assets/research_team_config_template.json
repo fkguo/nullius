@@ -70,7 +70,6 @@
     "literature_trace_gate": true,
     "markdown_math_hygiene_gate": true,
     "markdown_math_portability_gate": true,
-    "double_backslash_math_gate": true,
     "markdown_link_hygiene_gate": true,
     "latex_macro_hygiene_gate": true,
     "problem_framing_snapshot_gate": true,

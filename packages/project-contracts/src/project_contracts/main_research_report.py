@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .markdown_visibility import visible_markdown
-from .report_registry import MARKDOWN_LINK, RegistryRow, load_report_registry
+from .report_registry import RegistryRow, load_report_registry, markdown_link_targets
 from .report_field_validation import (
     field_is_filled,
     field_values,
@@ -98,7 +98,7 @@ def _validate_metadata(text: str, row: RegistryRow, path: Path, root: Path, erro
         errors.append(_issue("report_registry_metadata_mismatch", "report kind, ID, or supersedes metadata disagrees with the registry", rel))
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", meta["created"]):
         errors.append(_issue("invalid_report_created_date", "Created must use YYYY-MM-DD", rel))
-    links = MARKDOWN_LINK.findall(meta["registry"])
+    links = markdown_link_targets(meta["registry"])
     if len(links) != 1 or not links[0].endswith("project_index.md#main-research-report") or not human_links(meta["registry"], path, root):
         errors.append(_issue("missing_relation_registry_link", "every report must link back to the supersession registry", rel))
 

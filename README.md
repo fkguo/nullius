@@ -12,6 +12,14 @@ Native computation binds an enabled A3 approval to the current manifest, scripts
 
 ## Research continuity
 
+The host agent also owns scientific writing. `research-writer` supplies an empty
+paper scaffold and deterministic build, traceability and packaging helpers; it
+does not generate a paper by selecting a formula, figure or a fixed writer/auditor
+exchange. Keep useful provisional ideas and failed approaches in the human
+notebook. At each stage, link the actual reading output in Current Status, inspect
+its checks and hand the files to the user through the host's file capability.
+See [stage delivery](skills/research-harness/references/closeout.md#deliver-the-stage-output).
+
 Use the host's native agent loop, tools and available subagents. The main agent
 owns the current question, core reasoning and synthesis: read original sources,
 derive or compute, delegate bounded work when it adds evidence, complete the
@@ -377,8 +385,8 @@ validates every registered row, including superseded rows. Only current results
 create human-section link obligations. Ordinary status and history reads remain
 available when the closeout check fails.
 
-Valid UTF-8 text remains text regardless of size; Markdown links are discovered
-recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links`
+Valid UTF-8 text remains text regardless of size; Ordinary Markdown evidence links are discovered
+recursively; explicit `"nullius-navigation"` link titles declare navigation only. Binary or invalid UTF-8 linked files are immutable `opaque_links`
 snapshots and hash locators, not read evidence. Every opaque path/hash needs a
 specific `opaque_sources` assessment; a required unread source prevents acceptance.
 Notebook and explicit dependencies require strict UTF-8 and LF or CRLF endings.
@@ -418,6 +426,6 @@ Runtime observations bind the actual report location, so copying signed capture 
 
 Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
-Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
+Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](docs/RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.

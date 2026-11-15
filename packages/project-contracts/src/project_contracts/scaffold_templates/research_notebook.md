@@ -8,17 +8,20 @@ Last updated: <YYYY-MM-DD>
 never edited by hand)
 <!-- NOTEBOOK_CURRENT_STATE_END -->
 
-This file is the research memo: the one document a colleague in the field
+This file is the human research notebook: the one document a colleague in the field
 could read, without opening anything else in the repository, and come away
 with the project's complete current understanding — including every
 derivation, computation, and piece of analysis that understanding rests on.
-It reads like a paper (with appendix-level detail), not like a diary.
+Write it as useful personal research notes, with connected explanations and
+enough detail to check the science. Keep provisional ideas, meaningful failed
+approaches and unresolved questions with their actual status. Publication polish
+is optional; scientific clarity is not.
 
 This memo is a living synthesis, not the immutable main research report. A
 report promoted for independent scientific use is created as a new file under
 `reports/` from
-[the main-report template](reports/main_research_report_template.md), then
-registered through [project_index.md#Main research report](project_index.md#main-research-report).
+[the main-report template](reports/main_research_report_template.md "nullius-navigation"), then
+registered through [project_index.md#Main research report](project_index.md#main-research-report "nullius-navigation").
 Checkpoint/status/closeout summaries and machine receipts never substitute for
 that report.
 
@@ -27,7 +30,7 @@ Three disciplines keep it that way:
 1. **Organize by the structure of the problem, never by time.** Sections
    follow the research picture — setup, methods, derivations, results,
    analysis — not the order in which work happened. "What changed when" is
-   not this file's job: dated logs live in [research_plan.md](research_plan.md)
+   not this file's job: dated logs live in [research_plan.md](research_plan.md "nullius-navigation")
    and `artifacts/runs/<run_id>/`; machine-checkable claims live in
    [research_contract.md](research_contract.md).
 2. **Update by rewriting, not appending.** When a result lands, a derivation
@@ -44,8 +47,10 @@ Three disciplines keep it that way:
 3. **Complete but not cluttered.** Every load-bearing derivation appears in
    full (all steps a careful reader needs, with conventions stated), every
    trusted number appears with its uncertainty and provenance link — but
-   process detail (tool logs, run transcripts, failed attempts) stays in
-   `artifacts/runs/<run_id>/`, referenced by link where relevant. If a section can be deleted
+   raw process detail (tool logs and run transcripts) stays in
+   `artifacts/runs/<run_id>/`, referenced by link where relevant. Explain a failed
+   approach here when its reason changes the scientific understanding or next step.
+   If a section can be deleted
    without losing understanding, delete it.
 
 At each scientific result fold, in file or engine mode, rewrite the affected
@@ -63,6 +68,16 @@ After completing the whole notebook and refreshing its automatic block, run
 bounded calls with a default hard 1200-second timeout (`--timeout-secs <N>` changes
 it), one attempt per call and no automatic retry. It freezes the complete UTF-8 notebook, automatic block included, and
 declared dependency SHA-256 from actual bytes, including uncommitted edits.
+
+Ordinary local links recursively include their original targets as review
+dependencies. Use the Markdown title `"nullius-navigation"` only for a pure
+navigation link, such as `[Project index](project_index.md "nullius-navigation")`.
+Its destination must exist, but its changing contents are not frozen or followed.
+The full notebook bytes and navigation inventory remain visible to the reviewer.
+If the reasoning needs material behind that link, cite the actual source normally
+or supply `--dependency`; a navigation declaration cannot excuse missing evidence.
+Images remain evidence even with that title. Existing notebooks need an authored
+edit to classify their navigation links; refresh never rewrites scientific prose.
 
 The reviewer must read every section and give source-anchored reasons addressing
 derivation completeness, logical consistency, symbols, definitions, assumptions
@@ -131,5 +146,5 @@ central equations and assumptions taken from each,
 what was not read and why, and each source's
 project relevance, limitations, and remaining gaps.
 Tool-use logs, metadata checks, download attempts, and API/MCP call details
-belong in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`,
+belong in [research_plan.md](research_plan.md "nullius-navigation") or `artifacts/runs/<run_id>/`,
 not here.

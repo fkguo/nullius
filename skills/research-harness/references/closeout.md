@@ -2,6 +2,48 @@
 
 Read the section relevant to the current operation. Commands and script paths are relative to the installed `research-harness` skill directory unless an external project root is specified.
 
+## Deliver the stage output
+
+Use the existing project files: the human notebook holds the evolving scientific
+understanding, a stage report or paper presents the requested result, and run
+artifacts preserve original inputs, execution and verification. A stage may end
+with a useful draft or a negative result; label its actual status. Delivery alone
+does not adopt an unverified result or waive the formal boundary below.
+
+Before ending a stage:
+
+1. Inspect the actual output and incorporate the scientific findings into the
+   notebook. For writing, the host agent reads the originals and edits the real
+   manuscript and included sections. A candidate fragment is not the main paper.
+2. Read the applicable verification reports and act on their findings. Use the
+   existing derivation, numerical, grounding, citation, traceability and display
+   checks for the result types present. A checker's presence, a build exit code,
+   a report path or an asserted PASS is not evidence that the check ran. Record
+   the actual inputs, outcome and remaining limits with the existing run evidence.
+3. Put a direct link to the main reading file and required supporting files in
+   `research_plan.md#Current Status`'s existing Evidence pointers. Keep the unique
+   Task brief link when continuation is needed. Use the explicit current result
+   or report registry for adopted outcomes, not a latest-run guess. Promoting a
+   main report requires a new immutable report and successful `report-validate`.
+4. When using writer helpers, read the current `export_manifest.json`, resolve
+   paths from its actual output root, and confirm the referenced files and build
+   status. Retain the selected files with their relative layout; moving just the
+   manifest does not receive the result. A requested failed or skipped build is
+   not a current PDF. Scientific verification remains separate from compilation.
+5. For a portable handoff, use the existing research-team `export_paper_bundle.py`
+   with explicit stage files or the writer export manifest. The default includes
+   project documents and their referenced closure; `--without-project-docs` with
+   explicit includes selects a smaller stage output. Inspect the package in a
+   fresh location so it cannot accidentally rely on the original project. Check
+   the main document, local references, bibliography, figures and required data.
+   `nullius export --run-id` archives a selected run; it does not automatically
+   assemble a whole paper or its cross-run dependencies.
+6. Use the host's actual attachment or downloadable-file mechanism to deliver
+   the main reading file and the supporting package. Open or inspect the delivered
+   artifact and give the user its working link. If the host only exposes local
+   files, provide the concrete accessible path and say what remains to transfer.
+   Never invent a download URL. Local packaging and user access are separate.
+
 ## Closeout
 
 First distinguish the requested answer from formal project acceptance.

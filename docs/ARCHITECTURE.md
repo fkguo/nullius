@@ -2,6 +2,15 @@
 
 This document explains the current front-door architecture of the monorepo. It is intentionally capability-first and workflow-first: the root is a domain-neutral research substrate and control plane, while concrete provider families live in leaf packages. HEP is the current most mature provider family and the strongest end-to-end example, but not the root identity.
 
+The host agent owns scientific interpretation, writing and integration. Writer
+helpers retain deterministic scaffolding, build checks, provenance checks and
+packaging; they do not synthesize findings from first-match text extraction or a
+fixed two-model exchange. The human notebook retains useful provisional and failed
+scientific work with its actual status. Stage delivery uses the existing report,
+paper and run paths, a direct Current Status link, the existing export helper and
+the host's file handoff. No additional artifact registry or acceptance tier is
+introduced. See [stage delivery](../skills/research-harness/references/closeout.md#deliver-the-stage-output).
+
 ---
 
 
@@ -237,8 +246,8 @@ author self-assessment cannot determine the content verdict. Semantic acceptance
 is bounded by the reviewer's coverage and independence and does not prove
 scientific truth or replace result-specific verification.
 
-Valid UTF-8 text remains text regardless of size; Markdown links are discovered
-recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links`
+Valid UTF-8 text remains text regardless of size; Ordinary Markdown evidence links are discovered
+recursively; explicit `"nullius-navigation"` link titles declare navigation only. Binary or invalid UTF-8 linked files are immutable `opaque_links`
 snapshots and hash locators, not read evidence. Every opaque path/hash needs a
 specific `opaque_sources` assessment; a required unread source prevents acceptance.
 Notebook and explicit dependencies require strict UTF-8 and LF or CRLF endings.
@@ -285,7 +294,7 @@ The owning account can read the authority key, including code executed by a memb
 
 The configured token window is frozen before the original reviewer subprocess starts and bound into its authenticated runtime observation. Changing historical window metadata cannot admit that receipt. Older observations without this policy remain readable and require a fresh execution for capacity acceptance.
 
-Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
+Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
 

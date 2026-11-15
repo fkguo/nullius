@@ -624,7 +624,9 @@ class TestUpdateProjectMapLatestPointers(unittest.TestCase):
             run_dir.mkdir(parents=True, exist_ok=True)
             (run_dir / f"{tag}_member_a.md").write_text("# member a\n", encoding="utf-8")
 
-            result = _run_export_paper_bundle(root, "--tag", tag, "--out", "export")
+            result = _run_export_paper_bundle(root, "--tag", tag, "--out", "export",
+                                             "--without-project-docs", "--include",
+                                             f"artifacts/runs/{tag}/research_team/{tag}_member_a.md")
 
             self.assertEqual(result.returncode, 0, msg=result.stdout)
             bundle_dir = root / "export" / f"paper_bundle_{tag}"
@@ -634,7 +636,7 @@ class TestUpdateProjectMapLatestPointers(unittest.TestCase):
             has_latest_draft = (bundle_dir / "team" / "LATEST_DRAFT.md").exists()
             has_latest_artifacts = (bundle_dir / "artifacts" / "LATEST.md").exists()
 
-        self.assertTrue(has_latest_index)
+        self.assertFalse(has_latest_index)
         self.assertFalse(has_latest_team)
         self.assertFalse(has_latest_draft)
         self.assertFalse(has_latest_artifacts)
@@ -667,7 +669,7 @@ class TestUpdateProjectMapLatestPointers(unittest.TestCase):
         self.assertTrue(exported_exists, msg=result.stdout)
         self.assertEqual(exported_text, "# legacy member output\n")
 
-    def test_export_bundle_skips_mismatched_latest_team_pointer_and_warns(self) -> None:
+    def test_export_bundle_does_not_add_unreferenced_latest_team_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             current_tag = "20260504T020000Z-m0-team-r1"
@@ -703,11 +705,10 @@ class TestUpdateProjectMapLatestPointers(unittest.TestCase):
             manifest = (bundle_dir / "MANIFEST.md").read_text(encoding="utf-8")
 
         self.assertFalse((bundle_dir / "team" / "LATEST_TEAM.md").exists())
-        self.assertIn("[warn] skipped team/LATEST_TEAM.md", manifest)
-        self.assertIn("pointer tag", manifest)
+        self.assertNotIn("team/LATEST_TEAM.md", manifest)
         self.assertNotIn("Use `team/LATEST_TEAM.md`", manifest)
 
-    def test_export_bundle_skips_stale_artifacts_latest_pointer_and_warns(self) -> None:
+    def test_export_bundle_does_not_add_unreferenced_artifacts_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             tag = "20260504T020000Z-m0-team-r1"
@@ -738,11 +739,10 @@ class TestUpdateProjectMapLatestPointers(unittest.TestCase):
             manifest = (bundle_dir / "MANIFEST.md").read_text(encoding="utf-8")
 
         self.assertFalse((bundle_dir / "artifacts" / "LATEST.md").exists())
-        self.assertIn("[warn] skipped artifacts/LATEST.md", manifest)
-        self.assertIn("pointer path does not match the original run location", manifest)
+        self.assertNotIn("artifacts/LATEST.md", manifest)
         self.assertNotIn("Use `artifacts/LATEST.md`", manifest)
 
-    def test_export_bundle_sanitizes_bundle_navigation_for_skipped_optional_pointers(self) -> None:
+    def test_export_bundle_rejects_broken_navigation_without_rewriting_it(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             current_tag = "20260504T020000Z-m0-team-r1"
@@ -808,20 +808,13 @@ class TestUpdateProjectMapLatestPointers(unittest.TestCase):
             (current_run / f"{current_tag}_member_a.md").write_text("# member a\n", encoding="utf-8")
             (other_run / f"{other_tag}_member_a.md").write_text("# member a\n", encoding="utf-8")
 
+            original_index = (root / "project_index.md").read_bytes()
             result = _run_export_paper_bundle(root, "--tag", current_tag, "--out", "export")
 
-            self.assertEqual(result.returncode, 0, msg=result.stdout)
-            bundle_dir = root / "export" / f"paper_bundle_{current_tag}"
-            latest_index = (bundle_dir / "team" / "LATEST.md").read_text(encoding="utf-8")
-            project_index = (bundle_dir / "docs" / "project_index.md").read_text(encoding="utf-8")
-
-        self.assertNotIn("LATEST_TEAM.md", latest_index)
-        self.assertNotIn("LATEST_DRAFT.md", latest_index)
-        self.assertIn("- Trajectory index: [trajectory_index.json](trajectory_index.json)", latest_index)
-        self.assertNotIn("Team latest tag:", project_index)
-        self.assertNotIn("Team latest status:", project_index)
-        self.assertNotIn("Latest team", project_index)
-        self.assertIn("Latest artifacts", project_index)
+            self.assertEqual(result.returncode, 2, msg=result.stdout)
+            self.assertIn("incomplete bundle", result.stdout)
+            self.assertEqual((root / "project_index.md").read_bytes(), original_index)
+            self.assertFalse((root / "export" / f"paper_bundle_{current_tag}").exists())
 
     def test_export_bundle_keeps_bundle_navigation_for_live_optional_pointers(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -879,11 +872,11 @@ class TestUpdateProjectMapLatestPointers(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stdout)
             bundle_dir = root / "export" / f"paper_bundle_{tag}"
             latest_index = (bundle_dir / "team" / "LATEST.md").read_text(encoding="utf-8")
-            project_index = (bundle_dir / "docs" / "project_index.md").read_text(encoding="utf-8")
+            project_index = (bundle_dir / "project_index.md").read_text(encoding="utf-8")
+            self.assertEqual((bundle_dir / "project_index.md").read_bytes(), (root / "project_index.md").read_bytes())
+            self.assertTrue((bundle_dir / "team/LATEST_TEAM.md").is_file())
 
-        self.assertIn("- Team cycle: [LATEST_TEAM.md](LATEST_TEAM.md)", latest_index)
-        self.assertIn("- Trajectory index: [trajectory_index.json](trajectory_index.json)", latest_index)
-        self.assertNotIn("LATEST_DRAFT.md", latest_index)
+        self.assertEqual(latest_index, "# source should be replaced\n")
         self.assertIn(f"- Team latest tag: {tag}", project_index)
         self.assertIn("- Team latest status: preflight_ok", project_index)
         self.assertIn("- Latest team: [team/LATEST_TEAM.md](team/LATEST_TEAM.md)", project_index)

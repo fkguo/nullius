@@ -291,11 +291,13 @@ export function assessNotebookRequestCapacity(runDir: string, runId: string, cap
     persisted_request_bytes: requestBytes, protocol_token_reserve: 8192, output_token_reserve: 32768,
     conservative_input_token_upper_bound: inputBound, declared_context_tokens: contextTokens };
 }
-function assertSourcePacket(dir: string, originId: string, receipt: BatchReceipt, plan: BatchPlan, sources: Map<string, Buffer>): void {
+function assertSourcePacket(dir: string, originId: string, receipt: BatchReceipt, plan: BatchPlan, sources: Map<string, Buffer>, scope: NotebookReviewScope): void {
   const unit = plan.units.find(u => u.unit_id === receipt.unit_ids[0]);
   const supplied = loadVerifiedRunJson<any>(dir, originId, receipt.inventory_ref, 'raw interval inventory');
   const raw = resolveVerifiedRunArtifact(dir, originId, receipt.payload_ref, 'raw interval packet').bytes.toString('utf8');
   if (!unit || receipt.key !== unit.unit_id || receipt.unit_ids.length !== 1 || !equal(supplied.units, [unit])
+    || !equal(supplied.sources, [scope.notebook, ...scope.dependencies].map(i => ({ path: i.path, sha256: i.sha256, bytes: i.bytes })))
+    || !equal(supplied.navigation_links ?? [], scope.navigation_links ?? [])
     || supplied.material_sha256 !== plan.material_sha256 || raw !== sourcePayload(plan, sources, unit)) throw new Error('source batch did not receive the exact primary and adjacent original bytes');
 }
 function sourcePayload(plan: BatchPlan, sources: Map<string, Buffer>, unit: Unit): string {
@@ -413,7 +415,7 @@ export async function executeNotebookBatches(root: string, runDir: string, runId
       try {
         const checked = assessReceipt(root, dir, entry.origin_run_id, receipt, priorPlan);
         if (checked.fresh && receipt.phase === 'source') {
-          assertSourcePacket(dir, entry.origin_run_id, receipt, priorPlan, sources);
+          assertSourcePacket(dir, entry.origin_run_id, receipt, priorPlan, sources, scope);
           assertUnitReport(checked.report, receipt, priorPlan, sources);
           if (checked.report.coverage_status === 'complete' && !checked.report.missing_dependencies.length
             && checked.report.units.every((u: any) => u.status === 'complete') && !entries.some(e => readEntry(root, e).receipt.key === receipt.key)) entries.push(entry);
@@ -442,6 +444,7 @@ export async function executeNotebookBatches(root: string, runDir: string, runId
       if (++calls > budgets.maxBatches || Date.now() >= deadline) { state.stop_reason = 'Execution budget exhausted before every raw interval was reviewed.'; break; }
       const inventory = { schema_version: 1, review_kind: 'notebook_batch', material_sha256: plan.material_sha256, units: [unit],
         sources: [scope.notebook, ...scope.dependencies].map(i => ({ path: i.path, sha256: i.sha256, bytes: i.bytes })),
+        navigation_links: scope.navigation_links ?? [],
         interval_policy: 'All original primary bytes; adjacent raw context only. Cross-section closure is deferred to the separate original-context audit.' };
       const entry = await executeBatch(root, runDir, runId, plan, 'source', unit.unit_id, [unit.unit_id], sourcePayload(plan, sources, unit), inventory, Math.max(1, Math.ceil((deadline - Date.now()) / 1000)));
       state.entries.push(entry); progress();
@@ -455,7 +458,7 @@ export async function executeNotebookBatches(root: string, runDir: string, runId
         const payload = crossPayload(sources);
         const inventory = { schema_version: 1, review_kind: 'notebook_cross_section', material_sha256: plan.material_sha256,
           units: plan.units, opaque_links: (scope.opaque_links ?? []).map(i => ({ path: i.path, sha256: i.sha256 })),
-          directory_links: scope.directory_links, remote_links: scope.remote_links,
+          directory_links: scope.directory_links, remote_links: scope.remote_links, navigation_links: scope.navigation_links ?? [],
           obligations: 'Read every full original source and every interval jointly. Check all definitions, assumptions, conventions, formal claims and cross-section inferences. Each original_unit_coverage entry requires anchors: an array of exact original path/start_byte/end_byte/quote objects within that unit, including substantive body text when present. Empty or whitespace-only units use an empty anchors array. No selected quote or summary substitutes for the full original joint input.' };
         const entry = await executeBatch(root, runDir, runId, plan, 'cross_section', 'cross-section', [], payload, inventory, Math.max(1, Math.ceil((deadline - Date.now()) / 1000)));
         state.entries.push(entry); progress();
@@ -481,7 +484,7 @@ export function assessNotebookBatches(root: string, runDir: string, runId: strin
       if (receipt.phase === 'cross_section' && entry.origin_run_id !== runId) throw new Error('The full-original joint audit must originate in the current review run.');
       const checked = assessReceipt(root, dir, entry.origin_run_id, receipt, plan); const report = checked.report;
       if (receipt.phase === 'source') {
-        assertSourcePacket(dir, entry.origin_run_id, receipt, plan, sources);
+        assertSourcePacket(dir, entry.origin_run_id, receipt, plan, sources, scope);
       }
 
       fresh &&= checked.fresh; families.push(checked.family); tokenEvidence.push(checked.token_evidence); findings.push(...report.blocking_issues);
@@ -521,6 +524,7 @@ export function assessNotebookBatches(root: string, runDir: string, runId: strin
     if (supplied.material_sha256 !== plan.material_sha256 || !equal(supplied.units, plan.units)
       || !equal(supplied.opaque_links, (scope.opaque_links ?? []).map(i => ({ path: i.path, sha256: i.sha256 })))
       || !equal(supplied.directory_links, scope.directory_links) || !equal(supplied.remote_links, scope.remote_links)
+      || !equal(supplied.navigation_links ?? [], scope.navigation_links ?? [])
       || raw !== crossPayload(sources)) throw new Error('cross-section report did not receive the full original-context closure');
   }
   fresh &&= liveMaterial(root, scope);

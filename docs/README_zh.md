@@ -12,6 +12,12 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 
 ## 持续推进研究
 
+科学写作由宿主 agent 负责。`research-writer` 提供空白稿件骨架，以及确定性的构建、
+溯源和打包辅助；正文来自主 agent 对原始材料的理解与实际编辑。Notebook 是给用户看的
+研究笔记，应保留有科学意义的失败路径、暂定想法和未决问题及其真实状态。每个阶段结束时，
+在 Current Status 直接链接主要阅读文件，核对适用的验证结果，并通过宿主的实际文件能力
+交付成果。详见[阶段交付](../skills/research-harness/references/closeout.md#deliver-the-stage-output)。
+
 使用宿主原生的 agent loop、工具和可用子 agent。主 agent 负责当前问题、核心推导和
 综合判断：读取原始来源，推导或计算，在有助于获取证据时分派有范围的任务，完成适用的
 科学核验，再交付所求回答及其限制。后续工作从仍有效的证据和明确下一步继续。
@@ -376,6 +382,6 @@ The owning account can read the authority key, including code executed by a memb
 
 The configured token window is frozen before the original reviewer subprocess starts and bound into its authenticated runtime observation. Changing historical window metadata cannot admit that receipt. Older observations without this policy remain readable and require a fresh execution for capacity acceptance.
 
-Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
+Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 研究输出保存、按用途分类、只读清单、提交检查及运行来源快照前的自动拦截见[研究输出存储](RUN_STORAGE.md)。存储命令不会删除数据、改写历史或清空恢复记录。

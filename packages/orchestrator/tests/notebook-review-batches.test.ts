@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import * as runtime from '../src/cli-runtime.js';
 import { runCli } from '../src/cli.js';
 import { checkNotebookContentReview, freezeNotebookReviewScope } from '../src/notebook-content-review.js';
-import { assessNotebookBatches, notebookBudgets, partitionNotebookSources } from '../src/notebook-review-batches.js';
+import { assessNotebookBatches, executeNotebookBatches, notebookBudgets, partitionNotebookSources } from '../src/notebook-review-batches.js';
 import { notebookCloseoutGate } from '../src/notebook-result-links.js';
 
 // This executable is deliberately a transport oracle. It performs no semantic
@@ -54,6 +54,9 @@ else:
     base.update({'original_unit_coverage':coverage, 'dependency_closure':'complete','opaque_sources':[], 'cross_section_reasoning':'Deterministic joint coverage transport only.'})
     if case=='cross-conflict':base['verdict']='FAIL';base['blocking_issues']=['Controlled cross-section conflict.']
     if case=='omit-cross':base['original_unit_coverage']=base['original_unit_coverage'][:-1]
+    if case=='navigation-required':
+        base['missing_dependencies']=['The scientific source behind the navigation link is required.']
+        base['dependency_closure']='incomplete';base['verdict']='FAIL'
     if case=='mutate-joint':
         q=root/'research_notebook.md';q.write_bytes(q.read_bytes()+b'\nChanged during joint audit.\n')
 print(json.dumps({'type':'system','subtype':'init','model':'transport-fixture'}),flush=True)
@@ -94,6 +97,57 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); fs.rmSync(root, { recursive: true, force: true }); });
 
 describe('complete materials with bounded individual requests', () => {
+  it('neither resumes nor accepts source receipts with an omitted navigation inventory', async () => {
+    write('research_notebook.md', '# Notebook\n\n[Project index](project_index.md "nullius-navigation").\n\n' + block.repeat(2));
+    const oldId = '20261115T000000-notebook-review-bbbbbbbb';
+    const oldDir = path.join(root, 'artifacts/runs', oldId);
+    const oldScope = freezeNotebookReviewScope(root, oldId, oldDir, []);
+    const budgets = notebookBudgets({ contextBytes: 30000, contextTokens: 100000 });
+    // Inject a wrong lower-level scope to obtain actual, internally bound
+    // transport receipts. The public CLI does not import this authored scope.
+    const old = await executeNotebookBatches(root, oldDir, oldId, { ...oldScope, navigation_links: [] }, budgets, 'claude/transport', 30);
+    expect(old.stop_reason).toBe(null);
+    const id = '20261115T000001-notebook-review-cccccccc';
+    const dir = path.join(root, 'artifacts/runs', id);
+    const scope = freezeNotebookReviewScope(root, id, dir, []);
+    const current = await executeNotebookBatches(root, dir, id, scope, budgets, 'claude/transport', 30, oldId);
+    expect(current.stop_reason).toBe(null);
+    expect(current.entries.some(entry => entry.origin_run_id === oldId)).toBe(false);
+    const base = checkNotebookContentReview(root);
+    expect(assessNotebookBatches(root, dir, id, scope, current, base).executionAccepted).toBe(true);
+    const receipt = (entry: typeof current.entries[number]) => JSON.parse(fs.readFileSync(path.join(root, 'artifacts/runs', entry.origin_run_id, decodeURIComponent(entry.receipt_ref.uri.split('/artifact/')[1])), 'utf8'));
+    const spliced = { ...current, entries: [...old.entries.filter(entry => receipt(entry).phase === 'source'), ...current.entries.filter(entry => receipt(entry).phase === 'cross_section')] };
+    const assessed = assessNotebookBatches(root, dir, id, scope, spliced, base);
+    expect(assessed.executionAccepted).toBe(false);
+    expect(assessed.report.status).toBe('unavailable');
+    expect(assessed.report.findings.join(' ')).toContain('source batch did not receive');
+  }, 30000);
+
+  it.each(['complete', 'navigation-required'])('retains navigation inventory through interval and joint reviews: %s', async issue => {
+    write('research_notebook.md', '# Notebook\n\n[Project index](project_index.md "nullius-navigation").\n\n' + block.repeat(25));
+    vi.stubEnv('BATCH_TEST_CASE', issue);
+    const result = await review(['--context-bytes', '20000']);
+    expect(result.code, result.stdout + result.stderr).toBe(issue === 'complete' ? 0 : 1);
+    const dir = path.join(root, 'artifacts/runs', result.value.run_id);
+    const scope = JSON.parse(fs.readFileSync(path.join(dir, 'inputs/notebook-scope.json'), 'utf8'));
+    const execution = JSON.parse(fs.readFileSync(path.join(dir, 'batch_execution.json'), 'utf8'));
+    for (const entry of execution.entries) {
+      const relative = decodeURIComponent(entry.receipt_ref.uri.split('/artifact/')[1]);
+      const receipt = JSON.parse(fs.readFileSync(path.join(dir, relative), 'utf8'));
+      const inventory = JSON.parse(fs.readFileSync(path.join(dir, decodeURIComponent(receipt.inventory_ref.uri.split('/artifact/')[1])), 'utf8'));
+      expect(inventory.navigation_links).toEqual(scope.navigation_links);
+    }
+    if (issue === 'complete') {
+      // Rehashing references cannot legitimize a navigation inventory that is
+      // not derived from the full original frozen notebook.
+      scope.navigation_links = [];
+      fs.writeFileSync(path.join(dir, 'inputs/notebook-scope.json'), JSON.stringify(scope));
+      rehashCurrentGraph(dir);
+    }
+    expect(checkNotebookContentReview(root).status).not.toBe('accepted');
+    expect(notebookCloseoutGate(root).decision).not.toBe('pass');
+  }, 30000);
+
   it('preserves a multi-message CRLF report through actual capture and notebook capacity admission', async () => {
     vi.stubEnv('BATCH_TEST_CASE', 'split-output');
     write('research_notebook.md', '# Notebook\n\n' + block.repeat(25));

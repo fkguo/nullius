@@ -216,7 +216,7 @@ fail_host_native_shell_runner() {
 should_warn_gate_in_exploration() {
   local gate="${1:-}"
   case "${gate}" in
-    project_map_gate|agents_anchor_gate|notebook_integrity_gate|research_plan_gate|project_charter_gate|milestone_dod_gate|scan_dependency_gate|branch_semantics_gate|knowledge_layers_gate|literature_trace_gate|problem_framing_snapshot_gate|markdown_math_hygiene_gate|markdown_math_portability_gate|double_backslash_math_gate|markdown_link_hygiene_gate|latex_macro_hygiene_gate|references_gate|packet_completeness_gate|evidence_manifest_gate|claim_graph_gate|claim_trajectory_link_gate|pointer_lint_gate|evidence_schema_gate|clean_room_gate|logic_isolation_gate|convention_mapping_gate)
+    project_map_gate|agents_anchor_gate|notebook_integrity_gate|research_plan_gate|project_charter_gate|milestone_dod_gate|scan_dependency_gate|branch_semantics_gate|knowledge_layers_gate|literature_trace_gate|problem_framing_snapshot_gate|markdown_math_hygiene_gate|markdown_math_portability_gate|markdown_link_hygiene_gate|latex_macro_hygiene_gate|references_gate|packet_completeness_gate|evidence_manifest_gate|claim_graph_gate|claim_trajectory_link_gate|pointer_lint_gate|evidence_schema_gate|clean_room_gate|logic_isolation_gate|convention_mapping_gate)
       return 0
       ;;
     *)
@@ -906,7 +906,6 @@ NOTEBOOK_INTEGRITY_SCRIPT="${GATES_DIR}/check_notebook_integrity.py"
 DEBT_GATE_SCRIPT="${GATES_DIR}/check_exploration_debt.py"
 MD_MATH_HYGIENE_GATE_SCRIPT="${GATES_DIR}/check_markdown_math_hygiene.py"
 MD_MATH_PORTABILITY_GATE_SCRIPT="${GATES_DIR}/check_markdown_math_portability.py"
-DBS_MATH_GATE_SCRIPT="${GATES_DIR}/check_double_backslash_math.py"
 MD_LINK_HYGIENE_GATE_SCRIPT="${GATES_DIR}/check_markdown_link_hygiene.py"
 LATEX_MACRO_HYGIENE_GATE_SCRIPT="${GATES_DIR}/check_markdown_latex_macro_hygiene.py"
 PLAN_UPDATE_SCRIPT="${SCRIPT_DIR}/update_research_plan_progress.py"
@@ -1558,51 +1557,6 @@ if [[ -f "${PROBLEM_FRAMING_GATE_SCRIPT}" ]]; then
       else
         echo "[gate] Fail-fast: Problem Framing Snapshot check failed. Fill research_preflight.md (or run auto-fill) before running the team cycle." >&2
         exit ${problem_framing_code}
-      fi
-    fi
-  fi
-fi
-
-# Preflight: global double-backslash math gate (key docs + knowledge_base).
-# Runs after deterministic auto-fills (research_plan / research_preflight) and before other Markdown hygiene gates.
-if [[ -f "${DBS_MATH_GATE_SCRIPT}" ]]; then
-  set +e
-  python3 "${DBS_MATH_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
-  dbs_code=$?
-  set -e
-  if [[ ${dbs_code} -ne 0 ]]; then
-    # Deterministic auto-fix hook (no external LLM calls).
-    AUTO_FIX_SCRIPT="${SCRIPT_DIR}/fix_markdown_double_backslash_math.py"
-    AUTO_FIX_ENABLED="0"
-    if [[ -f "${AUTO_FIX_SCRIPT}" ]]; then
-      AUTO_FIX_ENABLED="$(python3 "${AUTOFILL_ENABLED_SCRIPT}" --notes "${NOTEBOOK_PATH}")"
-    fi
-    if [[ "${AUTO_FIX_ENABLED}" == "1" && -f "${AUTO_FIX_SCRIPT}" ]]; then
-      echo "[info] double-backslash math gate failed; attempting deterministic autofix of key Markdown targets" >&2
-      set +e
-      python3 "${AUTO_FIX_SCRIPT}" --notes "${NOTEBOOK_PATH}" --in-place
-      fix_code=$?
-      set -e
-      if [[ ${fix_code} -eq 0 ]]; then
-        set +e
-        python3 "${DBS_MATH_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
-        dbs_code=$?
-        set -e
-      fi
-    fi
-
-    if [[ ${dbs_code} -ne 0 ]]; then
-      echo "" >&2
-      if [[ ${dbs_code} -eq 2 ]]; then
-        echo "[error] double-backslash math gate errored (input/config). Fix the config/paths and rerun." >&2
-        exit ${dbs_code}
-      fi
-      if [[ "${PROJECT_STAGE}" == "exploration" ]] && should_warn_gate_in_exploration "double_backslash_math_gate"; then
-        echo "[warn] (exploration) double-backslash math check failed; continuing. Fix accidental '\\\\' escapes before switching to development." >&2
-        record_exploration_debt "double_backslash_math_gate" "${dbs_code}" "double-backslash escapes found in Markdown math regions"
-      else
-        echo "[gate] Fail-fast: double-backslash math check failed. Fix accidental '\\\\' escapes in Markdown math (or run fix_markdown_double_backslash_math.py) before running the team cycle." >&2
-        exit ${dbs_code}
       fi
     fi
   fi

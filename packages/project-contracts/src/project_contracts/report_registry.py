@@ -5,13 +5,19 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .markdown_visibility import visible_markdown
+from .markdown_visibility import visible_markdown, without_inline_code
 
 
 REGISTRY_START = "<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->"
 REGISTRY_END = "<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->"
 SAFE_REPORT_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+# Keep optional Markdown titles out of the destination. In particular, a
+# navigation declaration must not become part of a filesystem path or fragment.
+MARKDOWN_LINK = re.compile(r"""\[[^\]\n]+\]\(\s*([^)\n]+?)(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\s*\)""")
+
+
+def markdown_link_targets(text: str) -> list[str]:
+    return MARKDOWN_LINK.findall(without_inline_code(text))
 
 
 @dataclass(frozen=True)
@@ -46,7 +52,7 @@ def _between(text: str) -> str | None:
 
 def _values(block: str, label: str) -> list[str]:
     return [
-        match.strip().strip("`")
+        match.strip() if label == "Current report" else match.strip().strip("`")
         for match in re.findall(rf"^- {re.escape(label)}:[ \t]*([^\r\n]*?)[ \t]*$", block, re.MULTILINE)
     ]
 
@@ -60,7 +66,7 @@ def _parse_rows(block: str, errors: list[dict[str, str]]) -> dict[str, RegistryR
         if len(cells) != 5 or cells[0] in {"Report ID", "---"} or set(cells[0]) == {"-"}:
             continue
         report_id = cells[0].strip("`")
-        report_links = MARKDOWN_LINK.findall(cells[1])
+        report_links = markdown_link_targets(cells[1])
         if len(report_links) != 1:
             errors.append(_issue("registry_report_link_not_unique", f"registry Report cell for {report_id} must contain exactly one Markdown link"))
             continue
@@ -152,7 +158,7 @@ def load_report_registry(project_root: Path) -> RegistryState:
         errors.append(_issue("current_report_pointer_not_unique", "the registry must declare exactly one current report ID and link"))
     current_id = current_ids[0] if current_ids else ""
     current_report_value = current_reports[0] if len(current_reports) == 1 else ""
-    current_links = MARKDOWN_LINK.findall(current_report_value)
+    current_links = markdown_link_targets(current_report_value)
     if current_report_value and current_report_value != "(none yet)" and len(current_links) != 1:
         errors.append(_issue("current_report_link_not_unique", "the current report pointer must contain exactly one Markdown link"))
     current_target = current_links[0].strip() if len(current_links) == 1 else ""

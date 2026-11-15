@@ -34,8 +34,7 @@ What is intentionally NOT checked:
   tied to a token deterministically). The gate makes the declared binding
   auditable; reviewers check placement.
 
-Fail-closed semantics (deliberately different from check_latex_evidence_gate.py,
-which defaults to warn-only with an opt-in --fail): this gate ALWAYS exits
+Fail-closed semantics: this gate ALWAYS exits
 non-zero on violations and prints a NOT_READY status. There is no warn-only
 mode. The only escape hatch for legacy manuscripts under incremental adoption
 is an explicit exemption list (--exempt-id / --exempt-file) whose tokens are
@@ -88,8 +87,7 @@ def _comment_start(line: str) -> int | None:
     """
     Return the index of the '%' that starts a TeX comment on this line, or None.
 
-    Mirrors the parity rule used by check_latex_evidence_gate.py: a '%'
-    preceded by an odd number of backslashes is an escaped literal percent;
+    A '%' preceded by an odd number of backslashes is an escaped literal percent;
     an even number (incl. zero) starts a comment.
     """
     for i, ch in enumerate(line):
