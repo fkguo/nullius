@@ -150,6 +150,8 @@ Approval packet 会落在该 run 的 `artifacts/runs/<run_id>/approvals/<approva
 
 当前公开 MCP contract 是：本地 stdio 进程启动、tool `inputSchema`、有界 JSON/text 结果及显式请求的 PDF image content、没有 prompts。研究材料放置遵循 filesystem-first：临时抓取放本机临时目录，需要后续验证或接续的材料写成 project/run artifact。`orch_*` 是 orchestrator package 暴露的 operator/tool inventory，不是单独打包的 root MCP server。Remote MCP transports、OAuth 与 registry publishing 都仍是未来部署面，不属于当前 local-stdio contract。
 
+仅通过 MCP 接入的宿主也可以使用带哈希检查的 `project_file_write` 撰写用户研究笔记，再通过 `project_cli` 的 `notebook_review` 执行现有全文审阅、以 `notebook_check` 进行只读验收。完整流程见[研究工具说明](RESEARCH_TOOLS.md#write-and-review-scientific-notes)。
+
 [本地个人插件构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 同源复制现有技能，生成 Codex 与 Claude Code 清单，默认组合 `project-mcp`、`hep-mcp`、`idea-mcp`，不重复注册原子 provider。普通安装和插件均通过本机已安装的 `nullius` CLI 定位运行包，生成的清单与技能元数据不记录构建者路径。项目、provider 和数据路径由宿主环境或私有 `${XDG_CONFIG_HOME:-$HOME/.config}/nullius/runtime.json` 配置；也可用 `NULLIUS_RUNTIME_CONFIG` 指向分发目录外的绝对文件。project 和 idea 服务要求外部项目，idea 还需 `IDEA_MCP_DATA_DIR`；HEP 可独立运行，配置项目时以该项目为 cwd。外部工具仍需本机安装。文件 API 限定项目路径，但本机脚本执行没有 OS sandbox；审批留在本地主机，sampling 需要客户端支持并保持前台连接，缺少时返回 `unavailable`。本地执行与组合已验收；ChatGPT Chat/Work 与 Claude 宿主连接尚未验收，需要的 tunnel/app ID 留待用户配置，构建器不会创建应用连接或上架插件。
 
 通用 MCP 配置模式：

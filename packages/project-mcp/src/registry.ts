@@ -17,9 +17,9 @@ const descriptions: Record<keyof typeof extraSchemas, string> = {
   ...researchToolDescriptions,
   project_capabilities: 'Report the bound project, transport capabilities and unavailable host-dependent features. Local code execution is trusted, not OS-sandboxed.',
   project_file_read: 'Read a project document or artifact as a bounded base64 chunk with whole-file SHA-256. Rejects traversal, symlinks and hidden credentials.',
-  project_file_write: 'Upload UTF-8 project source/input or checker (up to 1 MiB). expected_sha256=null creates only; replacement requires the current hash. Generated state, receipts and managed projections are protected.',
+  project_file_write: 'Write UTF-8 project source, the user research notebook, inputs or checkers (up to 1 MiB). expected_sha256=null creates only; replacement requires the current hash. Generated state, receipts and managed index projections are protected.',
   project_delivery_read: 'Read a durable transport response. committed means the original response is available, not that research passed. Poll finalizing until the worker releases the project. outcome_unknown must never be automatically rerun; reuse delivery_id to poll.',
-  project_cli: 'Invoke a typed canonical Nullius CLI action in this project. Mutations require a stable delivery_id and return a delivery handle. Read stdout/stderr/exit_code; approval requests are not completed calculations.',
+  project_cli: 'Invoke a typed canonical Nullius CLI action, including notebook_review and read-only notebook_check. Mutations and reviewer execution require a stable delivery_id and return a delivery handle. Read stdout/stderr/exit_code; structural checks and approval requests do not establish scientific completion.',
 };
 export function toolsList() {
   return [

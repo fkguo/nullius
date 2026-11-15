@@ -26,6 +26,10 @@ the version to cite.
   off by the host, using existing reports, writer manifests and bundle tooling.
 
 ### Fixed
+- MCP-only hosts can author the user notebook with the existing hash-checked
+  file writer and invoke canonical full-text review/check through typed
+  `project_cli` actions. Reviewer and durable-delivery budgets remain distinct;
+  the retired notebook-sync action is no longer advertised.
 - Notebook review binds the validity state of runs referenced by its frozen
   sources, so a relevant void or supersession invalidates earlier acceptance
   without making unrelated ledger activity invalidate the review. The same

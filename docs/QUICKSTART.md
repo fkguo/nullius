@@ -285,6 +285,8 @@ Existing `PROJECT_INDEX_AUTO` blocks are historical, unmaintained observations; 
 
 Existing `team/runs/<run_id>/` evidence remains readable in place. New execution uses a distinct ID under `artifacts/runs/`. Export a historical run with `nullius export --run-id <id>`; for a duplicate ID, select `--run-root team/runs`. Runtime-only reconnect preserves historical evidence.
 
+MCP-only hosts use `project_file_write` for the user notebook, then typed `project_cli` actions `notebook_review` and `notebook_check`. The review uses durable delivery; the check is read-only. See [the MCP notebook workflow](../packages/project-mcp/README.md#author-and-review-the-user-notebook-through-mcp).
+
 ### Keep the human notebook current
 
 The notebook is for the user: scientific reasoning, calculations, useful failed

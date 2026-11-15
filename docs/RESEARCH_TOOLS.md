@@ -25,6 +25,7 @@ authentication must be checked in that actual host.
 | Execute calculations | computation manifests and orch_run_execute_manifest | Installed Julia, Python, Mathematica or shell runtime; actual outputs, logs and execution status |
 | Check a result | nullius verify / orch_run_record_verification | Executed checker and existing evidence contract; a model's assertion is not a checker result |
 | Delegate and coordinate | Native host agents, or orch_run_execute_agent with a sampling-capable MCP client | Structured task payloads, sequential/parallel/stage-gated execution, bounded concurrent agents and durable task status |
+| Author and review user research notes | project_file_write and project_cli notebook_review / notebook_check | Source-hash replacement; the configured server reviewer and existing full-text acceptance contract; durable review delivery, read-only check |
 | Preserve work | Project files, run artifacts, task briefs and project_delivery_read | Existing project filesystem and run journal; cross-machine persistence requires actual storage synchronization |
 | Browse arbitrary websites | Host-native browser or separately configured provider | No general-purpose browser or web search service is supplied by the project server |
 
@@ -45,6 +46,33 @@ tool-using delegation requires the latter. If the host has its own
 subagents, those agents can use their available tools directly. The portable
 sampling bridge is an additional way to execute delegated work; installing a
 skill or adding a model name does not create sampling support.
+
+## Write and review scientific notes
+
+A host connected only through MCP can author `research_notebook.md` with
+`project_file_write`, using the hash from its latest read for `expected_sha256`.
+The existing 1 MiB upload limit applies. Registering a result does not write the
+scientific explanation for the user.
+
+Then invoke `project_cli` with the review action, for example:
+
+```json
+{
+  "action": "notebook_review",
+  "model": "claude/opus",
+  "dependencies": ["notes/method.md"],
+  "delivery_id": "notebook-review-method"
+}
+```
+
+The selected backend must be configured on the MCP server. Poll
+`project_delivery_read` with that delivery ID, then call `project_cli` with
+`{"action": "notebook_check"}`. The latter is read-only. Review uses the existing
+original-material and relevant-run-state bindings; missing, failed or stale
+review cannot pass. A structural diagnostic alone does not grant closeout.
+See [notebook authoring and review](../packages/project-mcp/README.md#author-and-review-the-user-notebook-through-mcp)
+for resume and budget fields, including the separate reviewer and delivery
+budgets. No additional tool or sampling capability is needed for this route.
 
 ## Search, locate, read
 

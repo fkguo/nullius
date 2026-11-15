@@ -18,26 +18,55 @@ The directory must exist, be outside the development checkout, and not be a pare
 | Entry | Behavior |
 | --- | --- |
 | `project_capabilities` | Report all advertised tools, source-reading limits, PDF dependencies and host sampling availability. |
-| `project_cli` | Typed init, status, current, notebook/index sync, report validation, result registration, run stamping and decision recording through the canonical CLI. No caller-supplied argv. |
+| `project_cli` | Typed init, status, current, notebook review/check, index sync, report validation, result registration, run stamping and decision recording through the canonical CLI. No caller-supplied argv. |
 | `project_file_read` | Project-relative file bytes, base64 encoded in chunks up to 64 KiB; whole-file SHA-256, size and next offset. Regular files up to 64 MiB. |
 | `project_file_search` | Bounded literal UTF-8 search with source hashes, line/column locations, surrounding lines and explicit scanned/skipped/unavailable coverage. |
 | `project_text_read` | Read source lines and Unicode columns with source SHA-256 and hash-bound continuation, including continuation within a long line. |
 | `project_document_read` | Extract selected PDF pages through local Poppler and optionally return actual PNG image content. Source hash, page coverage and truncation are explicit; no OCR. |
-| `project_file_write` | UTF-8 source/input/checker upload up to 1 MiB. `expected_sha256: null` creates a new file; replacing a file requires its current hash. |
+| `project_file_write` | UTF-8 source, user notebook, input or checker upload up to 1 MiB. `expected_sha256: null` creates a new file; replacing a file requires its current hash. |
 | `project_delivery_read` | Read a persistent response for a submitted mutation. |
 | Selected `orch_*` | Existing create/status/list, pause/resume/export, approval inspection, policy query, staging, computation, verification, final-conclusion evaluation and sampling-dependent delegation. |
 
 An MCP-only client can initialize a project, upload a method handoff, stage and plan it, execute its manifest, upload and execute a checker, read the actual output, register a result, and refresh project projections. A successful tool response is not proof that a scientific claim is correct. Verification retains the canonical checker contract; A5 remains unavailable with the current incomplete dependency closure.
 
+### Author and review the user notebook through MCP
+
+Read `research_notebook.md`, then author its scientific content with
+`project_file_write` and the current `expected_sha256`. Result registration and
+index refresh leave the notebook unchanged. A stale hash refuses replacement;
+managed indexes, generated run outputs and verification receipts remain protected.
+
+Use `project_cli` with `action: "notebook_review"`, `model`, a stable `delivery_id`
+and any required `dependencies`. The action invokes the existing full-text
+reviewer on the server and returns a durable delivery handle. Poll
+`project_delivery_read`; an unavailable configured reviewer remains an explicit
+failure. This route does not require MCP sampling and does not create a new review
+engine. Resume uses `resume_run_id` and a new delivery ID; replay the old delivery
+ID only to retrieve the same recorded response.
+
+`review_timeout_seconds` defaults to 1200 and admits 1–3540 seconds. The outer
+`timeout_seconds` retains its 3600-second maximum and defaults to the review
+budget plus 60 seconds for intake and receipt publication. An explicitly smaller
+outer budget is refused before dispatch. `context_bytes`, `context_tokens`,
+`snapshot_bytes`, `max_files` and `max_batches` map to the canonical review budgets;
+`dependencies` remain confined to the bound project.
+
+After the review commits, run `project_cli` with `action: "notebook_check"`.
+It is read-only and needs no delivery ID. Optional `result_id` or
+`structure_only` select diagnostics; formal closeout requires the default
+unscoped check and current accepted full-text review. Reviewer input, original
+bytes, relevant run states, stale evidence and historical scopes follow the
+[same canonical notebook contract](../orchestrator/README.md#human-notebook-integration).
+
 For source inspection and delegation examples, see the [research tools guide](../../docs/RESEARCH_TOOLS.md). Read-only source tools work without sampling. Search coverage describes a bounded scan; zero matches do not establish absence when that scan is incomplete. Pass the returned `next` object to continue text within a line or PDF text within a page using `start_character`. Its Unicode-character position advances only past the content actually returned, and its expected source hash rejects changed files. PDF extraction reads one regular-file snapshot and passes its bytes through stdin to `pdfinfo`, `pdftotext` and, when requested, `pdftoppm`. Missing programs return `unavailable`; absent extracted text does not establish a blank page. Limits are reported by `project_capabilities`, including at most five PDF pages per call, a 32 MiB source, 100,000 returned text characters and 4 MiB per PNG. Image edge length defaults to 1600 and accepts 256–2400 pixels.
 
-The bound root fills `project_root` when omitted. A supplied root must match. Its filesystem identity is checked before calls, detached execution and response commits; replacing or moving the project requires local reconciliation. Run directories must be `artifacts/runs/<run_id>`. Explicit paths and implicit control metadata reject symlinks and traversal. Unreferenced data, environments and provider caches are not recursively inspected. File uploads protect hidden configuration, journals, generated results/receipts, `research_team_config.json` and managed project projections; use canonical commands for those. Research plan and contract prose remain editable source documents; edits do not grant approval or verify a result. Input/checker uploads are allowed under run `inputs/`, `verification/` (Python/JS source), and `computation/scripts/`, `computation/inputs/`, `computation/manifest.json`. Hash checks coordinate cooperating writers; they are not an OS-level transaction against arbitrary local processes.
+The bound root fills `project_root` when omitted. A supplied root must match. Its filesystem identity is checked before calls, detached execution and response commits; replacing or moving the project requires local reconciliation. Run directories must be `artifacts/runs/<run_id>`. Explicit paths and implicit control metadata reject symlinks and traversal. Unreferenced data, environments and provider caches are not recursively inspected. File uploads protect hidden configuration, journals, generated results/receipts, `research_team_config.json` and managed project projections; use canonical commands for those. The research notebook, plan and contract prose remain editable source documents; edits do not grant approval or verify a result. Input/checker uploads are allowed under run `inputs/`, `verification/` (Python/JS source), and `computation/scripts/`, `computation/inputs/`, `computation/manifest.json`. Hash checks coordinate cooperating writers; they are not an OS-level transaction against arbitrary local processes.
 
 For an initialized project, call `project_cli` with `action: "status"` or `orch_run_status` before reading or changing project state, and again after state or ledger changes. These commands refresh the canonical harness anchor. Calls reject a missing, stale or mismatched anchor before new work begins, including detached execution and delegated tool calls. Initial creation is allowed only while the project has no state file. Capabilities, status, delivery polling and exact delivery replays remain available for recovery.
 
 ## Long calls and reconnect
 
-Stateful non-sampling tools require a client-generated `delivery_id`. Reuse that ID and identical arguments, including `timeout_seconds`, when reconnecting. `timeout_seconds` defaults to 300 and accepts 1–3600. A detached supervisor runs the canonical call in a child process, so closing the submitting stdio connection does not terminate a submitted local calculation. The supervisor enforces the deadline independently of synchronous computation by terminating that process group; it does not contain independently detached descendants of trusted scripts.
+Stateful non-sampling tools require a client-generated `delivery_id`. Reuse that ID and identical arguments, including `timeout_seconds`, when reconnecting. `timeout_seconds` accepts 1–3600 and defaults to 300 for other mutations; `notebook_review` defaults to its review budget plus 60 seconds, as described above. A detached supervisor runs the canonical call in a child process, so closing the submitting stdio connection does not terminate a submitted local calculation. The supervisor enforces the deadline independently of synchronous computation by terminating that process group; it does not contain independently detached descendants of trusted scripts.
 
 Delivery uses the existing `RunManifestManager` attempt contract under `artifacts/delegated-runs/project-mcp/`. It records transport inputs/responses, not a second research run or queue. A project lock serializes mutations submitted through this adapter, including file uploads. Other local tools retain their own concurrency rules.
 

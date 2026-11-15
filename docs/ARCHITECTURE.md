@@ -228,6 +228,8 @@ state. Reviews without this binding remain readable history and require a fresh
 review before current acceptance. Single-call, batched and resumed reviews use
 the same requirement.
 
+`project-mcp` transports the same notebook workflow through its existing tools: source-hash checked `project_file_write` authors the user notebook, typed `project_cli` `notebook_review` uses durable delivery, and `notebook_check` is read-only. Review execution and its dependency, freshness and acceptance rules remain owned by the orchestrator. The outer delivery deadline includes the reviewer budget plus a 60-second margin; insufficient explicit budgets fail before dispatch.
+
 The shared traceability read model exposes `notebook.result_links` for structural
 navigation and `notebook.content_review` for current full-text semantic review.
 `notebook review --model <SPEC>` executes the existing review-swarm launcher in bounded calls,

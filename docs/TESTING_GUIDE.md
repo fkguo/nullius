@@ -138,6 +138,7 @@ pnpm --filter @nullius/orchestrator exec vitest run tests/runtime-installation.t
 python3 -m pytest -q packages/skills-market/tests/test_personal_plugin.py packages/skills-market/tests/test_install_skill.py
 NULLIUS_REAL_PLUGIN_SMOKE=1 python3 -m pytest -q -s packages/skills-market/tests/test_personal_plugin_live.py
 pnpm --filter @nullius/project-mcp exec vitest run tests/research-loop.test.ts
+pnpm --filter @nullius/project-mcp exec vitest run tests/notebook-workflow.test.ts
 pnpm --filter @nullius/project-mcp exec vitest run tests/harness-invocation.test.ts
 pnpm --filter @nullius/project-mcp exec vitest run tests/search.test.ts tests/text.test.ts tests/documents.test.ts tests/source-tools.test.ts tests/source-tools-stdio.test.ts
 pnpm --filter @nullius/orchestrator exec vitest run tests/team-delegation-context.test.ts tests/team-unified-runtime-concurrency.test.ts tests/agent-runner-stop-reasons.test.ts

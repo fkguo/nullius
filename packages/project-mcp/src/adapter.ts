@@ -5,7 +5,7 @@ import { readFile, writeFile } from './files.js';
 import { projectRoot, guardRuntimePaths, guardHarnessPaths, projectIdentity, assertProjectIdentity, type ProjectIdentity } from './paths.js';
 import { coreArguments, isBackground, samplingTools, type Context } from './policy.js';
 import { extraSchemas, toolsList } from './registry.js';
-import { cliArguments, cliWrites, cliSchema } from './cli.js';
+import { cliArguments, cliDeliveryTimeout, cliWrites, cliSchema, DEFAULT_NOTEBOOK_REVIEW_TIMEOUT_SECONDS } from './cli.js';
 import { readDelivery, submitDelivery } from './delivery.js';
 import { acquireExecution, releaseExecution } from './execution-lock.js';
 import { execute } from './execute.js';
@@ -79,9 +79,10 @@ export class ProjectAdapter {
       if (name === 'project_cli') {
         guardRuntimePaths(this.root);
         const input = cliSchema.parse(args);
+        if (input.action === 'notebook_review') input.review_timeout_seconds ??= DEFAULT_NOTEBOOK_REVIEW_TIMEOUT_SECONDS;
         cliArguments(this.root, input);
         if (!cliWrites(input.action)) return await execute(this.root, name, input);
-        return this.submit(name, input, verifyInvocation);
+        return this.submit(name, { ...input, timeout_seconds: cliDeliveryTimeout(input) }, verifyInvocation);
       }
       const parsed = coreArguments(this.root, name, args);
       guardRuntimePaths(this.root, typeof parsed.manifest_path === 'string' ? parsed.manifest_path : undefined);
