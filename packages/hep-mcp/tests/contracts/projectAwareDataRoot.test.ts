@@ -55,8 +55,42 @@ describe('project-aware HEP data root resolution', () => {
       path: path.join(projectRoot, 'artifacts', 'hep-mcp'),
       source: 'project_root',
       project_root: projectRoot,
+      writable: true,
     });
+    expect(payload.config.downloads_dir.writable).toBe(true);
+    expect(payload.ok).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, 'artifacts'))).toBe(false);
     expect(payload.config.hep_data_dir.path).not.toBe(envDataRoot);
+  });
+
+  it('reports an existing file in place of the downloads directory as unwritable', async () => {
+    const projectRoot = path.join(tmpRoot, 'project');
+    const dataRoot = path.join(projectRoot, 'artifacts', 'hep-mcp');
+    fs.mkdirSync(path.join(projectRoot, '.nullius'), { recursive: true });
+    fs.mkdirSync(dataRoot, { recursive: true });
+    fs.writeFileSync(path.join(dataRoot, 'downloads'), 'occupied');
+
+    const result = await handleToolCall('hep_health', { project_root: projectRoot, check_inspire: false });
+    const payload = parsePayload(result);
+    expect(payload.config.hep_data_dir.writable).toBe(true);
+    expect(payload.config.downloads_dir.writable).toBe(false);
+    expect(payload.ok).toBe(false);
+  });
+
+  it.skipIf(process.getuid?.() === 0 || process.platform === 'win32')('reports directories below a read-only parent as unwritable', async () => {
+    const projectRoot = path.join(tmpRoot, 'project');
+    fs.mkdirSync(path.join(projectRoot, '.nullius'), { recursive: true });
+    fs.chmodSync(projectRoot, 0o555);
+    try {
+      const result = await handleToolCall('hep_health', { project_root: projectRoot, check_inspire: false });
+      const payload = parsePayload(result);
+      expect(payload.config.hep_data_dir.writable).toBe(false);
+      expect(payload.config.downloads_dir.writable).toBe(false);
+      expect(payload.ok).toBe(false);
+      expect(fs.existsSync(path.join(projectRoot, 'artifacts'))).toBe(false);
+    } finally {
+      fs.chmodSync(projectRoot, 0o755);
+    }
   });
 
   it('project_root also overrides static colocated directory env vars', async () => {

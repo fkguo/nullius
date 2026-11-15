@@ -70,6 +70,12 @@ describe('Path safety + marker cleanup (M1)', () => {
     }
   });
 
+  it.each([true, false])('cleanup of a missing downloads directory leaves it absent (dry_run=%s)', async dry_run => {
+    const result = await cleanupDownloads({ dry_run });
+    expect(result).toEqual({ dry_run, deleted_count: 0, deleted_paths: [], freed_bytes: 0, skipped_unmarked: 0 });
+    expect(fs.readdirSync(dataDir)).toEqual([]);
+  });
+
   it('cleanupDownloads only deletes marked directories', async () => {
     const downloadsDir = path.join(dataDir, 'downloads');
     fs.mkdirSync(downloadsDir, { recursive: true });

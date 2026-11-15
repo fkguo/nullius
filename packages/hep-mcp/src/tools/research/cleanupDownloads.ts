@@ -38,7 +38,13 @@ export async function cleanupDownloads(params: CleanupDownloadsParams): Promise<
   };
 
   // Find arxiv-* directories
-  const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return result;
+    throw error;
+  }
   const arxivDirs = entries.filter(e => e.isDirectory() && e.name.startsWith('arxiv-'));
 
   for (const dir of arxivDirs) {

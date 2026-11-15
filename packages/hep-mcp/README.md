@@ -59,6 +59,11 @@ Resolved per tool call, in this order:
 
 `PDG_DATA_DIR` follows the resolved root by default at `<resolved root>/pdg`.
 
+`hep_health` checks whether the data and download directories are writable
+or can be created when needed. Running it on a fresh project leaves both paths
+absent. A search export can create the response cache without downloading any
+papers. Its run records refer to individual cache entries by file URI.
+
 A `project_root` is admitted as at the other nullius front doors: in canonical
 (symlink-resolved) form, outside any nullius checkout, and initialized. The
 project-local directories a call actually uses must be reached through real

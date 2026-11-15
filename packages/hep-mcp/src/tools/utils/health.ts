@@ -55,9 +55,17 @@ export interface HepHealthResult {
 
 function isWritableDir(dirPath: string): boolean {
   try {
-    fs.accessSync(dirPath, fs.constants.W_OK);
-    const stat = fs.statSync(dirPath);
-    return stat.isDirectory();
+    // Writers create missing directories on demand. Probe the nearest existing
+    // directory without creating anything or walking past a dangling link.
+    let existing = dirPath;
+    while (!fs.lstatSync(existing, { throwIfNoEntry: false })) {
+      const parent = path.dirname(existing);
+      if (parent === existing) return false;
+      existing = parent;
+    }
+    if (!fs.statSync(existing).isDirectory()) return false;
+    fs.accessSync(existing, fs.constants.W_OK | fs.constants.X_OK);
+    return true;
   } catch {
     return false;
   }
