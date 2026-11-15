@@ -1,6 +1,6 @@
 {
   "name": "@nullius/hep-mcp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Current HEP MCP domain pack: literature, paper evidence, data and provider tools (runs belong to the orchestrator)",
   "author": "Feng-Kun Guo",
   "type": "module",

@@ -22,13 +22,15 @@ Reference assessments may explicitly group IDs that share one necessity judgment
 
 A source identified as necessary at either stage must be a completely read declared original. Necessary unread, missing, opaque or out-of-scope material prevents acceptance. Nonempty additional-context requests also prevent acceptance. The manifest author cannot supply a PASS or decide necessity on behalf of the reviewers. Hashes, catalogues and summaries alone do not establish that original text was read.
 
+Both profiles freeze the ledger validity states of runs supplying their actual primary material. A relevant state change makes prior acceptance stale and prevents receipt reuse; unrelated ledger events do not. Reviews without this binding remain readable history and require a fresh review.
+
 Changing the notebook, a declared primary original, the manifest or the references written in those originals makes the review stale. Unread locator descriptors are immutable as-of-review observations, not assertions that their targets still have those contents. Later unread target changes do not claim new reading or change the accepted primary-material scope; any target needed for reasoning must instead be declared and fully read. A complete frozen declared scope can resume with valid fresh source receipts and its original reference observations; the final integration is executed again. Interrupted declared intake without a complete scope requires a fresh review. Historical recursive records retain their original requirements.
 
 This method does not prove that every implicit or unlinked source was discovered. Preserve the reviewers' necessity judgments, source limits and model/method/input independence. It does not assert that all historical computations, source code, figures or literature were revalidated.
 
 ## Recursive evidence
 
-Without `--evidence-manifest`, existing recursive intake and complete-original joint audit remain unchanged. Every linked UTF-8 source is frozen recursively, and the final request contains all those original texts together. Directory links leave that closure pending. More earlier batches or larger storage limits cannot make this final request fit a smaller backend window.
+Without `--evidence-manifest`, existing recursive intake and complete-original joint audit remain unchanged. Every linked UTF-8 source is frozen recursively, and the final request contains all those original texts together. Unmarked directory links leave that closure pending. An explicit `"nullius-navigation"` link title marks navigation: its local destination must exist but is neither frozen nor recursively followed unless also supplied as evidence. More earlier batches or larger storage limits cannot make this final request fit a smaller backend window.
 
 ## Execution and acceptance
 

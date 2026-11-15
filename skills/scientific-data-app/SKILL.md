@@ -125,7 +125,7 @@ never upgraded by repetition.
 ## Scaffold and check
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$HOME/.claude/skills/scientific-data-app}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/scientific-data-app" ] && echo "$r/skills/scientific-data-app" && break; done || true)}"
 python3 "$SKILL_DIR/scripts/new_kit.py" --target /path/to/design-docs-repo
 python3 "$SKILL_DIR/scripts/check_kit.py" --kit-root /path/to/design-docs-repo --gate G0
 ```

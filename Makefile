@@ -36,8 +36,8 @@ smoke:
 		|| echo "FAIL: MCP server smoke test"
 
 code-health-check:
-	@echo "--- CODE-01.1: eLOC gate ---"
-	git diff --name-only origin/main...HEAD | python3 meta/scripts/check_loc.py
+	@echo "--- CODE-01.1: file size context for source review ---"
+	python3 meta/scripts/check_loc.py --base-ref origin/main
 	@echo "--- NEW-R02: as any / swallowed catch gate ---"
 	bash meta/scripts/check_as_any.sh --vs-main
 

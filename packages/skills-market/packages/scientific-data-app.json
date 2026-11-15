@@ -1,0 +1,47 @@
+{
+  "package_id": "scientific-data-app",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Build and port scientific dataset applications with source fidelity and release gates.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "kimi_code",
+    "opencode"
+  ],
+  "source_path": "skills/scientific-data-app/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "kimi_code": "Link into ~/.kimi-code/skills for Kimi Code discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/scientific-data-app",
+    "include": [
+      "SKILL.md",
+      "references/**",
+      "scripts/**",
+      "assets/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store",
+      "team/*",
+      "team/**/*",
+      "process/*",
+      "process/**/*",
+      ".tmp*/*",
+      ".tmp*/**/*"
+    ]
+  }
+}

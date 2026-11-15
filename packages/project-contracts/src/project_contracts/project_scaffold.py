@@ -51,7 +51,7 @@ def _write_text_if_missing(
     if existed:
         # `force` is an explicit destructive request and stays destructive, but
         # the report must not read like a clean run: replacing the contract here
-        # discards its curated block BEFORE the notebook sync ever looks at it,
+        # discards its curated block BEFORE contract synchronization sees it,
         # so the sync then truthfully reports having removed nothing.
         overwritten.append(rel)
 

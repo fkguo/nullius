@@ -4,7 +4,6 @@ import {
   INSPIRE_FIND_CONNECTIONS,
   INSPIRE_TRACE_ORIGINAL_SOURCE,
   INSPIRE_GRADE_EVIDENCE,
-  INSPIRE_DETECT_MEASUREMENT_CONFLICTS,
   INSPIRE_CRITICAL_ANALYSIS,
   INSPIRE_CLASSIFY_REVIEWS,
   INSPIRE_THEORETICAL_CONFLICTS,
@@ -21,7 +20,6 @@ import type { ToolSpec } from './types.js';
 import {
   FindConnectionsToolSchema,
   InspireGradeEvidenceToolSchema,
-  InspireDetectMeasurementConflictsToolSchema,
   InspireCriticalAnalysisToolSchema,
   InspireClassifyReviewsToolSchema,
   InspireTheoreticalConflictsToolSchema,
@@ -125,19 +123,6 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     handler: async (params, ctx) => {
       const { gradeEvidence } = await import('../research/evidenceGrading.js');
       return gradeEvidence(params, { createMessage: ctx.createMessage });
-    },
-  },
-  {
-    name: INSPIRE_DETECT_MEASUREMENT_CONFLICTS,
-    title: 'Detect measurement conflicts',
-    tier: 'consolidated',
-    exposure: 'standard',
-    maturity: 'stable',
-    description: 'Detect measurement tensions across a bounded paper set (network).',
-    zodSchema: InspireDetectMeasurementConflictsToolSchema,
-    handler: async (params, ctx) => {
-      const { detectConflicts } = await import('../research/conflictDetector.js');
-      return detectConflicts(params, { createMessage: ctx.createMessage });
     },
   },
   {

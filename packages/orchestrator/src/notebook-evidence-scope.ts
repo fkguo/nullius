@@ -11,6 +11,7 @@ import { createRunArtifactRef } from './computation/artifact-refs.js';
 import { assertNoSymlinkComponents, resolveWithinRoot, escapesBase } from './computation/path-safety.js';
 import { resolveVerifiedRunArtifact } from './orch-tools/validation-chain-binding.js';
 import type { Input, NotebookReviewScope, NotebookReviewSection } from './notebook-content-review.js';
+import { captureNotebookRunStates } from './notebook-run-state.js';
 import type { NotebookBudgets } from './notebook-review-batches.js';
 
 export type EvidenceReference = { id: string; source_path: string; source_sha256: string; start_byte: number; end_byte: number;
@@ -47,8 +48,8 @@ function visit(node: Nodes, fn: (node: Nodes) => void): void { fn(node); if ('ch
 /** Check source-derived identity without treating historical unread observations as current bytes. */
 function assertReferenceObservation(ref: EvidenceReference, observed: EvidenceReference, declared: Map<string, Input>): void {
   const lexical = ['id', 'source_path', 'source_sha256', 'start_byte', 'end_byte', 'quote', 'destination', 'target_path'] as const;
-  const allowed = new Set([...lexical, 'target_kind', 'target_sha256', 'target_bytes']);
-  if (!observed || Object.keys(observed).some(key => !allowed.has(key as any))
+  const allowed: ReadonlySet<string> = new Set([...lexical, 'target_kind', 'target_sha256', 'target_bytes']);
+  if (!observed || Object.keys(observed).some(key => !allowed.has(key))
     || lexical.some(key => observed[key] !== ref[key])) throw new Error('reference lexical identity does not match original source');
   const input = ref.target_path === undefined ? undefined : declared.get(ref.target_path);
   if (input) {
@@ -67,7 +68,7 @@ export function declaredEvidenceReferences(root: string, texts: Map<string, stri
   for (const [source, text] of texts) {
     const tree = fromMarkdown(text, { extensions: [math()], mdastExtensions: [mathFromMarkdown()] });
     const definitions = new Map<string, string>();
-    visit(tree, n => { if (n.type === 'definition') definitions.set(n.identifier, n.url); });
+    visit(tree, n => { if (n.type === 'definition' && !definitions.has(n.identifier)) definitions.set(n.identifier, n.url); });
     visit(tree, node => {
       let destination: string | undefined;
       if (node.type === 'link' || node.type === 'image' || node.type === 'definition') destination = node.url;
@@ -132,7 +133,7 @@ export function freezeDeclaredEvidenceScope(root: string, runId: string, runDir:
   }
   return { schema_version: 1, review_kind: 'notebook', extraction_policy: 'full_utf8_bytes_including_managed_blocks', notebook: inputs[0]!,
     dependencies: inputs.slice(1), opaque_links: opaque, sections: sections(texts.get('research_notebook.md')!), explicit_dependencies: explicit,
-    directory_links: [], remote_links: [], evidence: { policy: 'declared-evidence', manifest, references: declaredEvidenceReferences(root, texts, [...inputs, ...opaque], observations) } };
+    directory_links: [], remote_links: [], run_states: captureNotebookRunStates(root, { notebook: inputs[0]!, dependencies: inputs.slice(1), opaque_links: opaque }), evidence: { policy: 'declared-evidence', manifest, references: declaredEvidenceReferences(root, texts, [...inputs, ...opaque], observations) } };
 }
 export function declaredEvidenceIdentity(scope: NotebookReviewScope): unknown {
   return scope.evidence ? { policy: scope.evidence.policy, manifest: { path: scope.evidence.manifest.path, sha256: scope.evidence.manifest.sha256, bytes: scope.evidence.manifest.bytes }, references: scope.evidence.references } : null;

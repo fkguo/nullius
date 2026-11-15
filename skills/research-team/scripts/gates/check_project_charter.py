@@ -11,10 +11,11 @@ Checks (when enabled):
 2) Status is not DRAFT (must be APPROVED/ACTIVE/FINAL).
 3) Required fields are filled:
    - Primary goal
-   - Validation goal(s)
-   - Anti-goals / non-goals (>=1 bullet)
+   - Validation goals (canonical bullet list or an inline goal)
+   - Anti-goals / non-goals (at least one filled item)
    - Declared profile (matches effective config profile)
-4) Project-specific commitments: >=2 bullets, including >=1 clickable Markdown link to knowledge_base/.
+4) Optional project-specific commitments need no fixed count or knowledge_base;
+   any local knowledge_base links they do declare must be usable and stay within it.
 
 Exit codes:
   0 ok, or gate disabled
@@ -200,7 +201,10 @@ def _find_charter(notes_path: Path) -> Path | None:
 
 
 def _extract_field(text: str, field: str) -> str:
-    m = re.search(rf"^\s*{re.escape(field)}\s*:\s*(.+?)\s*$", text, flags=re.MULTILINE)
+    m = re.search(
+        rf"^[ ]{{0,3}}{re.escape(field)}[ \t]*:[ \t]*([^\r\n]*)$",
+        text, flags=re.MULTILINE | re.IGNORECASE,
+    )
     if not m:
         return ""
     # Drop inline comments.
@@ -220,23 +224,27 @@ def _is_placeholder(s: str) -> bool:
         return True
     if any(tok in s for tok in PLACEHOLDER_TOKENS):
         return True
-    if low in ("tbd", "todo", "none", "n/a", "na"):
+    # Recognize unfilled markers, not scientific prose that discusses them
+    # (e.g. "Do not substitute placeholder values for missing observations").
+    if re.match(r"^(?:tbd|todo)\b", low) or re.match(r"^placeholder(?:\s*:|$)", low):
+        return True
+    if low in ("none", "n/a", "na", "-"):
         return True
     return False
 
 
-def _parse_bullets_after_label(text: str, label_prefix: str) -> list[str]:
+def _parse_bullets_after_label(text: str, label: str) -> list[str]:
     lines = text.splitlines()
     start = None
     for i, ln in enumerate(lines):
-        if ln.strip().lower().startswith(label_prefix.strip().lower()):
+        if re.match(rf"^[ ]{{0,3}}{re.escape(label)}[ \t]*:", ln, flags=re.IGNORECASE):
             start = i + 1
             break
     if start is None:
         return []
     out: list[str] = []
     for ln in lines[start:]:
-        if re.match(r"^\s*##+\s+\S", ln):
+        if re.match(r"^[ ]{0,3}#+\s+\S", ln):
             break
         if ln.strip() == "":
             # Allow "loose lists" (blank lines between bullets).
@@ -246,11 +254,26 @@ def _parse_bullets_after_label(text: str, label_prefix: str) -> list[str]:
         expanded = ln.expandtabs(4)
         if len(expanded) - len(expanded.lstrip(" ")) >= 4:
             continue
+        # A subsequent field owns its own list; it cannot fill this field.
+        if re.match(r"^[ ]{0,3}[A-Za-z][^:\n]*:", expanded):
+            break
         m = re.match(r"^[ ]{0,3}[-*+]\s+(.+?)\s*$", expanded)
         if not m:
-            continue
+            # Top-level prose or another label ends this field's list. Do not
+            # borrow a later list from a bold or non-English neighboring field.
+            break
         out.append(m.group(1).strip())
     return out
+
+
+def _goal_values(text: str, *labels: str) -> list[str]:
+    values: list[str] = []
+    for label in labels:
+        inline = _extract_field(text, label)
+        if inline:
+            values.append(inline)
+        values.extend(_parse_bullets_after_label(text, label))
+    return values
 
 
 def _normalize_md_ref_label(label: str) -> str:
@@ -390,21 +413,6 @@ def _contains_backticked_kb_link(text: str, refs: dict[str, str]) -> bool:
     return False
 
 
-def _contains_clickable_kb_link(text: str, refs: dict[str, str], root: Path) -> bool:
-    visible = _strip_inline_code(text)
-    for target in _iter_md_link_targets(visible, refs):
-        if target.startswith("http://") or target.startswith("https://"):
-            continue
-        local = _normalize_link_target(target)
-        if not local.lower().startswith("knowledge_base/"):
-            continue
-        if ".." in Path(local).parts:
-            continue
-        if _is_safe_kb_local_path(root, local):
-            return True
-    return False
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--notes", type=Path, required=True, help="Path to research_contract.md (or equivalent).")
@@ -453,9 +461,9 @@ def main() -> int:
     if _is_placeholder(primary):
         errors.append("Primary goal is missing or still a placeholder. Fill 'Primary goal: ...'.")
 
-    validation = _extract_field(clean, "Validation goal(s)")
-    if _is_placeholder(validation):
-        errors.append("Validation goal(s) is missing or still a placeholder. Fill 'Validation goal(s): ...'.")
+    validation = _goal_values(clean, "Validation goals", "Validation goal(s)")
+    if not validation or any(_is_placeholder(goal) for goal in validation):
+        errors.append("Validation goals are missing or still placeholders. Fill the 'Validation goals:' list.")
 
     declared_profile = _extract_field(clean, "Declared profile")
     effective_profile = str(cfg.data.get("profile", "")).strip()
@@ -467,22 +475,18 @@ def main() -> int:
             "Fix: update 'Declared profile:' in project_charter.md or set 'profile' in research_team_config.json."
         )
 
-    anti = _parse_bullets_after_label(clean, "Anti-goals")
+    anti = _goal_values(clean, "Non-goals / anti-goals", "Anti-goals / non-goals", "Anti-goals")
     if not anti:
-        errors.append("Anti-goals/non-goals list is empty. Add at least 1 bullet under 'Anti-goals / non-goals'.")
+        errors.append("Anti-goals/non-goals are empty. Fill 'Non-goals / anti-goals:' with concrete scope exclusions.")
     elif any(_is_placeholder(x) for x in anti):
         errors.append("Anti-goals/non-goals still contains placeholders. Replace '(fill...)' with concrete items.")
 
-    commitments = _parse_bullets_after_label(clean, "Project-specific commitments")
-    commitments_clean = [c for c in commitments if not _is_placeholder(c)]
-    if len(commitments_clean) < 2:
-        errors.append("Project-specific commitments: need at least 2 non-placeholder bullets.")
+    commitments = _goal_values(clean, "Project-specific commitments")
 
     root = charter.parent.resolve()
-    if not any(_contains_clickable_kb_link(c, refs, root) for c in commitments_clean):
-        errors.append("Project-specific commitments: include at least 1 clickable Markdown link to knowledge_base/ (not in backticks).")
-
-    for item in commitments_clean:
+    # Commitments are optional, but any link actually declared in one is still
+    # checked, including a TODO item or an inline commitment.
+    for item in commitments:
         if _contains_backticked_kb_link(item, refs):
             errors.append("Project-specific commitments contains a knowledge_base Markdown link wrapped in backticks (not clickable). Remove backticks.")
             break

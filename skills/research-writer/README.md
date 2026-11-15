@@ -1,63 +1,55 @@
-# research-writer (agent skill)
+# research-writer
 
-`research-writer` scaffolds an arXiv-ready paper draft from a `research-team` project:
-- RevTeX4-2, `12pt`, `onecolumn`
-- deterministic provenance table wiring
-- BibTeX hygiene (RevTeX4-2)
-- deterministic Markdown math escape checks (e.g. `\\Delta` → `\Delta`)
+Use the active host agent to read the research notebook, sources and run results,
+write the actual manuscript, obtain scientific review, and deliver checked files.
+The skill supplies mechanical support: blank RevTeX scaffolding, bibliography and
+cross-reference checks, result traceability, external paper-manifest consumption,
+and portable packaging. It does not prescribe a model pair or a fixed narrative.
 
-See also: `README.zh.md` (Chinese).
+The research notebook remains the complete human scientific record. Create a
+paper only when the research task calls for one. Read [SKILL.md](SKILL.md) for the
+writing/review/handoff workflow and [RUNBOOK.md](RUNBOOK.md) for commands.
+[中文说明](README.zh.md) is also available.
 
-## Prereqs
+## Initialize a new paper workspace
 
-- `bash`, `python3`
-- Optional (compile): TeX toolchain + `latexmk`
-- Optional (LLM drafting via `--run-models`): local `claude` + `gemini` CLIs (and their runner skills)
-- Optional (BibTeX fetch via `--fetch-bibtex`): network access (INSPIRE/DOI)
-
-## One-shot scaffold
+From this skill directory (or use the installed script's absolute path):
 
 ```bash
 bash scripts/bin/research_writer_scaffold.sh \
-  --project-root /path/to/research-team-project \
-  --tag M1-r1 \
-  --out paper/
+  --project-root /path/to/research-project \
+  --tag M1-r1 --out /path/to/research-project/paper
 ```
 
-Optional: pass a run-card (opaque JSON) for upstream traceability; this will be copied into `paper/` and referenced by `paper/run.json` + `paper/export_manifest.json`:
+Python 3 and Bash are required. The command creates a blank RevTeX 4.2 template,
+empty bibliography, figure directory and initialization/export metadata. It does
+not import notebook text, select results or claim that a paper is ready. Existing
+output paths are refused. `--run-card <path>` optionally copies opaque JSON;
+`--title` and `--authors` accept plain text.
+
+Write `main.tex` or included sections using the actual research. Ground claims
+with the existing `claim-grounding` procedure, review the reasoning and results,
+run applicable mechanical/display checks, then compile and inspect the PDF when
+that is the requested output. TeX with RevTeX and `latexmk` is required to build.
+
+## Use an external manuscript contract
+
+If another producer supplies `paper_manifest.json`, keep that contract and run:
 
 ```bash
-bash scripts/bin/research_writer_scaffold.sh \
-  --project-root /path/to/research-team-project \
-  --tag M1-r1 \
-  --out paper/ \
-  --run-card /path/to/run_card.json
+bash scripts/bin/research_writer_consume_paper_manifest.sh \
+  --paper-manifest /path/to/paper/paper_manifest.json --compile
 ```
 
-## Optional: draft sections (opt-in LLM calls)
+The consumer records its current checks and build in `build_trace.jsonl` and
+`export_manifest.json`. Requested compilation fails when the toolchain is absent
+or the build fails; an old PDF is not current build evidence. Scientific review
+remains an explicit agent step.
 
-Produces a single human-readable `*_final.tex` per section (writer → auditor), plus a diff and trace logs. Does not modify `paper/main.tex`.
+## Deliver the result
 
-```bash
-bash scripts/bin/research_writer_draft_sections.sh \
-  --project-root /path/to/research-team-project \
-  --paper-dir paper/ \
-  --tag M1-r1 \
-  --run-id D1 \
-  --all \
-  --run-models
-```
-
-Then (optional build):
-
-```bash
-cd paper && latexmk -pdf main.tex
-```
-
-## Optional: consume an externally produced `paper/` scaffold (deterministic)
-
-If a separate pipeline exported a `paper/` directory with `paper/paper_manifest.json`:
-
-```bash
-bash scripts/bin/research_writer_consume_paper_manifest.sh --compile
-```
+Read the current export manifest and use the existing `research-team` export
+workflow to include its referenced files, the readable manuscript and required
+source/evidence dependencies. Inspect the exported files and give the user direct
+links with material limitations. The scaffold manifest describes initialization;
+add a subsequently built PDF and other dependencies explicitly when needed.

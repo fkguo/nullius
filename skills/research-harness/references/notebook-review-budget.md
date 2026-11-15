@@ -1,7 +1,7 @@
 # Notebook content review: material, storage and budget
 
-In the default recursive profile: Valid UTF-8 text remains text regardless of size; Markdown links are discovered
-recursively. Binary or invalid UTF-8 linked files are immutable `opaque_links`
+In the default recursive profile: Valid UTF-8 text remains text regardless of size; ordinary Markdown evidence links are discovered
+recursively; explicit `"nullius-navigation"` link titles declare navigation only. Binary or invalid UTF-8 linked files are immutable `opaque_links`
 snapshots and hash locators, not read evidence. Every opaque path/hash needs a
 specific `opaque_sources` assessment; a required unread source prevents acceptance.
 Notebook and explicit dependencies require strict UTF-8 and LF or CRLF endings.

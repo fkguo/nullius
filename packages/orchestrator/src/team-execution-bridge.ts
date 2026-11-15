@@ -11,6 +11,7 @@ import {
   createLoopbackToolCaller,
   createSamplingAdapter,
   defaultTeamPermissions,
+  type TeamAssignmentsToolConfig,
 } from './team-execution-tool-bridge.js';
 
 type ExecuteTeamRuntimeFromToolParamsResult =
@@ -32,30 +33,10 @@ export async function executeTeamRuntimeFromToolParams(
     tools: ExecuteTeamDelegatedRuntimeInput['tools'];
     resume_from?: string;
     max_turns?: number;
-    team?: {
+    team?: TeamAssignmentsToolConfig & {
       workspace_id?: string;
-      task_id?: string;
-      owner_role?: string;
-      delegate_role?: string;
-      delegate_id?: string;
       coordination_policy?: ExecuteTeamDelegatedRuntimeInput['coordinationPolicy'];
-      task_kind?: ExecuteTeamDelegatedRuntimeInput['taskKind'];
-      handoff_id?: string | null;
-      handoff_kind?: ExecuteTeamDelegatedRuntimeInput['handoffKind'];
-      checkpoint_id?: string | null;
-      timeout_at?: string | null;
-      assignments?: Array<{
-        stage?: number;
-        task_id: string;
-        task_kind?: ExecuteTeamDelegatedRuntimeInput['taskKind'];
-        owner_role?: string;
-        delegate_role?: string;
-        delegate_id?: string;
-        handoff_id?: string | null;
-        handoff_kind?: ExecuteTeamDelegatedRuntimeInput['handoffKind'];
-        checkpoint_id?: string | null;
-        timeout_at?: string | null;
-      }>;
+      max_parallel?: number;
       permissions?: TeamPermissionMatrix;
       interventions?: ExecuteTeamDelegatedRuntimeInput['interventions'];
     };
@@ -78,6 +59,7 @@ export async function executeTeamRuntimeFromToolParams(
     runId: params.run_id,
     workspaceId,
     coordinationPolicy: team.coordination_policy ?? 'supervised_delegate',
+    maxParallel: team.max_parallel,
     permissions: team.permissions ?? defaultTeamPermissions(),
     assignments,
     messages: params.messages,

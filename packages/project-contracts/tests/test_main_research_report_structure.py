@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import re
 
 from report_contract_fixtures import complete_report, error_codes, validate_single_report
 from project_contracts.scaffold_template_loader import load_scaffold_template
@@ -11,6 +12,24 @@ def test_complete_main_report_passes_structural_validation() -> None:
 
     assert result["status"] == "pass"
     assert result["registered_report_count"] == 1
+
+
+@pytest.mark.parametrize("title", ['"nullius-navigation"', "'Registry navigation'"])
+def test_markdown_titles_do_not_change_report_link_targets(title: str) -> None:
+    report = complete_report("report-a").replace('"nullius-navigation"', title)
+    assert validate_single_report(report)["status"] == "pass"
+    broken = report.replace("../project_index.md#main-research-report", "../absent.md#main-research-report")
+    assert "missing_relation_registry_link" in error_codes(validate_single_report(broken))
+
+
+@pytest.mark.parametrize("delimiter", ["`", "``"])
+def test_code_examples_cannot_supply_clickable_report_evidence(delimiter: str) -> None:
+    report = complete_report("report-a")
+    report = re.sub(r"\[[^\]]+\]\(\.\./evidence\.md\)", lambda m: delimiter + m.group() + delimiter, report)
+    result = validate_single_report(report)
+    assert result["status"] == "fail"
+    assert "validation_evidence_not_human_readable" in error_codes(result)
+    assert "machine_provenance_substitutes_for_human_evidence" in error_codes(result)
 
 
 @pytest.mark.parametrize(

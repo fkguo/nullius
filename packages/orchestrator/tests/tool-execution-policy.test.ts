@@ -82,4 +82,14 @@ describe('orchestrator tool execution policy authority', () => {
       approval_behavior: 'none',
     });
   });
+
+  it.each(['project_text_read', 'project_file_search', 'project_document_read'])(
+    'registers project source tool %s as a read-only batch-safe operation',
+    toolName => {
+      expect(resolveToolExecutionPolicy(toolName)).toMatchObject({
+        tool_name: toolName, metadata_source: 'registry',
+        mutation_class: 'read_only', concurrency: 'batch_safe', approval_behavior: 'none',
+      });
+    },
+  );
 });

@@ -80,9 +80,9 @@ DEFAULT_VIEW = {
         },
         "found": True,
         "sections": [
-            {"heading": "Spectrum results", "class": "current", "cause": "stamp matches HEAD"},
-            {"heading": "Old formalism", "class": "stale", "cause": "stamp predates superseding run"},
-            {"heading": "Methods", "class": "unstamped", "cause": "no written-against stamp"},
+            {"heading": "Spectrum results"},
+            {"heading": "Old formalism"},
+            {"heading": "Methods"},
         ],
     },
 }
@@ -298,16 +298,17 @@ def test_declared_supersession_missing_from_ledger_fails(tmp_path: Path) -> None
     assert "trace supersede" in result.stderr
 
 
-def test_declared_rewrite_without_fresh_stamp_fails(tmp_path: Path) -> None:
-    body = GOOD_DECLARATION.replace('"Spectrum results"', '"Methods"')
+@pytest.mark.parametrize("historical_class", [None, "unstamped", "stale", "incomparable"])
+def test_current_full_review_accepts_notes_without_section_stamps(tmp_path: Path, historical_class: str | None) -> None:
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    if historical_class is not None:
+        view["notebook"]["sections"][0]["class"] = historical_class
     result = _run_gate(
         _convergence_json(tmp_path),
-        _adjudication(tmp_path, body),
-        _project_root(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
     )
-    assert result.returncode == 1
-    assert "unstamped" in result.stderr
-    assert "written-against" in result.stderr
+    assert result.returncode == 0, result.stderr + result.stdout
 
 
 def test_declared_rewrite_of_unknown_section_fails(tmp_path: Path) -> None:
@@ -377,6 +378,11 @@ def test_builder_template_carries_the_registration_section(tmp_path: Path) -> No
     assert "- Headline result: (fill)" in text
     assert "- Supersedes: (fill)" in text
     assert "- Rewritten sections: (fill)" in text
+    assert "written-against" not in text
+    assert "refresh its automatic block" not in text
+    assert "finish the user's research notes" in text
+    assert "unscoped `nullius notebook check --json`" in text
+    assert "actual-byte SHA-256 of the complete UTF-8 notebook" in text
     # The gate must FIND the declaration section exactly as the builder emits it.
     sys.path.insert(0, str(GATES))
     from check_convergence_registration import extract_registration_section  # type: ignore
@@ -431,18 +437,23 @@ def test_headline_issue_match_is_word_bounded_not_substring(tmp_path: Path) -> N
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_duplicate_heading_with_one_stale_namesake_fails(tmp_path: Path) -> None:
+@pytest.mark.parametrize("review_status", ["accepted", "missing", "stale"])
+def test_duplicate_headings_rely_on_whole_notebook_review(tmp_path: Path, review_status: str) -> None:
     view = json.loads(json.dumps(DEFAULT_VIEW))
     view["notebook"]["sections"].append(
         {"heading": "Spectrum results", "class": "stale", "cause": "stamp predates superseding run"}
     )
+    view["notebook"]["content_review"] = {"status": review_status}
     result = _run_gate(
         _convergence_json(tmp_path),
         _adjudication(tmp_path, GOOD_DECLARATION),
         _project_root(tmp_path, view),
     )
-    assert result.returncode == 1
-    assert "namesake" in result.stderr
+    if review_status == "accepted":
+        assert result.returncode == 0, result.stderr + result.stdout
+    else:
+        assert result.returncode == 1
+        assert "whole-notebook" in result.stderr
 
 
 def test_supersession_of_a_cleaned_up_run_directory_passes(tmp_path: Path) -> None:
@@ -458,35 +469,16 @@ def test_supersession_of_a_cleaned_up_run_directory_passes(tmp_path: Path) -> No
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_out_of_sync_current_state_block_fails(tmp_path: Path) -> None:
+@pytest.mark.parametrize("block", [
+    {"block_found": True, "duplicated_markers": False, "in_sync": False},
+    {"block_found": False, "duplicated_markers": False, "in_sync": None},
+    {"block_found": False, "duplicated_markers": True, "in_sync": None},
+])
+def test_historical_machine_block_metadata_does_not_gate_reviewed_notes(tmp_path: Path, block: dict) -> None:
+    # Currency comes from the result registry and current full-text review.
+    # A historical machine block is no longer a required notebook component.
     view = json.loads(json.dumps(DEFAULT_VIEW))
-    view["notebook"]["current_state_block"] = {
-        "notebook_found": True,
-        "block_found": True,
-        "duplicated_markers": False,
-        "in_sync": False,
-        "reason": "registry/validity state changed since the block was written",
-    }
-    result = _run_gate(
-        _convergence_json(tmp_path),
-        _adjudication(tmp_path, GOOD_DECLARATION),
-        _project_root(tmp_path, view),
-    )
-    assert result.returncode == 1
-    assert "OUT OF SYNC" in result.stderr
-
-
-def test_missing_current_state_block_never_refuses_a_fold(tmp_path: Path) -> None:
-    # A missing block claims nothing: advisory on status, never a fold
-    # refusal — the owner's fail-closed-only-where-currency-is-claimed line.
-    view = json.loads(json.dumps(DEFAULT_VIEW))
-    view["notebook"]["current_state_block"] = {
-        "notebook_found": True,
-        "block_found": False,
-        "duplicated_markers": False,
-        "in_sync": None,
-        "reason": None,
-    }
+    view["notebook"]["current_state_block"] = block
     result = _run_gate(
         _convergence_json(tmp_path),
         _adjudication(tmp_path, GOOD_DECLARATION),
@@ -495,53 +487,48 @@ def test_missing_current_state_block_never_refuses_a_fold(tmp_path: Path) -> Non
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-def test_duplicated_block_markers_fail(tmp_path: Path) -> None:
+@pytest.mark.parametrize("validity", ["superseded", "void"])
+def test_historical_citations_do_not_require_english_tokens_or_hidden_roles(tmp_path: Path, validity: str) -> None:
     view = json.loads(json.dumps(DEFAULT_VIEW))
-    view["notebook"]["current_state_block"] = {
+    heading = "计算过程与当前结论"
+    view["notebook"]["sections"] = [{"heading": heading}]
+    view["notebook"]["result_links"]["results"][0]["sections"] = [heading]
+    view["notebook"]["run_links"] = {
         "notebook_found": True,
-        "block_found": False,
-        "duplicated_markers": True,
-        "in_sync": None,
-        "reason": "duplicated current-state markers",
+        "citations": [{
+            "section": heading,
+            "run_id": "20260808-m2-r003-old",
+            "validity": validity,
+            "superseded_by": "20260808-m2-r010-final" if validity == "superseded" else None,
+        }],
+        "unknown_run_ids": [],
     }
+    body = GOOD_DECLARATION.replace('"Spectrum results"', f'"{heading}"')
     result = _run_gate(
         _convergence_json(tmp_path),
-        _adjudication(tmp_path, GOOD_DECLARATION),
-        _project_root(tmp_path, view),
-    )
-    assert result.returncode == 1
-    assert "duplicated" in result.stderr
-
-
-def test_unacknowledged_dead_citation_in_declared_rewrite_fails(tmp_path: Path) -> None:
-    view = json.loads(json.dumps(DEFAULT_VIEW))
-    view["notebook"]["run_links"] = {
-        "unacknowledged_dead": [
-            {"section": "Spectrum results", "run_id": "20260808-m2-r003-old", "validity": "superseded"},
-        ],
-    }
-    result = _run_gate(
-        _convergence_json(tmp_path),
-        _adjudication(tmp_path, GOOD_DECLARATION),
-        _project_root(tmp_path, view),
-    )
-    assert result.returncode == 1
-    assert "live-looking prose" in result.stderr
-
-
-def test_unacknowledged_dead_citation_outside_declared_sections_stays_advisory(tmp_path: Path) -> None:
-    view = json.loads(json.dumps(DEFAULT_VIEW))
-    view["notebook"]["run_links"] = {
-        "unacknowledged_dead": [
-            {"section": "Old formalism", "run_id": "20260808-m2-r003-old", "validity": "void"},
-        ],
-    }
-    result = _run_gate(
-        _convergence_json(tmp_path),
-        _adjudication(tmp_path, GOOD_DECLARATION),
+        _adjudication(tmp_path, body),
         _project_root(tmp_path, view),
     )
     assert result.returncode == 0, result.stderr + result.stdout
+
+
+@pytest.mark.parametrize("validity", ["superseded", "void"])
+def test_current_result_from_an_invalid_run_still_refuses(tmp_path: Path, validity: str) -> None:
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    # The canonical registry read model marks this objectively invalid row.
+    view["results"]["current"][0]["defective"] = True
+    view["results"]["issues"] = [{
+        "code": "row_defect",
+        "message": f"registry row for binding-energy cites a {validity} run",
+    }]
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 1
+    assert "defective registry row" in result.stderr
+    assert f"cites a {validity} run" in result.stderr
 
 
 def test_headline_without_human_rewrite_refuses(tmp_path: Path) -> None:
@@ -551,7 +538,7 @@ def test_headline_without_human_rewrite_refuses(tmp_path: Path) -> None:
     assert "needs its artifact linked" in result.stderr
 
 
-def test_automatic_table_cannot_satisfy_human_result_links(tmp_path: Path) -> None:
+def test_historical_machine_metadata_cannot_satisfy_user_result_links(tmp_path: Path) -> None:
     view = json.loads(json.dumps(DEFAULT_VIEW))
     view["notebook"]["current_state_block"] = {"block_found": True, "in_sync": True}
     view["notebook"]["result_links"]["status"] = "missing_links"

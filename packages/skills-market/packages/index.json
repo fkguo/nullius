@@ -1,6 +1,6 @@
 {
   "index_version": "1.4.0",
-  "updated_at": "2026-10-14T00:00:00Z",
+  "updated_at": "2026-11-15T00:00:00Z",
   "packages": [
     "citation-triangulation.json",
     "claim-grounding.json",
@@ -25,6 +25,7 @@
     "literature-to-package.json",
     "literature-workflows.json",
     "markdown-hygiene.json",
+    "nds-lookup.json",
     "numerical-reliability-gate.json",
     "opencode-cli-runner.json",
     "paper-reviser.json",
@@ -36,6 +37,7 @@
     "research-team.json",
     "research-writer.json",
     "review-swarm.json",
+    "scientific-data-app.json",
     "skills-market.json",
     "zotero-import.json"
   ]

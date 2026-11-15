@@ -1,6 +1,6 @@
 {
   "mode": "full",
-  "count": 58,
+  "count": 57,
   "tools": [
     "arxiv_get_metadata",
     "arxiv_paper_source",
@@ -17,7 +17,6 @@
     "inspire_classify_reviews",
     "inspire_cleanup_downloads",
     "inspire_critical_analysis",
-    "inspire_detect_measurement_conflicts",
     "inspire_find_connections",
     "inspire_find_crossover_topics",
     "inspire_grade_evidence",

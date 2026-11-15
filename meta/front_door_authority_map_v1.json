@@ -55,7 +55,7 @@
         },
         {
           "command": "notebook",
-          "usage": "nullius notebook sync [--json] | nullius notebook check [--result <id>] [--structure-only] [--json] | nullius notebook review --model <spec> [--dependency <path>] [--evidence-manifest <path>] [--resume <run-id>] [--timeout-secs <n>] [--context-bytes <n>] [--context-tokens <n>] [--snapshot-bytes <n>] [--max-files <n>] [--max-batches <n>] [--json]"
+          "usage": "nullius notebook check [--result <id>] [--structure-only] [--json] | nullius notebook review --model <spec> [--dependency <path>] [--evidence-manifest <path>] [--resume <run-id>] [--timeout-secs <n>] [--context-bytes <n>] [--context-tokens <n>] [--snapshot-bytes <n>] [--max-files <n>] [--max-batches <n>] [--json]"
         },
         {
           "command": "index",

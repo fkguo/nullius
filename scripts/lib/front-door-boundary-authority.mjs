@@ -162,7 +162,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '- `nullius run` 现在是该 seam 的 canonical bounded consumer：它会推进 dependency-satisfied persisted workflow steps，直到完成或遇到 blocking failure，并继续保持唯一 execution front door。',
       '- 当前 slice 仍未提供 canonical closed-loop literature execution runtime；这里还没有 full scheduler、多步自主编排或 end-to-end closed loop。',
       'important literature notes require full-text/source-first reading, auditable section/page/equation/figure coverage, and LaTeX math notation',
-      'dated execution traces, raw run observations, and tool-use traces belong in `research_plan.md` or `artifacts/runs/<run_id>/`',
+      'operational status, execution transcripts, and tool-use traces belong in `research_plan.md` or `artifacts/runs/<run_id>/`',
       'Paper originals, extracted text, arXiv source tarballs, and source trees are filesystem materials',
     ],
     orderedSnippets: [
@@ -231,7 +231,7 @@ export const FRONT_DOOR_SNIPPETS = [
     snippets: [
       '本指南面向手工验收当前 front-door truth。`nullius` 是 generic lifecycle + workflow-plan front door；`@nullius/hep-mcp` 是当前最成熟的 domain MCP front door，提供 literature/data、项目内研究输出、Zotero、PDG 能力。本页重点覆盖两者的衔接，而不是把 `hep-mcp` 重新写成 root 产品身份。',
       '下文 HEP 配置以 `packages/hep-mcp/dist/index.js` 为 domain MCP front door；个人插件另组合绑定项目的 `project-mcp` 叶层 adapter。',
-      '目前暴露 16 个 `orch_*` 操作和 5 个 transport 工具，共 21 个。',
+      '目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。',
       'tunnel/app ID 和对应宿主验收仍待用户配置。',
       '### 0.0 先确认 front-door 角色',
 	      '- `nullius` = generic lifecycle + workflow-plan + main-report structural-validation front door',

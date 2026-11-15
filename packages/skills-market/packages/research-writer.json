@@ -3,8 +3,8 @@
   "package_type": "skill-pack",
   "repo": "nullius/skills-market",
   "channel": "dev",
-  "version": "0.1.0",
-  "summary": "ArXiv-ready paper scaffold and validation workflow skill.",
+  "version": "0.1.1",
+  "summary": "Host-led scientific writing with deterministic scaffold, build, traceability and portable delivery helpers.",
   "platforms": [
     "claude_code",
     "codex",

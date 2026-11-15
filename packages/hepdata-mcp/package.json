@@ -1,6 +1,6 @@
 {
   "name": "@nullius/hepdata-mcp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "HEPData MCP server for experimental HEP measurement data",
   "author": "Feng-Kun Guo",
   "type": "module",

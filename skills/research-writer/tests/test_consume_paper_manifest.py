@@ -246,3 +246,144 @@ def test_invalid_json_manifest_is_rejected(tmp_path):
     r = _run_cli(["--paper-manifest", str(mpath)])
     assert r.returncode == 2
     assert "invalid paper manifest" in (r.stdout + r.stderr)
+
+
+def _invoke_build(monkeypatch, mpath: Path) -> int:
+    monkeypatch.setattr(sys, "argv", [str(_MOD), "--paper-manifest", str(mpath), "--compile"])
+    return cm.main()
+
+
+def test_compile_uses_declared_main_and_exports_that_pdf(tmp_path, monkeypatch):
+    mpath = _make_paper(tmp_path)
+    paper = mpath.parent
+    (paper / "main.tex").rename(paper / "article.tex")
+    manifest = json.loads(mpath.read_text())
+    manifest["mainTex"] = "article.tex"
+    mpath.write_text(json.dumps(manifest))
+    (paper / "main.pdf").write_bytes(b"old PDF fixture")
+    monkeypatch.setattr(cm, "_have_latexmk", lambda: True)
+
+    def compile_target(command, **kwargs):
+        assert command[-1] == str((paper / "article.tex").resolve())
+        build_dir = Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("-outdir=")))
+        assert build_dir != paper and build_dir.parent == paper
+        assert "-jobname=article" in command
+        assert Path(kwargs["cwd"]) == paper
+        # Synthetic bytes test output routing, not PDF rendering or science.
+        (build_dir / "article.pdf").write_bytes(b"current PDF fixture")
+        (build_dir / "article.fls").write_text(f"PWD {paper}\nINPUT {paper / 'article.tex'}\n")
+        return subprocess.CompletedProcess(command, 0, "built", "")
+
+    monkeypatch.setattr(cm.subprocess, "run", compile_target)
+    assert _invoke_build(monkeypatch, mpath) == 0
+    export = json.loads((paper / "export_manifest.json").read_text())
+    assert export["status"] == "ok"
+    assert export["compile"]["pdf"] == "article.pdf"
+    assert export["paper"]["main_tex"] == "article.tex"
+    assert "article.tex" in export["input_hashes"]
+    assert "article.pdf" in export["output_hashes"]
+
+
+def test_missing_compiler_invalidates_old_success_receipt(tmp_path, monkeypatch):
+    mpath = _make_paper(tmp_path)
+    paper = mpath.parent
+    (paper / "main.pdf").write_bytes(b"old PDF fixture")
+    (paper / "export_manifest.json").write_text(json.dumps({"compile": {"status": "ok", "pdf": "main.pdf"}}))
+    monkeypatch.setattr(cm, "_have_latexmk", lambda: False)
+    assert _invoke_build(monkeypatch, mpath) == 2
+    export = json.loads((paper / "export_manifest.json").read_text())
+    assert export["status"] == "failed"
+    assert export["compile"]["status"] == "unavailable"
+    assert export["compile"]["pdf"] is None
+    assert (paper / "main.pdf").read_bytes() == b"old PDF fixture"
+
+
+def test_failed_build_does_not_reexport_old_pdf(tmp_path, monkeypatch):
+    mpath = _make_paper(tmp_path)
+    paper = mpath.parent
+    (paper / "main.pdf").write_bytes(b"old PDF fixture")
+    monkeypatch.setattr(cm, "_have_latexmk", lambda: True)
+    monkeypatch.setattr(cm.subprocess, "run", lambda command, **kw: subprocess.CompletedProcess(command, 1, "", "compile error"))
+    assert _invoke_build(monkeypatch, mpath) == 2
+    export = json.loads((paper / "export_manifest.json").read_text())
+    assert export["compile"]["status"] == "failed"
+    assert export["compile"]["pdf"] is None
+
+
+def test_successful_exit_without_pdf_is_not_build_success(tmp_path, monkeypatch):
+    mpath = _make_paper(tmp_path)
+    (mpath.parent / "main.pdf").write_bytes(b"old PDF fixture")
+    monkeypatch.setattr(cm, "_have_latexmk", lambda: True)
+    monkeypatch.setattr(cm.subprocess, "run", lambda command, **kw: subprocess.CompletedProcess(command, 0, "", ""))
+    assert _invoke_build(monkeypatch, mpath) == 2
+    export = json.loads((mpath.parent / "export_manifest.json").read_text())
+    assert export["status"] == "failed"
+    assert export["compile"]["pdf"] is None
+    assert (mpath.parent / "main.pdf").read_bytes() == b"old PDF fixture"
+
+
+def test_parse_failure_invalidates_an_earlier_success_receipt(tmp_path, monkeypatch):
+    mpath = _make_paper(tmp_path)
+    monkeypatch.setattr(sys, "argv", [str(_MOD), "--paper-manifest", str(mpath)])
+    assert cm.main() == 0
+    mpath.write_text("{broken json")
+    assert _invoke_build(monkeypatch, mpath) == 2
+    export = json.loads((mpath.parent / "export_manifest.json").read_text())
+    assert export["status"] == "failed"
+    assert export["compile"]["pdf"] is None
+
+
+def test_new_recorder_dependency_requires_a_bound_recompile(tmp_path, monkeypatch):
+    import hashlib
+
+    mpath = _make_paper(tmp_path)
+    paper = mpath.parent
+    (tmp_path / "project_charter.md").write_text("Project\n")
+    (tmp_path / "research_contract.md").write_text("Contract\n")
+    dependency = tmp_path / "derived.tex"
+    dependency.write_bytes(b"Original source")
+    calls = []
+    monkeypatch.setattr(cm, "_have_latexmk", lambda: True)
+
+    def compiler(command, **kwargs):
+        calls.append(command.copy())
+        out = Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("-outdir=")))
+        (out / "main.pdf").write_bytes(dependency.read_bytes())
+        (out / "main.fls").write_text(f"PWD {paper}\nINPUT {paper / 'main.tex'}\nINPUT {dependency}\n")
+        if len(calls) == 1:
+            dependency.write_bytes(b"Updated after discovery")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(cm.subprocess, "run", compiler)
+    assert _invoke_build(monkeypatch, mpath) == 0
+    assert len(calls) == 2 and "-g" in calls[1]
+    export = json.loads((paper / "export_manifest.json").read_text())
+    assert (paper / "main.pdf").read_bytes() == dependency.read_bytes()
+    assert export["input_hashes"]["../derived.tex"] == hashlib.sha256(dependency.read_bytes()).hexdigest()
+
+
+def test_dependency_mutating_during_bound_recompile_cannot_publish_success(tmp_path, monkeypatch):
+    mpath = _make_paper(tmp_path)
+    paper = mpath.parent
+    (tmp_path / "project_charter.md").write_text("Project\n")
+    (tmp_path / "research_contract.md").write_text("Contract\n")
+    dependency = tmp_path / "derived.tex"
+    dependency.write_bytes(b"Original source")
+    (paper / "main.pdf").write_bytes(b"Previously published PDF")
+    calls = []
+    monkeypatch.setattr(cm, "_have_latexmk", lambda: True)
+
+    def compiler(command, **kwargs):
+        calls.append(command.copy())
+        out = Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("-outdir=")))
+        (out / "main.pdf").write_bytes(dependency.read_bytes())
+        (out / "main.fls").write_text(f"PWD {paper}\nINPUT {paper / 'main.tex'}\nINPUT {dependency}\n")
+        dependency.write_bytes(dependency.read_bytes() + b" changed")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(cm.subprocess, "run", compiler)
+    assert _invoke_build(monkeypatch, mpath) == 2
+    assert len(calls) == 2
+    export = json.loads((paper / "export_manifest.json").read_text())
+    assert export["status"] == "failed" and export["compile"]["pdf"] is None
+    assert (paper / "main.pdf").read_bytes() == b"Previously published PDF"

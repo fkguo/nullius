@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .report_registry import MARKDOWN_LINK
+from .report_registry import MARKDOWN_LINK, markdown_link_targets
+from .markdown_visibility import without_inline_code
 
 
 VALIDATION_FIELDS = (
@@ -36,7 +37,7 @@ def field_is_filled(value: str) -> bool:
 
 
 def machine_only_reference(value: str) -> bool:
-    targets = MARKDOWN_LINK.findall(value)
+    targets = markdown_link_targets(value)
     machine_links = [
         target for target in targets
         if target.startswith(("project:", "rep:", "file:"))
@@ -44,14 +45,14 @@ def machine_only_reference(value: str) -> bool:
     ]
     if not machine_links:
         return False
-    residual = MARKDOWN_LINK.sub("", value)
+    residual = MARKDOWN_LINK.sub("", without_inline_code(value))
     residual = re.sub(r"[`*_~\s.,;:()[\]{}\-–—→]+", "", residual)
     return not residual
 
 
 def human_links(value: str, report_path: Path, project_root: Path) -> list[str]:
     valid: list[str] = []
-    for target in MARKDOWN_LINK.findall(value):
+    for target in markdown_link_targets(value):
         target = target.strip()
         base = target.split("#", 1)[0].split("?", 1)[0]
         if target.startswith(("project:", "rep:", "file:")) or base.lower().endswith(MACHINE_SUFFIXES):
@@ -108,7 +109,8 @@ def validate_validation_section(
         if duplicated:
             errors.append(_issue("validation_field_not_unique", f"validation fields must occur exactly once per record: {', '.join(duplicated)}", rel))
             continue
-        values = {label: first_field(block, label).strip("`") for label in VALIDATION_FIELDS}
+        raw_values = {label: first_field(block, label) for label in VALIDATION_FIELDS}
+        values = {label: value.strip("`") for label, value in raw_values.items()}
         missing = [label for label, value in values.items() if not field_is_filled(value)]
         if missing:
             errors.append(_issue("incomplete_validation_record", f"validation record has unfilled fields: {', '.join(missing)}", rel))
@@ -118,7 +120,7 @@ def validate_validation_section(
         if classification not in {"independent", "replay", "supporting_only"} or any(value not in {"same", "different", "not_applicable"} for value in relations):
             errors.append(_issue("invalid_validation_classification", "validation classification or relation vocabulary is invalid", rel))
             continue
-        if not human_links(values["Human-readable validation evidence"], report_path, root):
+        if not human_links(raw_values["Human-readable validation evidence"], report_path, root):
             errors.append(_issue("validation_evidence_not_human_readable", "validation evidence must use a reachable human-readable link", rel))
         if classification == "independent":
             independent += 1

@@ -136,8 +136,8 @@ describe('project MCP research loop over real stdio', () => {
         expect(sha256(bytes)).toBe(digest);
         return { bytes, sha: digest! };
       };
-      const write = (relativePath: string, content: string) => call('project_file_write', {
-        path: relativePath, content, expected_sha256: null,
+      const write = (relativePath: string, content: string, expectedSha256: string | null = null) => call('project_file_write', {
+        path: relativePath, content, expected_sha256: expectedSha256,
       });
 
       // Full init supplies the canonical scaffold and exact Git identity;
@@ -145,6 +145,8 @@ describe('project MCP research loop over real stdio', () => {
       await deliver('project_cli', { action: 'init', mode: 'engine' }, 'init-project');
       expect(fs.readFileSync(path.join(root, '.nullius', 'HARNESS')).length).toBeGreaterThan(0);
       expect(fs.existsSync(path.join(root, '.nullius', 'bin', 'nullius'))).toBe(true);
+      const originalNotebook = await read('research_notebook.md');
+      expect(originalNotebook.bytes.toString()).not.toContain('NOTEBOOK_CURRENT_STATE_');
       await deliver('orch_run_create', { run_id: runId, workflow_id: 'computation' }, 'create-run');
       await write('inputs/method-handoff.json', JSON.stringify(methodHandoff(corruptOutput), null, 2) + '\n');
       await deliver('orch_run_stage_idea', {
@@ -202,6 +204,7 @@ describe('project MCP research loop over real stdio', () => {
         const status = await call('orch_run_status');
         expect(status.pending_approval).toBeNull();
         expect(status.traceability.results.current).toEqual([]);
+        expect((await read('research_notebook.md')).bytes).toEqual(originalNotebook.bytes);
         return;
       }
       const verification = payload(verificationEnvelope);
@@ -217,18 +220,45 @@ describe('project MCP research loop over real stdio', () => {
         action: 'result_set_current', result_id: 'integer-sum', run_id: runId,
         artifact: `${runRelative}/computation/results/result.json`, description: 'Bounded arithmetic integration fixture',
       }, 'register-result');
-      await deliver('project_cli', { action: 'notebook_sync' }, 'sync-notebook');
       await deliver('project_cli', { action: 'index_sync' }, 'sync-index');
       const status = await call('orch_run_status');
       expect(status).toMatchObject({ run_id: runId, run_status: 'completed', pending_approval: null });
       expect(status.traceability.results.current).toEqual([expect.objectContaining({ result_id: 'integer-sum', run_id: runId, defective: false })]);
       expect((await read('project_index.md')).bytes.toString()).toContain('integer-sum');
-      const notebook = (await read('research_notebook.md')).bytes.toString();
-      expect(notebook).toContain('<!-- NOTEBOOK_CURRENT_STATE_START -->');
-      expect(notebook).toContain('integer-sum');
+      expect((await read('research_notebook.md')).bytes).toEqual(originalNotebook.bytes);
       const current = await call('project_cli', { action: 'current' });
       expect(current.exit_code).toBe(0);
       expect(current.data.results.current).toEqual([expect.objectContaining({ result_id: 'integer-sum', run_id: runId })]);
+      expect(current.data.notebook.result_links).toMatchObject({ status: 'missing_links', missing_result_ids: ['integer-sum'] });
+
+      // Result registration supplies provenance; the host authors the user's
+      // scientific explanation through the ordinary hash-guarded file API.
+      const authored = [
+        '# Arithmetic research notebook', '', '## Integer sum', '',
+        'For the first n positive integers, pairing the first and last terms gives',
+        'S_n = n(n + 1)/2. At n = 10 this yields the exact integer 55; there is no',
+        'rounding or statistical uncertainty in this finite arithmetic fixture.',
+        `The [computed value](${runRelative}/computation/results/result.json) agrees`,
+        'with that expression. The checker also rejects the shifted value 56.',
+        `Its [executed verdict](${runRelative}/artifacts/verification_check_run_computation_result_v1.json)`,
+        'records that check. This exercises the transport and checker contract;',
+        'it is not evidence of independent research judgment or broader scientific validity.', '',
+      ].join('\n');
+      await write('research_notebook.md', authored, originalNotebook.sha);
+      const structure = await call('project_cli', { action: 'notebook_check', structure_only: true });
+      expect(structure).toMatchObject({ exit_code: 0, data: {
+        status: 'structure_passed', structure: { status: 'linked', missing_result_ids: [] },
+        content_review: { status: 'missing' },
+      } });
+      const incomplete = await client.callTool({ name: 'project_cli', arguments: { action: 'notebook_check' } });
+      expect(incomplete.isError).toBe(true);
+      const incompleteText = incomplete.content.find((item: any) => item.type === 'text') as { text: string };
+      expect(JSON.parse(incompleteText.text)).toMatchObject({ exit_code: 1, data: {
+        status: 'incomplete', structure: { status: 'linked' }, content_review: { status: 'missing' },
+      } });
+      const stillBlocked = await deliver('orch_run_request_final_conclusions', { run_id: runId }, 'evaluate-authored-notebook');
+      expect(stillBlocked).toMatchObject({ gate_id: 'A5', ready_for_final_conclusions: false });
+      expect((await read('research_notebook.md')).bytes.toString()).toBe(authored);
     } finally {
       await client.close();
       fs.rmSync(root, { recursive: true, force: true });

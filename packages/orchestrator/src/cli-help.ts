@@ -262,27 +262,15 @@ repository; unclassified legacy runs; stages not yet delivered) — honest
 unanswerability instead of silent or false precision. --json emits the same
 read model that \`nullius status --json\` carries as its traceability block.
 `,
-  notebook: `nullius notebook sync [--json]
-nullius notebook check [--result <id>] [--structure-only] [--json]
+  notebook: `nullius notebook check [--result <id>] [--structure-only] [--json]
 nullius notebook review --model <spec> [--dependency <path>] [--evidence-manifest <path>] [--resume <run-id>] [--timeout-secs <n>] [--json]
   [--context-bytes <n>] [--context-tokens <n>] [--snapshot-bytes <n>]
   [--max-files <n>] [--max-batches <n>]
 
-Insert (first run) or refresh the machine-maintained current-state block at
-the top of research_notebook.md. The block is rendered from the results
-registry and the validity ledger — the same read model behind \`nullius
-current\` — so the notebook opens with what is CURRENTLY promoted (or the
-honest statement that nothing is yet). It rewrites itself automatically
-after ledger-writing commands; this verb exists for adoption in an existing
-project and for repair after a hand edit. Never edit between the block's
-markers: a present block that no longer matches its canonical render is
-reported OUT OF SYNC by \`nullius status --json\` / \`nullius current\` and
-refuses milestone convergence until refreshed.
-
-Sync does not write or verify the human derivations or explanations.
+Check and review the user's research notebook without modifying it. Run state
+and current result registration remain in the project index and \`nullius current\`.
 Inspect \`nullius current --json\` notebook.result_links for current artifacts
-absent from human sections. Rewrite those sections; links present are not a
-scientific-completeness verdict.
+absent from human sections. Links establish navigation, not scientific adequacy.
 
 Review executes the existing review-swarm launcher on the full UTF-8 notebook
 and frozen necessary dependencies. It requires a real source-anchored report
@@ -304,8 +292,11 @@ not current-content validation; only the manifest, declared originals and their 
 references determine currentness. Necessary unread sources still prevent acceptance.
 Every primary text is source-reviewed before a complete-notebook integration audit;
 necessary unread sources, missing context or opaque originals prevent acceptance.
-Changed manifests or reference targets invalidate freshness and resume reuse.
+Changed manifests or declared primary originals invalidate freshness and resume reuse.
 
+Scope also records the validity states of runs supplying frozen material.
+Relevant run-state changes invalidate old acceptance; unrelated run events do not.
+Historical reviews without this binding remain readable but need a fresh review.
 Storage defaults: 512 MiB and 256 files (--snapshot-bytes, --max-files).
 Request capacity: --context-bytes plus the available backend --context-tokens
 window (default 200000), with instruction/output reserves. Oversized token
@@ -314,7 +305,7 @@ Large text uses original intervals and a separate COMPLETE-original joint audit.
 Every original interval and joint audit must be complete and fresh; no summaries.
 Shortfalls expose material totals, pending scope and a --resume command. Resume
 creates a new run, retains explicit dependencies, rechecks old receipts and
-requires unchanged original material; original evidence is never rewritten.
+requires unchanged original material and referenced run states; original evidence is never rewritten.
 Remote or directory links alone do not provide their contents. No truncation.
 Reviewed text requires LF or CRLF line endings. Bare CR is refused.
 UTF-8 byte-order marks are preserved. python3 is required; accepted reviewer
@@ -323,7 +314,7 @@ Default hard budget: 1200 seconds, max 64 calls, one attempt per call, no automa
 
 Check is read-only and reports structure and content_review independently.
 Default exit 0 requires structural links and an accepted whole-notebook review
-of current bytes; 1 means incomplete, missing, stale or rejected; 2 means
+of current bytes and referenced run states; 1 means incomplete, missing, stale or rejected; 2 means
 unavailable inputs. --result narrows structure only; its success is
 diagnostic_passed (exit 0) and content is always full notebook. --structure-only can pass
 navigation but cannot authorize scientific

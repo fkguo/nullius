@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { clamp01 } from './quantitySampling.js';
+import { clamp01 } from './samplingUtils.js';
 import type {
   ClaimEvidenceItem,
   ClaimReasonCodeV1,

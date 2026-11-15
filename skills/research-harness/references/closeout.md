@@ -2,17 +2,91 @@
 
 Read the section relevant to the current operation. Commands and script paths are relative to the installed `research-harness` skill directory unless an external project root is specified.
 
+## Deliver the stage output
+
+Use the existing project files: the human notebook holds the evolving scientific
+understanding, a stage report or paper presents the requested result, and run
+artifacts preserve original inputs, execution and verification. A stage may end
+with a useful draft or a negative result; label its actual status. Delivery alone
+does not adopt an unverified result or waive the formal boundary below.
+
+Before ending a stage:
+
+1. Inspect the actual output and incorporate the scientific findings into the
+   notebook. For writing, the host agent reads the originals and edits the real
+   manuscript and included sections. A candidate fragment is not the main paper.
+2. Read the applicable verification reports and act on their findings. Use the
+   existing derivation, numerical, grounding, citation, traceability and display
+   checks for the result types present. A checker's presence, a build exit code,
+   a report path or an asserted PASS is not evidence that the check ran. Record
+   the actual inputs, outcome and remaining limits with the existing run evidence.
+3. Put a direct link to the main reading file and required supporting files in
+   `research_plan.md#Current Status`'s existing Evidence pointers. Keep the unique
+   Task brief link when continuation is needed. Use the explicit current result
+   or report registry for adopted outcomes, not a latest-run guess. Promoting a
+   main report requires a new immutable report and successful `report-validate`.
+4. When using writer helpers, read the current `export_manifest.json`, resolve
+   paths from its actual output root, and confirm the referenced files and build
+   status. Retain the selected files with their relative layout; moving just the
+   manifest does not receive the result. A requested failed or skipped build is
+   not a current PDF. Scientific verification remains separate from compilation.
+5. For a portable handoff, use the existing research-team `export_paper_bundle.py`
+   with explicit stage files or the writer export manifest. The default includes
+   project documents and their referenced closure; `--without-project-docs` with
+   explicit includes selects a smaller stage output. Inspect the package in a
+   fresh location so it cannot accidentally rely on the original project. Check
+   the main document, local references, bibliography, figures and required data.
+   `nullius export --run-id` archives a selected run; it does not automatically
+   assemble a whole paper or its cross-run dependencies.
+6. Use the host's actual attachment or downloadable-file mechanism to deliver
+   the main reading file and the supporting package. Open or inspect the delivered
+   artifact and give the user its working link. If the host only exposes local
+   files, provide the concrete accessible path and say what remains to transfer.
+   Never invent a download URL. Local packaging and user access are separate.
+
 ## Closeout
 
+First distinguish the requested answer from formal project acceptance.
+A scoped research question can be answered with checked reasoning, original
+sources, executed calculations where needed and explicit limits. Explain which
+part is resolved and which missing evidence prevents a stronger conclusion.
+Unknowns outside the requested scope do not require an endless investigation.
+This is ordinary task completion, not a new acceptance grade or permission to
+rely on unverified work. Result-specific verification is required before any
+load-bearing use, including inside a bounded task.
+
+Adopting or revising the project's accepted conclusions, registering a current
+result, folding it into the accepted record, closing a milestone, promoting a
+main report or handing off material as accepted project results still requires
+the formal checks below. The actual operation determines this boundary; calling
+it a small task, answer or checkpoint cannot exempt it.
+
+Choose the operation by what it does. A continuation checkpoint preserves
+unfinished work for another session; it does not adopt a result, close a
+milestone or deliver an accepted scientific account. Save it through
+[task briefs and checkpoints](task-context.md#preserve-work-without-accepting-it),
+including explicit unverified candidates, failed checks and pending approvals.
+Saving remains allowed while a gate is pending or failed; resuming the gated
+action does not. Do not run a result-promotion or approval command just to save.
+
+A checkpoint may locate previously accepted results and their still-current
+acceptance evidence. Restoring that existing state does not itself require a new
+full-text review. Newly adopting or revising scientific conclusions in the
+project's accepted record, treating a new candidate as an accepted project
+premise, formal delivery or export of adopted results, a result fold, milestone
+closeout, or project-completion claim retains every requirement below.
+Calling that operation a checkpoint does not exempt it. Complete scientific
+verification before downstream reliance, not only before the final handoff.
+
 Once producers have stopped, complete [Run Storage](run-storage-workflow.md#run-storage-bulk-outputs-out-of-git-history) before a
-run-output commit or handoff: classify outputs, stow and verify selected
+run-output commit or formal research handoff: classify outputs, stow and verify selected
 files, and commit their manifest/ignore records with the small evidence.
 Run `check --staged --strict` before committing and `inventory` before
 considering local retention. Never stow live output or infer deletion safety
 from age, size or duplicate bytes. This is a storage check, not scientific
 acceptance; the commands below keep their own research requirements.
 
-Before handing off or claiming completion, finish the human-notebook rewrite, result-link check and accepted current full-text review described in **Fold Results Back**, identically in file and engine mode. `nullius notebook sync` refreshes only the automatic table; neither an in-sync table nor a fresh version stamp establishes that the human account was updated. If the task changes no scientific understanding, no notebook rewrite is owed. Record unresolved content gaps in the plan rather than declaring the scientific stage complete.
+Before a formal research handoff of adopted results or claiming project or milestone completion, finish the human-notebook rewrite, result-link check and accepted current full-text review described in **Fold Results Back**, identically in file and engine mode. The host agent authors the scientific account; lifecycle commands preserve notebook bytes. Historical automatic tables and section stamps do not establish that the account was updated. If the task changes no scientific understanding, no notebook rewrite is owed. Record unresolved content gaps in the plan rather than declaring the scientific stage complete.
 
 Run the narrowest applicable closeout command:
 
@@ -35,7 +109,7 @@ machine-only evidence, and replay mislabeled as independent validation. Its
 pass is structural; scientific sufficiency remains a judgment on the report.
 
 Run the `research-integrity` skill's M1-M7 checklist at the moments
-work becomes durable. These triggers are observable file events — none
+scientific results become adopted or are handed off. These triggers are observable file events — none
 of them requires the engine's approval flow to be active:
 
 - before folding a new number, claim, or result into
@@ -47,7 +121,7 @@ of them requires the engine's approval flow to be active:
   the walk owed at their parent boundary,
 - before a milestone closeout commit,
 - when a `research-team` convergence gate reports the cycle converged,
-- before assembling submission or handoff material,
+- before assembling submission or formal research handoff material,
 - and before invoking `nullius approve` for any A1-A5 gate, in
   projects that use the engine's approval flow.
 
@@ -57,6 +131,8 @@ graph claims, bugs-as-insights, methodology fabrication, and frame-lock
 before they reach the durable record. The machine gates and the
 `HARNESS_INVOCATION_REQUIRED` anchor remain authoritative; the
 integrity check is owed to the next agent who reads your work.
+Merely recording an unfinished candidate and its missing checks for continuation
+does not claim acceptance; adopting that candidate still triggers this checklist.
 
 Optional closeout retrospective (recommended at milestone or project
 closeout): list the workflow lessons from the finished stretch of work;
@@ -100,8 +176,8 @@ After a milestone or run produces a stable result, gate each result by its type 
 Then land the folded result (the same obligations apply in engine and file mode):
 
 - Rewrite the affected `research_notebook.md` sections into a coherent scientific account: assumptions and conventions, starting relations, non-obvious derivation steps, results and interpretation, validity limits and unresolved questions. Keep already verified intermediate understanding current; do not wait for whole-project acceptance. Label unverified reasoning explicitly rather than silently treating it as established. Topic notes may carry extended detail, but links or result tables alone do not replace the notebook's load-bearing reasoning.
-- Link each adopted result's registered artifact directly from the relevant human `##` section, outside the automatic block, comments and code examples. After rewriting, record the section's `written-against` commit. `notebook.result_links` recognizes direct inline and explicit reference links, not recursive documents, HTML, shortcut references or indented link lines. A `linked` result is a navigation witness only.
-- Finish the whole notebook and refresh its automatic block before running `nullius notebook review --model claude/opus` with repeated `--dependency <project-relative-path>` for every required supporting file. This actually executes the existing review-swarm launcher in bounded calls; the default hard timeout is 1200 seconds (`--timeout-secs <N>` overrides it), with no automatic reviewer retry. Freeze the complete UTF-8 notebook, including its automatic block, and declared dependency SHA-256 from actual bytes, including uncommitted edits. A commit or section stamp alone is insufficient. Any changed input bytes make prior acceptance stale; preserve the original review and input identity as readable history.
+- Link each adopted result's registered artifact directly from the relevant human `##` section, outside historical automatic blocks, comments and code examples. No hidden version stamp is required. `notebook.result_links` recognizes direct inline and explicit reference links, not recursive documents, HTML, shortcut references or indented link lines. A `linked` result is a navigation witness only.
+- Finish the whole notebook before running `nullius notebook review --model claude/opus` with repeated `--dependency <project-relative-path>` for every required supporting file. This actually executes the existing review-swarm launcher in bounded calls; the default hard timeout is 1200 seconds (`--timeout-secs <N>` overrides it), with no automatic reviewer retry. Freeze the complete UTF-8 notebook, and declared dependency SHA-256 from actual bytes, including uncommitted edits. A commit or section stamp alone is insufficient. Any changed input bytes make prior acceptance stale; preserve the original review and input identity as readable history.
 - Require a reviewer report covering every notebook section, with source anchors and reasons addressing complete derivation steps, logical consistency, notation, definitions, assumptions and conventions. Do not give the reviewer an expected verdict or the writer's initial judgment. Links, automatic tables, formula counts, completed checklists and writing self-assessment cannot supply a content verdict. Semantic review does not prove scientific truth, and a single reviewer leaves limits on model, method and input independence; result-specific verification remains required.
 - Run `nullius notebook check --json` without a result selector for final closeout and inspect `nullius current --json`. The read-only check reports `structure` and `content_review` separately; exit 0 requires structural success and an accepted current full-text review, exit 1 means incomplete acceptance (including invalid review evidence), and exit 2 means invalid command/setup input or unavailable execution/runtime. `--result` scopes only the link check; content coverage always remains full-text. `--structure-only` success establishes navigation alone. Missing, partial, failed, unavailable, invalid or stale review leaves closeout incomplete in both file and engine mode; retired historical records remain readable, while every current result participates in the final unscoped structural check.
 

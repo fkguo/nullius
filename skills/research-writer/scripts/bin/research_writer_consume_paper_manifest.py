@@ -25,8 +25,8 @@ What it does:
    - create an empty `references_manual.bib` if missing
    - ensure `main.tex` references BOTH generated+manual bib databases
 3) Optional compile:
-   - if `latexmk` exists and `--compile` set: `latexmk -pdf main.tex`
-   - else: record a deterministic SKIPPED result (not a failure)
+   - with `--compile`, build the manifest's mainTex using latexmk
+   - a missing compiler, failed build or missing PDF is an incomplete build
 4) Audit:
    - append to `paper/build_trace.jsonl` with checksums and step results
 """
@@ -41,6 +41,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -412,7 +413,7 @@ def main() -> int:
         action="store_true",
         help="Validate and report what would change, but do not write any files and do not compile.",
     )
-    ap.add_argument("--compile", action="store_true", help="If latexmk exists, compile via `latexmk -pdf main.tex`.")
+    ap.add_argument("--compile", action="store_true", help="Compile the manifest's mainTex; missing latexmk or PDF is an error.")
     ap.add_argument("--run-card", type=Path, default=None, help="Optional run-card JSON to copy into paper/ for traceability.")
     args = ap.parse_args()
 
@@ -428,18 +429,78 @@ def main() -> int:
             return 2
 
     manifest_path = manifest_path.expanduser()
-    if not manifest_path.is_file():
-        print(f"ERROR: paper manifest not found: {manifest_path}", file=sys.stderr)
+
+    def reject_manifest(message: str) -> int:
+        # A failed attempt at this entrypoint must not leave an earlier success
+        # receipt available for a later bundle importer to mistake for this run.
+        if not args.dry_run and manifest_path.parent.is_dir():
+            _write_json(manifest_path.parent / "export_manifest.json", {
+                "schemaVersion": 1, "tool": "research-writer",
+                "entrypoint": "consume_paper_manifest", "status": "failed",
+                "generated_at_utc": _utc_now(), "message": message,
+                "paper_manifest": manifest_path.name,
+                "compile": {"requested": bool(args.compile), "status": "not_run", "pdf": None, "log": None},
+            })
+        print(f"ERROR: {message}", file=sys.stderr)
         return 2
+
+    if not manifest_path.is_file():
+        return reject_manifest(f"paper manifest not found: {manifest_path}")
 
     try:
         manifest = _parse_manifest_v1(manifest_path)
     except Exception as exc:
-        print(f"ERROR: invalid paper manifest: {exc}", file=sys.stderr)
-        return 2
+        return reject_manifest(f"invalid paper manifest: {exc}")
 
     paper_root = manifest.paper_root
     trace_path = paper_root / "build_trace.jsonl"
+    compile_status = "not_requested"
+    compile_details: dict[str, Any] = {"requested": bool(args.compile)}
+    output_pdf = paper_root / (manifest.main_tex.stem + ".pdf")
+    output_log = paper_root / (manifest.main_tex.stem + ".log")
+    current_log = False
+    input_hashes: dict[str, str] = {}
+    output_hashes: dict[str, str] = {}
+    project_root = paper_root.resolve()
+    for candidate in (project_root, *project_root.parents):
+        if (candidate / "project_charter.md").is_file() and (candidate / "research_contract.md").is_file():
+            project_root = candidate
+            break
+
+    def input_key(path: Path) -> str:
+        return Path(os.path.relpath(path.resolve(), paper_root.resolve())).as_posix()
+    run_card_info: dict[str, Any] | None = None
+
+    def export_result(status: str, message: str | None = None) -> None:
+        if args.dry_run:
+            return
+        _write_json(paper_root / "export_manifest.json", {
+            "schemaVersion": manifest.schema_version,
+            "tool": "research-writer",
+            "entrypoint": "consume_paper_manifest",
+            "generated_at_utc": _utc_now(),
+            "status": status,
+            "message": message,
+            "paper_manifest": _relpath_str(manifest.manifest_path, paper_root),
+            "paper": {
+                "main_tex": _relpath_str(manifest.main_tex, paper_root),
+                "bib": {"generated": _relpath_str(manifest.bib_generated, paper_root),
+                        "manual": _relpath_str(manifest.bib_manual, paper_root)},
+                "figures_dir": _relpath_str(manifest.figures_dir, paper_root),
+            },
+            "compile": {
+                **compile_details, "status": compile_status,
+                "pdf": _relpath_str(output_pdf, paper_root) if status == "ok" and compile_status == "ok" else None,
+                "log": _relpath_str(output_log, paper_root) if current_log else None,
+            },
+            "run_card": run_card_info,
+            "input_hashes": input_hashes,
+            "output_hashes": output_hashes,
+            "trace": {"build_trace_jsonl": "build_trace.jsonl"},
+        })
+
+    # Replace a previous successful receipt before doing work that may fail.
+    export_result("in_progress")
     _append_jsonl(
         trace_path,
         {
@@ -453,7 +514,6 @@ def main() -> int:
         },
     )
 
-    run_card_info: dict[str, Any] | None = None
     if args.run_card is not None:
         run_card_path = args.run_card.expanduser().resolve()
         if not run_card_path.is_file():
@@ -467,6 +527,7 @@ def main() -> int:
                 },
             )
             print(f"ERROR: --run-card not found: {run_card_path}", file=sys.stderr)
+            export_result("failed", "run-card not found")
             return 2
         try:
             if args.dry_run:
@@ -497,6 +558,7 @@ def main() -> int:
         if details:
             payload.update(details)
         _append_jsonl(trace_path, payload)
+        export_result("failed", msg)
         print(f"ERROR: {msg}", file=sys.stderr)
         return 2
 
@@ -628,48 +690,24 @@ def main() -> int:
 
     # Audit: record input checksums for core inputs (manifest, tex, bib, figures).
     try:
-        _append_jsonl(
-            trace_path,
-            {
-                "event": "input_hash",
-                "ts": _utc_now(),
-                "path": _relpath_str(manifest.manifest_path, paper_root),
-                "sha256": _sha256_file(manifest.manifest_path),
-            },
-        )
-        for p in tex_files:
-            _append_jsonl(
-                trace_path,
-                {
-                    "event": "input_hash",
-                    "ts": _utc_now(),
-                    "path": _relpath_str(p, paper_root),
-                    "sha256": _sha256_file(p),
-                },
-            )
-        for p in (manifest.bib_generated, manifest.bib_manual):
-            if p.exists():
-                _append_jsonl(
-                    trace_path,
-                    {
-                        "event": "input_hash",
-                        "ts": _utc_now(),
-                        "path": _relpath_str(p, paper_root),
-                        "sha256": _sha256_file(p),
-                    },
-                )
+        inputs = [manifest.manifest_path, *tex_files, manifest.bib_generated, manifest.bib_manual]
+        # BibTeX's database reads are not necessarily listed in the TeX .fls.
+        # Bind every literal database declared by the actual TeX source too.
+        for tex in tex_files:
+            for match in _RE_BIBCMD.finditer(_read_text(tex)):
+                for name in match.group(1).split(","):
+                    candidate = paper_root / name.strip()
+                    if candidate.suffix.lower() != ".bib":
+                        candidate = candidate.with_suffix(".bib")
+                    if candidate.is_file():
+                        inputs.append(candidate)
         if manifest.figures_dir.is_dir():
-            for p in sorted(manifest.figures_dir.rglob("*")):
-                if p.is_file():
-                    _append_jsonl(
-                        trace_path,
-                        {
-                            "event": "input_hash",
-                            "ts": _utc_now(),
-                            "path": _relpath_str(p, paper_root),
-                            "sha256": _sha256_file(p),
-                        },
-                    )
+            inputs.extend(p for p in sorted(manifest.figures_dir.rglob("*")) if p.is_file())
+        for p in inputs:
+            if p.is_file():
+                key, digest = input_key(p), _sha256_file(p)
+                input_hashes[key] = digest
+                _append_jsonl(trace_path, {"event": "input_hash", "ts": _utc_now(), "path": key, "sha256": digest})
     except Exception as exc:
         return fail(f"failed to write input checksums: {exc}")
 
@@ -682,8 +720,6 @@ def main() -> int:
         },
     )
 
-    compile_status = "not_requested"
-    compile_details: dict[str, Any] = {"requested": bool(args.compile)}
     # Optional compile.
     if args.compile and (not args.dry_run):
         if not _have_latexmk():
@@ -695,29 +731,93 @@ def main() -> int:
                     "reason": "latexmk not found",
                 },
             )
-            print("SKIPPED: latexmk not found")
-            compile_status = "skipped"
-            compile_details.update({"status": "skipped", "reason": "latexmk not found"})
+            compile_status = "unavailable"
+            compile_details.update({"reason": "latexmk not found"})
+            return fail("requested compilation is unavailable: latexmk not found")
         else:
             _append_jsonl(trace_path, {"event": "compile_start", "ts": _utc_now()})
-            proc = subprocess.run(
-                ["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error", "main.tex"],
-                cwd=str(paper_root),
-                text=True,
-                capture_output=True,
-            )
-            out = (proc.stdout or "") + (proc.stderr or "")
-            _append_jsonl(
-                trace_path,
-                {
-                    "event": "compile_end",
-                    "ts": _utc_now(),
-                    "exit_code": proc.returncode,
-                    "stdout_stderr_tail": out[-4000:],
-                },
-            )
-            if proc.returncode != 0:
-                return fail("latexmk failed (see build_trace.jsonl for tail)", details={"exit_code": proc.returncode})
+            compile_details["main_tex"] = _relpath_str(manifest.main_tex, paper_root)
+            try:
+                # A fresh output directory proves that the PDF was produced by
+                # this attempt. Old published files remain intact on failure.
+                with tempfile.TemporaryDirectory(prefix=f".{manifest.main_tex.stem}-build-", dir=paper_root) as build_name:
+                    build_dir = Path(build_name).resolve()
+                    command = ["latexmk", "-pdf", "-recorder", "-interaction=nonstopmode", "-halt-on-error",
+                               f"-outdir={build_dir}", f"-jobname={manifest.main_tex.stem}",
+                               str(manifest.main_tex.resolve())]
+                    # Bound dependency discovery to one preliminary pass.
+                    for attempt in range(2):
+                        proc = subprocess.run(command, cwd=str(paper_root), text=True, capture_output=True)
+                        out = (proc.stdout or "") + (proc.stderr or "")
+                        _append_jsonl(trace_path, {
+                            "event": "compile_end", "ts": _utc_now(),
+                            "exit_code": proc.returncode, "stdout_stderr_tail": out[-4000:],
+                        })
+                        if (build_dir / output_log.name).is_file():
+                            shutil.copy2(build_dir / output_log.name, output_log)
+                            current_log = True
+                        if proc.returncode != 0:
+                            compile_status = "failed"
+                            compile_details["exit_code"] = proc.returncode
+                            return fail("latexmk failed (see build_trace.jsonl for tail)", details={"exit_code": proc.returncode})
+                        built_pdf = build_dir / output_pdf.name
+                        if not built_pdf.is_file():
+                            compile_status = "failed"
+                            return fail(f"latexmk returned success without producing the requested PDF: {output_pdf.name}")
+                        recorder = build_dir / (manifest.main_tex.stem + ".fls")
+                        if not recorder.is_file():
+                            compile_status = "failed"
+                            return fail("build has no recorder (.fls); current PDF input bindings are unavailable")
+                        recorded_inputs: set[Path] = set()
+                        recorder_cwd = paper_root.resolve()
+                        for line in _read_text(recorder).splitlines():
+                            if line.startswith("PWD "):
+                                recorder_cwd = Path(line[4:]).resolve()
+                            elif line.startswith("INPUT "):
+                                source = (recorder_cwd / line[6:]).resolve()
+                                if source.is_relative_to(build_dir):
+                                    continue
+                                if source.is_relative_to(project_root):
+                                    recorded_inputs.add(source)
+                                else:
+                                    # TeX distribution/fonts belong to the build
+                                    # environment; retain provenance without making
+                                    # another host reproduce these absolute paths.
+                                    _append_jsonl(trace_path, {"event": "environment_input", "path": str(source)})
+                        if manifest.main_tex.resolve() not in recorded_inputs:
+                            compile_status = "failed"
+                            return fail("recorder does not bind the declared mainTex")
+                        for key, expected in input_hashes.items():
+                            if _sha256_file(paper_root / key) != expected:
+                                compile_status = "failed"
+                                return fail(f"input changed during compilation: {key}")
+                        discovered = sorted(source for source in recorded_inputs if input_key(source) not in input_hashes)
+                        if not discovered:
+                            break
+                        if attempt == 1:
+                            compile_status = "failed"
+                            return fail("compilation discovered additional unbound inputs after the dependency discovery pass")
+                        # The discovery PDF cannot establish pre-compilation input
+                        # identity. Freeze these bytes and require one fresh build.
+                        for source in discovered:
+                            key, digest = input_key(source), _sha256_file(source)
+                            input_hashes[key] = digest
+                            _append_jsonl(trace_path, {"event": "discovered_input_hash", "ts": _utc_now(), "path": key, "sha256": digest})
+                        built_pdf.unlink()
+                        recorder.unlink()
+                        command.insert(1, "-g")
+                    for suffix in (".bbl", ".fls"):
+                        produced = build_dir / (manifest.main_tex.stem + suffix)
+                        if produced.is_file():
+                            produced.replace(paper_root / produced.name)
+                            output_hashes[produced.name] = _sha256_file(paper_root / produced.name)
+                    built_pdf.replace(output_pdf)
+                    output_hashes[output_pdf.name] = _sha256_file(output_pdf)
+                    if current_log:
+                        output_hashes[output_log.name] = _sha256_file(output_log)
+            except OSError as exc:
+                compile_status = "failed"
+                return fail(f"could not complete latexmk build: {exc}")
             compile_status = "ok"
             compile_details.update({"status": "ok", "exit_code": proc.returncode})
     elif args.dry_run:
@@ -726,31 +826,7 @@ def main() -> int:
 
     _append_jsonl(trace_path, {"event": "run_done", "ts": _utc_now()})
 
-    if not args.dry_run:
-        export_manifest = {
-            "schemaVersion": manifest.schema_version,
-            "tool": "research-writer",
-            "entrypoint": "consume_paper_manifest",
-            "generated_at_utc": _utc_now(),
-            "paper_manifest": _relpath_str(manifest.manifest_path, paper_root),
-            "paper": {
-                "main_tex": _relpath_str(manifest.main_tex, paper_root),
-                "bib": {
-                    "generated": _relpath_str(manifest.bib_generated, paper_root),
-                    "manual": _relpath_str(manifest.bib_manual, paper_root),
-                },
-                "figures_dir": _relpath_str(manifest.figures_dir, paper_root),
-            },
-            "compile": {
-                **compile_details,
-                "status": compile_status,
-                "pdf": "main.pdf" if (paper_root / "main.pdf").is_file() else None,
-                "log": "main.log" if (paper_root / "main.log").is_file() else None,
-            },
-            "run_card": run_card_info,
-            "trace": {"build_trace_jsonl": "build_trace.jsonl"},
-        }
-        _write_json(paper_root / "export_manifest.json", export_manifest)
+    export_result("ok")
 
     print(f"[consume_manifest] ok: validated paper at {paper_root}")
     return 0

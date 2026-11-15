@@ -25,6 +25,7 @@ import { TeamExecutionStateManager } from '../team-execution-storage.js';
 import { buildTeamLiveStatusView } from '../team-execution-view.js';
 import { buildTraceabilityView } from '../traceability-view.js';
 import { escapesBase } from '../computation/path-safety.js';
+import { readTaskBriefNavigation } from '../task-brief-navigation.js';
 
 export type VisibleRunStatusFilter =
   | 'idle'
@@ -227,9 +228,8 @@ function hasSubstantiveResearchNotebook(projectRoot: string): boolean {
   const notebookPath = path.join(projectRoot, 'research_notebook.md');
   if (!fs.existsSync(notebookPath)) return false;
   try {
-    // The machine-rendered current-state block is a view, not research
-    // content: a pristine scaffold carries one, so counting its lines would
-    // make every fresh notebook "substantive".
+    // Historical machine blocks contain navigation, not authored research.
+    // Current scaffolds are scientific outlines with no generated state block.
     const content = stripCurrentStateBlock(fs.readFileSync(notebookPath, 'utf-8'));
     const templateLines = currentNotebookTemplateLines();
     const lines = content
@@ -1682,6 +1682,7 @@ export function buildRunStatusView(
     workflowOutputs.current_run_workflow_outputs ? Object.keys(workflowOutputs.current_run_workflow_outputs) : [],
   );
   const recoveryContext = readRecoveryContextView(projectRoot, state, ledgerSnapshot, options);
+  const taskBrief = readTaskBriefNavigation(projectRoot);
   const repairProposal = readRepairProposalView(projectRoot, state);
   const optimizeProposal = readOptimizeProposalView(projectRoot, state);
   const innovateProposal = readInnovateProposalView(projectRoot, state);
@@ -1728,9 +1729,10 @@ export function buildRunStatusView(
     current_run_workflow_outputs_error: workflowOutputs.current_run_workflow_outputs_error,
     current_run_workflow_outputs_source: workflowOutputs.current_run_workflow_outputs_source,
     legacy_workflow_projection: workflowOutputs.legacy_workflow_projection,
-    resume_context: resumeContext,
+    resume_context: { ...resumeContext, task_brief: taskBrief },
     recovery_context: {
       ...recoveryContext,
+      task_brief: taskBrief,
       current_run: recoveryContext.current_run && typeof recoveryContext.current_run === 'object'
         ? {
             ...(recoveryContext.current_run as Record<string, unknown>),

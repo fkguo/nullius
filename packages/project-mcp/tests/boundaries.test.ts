@@ -10,6 +10,7 @@ import { boundPath, projectIdentity } from '../src/paths.js';
 import { coreArguments } from '../src/policy.js';
 import { acquireExecution, releaseExecution } from '../src/execution-lock.js';
 import { execute } from '../src/execute.js';
+import { cliArguments, cliDeliveryTimeout, cliSchema, cliWrites } from '../src/cli.js';
 
 const roots: string[] = [];
 function fixture() {
@@ -60,9 +61,9 @@ describe('single-project transport boundaries', () => {
     fs.symlinkSync(path.join(root, 'inputs'), path.join(root, 'linked'), 'dir');
     expect(() => boundPath(root, path.join(alias, 'linked', 'a.txt'))).toThrow('Symlinks are not accepted');
   });
-  it('requires create-only or matching hashes and returns bounded source bytes', async () => {
+  it.each(['inputs/example.txt', 'research_notebook.md'])('requires create-only or matching hashes for %s and returns bounded source bytes', async file => {
     const { adapter } = fixture();
-    const args = { path: 'inputs/example.txt', content: 'αβ example', expected_sha256: null };
+    const args = { path: file, content: 'αβ example', expected_sha256: null };
     const first = body(await adapter.call('project_file_write', args));
     expect(first.sha256).toBe(createHash('sha256').update(args.content).digest('hex'));
     expect((await adapter.call('project_file_write', args)).isError).toBe(true);
@@ -71,6 +72,40 @@ describe('single-project transport boundaries', () => {
     const chunk = body(await adapter.call('project_file_read', { path: args.path, max_bytes: 3 }));
     expect(Buffer.from(chunk.data, 'base64').toString()).toBe('cha');
     expect(chunk.next_offset).toBe(3);
+  });
+  it('exposes read-only notebook checks and executed reviews without the retired writer or arbitrary argv', async () => {
+    const { root, adapter } = fixture();
+    const cli = adapter.listTools().find(tool => tool.name === 'project_cli')!;
+    const actions = (cli.inputSchema.properties!.action as { enum: string[] }).enum;
+    expect(actions).toContain('notebook_check');
+    expect(actions).toContain('notebook_review');
+    expect(actions).not.toContain('notebook_sync');
+    expect((await adapter.call('project_cli', { action: 'notebook_sync', delivery_id: 'retired' })).isError).toBe(true);
+    expect(fs.readdirSync(root)).toEqual([]);
+    expect(cliWrites('notebook_check')).toBe(false);
+    expect(cliWrites('notebook_review')).toBe(true);
+    expect(cliArguments(root, { action: 'notebook_check', result_id: 'estimate', structure_only: true }))
+      .toEqual(['--project-root', root, 'notebook', 'check', '--result', 'estimate', '--structure-only', '--json']);
+    expect(() => cliArguments(root, { action: 'notebook_review', model: '--help' })).toThrow('one reviewer model');
+    expect(() => cliArguments(root, { action: 'notebook_review', model: 'fixture', dependencies: ['../outside'] })).toThrow('Unsafe project path');
+    expect(() => cliArguments(root, { action: 'notebook_review', model: 'fixture', resume_run_id: '../outside' })).toThrow('safe identifier');
+    expect(() => cliArguments(root, { action: 'notebook_review', model: 'fixture', argv: ['approve'] })).toThrow();
+  });
+  it('preserves the inner review timeout and bounded options while reserving delivery time for completion', () => {
+    const { root } = fixture();
+    const defaults = cliSchema.parse({ action: 'notebook_review', model: 'fixture' });
+    expect(cliDeliveryTimeout(defaults)).toBe(1260);
+    expect(cliDeliveryTimeout(cliSchema.parse({ action: 'init' }))).toBe(300);
+    expect(() => cliDeliveryTimeout({ ...defaults, timeout_seconds: 1259 })).toThrow('at least review_timeout_seconds + 60');
+    const args = cliSchema.parse({ action: 'notebook_review', model: 'fixture', review_timeout_seconds: 3540,
+      dependencies: ['--source.md'], resume_run_id: '20261115T000000-notebook-review-12345678',
+      context_bytes: 32000, context_tokens: 64000, snapshot_bytes: 128000, max_files: 12, max_batches: 8 });
+    expect(cliDeliveryTimeout(args)).toBe(3600);
+    expect(cliArguments(root, args)).toEqual(['--project-root', root, 'notebook', 'review', '--model', 'fixture',
+      '--timeout-secs', '3540', '--json', '--dependency', './--source.md', '--resume', '20261115T000000-notebook-review-12345678',
+      '--context-bytes', '32000', '--context-tokens', '64000', '--snapshot-bytes', '128000', '--max-files', '12', '--max-batches', '8']);
+    expect(cliSchema.safeParse({ ...args, review_timeout_seconds: 3541 }).success).toBe(false);
+    expect(cliSchema.safeParse({ ...args, context_bytes: Number.MAX_SAFE_INTEGER + 1 }).success).toBe(false);
   });
   it('reads historical evidence in chunks but refuses history writes and canonical duplicates', async () => {
     const { root, adapter } = fixture();
@@ -201,7 +236,7 @@ describe('single-project transport boundaries', () => {
     expect(body(await adapter.call('project_cli', { action: 'init', delivery_id: 'unknown' })).state).toBe('outcome_unknown');
     expect((await adapter.call('project_cli', { action: 'init', delivery_id: 'other' })).isError).toBe(true);
     expect((await adapter.call('project_file_write', { path: 'note.md', content: 'write', expected_sha256: null })).isError).toBe(true);
-    expect((await adapter.call('project_cli', { action: 'notebook_sync', delivery_id: 'unknown' })).isError).toBe(true);
+    expect((await adapter.call('project_cli', { action: 'index_sync', delivery_id: 'unknown' })).isError).toBe(true);
     expect(fs.existsSync(path.join(root, 'research_plan.md'))).toBe(false);
     releaseExecution(root, 'unknown');
   });

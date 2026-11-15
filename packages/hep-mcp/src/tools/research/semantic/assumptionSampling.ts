@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { extractSamplingText } from '../../../core/semantics/quantitySampling.js';
+import { extractSamplingText } from '../../../core/semantics/samplingUtils.js';
 
 const RefSchema = z.object({
   recid: z.string().min(1),

@@ -170,7 +170,12 @@ def test_converged_with_minors_withholds_fold_and_writes_marker(
     assert gate_verdict["status"] == "fail"
     marker = run_dir / f"{tag}_dispositions_pending.md"
     assert marker.is_file(), "pending marker must name the withheld fold"
-    assert "withheld" in marker.read_text(encoding="utf-8")
+    marker_text = marker.read_text(encoding="utf-8")
+    assert "withheld" in marker_text
+    assert "written-against" not in marker_text
+    assert "notebook sync" not in marker_text
+    assert "updated user notebook sections" in marker_text
+    assert "unscoped `nullius notebook check --json`" in marker_text
     assert "fold pending" in proc.stderr
     # The automatic plan fold was withheld: no converged progress entry for
     # this tag in the research plan.

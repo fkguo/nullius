@@ -2,7 +2,7 @@
 
 Use this to collect **primary-source arXiv LaTeX** for close reading and for extracting **general physics discussion logic** (argument structure, diagnostics, uncertainty narration, “bottom line” framing). This is **not** about superficial PRL formatting.
 
-For the distilled, reusable “how to discuss physics” guide, see:
+For optional questions to use when assessing a scientific argument, see:
 - `assets/style/physics_discussion_logic_playbook.md`
 
 ## Source (INSPIRE query)

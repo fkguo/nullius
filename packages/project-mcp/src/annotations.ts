@@ -21,6 +21,9 @@ export function riskFromExecutionPolicy(policy: ExecutionPolicy): ToolRiskLevel 
 export const PROJECT_LOCAL_TOOL_RISK_LEVELS: ToolRiskTable = {
   project_capabilities: 'read',
   project_file_read: 'read',
+  project_text_read: 'read',
+  project_file_search: 'read',
+  project_document_read: 'read',
   // Replaces a file when expected_sha256 matches its current hash.
   project_file_write: 'destructive',
   project_delivery_read: 'read',
@@ -39,6 +42,9 @@ const SAMPLING =
 export const PROJECT_TOOL_HINTS: ToolBehaviourHintTable = {
   project_capabilities: { openWorld: false, reason: 'Reports the bound project and transport capabilities.' },
   project_file_read: { openWorld: false, reason: LOCAL_READ },
+  project_text_read: { openWorld: false, reason: LOCAL_READ },
+  project_file_search: { openWorld: false, reason: 'Searches bounded regular project files without following symlinks or opening private configuration.' },
+  project_document_read: { openWorld: false, reason: 'Extracts text or renders selected pages from one bounded PDF snapshot with local Poppler tools.' },
   project_file_write: {
     idempotent: true,
     openWorld: false,
@@ -71,6 +77,9 @@ export const PROJECT_TOOL_HINTS: ToolBehaviourHintTable = {
 export const PROJECT_TOOL_TITLES: Readonly<Record<string, string>> = {
   project_capabilities: 'Project capabilities',
   project_file_read: 'Read project file',
+  project_text_read: 'Read source text',
+  project_file_search: 'Search project text',
+  project_document_read: 'Read PDF pages',
   project_file_write: 'Upload project file',
   project_delivery_read: 'Read delivery response',
   project_cli: 'Run nullius CLI action',

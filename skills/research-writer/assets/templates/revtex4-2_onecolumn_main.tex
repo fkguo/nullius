@@ -1,78 +1,28 @@
-% RevTeX4-2 (12pt, onecolumn) skeleton — research-writer
+% Blank RevTeX 4.2 format template. No scientific content has been selected.
 \documentclass[aps,prd,preprint,12pt]{revtex4-2}
-
 \usepackage{amsmath,amssymb}
 \usepackage{bm}
 \usepackage{graphicx}
 \usepackage{url}
 \usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
 
-% Keep macros minimal and explicit (portable across engines).
-\newcommand{\md}{\mathrm{d}}
-
 \begin{document}
-
 \title{TITLE (placeholder)}
-% RevTeX4-2 front matter. Uncomment and fill the lines you need; leave the
-% \title{...} and \author{...} lines above/below in place — the scaffold fills
-% their placeholder text by literal substitution, so do not rename the braces.
-% \thanks{...}         % footnote on the title (e.g. dedication, prior-work note)
 \author{AUTHOR(S) (placeholder)}
-% \email{name@institution.edu}          % attaches to the immediately preceding \author
-% \affiliation{Institution, Department, City, Country}  % repeat per author group
-% \collaboration{Collaboration name}    % use with \noaffiliation if a group byline
-% \affiliation ordering: RevTeX groups authors by the \affiliation lines that
-% follow them; put each \email/\thanks right after its own \author.
-% \date{\today}  % reproducibility: set a fixed date if you care about byte-identical builds
+% Add real author affiliations and contact details as appropriate.
 \date{}
 
-% PACS / keywords slot (optional; place after \begin{abstract}...\end{abstract},
-% i.e. just before \maketitle). Uncomment to expose:
-% \pacs{11.15.-q, 12.38.-t}             % legacy PACS codes (journal-dependent)
-% \keywords{keyword one; keyword two}   % free-form keywords
-
 \begin{abstract}
-% Write a mechanism-first abstract:
-% context → method/constraints → headline quantitative results → interpretation/limitations.
-\textbf{[TODO: abstract | source: \texttt{Draft\_Derivation.md} Sec.(fill)]}
+\textbf{TODO: write an abstract after establishing the manuscript's claims.}
 \end{abstract}
-
 \maketitle
 
-\section{Introduction}
-\textbf{[TODO: introduction | source: \texttt{Draft\_Derivation.md} Sec.(fill)]}
-
-\section{Theory / Formalism}
-% Do not invent derivations. Point to the notebook sections that contain them.
-\textbf{[TODO: formalism + key equations | source: \texttt{Draft\_Derivation.md} Sec.(fill)]}
-% __DERIVATION_EXCERPT__
-
-\section{Results}
-% Quote numbers only with provenance pointers:
-%   artifact: <path>, key: <json/csv key>
-% __RESULTS_SECTION_BODY__
-
-\section{Discussion and outlook}
-% Suggested flow: bottom line → mechanism → diagnostics → comparison → limitations/outlook.
-\textbf{[TODO: discussion | source: \texttt{Draft\_Derivation.md} Sec.(fill)]}
-
-\appendix
-
-\section{Results provenance}
-% Minimal, arXiv-safe provenance table (paths are internal to the project bundle).
-\begin{table}[h]
-\centering
-\begin{tabular}{p{0.22\linewidth} p{0.60\linewidth}}
-\hline
-Quantity & Provenance (artifact path + key) \\
-\hline
-% __PROVENANCE_ROWS__
-\hline
-\end{tabular}
-\caption{Results provenance (auto-generated; fill/extend as needed).}
-\end{table}
+% Choose the section structure for this research question and publication target.
+% Write here, or use \input{sections/...} to include the real section files.
+% Read research_notebook.md, the contract, sources, and result artifacts first.
+% Copying a source filename or a citation into prose does not validate a claim.
+\textbf{TODO: write the manuscript from the research evidence.}
 
 \bibliographystyle{apsrev4-2}
 \bibliography{references}
-
 \end{document}

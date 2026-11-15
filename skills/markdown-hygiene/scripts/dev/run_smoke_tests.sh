@@ -10,8 +10,8 @@ DOC="${TMP_DIR}/toc.md"
 cat >"${DOC}" <<'MD'
 ## Table of Contents
 
-- [$\\gamma\\_{\\rm lin}$](#gamma)
-- [$G\\_R$ and $k^\\*$](#more)
+- [$\gamma\_{\rm lin}$](#gamma)
+- [$G\_R$ and $k^\*$](#more)
 
 ---
 
@@ -39,8 +39,8 @@ python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${DOC}"
 
 grep -F '$\gamma_{\rm lin}$' "${DOC}" >/dev/null
 grep -F '$G_R$ and $k^*$' "${DOC}" >/dev/null
-grep -F 'Body math: $\Delta + \alpha$.' "${DOC}" >/dev/null
-grep -F 'Inline code $\Delta$ stays as code.' "${DOC}" >/dev/null
+grep -F 'Body math: $\\Delta + \\alpha$.' "${DOC}" >/dev/null
+grep -F 'Inline code $\\Delta$ stays as code.' "${DOC}" >/dev/null
 grep -F '$\\Delta$ stays as code.' "${DOC}" >/dev/null
 grep -F '{}=\frac12 C.' "${DOC}" >/dev/null
 
@@ -488,3 +488,6 @@ JSON
 python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${JSON_ONLY_DIR}" --human-facing
 
 echo "[ok] markdown-hygiene smoke tests passed"
+
+echo "[smoke] preserve legitimate mathematical row breaks"
+python3 -m pytest -q "${SKILL_DIR}/tests/test_math_preservation.py"

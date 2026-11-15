@@ -99,20 +99,22 @@ def test_capture_rejects_brief_hardlink_as_source(tmp_path):
     rejected_without_writes(root, "capture", "inputs/brief-copy.md")
 
 
-def test_check_rejects_sources_that_became_hardlink_aliases(tmp_path):
+@pytest.mark.parametrize("action", ["check", "restore"])
+def test_check_rejects_sources_that_became_hardlink_aliases(tmp_path, action):
     root = fixture(tmp_path)
     captured(root, "inputs/first.md", "inputs/second.md")
     (root / "inputs/second.md").unlink()
     link(root / "inputs/first.md", root / "inputs/second.md")
-    rejected_without_writes(root, "check")
+    rejected_without_writes(root, action)
 
 
-def test_check_rejects_source_replaced_by_a_hardlink_to_brief(tmp_path):
+@pytest.mark.parametrize("action", ["check", "restore"])
+def test_check_rejects_source_replaced_by_a_hardlink_to_brief(tmp_path, action):
     root = fixture(tmp_path)
     captured(root, "inputs/first.md")
     (root / "inputs/first.md").unlink()
     link(root / BRIEF, root / "inputs/first.md")
-    rejected_without_writes(root, "check")
+    rejected_without_writes(root, action)
 
 
 @pytest.mark.parametrize("alternate", ["inputs/./first.md", "inputs//first.md"])

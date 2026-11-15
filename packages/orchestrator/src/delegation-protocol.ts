@@ -119,7 +119,9 @@ function renderProtocolValue(value: object | string[] | string | number | boolea
   }
   if (value && typeof value === 'object') {
     return Object.entries(value)
-      .map(([key, entry]) => Array.isArray(entry) ? `${key}:\n${renderProtocolValue(entry)}` : `${key}: ${String(entry)}`)
+      .map(([key, entry]) => Array.isArray(entry)
+        ? `${key}:\n${renderProtocolValue(entry)}`
+        : `${key}: ${entry !== null && typeof entry === 'object' ? JSON.stringify(entry) : String(entry)}`)
       .join('\n');
   }
   return String(value);

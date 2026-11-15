@@ -126,6 +126,34 @@ describe('declared evidence hierarchy transport (no semantic model judgment)', (
     write('evidence.json', JSON.stringify({ schema_version: 1, sources: ['one.md'] }));
   }
   function declared(extra: string[] = []) { return review(['--evidence-manifest', 'evidence.json', ...extra]); }
+  it('binds declared source run validity to both review stages and refuses stale resume', async () => {
+    material();
+    write('artifacts/runs/declared-premise/result.md', '# Original premise\n\nA declared original with explicit limitations.\n');
+    write('evidence.json', JSON.stringify({ schema_version: 1, sources: ['one.md', 'artifacts/runs/declared-premise/result.md'] }));
+    const first = await declared(); expect(first.code, first.stdout + first.stderr).toBe(0);
+    const dir = path.join(root, 'artifacts/runs', first.value.run_id);
+    const scope = JSON.parse(fs.readFileSync(path.join(dir, 'inputs/notebook-scope.json'), 'utf8'));
+    expect(scope.run_states).toEqual([{ run_id: 'declared-premise', state: null }]);
+    const execution = JSON.parse(fs.readFileSync(path.join(dir, 'batch_execution.json'), 'utf8'));
+    for (const entry of execution.entries) {
+      const receipt = JSON.parse(fs.readFileSync(path.join(dir, decodeURIComponent(entry.receipt_ref.uri.split('/artifact/')[1])), 'utf8'));
+      const inventory = JSON.parse(fs.readFileSync(path.join(dir, decodeURIComponent(receipt.inventory_ref.uri.split('/artifact/')[1])), 'utf8'));
+      expect(inventory.run_states).toEqual(scope.run_states);
+    }
+    write('artifacts/runs/unrelated/result.md', 'An unrelated source.\n');
+    expect((await cli(['trace', 'stamp', 'artifacts/runs/unrelated'])).code).toBe(0);
+    expect((await cli(['trace', 'void', 'unrelated', '--reason', 'Unrelated correction'])).code).toBe(0);
+    expect(checkNotebookContentReview(root).status).toBe('accepted');
+    const resumed = await declared(['--resume', first.value.run_id]);
+    expect(resumed.code, resumed.stdout + resumed.stderr).toBe(0);
+    expect((await cli(['trace', 'void', 'declared-premise', '--reason', 'Original premise withdrawn'])).code).toBe(0);
+    expect(checkNotebookContentReview(root).status).toBe('stale');
+    const stale = await declared(['--resume', resumed.value.run_id]);
+    expect(stale.code).toBe(2); expect(stale.value.reason).toContain('Referenced run validity or identity changed');
+    const fresh = await declared(); expect(fresh.code, fresh.stdout + fresh.stderr).toBe(0);
+    const current = JSON.parse(fs.readFileSync(path.join(root, 'artifacts/runs', fresh.value.run_id, 'inputs/notebook-scope.json'), 'utf8'));
+    expect(current.run_states).toMatchObject([{ run_id: 'declared-premise', state: { validity: 'void' } }]);
+  }, 60000);
   it('packs multiple files and sends complete notebook with canonical receipts and original excerpts', async () => {
     material();
     const result = await declared(); expect(result.code, result.stdout + result.stderr).toBe(0);

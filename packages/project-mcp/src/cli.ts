@@ -5,8 +5,12 @@ import { invalidParams } from '@nullius/shared';
 import { boundPath, safeId } from './paths.js';
 import { jsonResult } from './result.js';
 
+export const DEFAULT_NOTEBOOK_REVIEW_TIMEOUT_SECONDS = 1200;
+const REVIEW_COMPLETION_SECONDS = 60;
+const positiveBudget = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional();
+
 export const cliSchema = z.object({
-  action: z.enum(['init', 'status', 'current', 'notebook_sync', 'index_sync', 'report_validate', 'result_set_current', 'trace', 'decision_record']),
+  action: z.enum(['init', 'status', 'current', 'notebook_check', 'notebook_review', 'index_sync', 'report_validate', 'result_set_current', 'trace', 'decision_record']),
   delivery_id: z.string().optional(),
   timeout_seconds: z.number().int().min(1).max(3600).optional(),
   mode: z.enum(['file', 'engine']).optional(),
@@ -16,15 +20,59 @@ export const cliSchema = z.object({
   artifact: z.string().optional(),
   description: z.string().optional(),
   text: z.string().optional(),
+  structure_only: z.boolean().optional(),
+  model: z.string().min(1).optional(),
+  dependencies: z.array(z.string()).optional(),
+  resume_run_id: z.string().optional(),
+  review_timeout_seconds: z.number().int().min(1).max(3540).optional(),
+  context_bytes: positiveBudget,
+  context_tokens: positiveBudget,
+  snapshot_bytes: positiveBudget,
+  max_files: positiveBudget,
+  max_batches: positiveBudget,
 }).strict();
-export function cliWrites(action: string): boolean { return !['status', 'current', 'report_validate'].includes(action); }
+export function cliWrites(action: string): boolean { return !['status', 'current', 'notebook_check', 'report_validate'].includes(action); }
+
+/** Keep the transport deadline outside the review's own execution budget so
+ * the canonical reviewer can record its outcome and finish verification. */
+export function cliDeliveryTimeout(args: z.infer<typeof cliSchema>): number {
+  if (args.action !== 'notebook_review') return args.timeout_seconds ?? 300;
+  const minimum = (args.review_timeout_seconds ?? DEFAULT_NOTEBOOK_REVIEW_TIMEOUT_SECONDS) + REVIEW_COMPLETION_SECONDS;
+  if (args.timeout_seconds !== undefined && args.timeout_seconds < minimum) {
+    throw invalidParams(`notebook_review timeout_seconds must be at least review_timeout_seconds + ${REVIEW_COMPLETION_SECONDS} (${minimum} seconds).`);
+  }
+  return args.timeout_seconds ?? minimum;
+}
+
 export function cliArguments(root: string, input: unknown): string[] {
   const args = cliSchema.parse(input);
   const prefix = ['--project-root', root];
   switch (args.action) {
     case 'init': return [...prefix, 'init', ...(args.runtime_only ? ['--runtime-only'] : ['--mode', args.mode ?? 'file'])];
     case 'status': case 'current': return [...prefix, args.action, '--json'];
-    case 'notebook_sync': return [...prefix, 'notebook', 'sync', '--json'];
+    case 'notebook_check': return [...prefix, 'notebook', 'check',
+      ...(args.result_id ? ['--result', safeId(args.result_id)] : []),
+      ...(args.structure_only ? ['--structure-only'] : []), '--json'];
+    case 'notebook_review': {
+      if (!args.model?.trim() || args.model.startsWith('-') || args.model.includes(',')) {
+        throw invalidParams('notebook_review requires one reviewer model spec.');
+      }
+      const values = [...prefix, 'notebook', 'review', '--model', args.model,
+        '--timeout-secs', String(args.review_timeout_seconds ?? DEFAULT_NOTEBOOK_REVIEW_TIMEOUT_SECONDS), '--json'];
+      for (const dependency of args.dependencies ?? []) {
+        // Prefix relative paths so even a filename beginning with '-' stays
+        // an option value at the canonical parser boundary.
+        values.push('--dependency', `./${path.relative(root, boundPath(root, dependency)).split(path.sep).join('/')}`);
+      }
+      if (args.resume_run_id) values.push('--resume', safeId(args.resume_run_id));
+      for (const [field, flag] of [
+        ['context_bytes', '--context-bytes'], ['context_tokens', '--context-tokens'],
+        ['snapshot_bytes', '--snapshot-bytes'], ['max_files', '--max-files'], ['max_batches', '--max-batches'],
+      ] as const) {
+        if (args[field] !== undefined) values.push(flag, String(args[field]));
+      }
+      return values;
+    }
     case 'index_sync': return [...prefix, 'index', 'sync', '--json'];
     case 'report_validate': return [...prefix, 'report-validate'];
     case 'trace': {

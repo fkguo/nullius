@@ -52,6 +52,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -86,7 +87,8 @@ _DROP_DIRS = frozenset({".git", ".svn", ".hg", "__pycache__", ".ipynb_checkpoint
 # traceability.py convention; \input/\include match consume_paper_manifest.py.
 _RE_INCLUDEGRAPHICS = re.compile(r"\\includegraphics\*?\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
 _RE_INPUT = re.compile(r"\\(?:input|include)\s*\{([^}]+)\}")
-_RE_BIBLIOGRAPHY = re.compile(r"^[^%\n]*\\bibliography\s*\{([^}]*)\}", re.MULTILINE)
+_RE_BIBLIOGRAPHY = re.compile(r"\\bibliography\s*\{([^}]*)\}")
+_RE_ADDBIBRESOURCE = re.compile(r"\\addbibresource\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
 
 # Extensions LaTeX will silently supply for \includegraphics{stem} (no dot in
 # the final path component). Order matches a typical pdflatex graphics.cfg.
@@ -195,6 +197,9 @@ def _stage_tree(build_dir: Path, out_dir: Path, res: PackageResult) -> None:
         # Resolve the real bytes (dereference). A dangling symlink is a hard
         # failure: arXiv would otherwise ship a broken link.
         real = src.resolve()
+        if not real.is_relative_to(build_dir.resolve()):
+            res.defects.append(f"{rel.as_posix()}: dependency escapes the build directory: {real}")
+            continue
         if not real.is_file():
             res.defects.append(
                 f"{rel.as_posix()}: symlink/target does not resolve to a real file "
@@ -252,7 +257,20 @@ def _inline_bbl(out_dir: Path, main_tex: Path, res: PackageResult) -> None:
         res.bib_copied = any(p.suffix.lower() == ".bib" for p in res.staged_files)
         return
     text = _read_text(main_tex)
-    m = _RE_BIBLIOGRAPHY.search(text)
+    # Keep offsets into the original text; comments are not replacement sites.
+    code = "\n".join(
+        line if _comment_start(line) is None else line[:_comment_start(line)].ljust(len(line))
+        for line in text.split("\n")
+    )
+    matches = list(_RE_BIBLIOGRAPHY.finditer(code))
+    if len(matches) > 1:
+        res.defects.append("multiple bibliography commands; cannot unambiguously inline the .bbl")
+        return
+    if not matches:
+        # An already inlined bibliography or an explicit \\input must remain
+        # unchanged. Appending .bbl again would duplicate the bibliography.
+        return
+    m = matches[0]
     bbl_body = _read_text(bbl).strip("\n")
     inlined_block = (
         "% __bbl_inlined_by_research_writer_package_arxiv__: "
@@ -260,16 +278,7 @@ def _inline_bbl(out_dir: Path, main_tex: Path, res: PackageResult) -> None:
         + bbl_body
         + "\n"
     )
-    if m is not None:
-        new_text = text[: m.start()] + inlined_block + text[m.end():]
-    else:
-        # No \bibliography line to replace (e.g. already inlined): drop the .bbl
-        # in just before \end{document} so the bibliography still ships.
-        end_doc = text.rfind("\\end{document}")
-        if end_doc == -1:
-            new_text = text.rstrip("\n") + "\n" + inlined_block
-        else:
-            new_text = text[:end_doc] + inlined_block + text[end_doc:]
+    new_text = text[: m.start()] + inlined_block + text[m.end():]
     _write_text(main_tex, new_text)
     res.bbl_inlined = bbl.relative_to(out_dir).as_posix()
     # The .bbl is now inlined; drop the standalone copy so it is not duplicated.
@@ -306,6 +315,11 @@ def _scan_refs(out_dir: Path) -> list[Ref]:
                         kind=kind,
                     )
                 )
+        for regex in (_RE_BIBLIOGRAPHY, _RE_ADDBIBRESOURCE):
+            for m in regex.finditer(code_text):
+                for target in m.group(1).split(","):
+                    refs.append(Ref(path_as_written=target.strip(), tex_file=rel_tex,
+                                    line=code_text.count("\n", 0, m.start()) + 1, kind="bibliography"))
     return refs
 
 
@@ -367,8 +381,8 @@ def _resolve_ref_on_disk(out_dir: Path, ref: Ref) -> Path | None:
         actual = _actual_entry_name(parent, written_name)
         return parent / actual if actual is not None else None
     # Extension-less \input{stem} -> stem.tex
-    if ref.kind == "input":
-        actual = _actual_entry_name(parent, written_name + ".tex")
+    if ref.kind in {"input", "bibliography"}:
+        actual = _actual_entry_name(parent, written_name + (".bib" if ref.kind == "bibliography" else ".tex"))
         return parent / actual if actual is not None else None
     # Extension-less \includegraphics{stem} -> LaTeX's implicit extension search.
     if ref.kind == "graphics":
@@ -381,7 +395,7 @@ def _resolve_ref_on_disk(out_dir: Path, ref: Ref) -> Path | None:
 
 def _cmd_label(kind: str) -> str:
     """Human-facing macro name for a reference kind (for defect messages)."""
-    return "includegraphics" if kind == "graphics" else "input/include"
+    return {"graphics": "includegraphics", "bibliography": "bibliography/addbibresource"}.get(kind, "input/include")
 
 
 def _check_ref_portability(out_dir: Path, ref: Ref) -> list[str]:
@@ -406,13 +420,18 @@ def _check_ref_portability(out_dir: Path, ref: Ref) -> list[str]:
             "use a path relative to the paper directory"
         )
         return out  # cannot meaningfully case-check an absolute path
+    if not (out_dir / norm).resolve().is_relative_to(out_dir.resolve()):
+        out.append(f"{where}: \\{cmd} target {norm!r} escapes the staged paper directory")
+        return out
     # Case check: the basename as written (extension included, if any) must match
     # the on-disk entry exactly. On a case-sensitive Linux TeX install a mismatch
     # (\includegraphics{fig.PDF} vs staged fig.pdf, or Fig vs fig) is a build
     # failure; a case-insensitive host FS would otherwise hide it, so we compare
     # against the true-case directory entry, never a constructed path.
     on_disk = _resolve_ref_on_disk(out_dir, ref)
-    if on_disk is not None:
+    if on_disk is None:
+        out.append(f"{where}: \\{cmd} target {raw!r} is missing or not statically resolvable in the staged directory")
+    else:
         written_name = os.path.basename(norm)
         actual_name = on_disk.name
         # Extension-less \includegraphics{stem}: written_name has no extension,
@@ -467,37 +486,54 @@ def package(build_dir: Path, out_dir: Path, *, main_tex_override: str | None, fo
         return PackageResult(), f"--build-dir is not a directory: {build_dir}"
     if out_dir.resolve() == build_dir.resolve():
         return PackageResult(), "--out-dir must differ from --build-dir (staging is a separate clean copy)"
+    if build_dir.resolve().is_relative_to(out_dir.resolve()):
+        return PackageResult(), "--out-dir must not contain --build-dir"
     try:
         out_dir.resolve().relative_to(build_dir.resolve())
         return PackageResult(), "--out-dir must not be inside --build-dir"
     except ValueError:
         pass
-    if out_dir.exists():
-        if not force:
-            return PackageResult(), f"--out-dir already exists: {out_dir} (use --force to overwrite)"
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
+    if out_dir.exists() and not force:
+        return PackageResult(), f"--out-dir already exists: {out_dir} (use --force to overwrite)"
     res = PackageResult()
-    _stage_tree(build_dir, out_dir, res)
-    if res.defects:
-        return res, None  # dangling-symlink defects: report before touching .tex
-
-    main_tex, err = _find_main_tex(out_dir, main_tex_override)
-    if err is not None:
-        res.defects.append(err)
+    staging: Path | None = None
+    backup: Path | None = None
+    try:
+        out_dir.parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=f".{out_dir.name}-", dir=out_dir.parent))
+        _stage_tree(build_dir, staging, res)
+        if res.defects:
+            return res, None
+        main_tex, err = _find_main_tex(staging, main_tex_override)
+        if err is not None:
+            res.defects.append(err)
+            return res, None
+        assert main_tex is not None
+        res.main_tex_rel = main_tex.relative_to(staging).as_posix()
+        _inline_bbl(staging, main_tex, res)
+        for ref in _scan_refs(staging):
+            res.defects.extend(_check_ref_portability(staging, ref))
+        if res.defects:
+            return res, None
+        _emit_checksums(staging, res)
+        if out_dir.exists():
+            backup = Path(tempfile.mkdtemp(prefix=f".{out_dir.name}-previous-", dir=out_dir.parent))
+            out_dir.rename(backup / "bundle")
+        try:
+            staging.rename(out_dir)
+            staging = None
+        except OSError:
+            if backup is not None:
+                (backup / "bundle").rename(out_dir)
+            raise
         return res, None
-    assert main_tex is not None
-    res.main_tex_rel = main_tex.relative_to(out_dir).as_posix()
-
-    _inline_bbl(out_dir, main_tex, res)
-
-    for ref in _scan_refs(out_dir):
-        res.defects.extend(_check_ref_portability(out_dir, ref))
-
-    # Always emit the manifest so a failed run still records what was staged.
-    _emit_checksums(out_dir, res)
-    return res, None
+    except OSError as exc:
+        return res, f"could not stage paper files: {exc}"
+    finally:
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
+        if backup is not None and (staging is None or not (backup / "bundle").exists()):
+            shutil.rmtree(backup, ignore_errors=True)
 
 
 def main() -> int:
@@ -529,7 +565,7 @@ def main() -> int:
     if not res.ok:
         for d in res.defects:
             print(f"[package-arxiv] DEFECT {d}")
-        print(f"[package-arxiv] NOT_READY: {len(res.defects)} portability defect(s); staging at {out_dir} is NOT safe to upload")
+        print(f"[package-arxiv] NOT_READY: {len(res.defects)} portability defect(s); previous destination left unchanged")
         return 2
 
     print(

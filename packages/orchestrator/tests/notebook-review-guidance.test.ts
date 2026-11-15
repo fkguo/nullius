@@ -115,12 +115,18 @@ describe('notebook review instruction drift', () => {
     expect(help).toContain(`Default hard budget: ${parsed.timeoutSecs} seconds, max ${defaults.maxBatches} calls`);
   });
 
-  it('keeps the generated notebook instructions aligned with bounded semantic review', () => {
-    const prose = read('packages/project-contracts/src/project_contracts/scaffold_templates/research_notebook.md').replace(/\s+/g, ' ');
-    expect(prose).toContain('bounded calls');
-    expect(prose).toContain('one attempt per call and no automatic retry');
-    expect(prose).toContain(`default hard ${parsed.timeoutSecs}-second timeout`);
-    expect(prose).not.toMatch(/review executes (?:a real reviewer )?once/i);
+  it('generates user scientific notes while keeping execution guidance reachable by agents', async () => {
+    const root = project();
+    await cli(root, ['init']);
+    const notes = fs.readFileSync(path.join(root, 'research_notebook.md'), 'utf8');
+    expect(notes).toContain('## Methods and derivations');
+    expect(notes).toContain('failed approaches');
+    expect(notes).toContain('provisional');
+    expect(notes).not.toMatch(/nullius |NOTEBOOK_CURRENT_STATE|written-against|notebook-section-role|SHA-256/);
+    const guidance = readInstructionDocuments(path.join(root, 'AGENTS.md'));
+    expect(guidanceIssues(guidance)).toEqual([]);
+    expect(guidance).toContain('nullius notebook review --model');
+    expect(guidance).toContain('nullius notebook check --json');
   });
 
   it('renders current review guidance in the executable adjudication builder', () => {

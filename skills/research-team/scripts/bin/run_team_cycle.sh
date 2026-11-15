@@ -216,7 +216,7 @@ fail_host_native_shell_runner() {
 should_warn_gate_in_exploration() {
   local gate="${1:-}"
   case "${gate}" in
-    project_map_gate|agents_anchor_gate|notebook_integrity_gate|research_plan_gate|project_charter_gate|milestone_dod_gate|scan_dependency_gate|branch_semantics_gate|knowledge_layers_gate|literature_trace_gate|problem_framing_snapshot_gate|markdown_math_hygiene_gate|markdown_math_portability_gate|double_backslash_math_gate|markdown_link_hygiene_gate|latex_macro_hygiene_gate|references_gate|packet_completeness_gate|evidence_manifest_gate|claim_graph_gate|claim_trajectory_link_gate|pointer_lint_gate|evidence_schema_gate|clean_room_gate|logic_isolation_gate|independent_reproduction_gate|convention_mapping_gate)
+    project_map_gate|agents_anchor_gate|notebook_integrity_gate|research_plan_gate|project_charter_gate|milestone_dod_gate|scan_dependency_gate|branch_semantics_gate|knowledge_layers_gate|literature_trace_gate|problem_framing_snapshot_gate|markdown_math_hygiene_gate|markdown_math_portability_gate|markdown_link_hygiene_gate|latex_macro_hygiene_gate|references_gate|packet_completeness_gate|evidence_manifest_gate|claim_graph_gate|claim_trajectory_link_gate|pointer_lint_gate|evidence_schema_gate|clean_room_gate|logic_isolation_gate|convention_mapping_gate)
       return 0
       ;;
     *)
@@ -906,7 +906,6 @@ NOTEBOOK_INTEGRITY_SCRIPT="${GATES_DIR}/check_notebook_integrity.py"
 DEBT_GATE_SCRIPT="${GATES_DIR}/check_exploration_debt.py"
 MD_MATH_HYGIENE_GATE_SCRIPT="${GATES_DIR}/check_markdown_math_hygiene.py"
 MD_MATH_PORTABILITY_GATE_SCRIPT="${GATES_DIR}/check_markdown_math_portability.py"
-DBS_MATH_GATE_SCRIPT="${GATES_DIR}/check_double_backslash_math.py"
 MD_LINK_HYGIENE_GATE_SCRIPT="${GATES_DIR}/check_markdown_link_hygiene.py"
 LATEX_MACRO_HYGIENE_GATE_SCRIPT="${GATES_DIR}/check_markdown_latex_macro_hygiene.py"
 PLAN_UPDATE_SCRIPT="${SCRIPT_DIR}/update_research_plan_progress.py"
@@ -1558,51 +1557,6 @@ if [[ -f "${PROBLEM_FRAMING_GATE_SCRIPT}" ]]; then
       else
         echo "[gate] Fail-fast: Problem Framing Snapshot check failed. Fill research_preflight.md (or run auto-fill) before running the team cycle." >&2
         exit ${problem_framing_code}
-      fi
-    fi
-  fi
-fi
-
-# Preflight: global double-backslash math gate (key docs + knowledge_base).
-# Runs after deterministic auto-fills (research_plan / research_preflight) and before other Markdown hygiene gates.
-if [[ -f "${DBS_MATH_GATE_SCRIPT}" ]]; then
-  set +e
-  python3 "${DBS_MATH_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
-  dbs_code=$?
-  set -e
-  if [[ ${dbs_code} -ne 0 ]]; then
-    # Deterministic auto-fix hook (no external LLM calls).
-    AUTO_FIX_SCRIPT="${SCRIPT_DIR}/fix_markdown_double_backslash_math.py"
-    AUTO_FIX_ENABLED="0"
-    if [[ -f "${AUTO_FIX_SCRIPT}" ]]; then
-      AUTO_FIX_ENABLED="$(python3 "${AUTOFILL_ENABLED_SCRIPT}" --notes "${NOTEBOOK_PATH}")"
-    fi
-    if [[ "${AUTO_FIX_ENABLED}" == "1" && -f "${AUTO_FIX_SCRIPT}" ]]; then
-      echo "[info] double-backslash math gate failed; attempting deterministic autofix of key Markdown targets" >&2
-      set +e
-      python3 "${AUTO_FIX_SCRIPT}" --notes "${NOTEBOOK_PATH}" --in-place
-      fix_code=$?
-      set -e
-      if [[ ${fix_code} -eq 0 ]]; then
-        set +e
-        python3 "${DBS_MATH_GATE_SCRIPT}" --notes "${NOTEBOOK_PATH}"
-        dbs_code=$?
-        set -e
-      fi
-    fi
-
-    if [[ ${dbs_code} -ne 0 ]]; then
-      echo "" >&2
-      if [[ ${dbs_code} -eq 2 ]]; then
-        echo "[error] double-backslash math gate errored (input/config). Fix the config/paths and rerun." >&2
-        exit ${dbs_code}
-      fi
-      if [[ "${PROJECT_STAGE}" == "exploration" ]] && should_warn_gate_in_exploration "double_backslash_math_gate"; then
-        echo "[warn] (exploration) double-backslash math check failed; continuing. Fix accidental '\\\\' escapes before switching to development." >&2
-        record_exploration_debt "double_backslash_math_gate" "${dbs_code}" "double-backslash escapes found in Markdown math regions"
-      else
-        echo "[gate] Fail-fast: double-backslash math check failed. Fix accidental '\\\\' escapes in Markdown math (or run fix_markdown_double_backslash_math.py) before running the team cycle." >&2
-        exit ${dbs_code}
       fi
     fi
   fi
@@ -2993,11 +2947,12 @@ if [[ ${#sidecar_outs[@]} -gt 0 ]]; then
 fi
 cycle_state_update "member_reports" "done" "running" ""
 
-# Postflight (full_access): evidence + clean-room + independent reproduction gates.
+# Postflight: deterministic evidence, clean-room and isolation checks.
+# Fresh source assessment belongs to the mandatory final convergence consumer.
+# Phase 2 consultation can examine reports but cannot grant confirmation.
 post_gates=(
   "evidence_schema_gate:${GATES_DIR}/check_member_evidence.py"
   "clean_room_gate:${GATES_DIR}/check_clean_room.py"
-  "independent_reproduction_gate:${GATES_DIR}/check_independent_reproduction.py"
   "logic_isolation_gate:${GATES_DIR}/check_logic_isolation.py"
   "convention_mapping_gate:${GATES_DIR}/check_convention_mappings.py"
 )
@@ -3031,10 +2986,6 @@ for entry in "${post_gates[@]}"; do
       [[ -n "${MEMBER_A_WORKSPACE_ID}" ]] && _clean_room_args+=( --workspace-id-a "${MEMBER_A_WORKSPACE_ID}" )
       [[ -n "${MEMBER_B_WORKSPACE_ID}" ]] && _clean_room_args+=( --workspace-id-b "${MEMBER_B_WORKSPACE_ID}" )
       python3 "${gate_script}" "${_clean_room_args[@]}"
-      gate_code=$?
-      ;;
-    independent_reproduction_gate)
-      python3 "${gate_script}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --member-a "${member_a_evidence}" --member-b "${member_b_evidence}" --project-root "${PROJECT_ROOT}" --assessor-model "${INDEPENDENCE_ASSESSOR_SPEC:-claude/opus}" "${independence_assessor_capacity_flags[@]}" --out-json "${run_dir}/independent_reproduction_gate.json"
       gate_code=$?
       ;;
     logic_isolation_gate)
@@ -3542,16 +3493,17 @@ else
     echo ""
     echo "The cycle converged, but the fold guards below are not satisfied:"
     echo "- dispositions gate: $([[ ${dispositions_ok} -eq 1 ]] && echo satisfied || echo PENDING) (every recorded Minor Issue owes an explicit disposition)"
-    echo "- result registration gate: $([[ ${registration_ok} -eq 1 ]] && echo satisfied || echo PENDING) (headline result / supersessions / rewritten-section stamps declared and on the record)"
+    echo "- result registration gate: $([[ ${registration_ok} -eq 1 ]] && echo satisfied || echo PENDING) (headline result / supersessions / updated notebook sections declared and current whole-notebook review accepted)"
     echo ""
     echo "Before folding results:"
     echo "1. Build the adjudication skeleton: scripts/bin/build_adjudication_response.py (its template carries both the disposition table and the 'Result registration' declaration section)"
     echo "2. Fill every disposition row (fix now / acceptance point <name> / discard: <reason>)"
-    echo "3. Register the traceability updates the adjudication declares: \`nullius result set-current <result-id> --run <run_id> --artifact <path>\` (or declare \`none — <reason>\`), \`nullius trace supersede <old> --by <new> --reason \"...\"\` per replaced run, and a fresh \`<!-- written-against: <commit> -->\` stamp on each rewritten memo section"
-    echo "4. Re-run both gates:"
+    echo "3. Register the traceability updates the adjudication declares: \`nullius result set-current <result-id> --run <run_id> --artifact <path>\` (or declare \`none — <reason>\`), \`nullius trace supersede <old> --by <new> --reason \"...\"\` per replaced run, and identify the updated user notebook sections with links to the headline artifact."
+    echo "4. Finish the user's research notes, run \`nullius notebook review --model <spec>\` with necessary dependencies, and obtain acceptance from unscoped \`nullius notebook check --json\`."
+    echo "5. Re-run both gates:"
     echo "   python3 '${ADJUDICATION_COMPLETENESS_GATE}' --convergence-json '${gate_json}' --member-report '${member_a_out}' --member-report '${member_b_out}' --adjudication '${fold_adjudication_path}'"
     echo "   python3 '${CONVERGENCE_REGISTRATION_GATE}' --convergence-json '${gate_json}' --adjudication '${fold_adjudication_path}' --project-root '${PROJECT_ROOT}'"
-    echo "5. Then apply the plan/claim updates (update_research_plan_progress.py / claim auto-update)."
+    echo "6. Then apply the plan/claim updates (update_research_plan_progress.py / claim auto-update)."
   } > "${pending_marker}"
   echo "[gate] NOTE: fold pending (dispositions and/or result registration) — automatic plan/claim fold withheld; see ${pending_marker}" >&2
 fi

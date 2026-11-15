@@ -22,7 +22,6 @@ describe('INSPIRE research public surface (M-25)', () => {
     const standardNames = new Set(getToolSpecs('standard').map(spec => spec.name));
 
     expect(standardNames.has('inspire_grade_evidence')).toBe(true);
-    expect(standardNames.has('inspire_detect_measurement_conflicts')).toBe(true);
     expect(standardNames.has('inspire_critical_analysis')).toBe(true);
     expect(standardNames.has('inspire_classify_reviews')).toBe(true);
     expect(standardNames.has('inspire_theoretical_conflicts')).toBe(true);
@@ -38,14 +37,17 @@ describe('INSPIRE research public surface (M-25)', () => {
     expect(standardNames.has('inspire_research_navigator')).toBe(false);
   });
 
+  it.each(['standard', 'full'] as const)('keeps source and measurement-data access without automated measurement verdicts in %s', mode => {
+    const names = new Set(getToolSpecs(mode).map(spec => spec.name));
+    expect(names.has('inspire_detect_measurement_conflicts')).toBe(false);
+    for (const name of ['inspire_paper_source', 'arxiv_paper_source', 'inspire_parse_latex',
+      'pdg_get_measurements', 'pdg_get_property', 'hepdata_get_table']) {
+      expect(names.has(name), name).toBe(true);
+    }
+  });
+
   it('retained public MCP schemas expose only dedicated top-level params', () => {
     expect(getStandardSchemaProperties('inspire_grade_evidence')).toEqual(['max_search_results', 'recid', 'search_confirmations']);
-    expect(getStandardSchemaProperties('inspire_detect_measurement_conflicts')).toEqual([
-      'include_tables',
-      'min_tension_sigma',
-      'recids',
-      'target_quantities',
-    ]);
     expect(getStandardSchemaProperties('inspire_critical_analysis')).toEqual([
       'assumption_max_depth',
       'check_literature',
@@ -84,11 +86,6 @@ describe('INSPIRE research public surface (M-25)', () => {
     expect(getStandardSpec('inspire_grade_evidence').zodSchema.safeParse({
       mode: 'evidence',
       recid: '1',
-    }).success).toBe(false);
-
-    expect(getStandardSpec('inspire_detect_measurement_conflicts').zodSchema.safeParse({
-      mode: 'conflicts',
-      recids: ['1', '2'],
     }).success).toBe(false);
 
     expect(getStandardSpec('inspire_critical_analysis').zodSchema.safeParse({
@@ -133,7 +130,6 @@ describe('INSPIRE research public surface (M-25)', () => {
   it('retained schemas still satisfy gateway-compatible top-level object constraints', () => {
     for (const name of [
       'inspire_grade_evidence',
-      'inspire_detect_measurement_conflicts',
       'inspire_critical_analysis',
       'inspire_classify_reviews',
       'inspire_theoretical_conflicts',

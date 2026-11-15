@@ -1,6 +1,5 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { projectionFromRegistryState, textOutsideNotebookCurrentState, type CurrentStateProjection } from './notebook-current-state.js';
 import { validateResultRegistry } from './result-registry.js';
 import { notebookSectionLinkTargets } from './notebook-run-links.js';
 import { checkNotebookContentReview } from './notebook-content-review.js';
@@ -35,31 +34,28 @@ function localPath(target: string): string | null {
  * diagnostics; closeout requires the unscoped check and a valid result registry.
  * Automatic state tables, comments and code examples cannot satisfy it. */
 export function checkNotebookResultLinks(
-  projectRoot: string, projection: CurrentStateProjection,
+  projectRoot: string, current: readonly Pick<ReturnType<typeof validateResultRegistry>['current'][number], 'result_id' | 'artifact_target'>[],
 ): NotebookResultLinks {
   const report: NotebookResultLinks = {
     status: 'not_applicable', results: [], missing_result_ids: [], reason: null,
     scope: 'Direct artifact links in human ## sections only; no recursive, HTML, shortcut or indented-link scan. '
       + 'Links do not establish explanation, derivation completeness, correctness or verification.',
   };
-  if (projection.current_rows.length === 0) return report;
+  if (current.length === 0) return report;
   let text: string;
   try { text = fs.readFileSync(path.join(projectRoot, 'research_notebook.md'), 'utf-8'); }
   catch {
     return { ...report, status: 'unavailable', reason: 'research_notebook.md missing or unreadable' };
   }
-  if (textOutsideNotebookCurrentState(text) === null) {
-    return { ...report, status: 'unavailable', reason: 'ambiguous notebook current-state markers' };
-  }
   const sections = notebookSectionLinkTargets(text)
     .map(section => ({ ...section, targets: new Set(section.targets.map(localTarget).filter(Boolean)) }));
-  report.results = projection.current_rows.map(row => {
+  report.results = current.map(row => {
     // Registry artifacts are literal filesystem paths, not URI destinations.
     // Match the registry resolver's fragment rule without decoding '%' or
     // treating a literal '?' in the filename as a URL query delimiter.
-    const target = row.artifact === null ? null : localPath(row.artifact.split('#', 1)[0]!);
+    const target = row.artifact_target === null ? null : localPath(row.artifact_target.split('#', 1)[0]!);
     return {
-      result_id: row.result_id, artifact: row.artifact,
+      result_id: row.result_id, artifact: row.artifact_target,
       sections: target === null ? [] : sections.filter(section => section.targets.has(target)).map(section => section.heading),
     };
   });
@@ -71,19 +67,19 @@ export function checkNotebookResultLinks(
 export function checkNotebookStructure(projectRoot: string, resultId?: string): NotebookResultLinks {
   try {
     const registry = validateResultRegistry(projectRoot);
-    const projection = projectionFromRegistryState(registry);
+    let current = registry.current;
     // A malformed row can hide another definition of the selected id, so it
     // remains global. Other row-local defects do not block an unrelated id.
-    if (!projection.registry_block_found || registry.issues.some(issue => issue.code === 'malformed_result_row')
-      || (resultId === undefined && projection.issue_codes.length > 0)) {
+    if (!registry.block_found || registry.issues.some(issue => issue.code === 'malformed_result_row')
+      || (resultId === undefined && registry.issues.length > 0)) {
       throw new Error('results registry absent or defective; inspect nullius current before checking notebook links');
     }
     if (resultId !== undefined) {
-      projection.current_rows = projection.current_rows.filter(row => row.result_id === resultId);
-      if (projection.current_rows.length === 0) throw new Error(`no current registered result: ${resultId}`);
+      current = current.filter(row => row.result_id === resultId);
+      if (current.length === 0) throw new Error(`no current registered result: ${resultId}`);
       if (registry.defective_result_ids.has(resultId)) throw new Error(`defective current result: ${resultId}`);
     }
-    return checkNotebookResultLinks(projectRoot, projection);
+    return checkNotebookResultLinks(projectRoot, current);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     return { status: 'unavailable', reason, results: [], missing_result_ids: [], scope: 'Result-link structure unavailable; content review is evaluated separately.' };

@@ -62,6 +62,11 @@ describe('declared primary evidence intake', () => {
   it('accounts for manifest storage and file count', () => { expect(() => freezeNotebookReviewScope(root, 'scope-fixture', run, [], notebookBudgets({ maxFiles: 1 }), 'evidence.json')).toThrow(/max-files/); });
   it('rejects changed manifest bytes even when the source list is equivalent', () => { const scope = freeze(); write('evidence.json', fs.readFileSync(path.join(root, 'evidence.json'), 'utf8') + '\n'); expect(declaredEvidenceIsCurrent(root, scope)).toBe(false); });
   it('rejects bare CR in original text', () => { write('original.md', 'a\rb'); expect(freeze).toThrow(/line endings/); });
+  it('resolves duplicate reference definitions to the first original destination', () => {
+    write('original.md', '[Proof][p]\n\n[p]: first.md\n[p]: second.md\n');
+    const scope = freeze();
+    expect(scope.evidence!.references.find(ref => ref.quote === '[Proof][p]')?.destination).toBe('first.md');
+  });
   it('includes explicit dependencies as primary originals', () => { write('extra.md', 'Additional original.\n'); const scope = freezeNotebookReviewScope(root, 'scope-fixture', run, ['extra.md'], notebookBudgets({}), 'evidence.json'); expect(scope.dependencies.map(i => i.path)).toEqual(['original.md', 'extra.md']); });
 });
 describe('declared evidence CLI', () => {

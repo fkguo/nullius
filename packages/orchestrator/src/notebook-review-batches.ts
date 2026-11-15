@@ -11,6 +11,7 @@ import { loadVerifiedRunJson, resolveVerifiedRunArtifact } from './orch-tools/va
 import { installedRuntimeRoot } from './cli-runtime.js';
 import { declaredEvidenceIdentity, declaredEvidenceIsCurrent } from './notebook-evidence-scope.js';
 import type { NotebookContentReview, NotebookReviewScope } from './notebook-content-review.js';
+import { assertNotebookRunStates, notebookRunStatesCurrent } from './notebook-run-state.js';
 
 const digest = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex');
 const decode = (data: Uint8Array) => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(data);
@@ -44,8 +45,9 @@ type BatchReceipt = { schema_version: 1; run_id: string; phase: 'source' | 'cros
 type BatchEntry = { origin_run_id: string; receipt_ref: ArtifactRefV1 };
 export type BatchExecution = { schema_version: 1; plan_ref: ArtifactRefV1; entries: BatchEntry[]; stop_reason: string | null; resumed_from: string | null };
 export function materialIdentity(scope: NotebookReviewScope): string {
+  assertNotebookRunStates(scope, scope.run_states);
   const originals = [scope.notebook, ...scope.dependencies, ...(scope.opaque_links ?? [])].map(i => ({ path: i.path, sha256: i.sha256, bytes: i.bytes }));
-  return digest(JSON.stringify(scope.evidence ? { originals, evidence: declaredEvidenceIdentity(scope) } : originals));
+  return digest(JSON.stringify({ sources: originals, run_states: scope.run_states, ...(scope.evidence ? { evidence: declaredEvidenceIdentity(scope) } : {}) }));
 }
 function immutable(file: string, data: string | Buffer): void {
   writeBytesAtomicDurable(file, data, undefined, () => { if (fs.existsSync(file)) throw new Error(`immutable notebook batch file already exists: ${file}`); });
@@ -174,6 +176,8 @@ function assertUnitReport(report: Record<string, any>, receipt: BatchReceipt, pl
   if (scope?.evidence) assertReferences(report, scope, plan.units.filter(u => receipt.unit_ids.includes(u.unit_id)));
 }
 function liveMaterial(root: string, scope: NotebookReviewScope): boolean {
+  try { if (!notebookRunStatesCurrent(root, scope)) return false; }
+  catch { return false; }
   return (!scope.evidence || declaredEvidenceIsCurrent(root, scope)) && [scope.notebook, ...scope.dependencies, ...(scope.opaque_links ?? [])].every(i => {
     try {
       const file = path.join(root, i.path); assertNoSymlinkComponents(root, file, 'current batch source');
@@ -294,7 +298,7 @@ export function assessNotebookRequestCapacity(runDir: string, runId: string, cap
     persisted_request_bytes: requestBytes, protocol_token_reserve: 8192, output_token_reserve: 32768,
     conservative_input_token_upper_bound: inputBound, declared_context_tokens: contextTokens };
 }
-function assertSourcePacket(dir: string, originId: string, receipt: BatchReceipt, plan: BatchPlan, sources: Map<string, Buffer>, scope?: NotebookReviewScope): void {
+function assertSourcePacket(dir: string, originId: string, receipt: BatchReceipt, plan: BatchPlan, sources: Map<string, Buffer>, scope: NotebookReviewScope): void {
   if (scope?.evidence) {
     const units = plan.units.filter(u => receipt.unit_ids.includes(u.unit_id));
     const supplied = loadVerifiedRunJson<any>(dir, originId, receipt.inventory_ref, 'declared source inventory');
@@ -307,6 +311,9 @@ function assertSourcePacket(dir: string, originId: string, receipt: BatchReceipt
   const supplied = loadVerifiedRunJson<any>(dir, originId, receipt.inventory_ref, 'raw interval inventory');
   const raw = resolveVerifiedRunArtifact(dir, originId, receipt.payload_ref, 'raw interval packet').bytes.toString('utf8');
   if (!unit || receipt.key !== unit.unit_id || receipt.unit_ids.length !== 1 || !equal(supplied.units, [unit])
+    || !equal(supplied.sources, [scope.notebook, ...scope.dependencies].map(i => ({ path: i.path, sha256: i.sha256, bytes: i.bytes })))
+    || !equal(supplied.navigation_links ?? [], scope.navigation_links ?? [])
+    || !equal(supplied.run_states, scope.run_states)
     || supplied.material_sha256 !== plan.material_sha256 || raw !== sourcePayload(plan, sources, unit)) throw new Error('source batch did not receive the exact primary and adjacent original bytes');
 }
 function sourcePayload(plan: BatchPlan, sources: Map<string, Buffer>, unit: Unit): string {
@@ -338,6 +345,7 @@ function assertReferences(report: Record<string, any>, scope: NotebookReviewScop
 function declaredSourceInventory(scope: NotebookReviewScope, plan: BatchPlan, units: Unit[]) {
   return { schema_version: 1, review_kind: 'notebook_batch', evidence_policy: 'declared-evidence', material_sha256: plan.material_sha256, units,
     sources: [scope.notebook, ...scope.dependencies].map(i => ({ path: i.path, sha256: i.sha256, bytes: i.bytes })),
+    run_states: scope.run_states, navigation_links: scope.navigation_links ?? [],
     references: referencesFor(scope, units), interval_policy: 'Read every primary original byte. Assess every reference beginning in these intervals. Adjacent originals are context; final notebook integration follows.' };
 }
 function packedSourcePayload(plan: BatchPlan, sources: Map<string, Buffer>, units: Unit[]): string {
@@ -382,7 +390,7 @@ function declaredIntegration(root: string, scope: NotebookReviewScope, plan: Bat
   if (covered.size !== plan.units.length) throw new Error('integration omitted primary source intervals');
   const payload = `\n=== COMPLETE ORIGINAL NOTEBOOK ${scope.notebook.path} BYTES 0:${scope.notebook.bytes} ===\n${decode(sources.get(scope.notebook.path)!)}\n\n=== VERIFIED SOURCE REVIEW EVIDENCE (NOT ORIGINAL DEPENDENCY TEXT) ===\n${JSON.stringify(evidence)}\n` + excerpts.filter(a => a.path !== scope.notebook.path).map(a => `\n=== ORIGINAL CROSS CONTEXT ${a.path} BYTES ${a.start_byte}:${a.end_byte} ===\n${a.quote}`).join('\n');
   const inventory = { schema_version: 1, review_kind: 'notebook_cross_section', evidence_policy: 'declared-evidence', material_sha256: plan.material_sha256,
-    units: plan.units, sections: scope.sections, references: scope.evidence!.references,
+    units: plan.units, sections: scope.sections, references: scope.evidence!.references, run_states: scope.run_states, navigation_links: scope.navigation_links ?? [],
     opaque_links: (scope.opaque_links ?? []).map(i => ({ path: i.path, sha256: i.sha256 })), directory_links: scope.directory_links, remote_links: scope.remote_links,
     source_evidence: evidence.map(item => { const { report: _report, ...binding } = item as Record<string, unknown>; return binding; }), transmitted_context: excerpts.filter(a => a.path !== scope.notebook.path),
     obligations: 'Read the complete original notebook and integrate every verified source unit. Dependencies were read in source stage; only transmitted original excerpts are jointly available. Assess every reference afresh. Any additional source/context request prevents acceptance.' };
@@ -551,6 +559,8 @@ export async function executeNotebookBatches(root: string, runDir: string, runId
       if (++calls > budgets.maxBatches || Date.now() >= deadline) { state.stop_reason = 'Execution budget exhausted before every raw interval was reviewed.'; break; }
       const inventory = scope.evidence ? declaredSourceInventory(scope, plan, pack) : { schema_version: 1, review_kind: 'notebook_batch', material_sha256: plan.material_sha256, units: [unit],
         sources: [scope.notebook, ...scope.dependencies].map(i => ({ path: i.path, sha256: i.sha256, bytes: i.bytes })),
+        navigation_links: scope.navigation_links ?? [],
+        run_states: scope.run_states,
         interval_policy: 'All original primary bytes; adjacent raw context only. Cross-section closure is deferred to the separate original-context audit.' };
       const entry = await executeBatch(root, runDir, runId, plan, 'source', unit.unit_id, pack.map(u => u.unit_id), scope.evidence ? packedSourcePayload(plan, sources, pack) : sourcePayload(plan, sources, unit), inventory, Math.max(1, Math.ceil((deadline - Date.now()) / 1000)));
       state.entries.push(entry); progress();
@@ -566,7 +576,8 @@ export async function executeNotebookBatches(root: string, runDir: string, runId
         const payload = hierarchical?.payload ?? crossPayload(sources);
         const inventory = hierarchical?.inventory ?? { schema_version: 1, review_kind: 'notebook_cross_section', material_sha256: plan.material_sha256,
           units: plan.units, opaque_links: (scope.opaque_links ?? []).map(i => ({ path: i.path, sha256: i.sha256 })),
-          directory_links: scope.directory_links, remote_links: scope.remote_links,
+          directory_links: scope.directory_links, remote_links: scope.remote_links, navigation_links: scope.navigation_links ?? [],
+          run_states: scope.run_states,
           obligations: 'Read every full original source and every interval jointly. Check all definitions, assumptions, conventions, formal claims and cross-section inferences. Each original_unit_coverage entry requires anchors: an array of exact original path/start_byte/end_byte/quote objects within that unit, including substantive body text when present. Empty or whitespace-only units use an empty anchors array. No selected quote or summary substitutes for the full original joint input.' };
         const entry = await executeBatch(root, runDir, runId, plan, 'cross_section', 'cross-section', [], payload, inventory, Math.max(1, Math.ceil((deadline - Date.now()) / 1000)));
         state.entries.push(entry); progress();
@@ -636,11 +647,13 @@ export function assessNotebookBatches(root: string, runDir: string, runId: strin
     if (supplied.material_sha256 !== plan.material_sha256 || !equal(supplied.units, plan.units)
       || !equal(supplied.opaque_links, (scope.opaque_links ?? []).map(i => ({ path: i.path, sha256: i.sha256 })))
       || !equal(supplied.directory_links, scope.directory_links) || !equal(supplied.remote_links, scope.remote_links)
+      || !equal(supplied.navigation_links ?? [], scope.navigation_links ?? [])
+      || !equal(supplied.run_states, scope.run_states)
       || (!scope.evidence && raw !== crossPayload(sources))) throw new Error('cross-section report did not receive the full original-context closure');
   }
   fresh &&= liveMaterial(root, scope);
   const accepted = fresh && complete && passes && !invalid && !execution.stop_reason;
-  const reason = !fresh ? 'Original source or batch inputs changed; the aggregate review is stale.' : execution.stop_reason ?? (accepted ? cross!.summary : complete ? 'The executed source or cross-section review rejected the notebook.' : 'Necessary original interval or cross-section review remains incomplete.');
+  const reason = !fresh ? 'Original source, referenced run state or batch inputs changed; the aggregate review is stale.' : execution.stop_reason ?? (accepted ? cross!.summary : complete ? 'The executed source or cross-section review rejected the notebook.' : 'Necessary original interval or cross-section review remains incomplete.');
   const lines = decode(sources.get(scope.notebook.path)!).split('\n'); const offsets = [0];
   for (const line of lines) offsets.push(offsets.at(-1)! + Buffer.byteLength(line) + 1);
   const report = { ...base, status: !fresh ? 'stale' : invalid ? 'unavailable' : accepted ? 'accepted' : complete ? 'rejected' : 'incomplete', reason,

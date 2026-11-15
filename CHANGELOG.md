@@ -10,6 +10,55 @@ the version to cite.
 
 ## [Unreleased]
 
+### Changed
+- The research notebook is a user-owned scientific document. New scaffolds
+  contain scientific sections and prompts; agent protocols remain in reachable
+  project guidance. Lifecycle operations preserve notebook bytes, including old
+  machine blocks. Useful dated observations and failed approaches are welcome.
+- Scientific writing is owned by the host agent. The writer skill now guides
+  original-source reading, integration into the actual manuscript, applicable
+  scientific checks and delivery; its scaffold creates an empty paper only.
+- Notebook review distinguishes explicit `nullius-navigation` links from scientific
+  dependencies. Full original text remains reviewed, ordinary evidence links
+  remain recursive, and explicitly requested files remain frozen. Existing
+  notebooks require an authored navigation update; history is not rewritten.
+- Stage outputs are linked from Current Status and actually received and handed
+  off by the host, using existing reports, writer manifests and bundle tooling.
+
+### Fixed
+- MCP-only hosts can author the user notebook with the existing hash-checked
+  file writer and invoke canonical full-text review/check through typed
+  `project_cli` actions. Reviewer and durable-delivery budgets remain distinct;
+  the retired notebook-sync action is no longer advertised.
+- Notebook review binds the validity state of runs referenced by its frozen
+  sources, so a relevant void or supersession invalidates earlier acceptance
+  without making unrelated ledger activity invalidate the review. The same
+  binding applies to single-call, batched and resumed reviews.
+- Repeated complete historical notebook state blocks cannot satisfy the human
+  result-link requirement; scientific text between blocks remains visible.
+- Paper bundles preserve project-relative layouts, include the human notebook
+  and referenced local material across runs, and check dependencies before
+  publication. Explicit stage selections can omit unrelated project documents.
+- Writer builds use the manifest's TeX entry point, reject unavailable or failed
+  requested compilation, and do not advertise a stale PDF as a current build.
+  Export rechecks recorded project-input and output hashes before packaging a
+  compiled paper; changed source, bibliography, figures or PDF require a rebuild.
+- Main-report validation accepts Markdown link titles and requires actual
+  evidence links; inline-code examples cannot satisfy clickable-link checks.
+- arXiv staging rejects missing or escaping dependencies and preserves prose
+  adjacent to bibliography commands. Markdown hygiene preserves legitimate
+  aligned/matrix line breaks.
+
+### Removed
+- `nullius notebook sync` and its automatic lifecycle writers; paragraph-order
+  and English-word heuristics for judging notebook prose; mandatory hidden
+  section version stamps. Full scientific review, original-source identity and
+  current-result validity checks remain required.
+- The fixed writer/auditor chapter pipeline, keyword-based LaTeX evidence gate,
+  first-formula/first-figure composition, keyword-overlap discussion verdicts,
+  and ambiguous double-backslash math auto-rewrites. Existing scientific
+  verification and traceability tools remain available.
+
 ## [0.6.0] - 2026-10-17
 
 First archived release. Nullius is positioned as an evidence-first harness for

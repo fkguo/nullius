@@ -7,7 +7,7 @@ This file is the machine-facing contract for restart, evidence, artifacts, and f
 Keep narrative reasoning, interpretation, and human-readable notes in [research_notebook.md](research_notebook.md).
 Keep promoted main research reports immutable under `reports/`, with the single
 current entry point and supersession registry in
-[project_index.md#Main research report](project_index.md#main-research-report).
+[project_index.md#Main research report](project_index.md#main-research-report "nullius-navigation").
 
 <!-- RESEARCH_NOTEBOOK_SYNC_START -->
 - Source notebook: [research_notebook.md](research_notebook.md)
@@ -24,9 +24,9 @@ current entry point and supersession registry in
 
 ## Restart And Status Rule
 
-- The session-start, reconnect, recovery, and approval-boundary protocol lives in [AGENTS.md](AGENTS.md), the project instructions that `nullius init --refresh` preserves when customized. Follow it there after a new session, reconnect, interruption, context reset, handoff, milestone start, or closeout; this file deliberately carries no copy of the protocol commands, because copies in user-owned files go stale.
+- The session-start, reconnect, recovery, and approval-boundary protocol lives in [AGENTS.md](AGENTS.md "nullius-navigation"), the project instructions that `nullius init --refresh` preserves when customized. Follow it there after a new session, reconnect, interruption, context reset, handoff, milestone start, or closeout; this file deliberately carries no copy of the protocol commands, because copies in user-owned files go stale.
 - If evidence is incomplete, mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
-- After the protocol, use [AGENTS.md](AGENTS.md) and [Current Status](research_plan.md#current-status) to select the applicable charter/contract constraints, notebook sections and original sources for the current task; required source coverage is unchanged.
+- After the protocol, use [AGENTS.md](AGENTS.md "nullius-navigation") and [Current Status](research_plan.md#current-status "nullius-navigation") to select the applicable charter/contract constraints, notebook sections and original sources for the current task; required source coverage is unchanged.
 - Optional host/provider/support surfaces are used only when this project explicitly creates them; this contract and `.nullius/` state remain the durable restart truth.
 
 ## Skepticism And Verification Rule
@@ -42,7 +42,7 @@ current entry point and supersession registry in
 - Record source form read as `latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`.
 - For important sources, record sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining gaps.
 - `abstract_only` and `unavailable` mark reading gaps, not completed evidence for central claims.
-- Literature notes record scientific content only. Put tool-use logs, metadata checks, download attempts, and API/MCP call details in [research_plan.md](research_plan.md) progress entries or `artifacts/runs/<run_id>/`.
+- Literature notes record scientific content only. Put tool-use logs, metadata checks, download attempts, and API/MCP call details in [research_plan.md](research_plan.md "nullius-navigation") progress entries or `artifacts/runs/<run_id>/`.
 - Use clickable Markdown links for source references, and write scientific notation as LaTeX math instead of inline-code backticks.
 
 ## Artifact And Provenance Rule

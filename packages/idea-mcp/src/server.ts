@@ -183,7 +183,7 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise
   const rpc = createIdeaRpcClient(env);
 
   const server = new Server(
-    { name: 'idea-mcp', version: '0.6.0' },
+    { name: 'idea-mcp', version: '0.6.1' },
     { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
   );
 
