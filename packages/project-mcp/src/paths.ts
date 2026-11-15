@@ -63,7 +63,7 @@ export function filePath(root: string, value: string, write: boolean): string {
     throw new McpError('UNSAFE_FS', 'Use canonical runtime/delivery tools to access delegated state.');
   }
   if (write) {
-    if (parts.some(part => ['agents.md', 'claude.md', 'project_index.md', 'research_notebook.md', 'research_team_config.json'].includes(part))) {
+    if (parts.some(part => ['agents.md', 'claude.md', 'project_index.md', 'research_team_config.json'].includes(part))) {
       throw new McpError('UNSAFE_FS', 'Use canonical project commands for managed instructions and projections.');
     }
     if (folded.startsWith('artifacts/runs/')) {

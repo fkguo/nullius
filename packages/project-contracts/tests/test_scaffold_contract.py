@@ -227,12 +227,13 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("nullius status --json", template)
         self.assertIn("If the host agent exposes a `research-harness` skill", template)
         self.assertIn("use that entrypoint first for reconnect, recovery, routing, verification, and handoff", template)
-        self.assertIn("routes lifecycle work to `nullius`, milestone execution to `research-team`", template)
+        self.assertIn("routes lifecycle work to `nullius`, an adopted formal team cycle to `research-team`", template)
         self.assertIn("must preserve the `.nullius/HARNESS` and `research-harness` reconnect requirements", template)
         self.assertIn("Start with [Current Status]", template)
         self.assertIn("Acquire complete original material", template)
-        self.assertIn("Keep `research_notebook.md` organized by the problem's logic", template)
-        self.assertIn("Do not append large dated run logs there", template)
+        self.assertIn("Write `research_notebook.md` for the user", template)
+        self.assertIn("dated observations are welcome", template)
+        self.assertIn("task briefs and project state carry continuation", template)
         self.assertIn("## Scientific writing discipline", template)
         self.assertIn("use the field's native scientific language", template)
         self.assertIn("`certificate`, `instantiation`, or `guardrail`", template)
@@ -294,14 +295,14 @@ class TestScaffoldContract(unittest.TestCase):
         for snippet in LANGUAGE_DISCIPLINE_SNIPPETS:
             self.assertIn(snippet, agents)
 
-    def test_literature_note_quality_contract_is_repeated_on_project_surfaces(self) -> None:
+    def test_literature_note_quality_contract_lives_in_agent_guidance_and_contract(self) -> None:
         template_root = scaffold_template_dir()
         agents_template = read_instruction_documents(template_root / "AGENTS.md")
         contract_template = (template_root / "research_contract.md").read_text(encoding="utf-8")
         notebook_template = (template_root / "research_notebook.md").read_text(encoding="utf-8")
         index_template = (template_root / "project_index.md").read_text(encoding="utf-8")
 
-        for template in (agents_template, contract_template, notebook_template):
+        for template in (agents_template, contract_template):
             self.assertIn("latex_source", template)
             self.assertIn("full_text_pdf", template)
             self.assertIn("available_full_text", template)
@@ -311,6 +312,8 @@ class TestScaffoldContract(unittest.TestCase):
             self.assertIn("central equations and assumptions", template)
             self.assertIn("what was not read and why", template)
 
+        self.assertNotIn("latex_source", notebook_template)
+        self.assertIn("Scientific references and relevant source locations", notebook_template)
         self.assertIn("prefer arXiv LaTeX source when available", contract_template)
         self.assertIn("not completed evidence for central claims", contract_template)
         self.assertIn("Use clickable Markdown links for source references", contract_template)
@@ -393,7 +396,7 @@ class TestScaffoldContract(unittest.TestCase):
             ("research_plan.md", plan_template),
             ("research_contract.md", contract_template),
         ):
-            self.assertIn("lives in [AGENTS.md](AGENTS.md)", template, msg=name)
+            self.assertRegex(template, r'lives in \[AGENTS\.md\]\(AGENTS\.md(?: "nullius-navigation")?\)', msg=name)
             self.assertIn("nullius init --refresh", template, msg=name)
             self.assertNotIn("nullius status --json", template, msg=name)
             self.assertNotIn(".nullius/bin/nullius", template, msg=name)
@@ -462,7 +465,8 @@ class TestScaffoldContract(unittest.TestCase):
 
         self.assertIn("## Verification triggers (event → workflow)", template)
         self.assertIn("Verification runs on events, not on reminders", template)
-        self.assertIn("record the result as unverified instead of skipping the check silently", template)
+        self.assertIn("Unknown requirements, unavailable execution or missing evidence leave the result unverified", template)
+        self.assertIn("replace a required executable gate, evidence format or approval", template)
         for workflow in (
             "`derivation-verify`",
             "`numerical-reliability-gate`",
@@ -485,7 +489,7 @@ class TestScaffoldContract(unittest.TestCase):
             "schematic, process, or geometry diagram",
             "Claimed a speedup or performance regression",
             "needs independent review",
-            "Before conclusions, a milestone closeout, or a handoff",
+            "Before adopting project conclusions, a milestone closeout, or a handoff",
         ):
             self.assertIn(moment, template)
         # The gates bind to result-bearing quantities; exercised-only numbers
@@ -500,7 +504,7 @@ class TestScaffoldContract(unittest.TestCase):
         )
         # The integrity row states where run evidence lands.
         self.assertIn("land run evidence under `artifacts/runs/<run_id>/`", template)
-        self.assertIn("with review payloads in its `research_team/` child", template)
+        self.assertIn("with formal team review payloads in its `research_team/` child", template)
         self.assertNotIn("`team/runs/<run>/`", template)
         # Granularity and severity rules ship with the trigger table: the
         # reviewed unit is a stable candidate, findings are severity-graded
@@ -548,7 +552,7 @@ class TestScaffoldContract(unittest.TestCase):
         agents_template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
         contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
-        self.assertIn("milestone-executor review cycles use its `research_team/` child", agents_template)
+        self.assertIn("formal team review cycles use its `research_team/` child", agents_template)
         self.assertIn("`artifacts/runs/<run_id>/research_team/` within the canonical run directory", contract_template)
         self.assertIn("`run_origin.json` belongs to the parent run", contract_template)
         self.assertIn("Cite the actual payload file", contract_template)
@@ -611,47 +615,28 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("artifacts/runs/<run_id>/", rendered)
         self.assertIn("<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN", rendered)
 
-    def test_research_notebook_template_is_a_self_contained_memo(self) -> None:
-        """The notebook is a paper-like research memo, not a change log.
-
-        Contract (2026-07): the memo carries the complete current
-        understanding — full derivations, computations, analysis — organized
-        by the structure of the problem; it updates by REWRITING affected
-        sections, never by appending stage fragments, so the old
-        change-log/section-index shape is deliberately gone.
-        """
+    def test_research_notebook_template_is_a_user_scientific_outline(self) -> None:
         template = (scaffold_template_dir() / "research_notebook.md").read_text(encoding="utf-8")
-
-        # Positioning: self-contained, paper-like, complete-detail memo.
-        self.assertIn("research memo", template)
-        self.assertIn("derivation, computation, and piece of analysis", template)
-        self.assertIn("Organize by the structure of the problem, never by time.", template)
-        self.assertIn("Update by rewriting, not appending.", template)
-        self.assertIn("revision history is git's job", template)
-        # Process detail stays out of the memo.
-        self.assertIn("dated logs live in [research_plan.md](research_plan.md)", template)
-        # Two content substrings (not one string spanning a hard wrap, which
-        # would pin the paragraph's line-break position instead of its text).
-        self.assertIn("Tool-use logs, metadata checks, download attempts,", template)
-        self.assertIn("belong in [research_plan.md](research_plan.md)", template)
-        # Run evidence is named by its canonical root, not a bare runs/ dir.
-        self.assertIn("artifacts/runs/<run_id>/", template)
-        # Paper-shaped skeleton, including the derivation/result sections the
-        # previous index-style contract deliberately excluded.
-        self.assertIn("## Scientific picture and motivation", template)
-        self.assertIn("## Setup, conventions, and definitions", template)
-        self.assertIn("## Methods and derivations", template)
-        self.assertIn("## Results and analysis", template)
-        self.assertIn("## Open questions and risks", template)
-        self.assertIn("## References", template)
-        # Reading honesty vocabulary survives on this surface (see
-        # test_literature_note_quality_contract_is_repeated_on_project_surfaces).
-        self.assertIn("sections/pages/equations/figures actually read", template)
-        # Math is written as math, not inline code.
-        self.assertIn("Write mathematics as LaTeX math", template)
-        # The append-only shapes are gone: no change log, no per-run bullets.
-        self.assertNotIn("## Change Log", template)
-        self.assertNotIn("- Current milestone:", template)
+        for section in (
+            "Research question and motivation", "Definitions, assumptions, and conventions",
+            "Methods and derivations", "Results and interpretation", "Open questions", "References",
+        ):
+            self.assertIn(f"## {section}", template)
+        for scientific_need in (
+            "non-obvious intermediate steps", "failed approaches", "uncertainties",
+            "provisional", "limitations", "Scientific references",
+        ):
+            self.assertIn(scientific_need, template)
+        for protocol in (
+            "nullius ", "NOTEBOOK_CURRENT_STATE", "written-against", "notebook-section-role",
+            "SHA-256", "1200", "latex_source", "research_plan.md", "research_contract.md",
+        ):
+            self.assertNotIn(protocol, template)
+        guidance = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
+        self.assertIn("nullius notebook review --model", guidance)
+        self.assertIn("nullius notebook check --json", guidance)
+        self.assertIn("accepted current full-text review", guidance)
+        self.assertIn("sections/pages/equations/figures actually read", guidance)
 
 
 MANAGED_SUPPORT_FILES = set(SCAFFOLD_SUPPORT_FILES)

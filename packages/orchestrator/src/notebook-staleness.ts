@@ -5,11 +5,12 @@ import { advanceMarkdownFence, type MarkdownFence } from './managed-block.js';
 import { readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
 import { validateResultRegistry } from './result-registry.js';
 
-/** D5: per-section staleness of the living notebook against the project's
- *  current version — the acceptance sentence's "which sections belong to the
- *  current version and which have not been rewritten since an earlier one".
+/** Read-only diagnostics for historical notebook version annotations.
+ *  New notebooks do not need these stamps. These classes describe recorded
+ *  Git/run relationships, not scientific content currency or acceptance;
+ *  current full-text review provides the content check.
  *
- *  Sections opt in with an HTML-comment stamp; the checker classifies each
+ *  For existing HTML-comment stamps, the checker classifies each
  *  section with the fully-specified six-step worst-wins procedure, every
  *  outcome decidable and none guessed:
  *    1. a cited run superseded/void        → stale (cites-superseded-run)
@@ -86,9 +87,9 @@ function isAncestor(projectRoot: string, ancestor: string, descendant: string): 
 
 export type NotebookSection = { heading: string; body: string[] };
 
-/** The ONE notebook section parser, shared by the staleness classifier and
- *  the run-link/drift analyzer so the two can never disagree about section
- *  boundaries. Content before the first `##` is front matter and excluded.
+/** Section inventory shared by historical annotation diagnostics and actual
+ *  run/result link extraction. Content before the first `##` is front matter
+ *  and excluded from this structural view, not from full-content review.
  *  Fence-aware: a `## ...` line INSIDE a fenced code block is content, not a
  *  section heading, and fenced lines stay OUT of the returned bodies — a
  *  fenced example must not smuggle stamps or citations into classification.

@@ -1,6 +1,6 @@
 {
   "name": "@nullius/shared",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Shared types, schemas, and utilities for the nullius ecosystem",
   "author": "Feng-Kun Guo",
   "type": "module",

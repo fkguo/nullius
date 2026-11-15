@@ -19,7 +19,7 @@ Scientific notebook closeout:
   required supporting files declared by repeated `--dependency`, then run
   unscoped `nullius notebook check --json`. It requires structural navigation and an accepted
   full-text review bound to SHA-256 of the current complete UTF-8 notebook
-  (automatic block and uncommitted edits included) and necessary dependencies.
+  (including uncommitted edits) and necessary dependencies.
 - The report needs every section covered with source-anchored reasoning on
   derivations, logic, notation, definitions, assumptions and conventions. Missing,
   partial, failed, unavailable, invalid or stale review does not pass; changed

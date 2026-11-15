@@ -7,7 +7,6 @@ import { findComputationWorkspaces, readTerminalResultWitness } from './run-stam
 import { validateResultRegistry } from './result-registry.js';
 import { checkNotebookStaleness, type NotebookStalenessReport } from './notebook-staleness.js';
 import { analyzeNotebookRunLinks, type NotebookRunLinksReport } from './notebook-run-links.js';
-import { checkCurrentStateBlock, projectionFromRegistryState, type CurrentStateBlockStatus } from './notebook-current-state.js';
 import { listRunDirectories as listRunDirectoriesShared, readRunDirectoryInventory, slugFamilyOf, type RunDirectoryIssue, type RunDirEntry as SharedRunDirEntry } from './run-directories.js';
 import { checkRunIndexBlock, computeRunIndexProjection, type RunIndexBlockStatus } from './run-index.js';
 import { canonicalJson } from './validity-ledger.js';
@@ -153,7 +152,7 @@ export type TraceabilityView = {
     validation: 'deferred';
   };
   /** The machine-written run index in project_index.md: same claim
-   *  semantics as the notebook current-state block (present-and-in-sync
+   *  semantics of the shared managed-block reader (present-and-in-sync
    *  claims currency; missing only warns). */
   run_index: RunIndexBlockStatus;
   results: {
@@ -181,31 +180,17 @@ export type TraceabilityView = {
   notebook: {
     found: boolean;
     counts: NotebookStalenessReport['counts'];
-    /** Every section with its staleness class — the per-section truth a
-     *  fold-boundary gate needs to verify that a declared rewrite actually
-     *  carries a fresh written-against stamp (the aggregates alone cannot
-     *  name which section is which). */
+    /** Section inventory and optional historical version annotations; these
+     *  annotations do not establish scientific content acceptance. */
     sections: Array<{ heading: string; class: NotebookStalenessReport['sections'][number]['class']; cause: string }>;
     stale: Array<{ heading: string; cause: string }>;
     incomparable: Array<{ heading: string; cause: string }>;
-    /** The machine-written current-state block: present-and-in-sync is the
-     *  only state that CLAIMS currency (out-of-sync is a fold refusal);
-     *  a missing block claims nothing and only warns. */
-    current_state_block: CurrentStateBlockStatus;
     /** Necessary human-body evidence links; never a content-quality verdict. */
     result_links: NotebookResultLinks;
     content_review: NotebookContentReview;
-    /** Link-derived rewrite-discipline signals. Advisory everywhere; the
-     *  fold gate consumes only the sections a packet declares rewritten. */
+    /** Actual cited runs and their ledger status, without a prose verdict. */
     run_links: {
-      sections: NotebookRunLinksReport['sections'];
-      drifted_sections: string[];
-      /** FULL entries with their acknowledgment channel: an auditor must be
-       *  able to see that a citation was waved through by the declared-log
-       *  escape rather than by the charter idiom without joining against
-       *  the sections list. */
-      dead_citations: NotebookRunLinksReport['dead_citations'];
-      unacknowledged_dead: NotebookRunLinksReport['unacknowledged_dead'];
+      citations: NotebookRunLinksReport['citations'];
       unknown_run_ids: string[];
     };
   };
@@ -551,9 +536,6 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   );
   const runIndexProjection = computeRunIndexProjection(projectRoot, ledger);
   const runIndexBlock = checkRunIndexBlock(projectRoot, runIndexProjection);
-  const currentStateBlock = checkCurrentStateBlock(
-    projectRoot, projectionFromRegistryState(resultRegistry),
-  );
   const notebookResultLinks = checkNotebookStructure(projectRoot);
   const notebookContentReview = checkNotebookContentReview(projectRoot);
 
@@ -673,23 +655,12 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       clause: 'notebook sections current vs stale',
       reason: 'research_notebook.md not found',
     });
-  } else if (notebook.sections.length === 0) {
-    unanswerable.push({
-      clause: 'notebook sections current vs stale',
-      reason: 'the notebook has no ## sections to classify',
-    });
-  } else if (notebook.counts.unstamped === notebook.sections.length) {
-    unanswerable.push({
-      clause: 'notebook sections current vs stale',
-      reason: `none of the ${notebook.sections.length} sections carries a written-against stamp yet `
-        + '(add `<!-- written-against: <commit-sha> -->` when rewriting a section)',
-    });
   }
 
   if (notebookResultLinks.status === 'missing_links' || notebookResultLinks.status === 'unavailable') {
     unanswerable.push({
       clause: 'current results explained in the human notebook',
-      reason: notebookResultLinks.reason ?? `current result artifacts absent from human sections: ${notebookResultLinks.missing_result_ids.join(', ')}; rewrite the affected sections with reasoning, scope and evidence links; notebook sync only updates the machine block`,
+      reason: notebookResultLinks.reason ?? `current result artifacts absent from human sections: ${notebookResultLinks.missing_result_ids.join(', ')}; explain the results and link their evidence in the relevant scientific sections`,
     });
   }
 
@@ -839,14 +810,10 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
         .map(section => ({ heading: section.heading, cause: section.cause })),
       incomparable: notebook.sections.filter(section => section.class === 'incomparable')
         .map(section => ({ heading: section.heading, cause: section.cause })),
-      current_state_block: currentStateBlock,
       result_links: notebookResultLinks,
       content_review: notebookContentReview,
       run_links: {
-        sections: runLinks.sections,
-        drifted_sections: runLinks.drifted_sections,
-        dead_citations: runLinks.dead_citations,
-        unacknowledged_dead: runLinks.unacknowledged_dead,
+        citations: runLinks.citations,
         unknown_run_ids: runLinks.unknown_run_ids,
       },
     },
@@ -972,15 +939,15 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   }
   lines.push('');
 
-  lines.push('## Notebook sections');
+  lines.push('## Research notebook');
   const notebookClause = view.unanswerable.find(entry => entry.clause === 'notebook sections current vs stale');
   if (notebookClause) {
     lines.push(`Unanswerable: ${notebookClause.reason}.`);
-  } else {
+  } else if (view.notebook.counts.unstamped < view.notebook.sections.length) {
     const counts = view.notebook.counts;
     lines.push(
-      `${counts.current} current, ${counts['current-modulo-untracked']} current-modulo-untracked, `
-      + `${counts.stale} stale, ${counts.unstamped} unstamped, ${counts.incomparable} incomparable.`,
+      `Historical version annotations: ${counts.current} current, ${counts['current-modulo-untracked']} current-modulo-untracked, `
+      + `${counts.stale} stale, ${counts.incomparable} incomparable. These optional annotations do not establish scientific acceptance.`,
     );
     for (const section of view.notebook.stale.slice(0, 10)) {
       lines.push(`- STALE: ${section.heading} (${section.cause})`);
@@ -989,33 +956,13 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
       lines.push(`- incomparable: ${section.heading} (${section.cause})`);
     }
   }
-  const block = view.notebook.current_state_block;
   const resultLinks = view.notebook.result_links;
   const contentReview = view.notebook.content_review;
   lines.push(`- Notebook content review: ${contentReview.status} — ${contentReview.reason}`);
   if (resultLinks.status === 'missing_links' || resultLinks.status === 'unavailable') {
-    lines.push(`- HUMAN NOTEBOOK NEEDS ATTENTION: ${resultLinks.reason ?? `no body link to current result(s): ${resultLinks.missing_result_ids.join(', ')}`}. Rewrite the affected sections with reasoning, scope and evidence; notebook sync cannot do this.`);
+    lines.push(`- HUMAN NOTEBOOK NEEDS ATTENTION: ${resultLinks.reason ?? `no body link to current result(s): ${resultLinks.missing_result_ids.join(', ')}`}. Explain the results and link their evidence in the relevant scientific sections.`);
   } else if (resultLinks.status === 'linked') {
     lines.push('- Human notebook links current result artifacts (structure only).');
-  }
-  if (block.notebook_found) {
-    if (block.duplicated_markers) {
-      lines.push(`- CURRENT-STATE BLOCK: ${block.reason}`);
-    } else if (!block.block_found) {
-      // Stray-marker states carry their own actionable reason; plain
-      // absence gets the adoption hint. Sending a stray-marker reader to
-      // `notebook sync` alone would point at a command that refuses.
-      lines.push(block.reason !== null
-        ? `- current-state block: ${block.reason}.`
-        : '- current-state block: none yet — adopt with `nullius notebook sync` '
-        + '(machine-maintained summary of registered results at the top of the notebook).');
-    } else if (block.in_sync === false) {
-      lines.push(`- CURRENT-STATE BLOCK OUT OF SYNC: ${block.reason} — refresh with \`nullius notebook sync\`.`);
-    } else if (block.in_sync === true && block.reason !== null) {
-      // The in-sync-with-strays state is where a leftover marker is most
-      // dangerous — keep it visible on the human surface, not JSON-only.
-      lines.push(`- current-state block: ${block.reason}.`);
-    }
   }
   const runIndex = view.run_index;
   if (runIndex.project_index_found) {
@@ -1033,24 +980,13 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     }
   }
   const runLinks = view.notebook.run_links;
-  for (const heading of runLinks.drifted_sections.slice(0, 3)) {
-    const section = runLinks.sections.find(entry => entry.heading === heading);
-    lines.push(
-      `- APPEND DRIFT: section "${heading}" reads as a run-ordered log`
-      + `${section ? ` (${section.citing_paragraphs} citing paragraphs, ${Math.round((section.ascending_share ?? 0) * 100)}% ascending)` : ''}`
-      + " — the memo's own discipline says rewrite by problem structure; a deliberate chronicle declares "
-      + '`<!-- notebook-section-role: log -->`.',
-    );
-  }
-  if (runLinks.drifted_sections.length > 3) {
-    lines.push(`- append drift: ${runLinks.drifted_sections.length - 3} more section(s) — see \`nullius current --json\`.`);
-  }
-  if (runLinks.unacknowledged_dead.length > 0) {
-    const worst = runLinks.unacknowledged_dead.slice(0, 3)
+  const noncurrent = runLinks.citations.filter(entry => entry.validity === 'superseded' || entry.validity === 'void');
+  if (noncurrent.length > 0) {
+    const first = noncurrent.slice(0, 3)
       .map(entry => `${entry.run_id} (${entry.validity}) in "${entry.section}"`).join('; ');
     lines.push(
-      `- DEAD CITATIONS: ${runLinks.unacknowledged_dead.length} link(s) to superseded/void runs read as live prose: `
-      + `${worst}${runLinks.unacknowledged_dead.length > 3 ? '; …' : ''} — acknowledge in place or link the replacement.`,
+      `- Notebook references ${noncurrent.length} non-current run(s): `
+      + `${first}${noncurrent.length > 3 ? '; …' : ''}. This is ledger status; scientific review assesses how the notebook uses those results.`,
     );
   }
   if (runLinks.unknown_run_ids.length > 0) {

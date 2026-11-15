@@ -1,12 +1,12 @@
-# research-writer — Physics Writing Style Profile (M0)
+# research-writer — Physics writing style guidance
 
-This file summarizes a reusable, domain-agnostic technical writing/style register for physics manuscripts. It is intended as **guidance** for drafting new text in a rigorous technical voice, not as a phrase bank to copy verbatim. If you calibrate this register against your own existing manuscripts, keep that private corpus list in your project repo (see §8), not in this shared tool.
+This file offers optional technical writing guidance for physics manuscripts; adapt it to the research question and publication target. It is intended as **guidance** for drafting new text in a rigorous technical voice, not as a phrase bank to copy verbatim. If you calibrate this register against your own existing manuscripts, keep that private corpus list in your project repo (see §8), not in this shared tool.
 
 ## 1) High-level voice
 
 - **Physics-first, mechanism-first**: lead with the physical question, then the mechanism/constraint (unitarity/analyticity/symmetry/power counting), then the quantitative consequence.
 - **Active but restrained**: frequent “We …” for actions/results (“We show/derive/find”), but avoid hype. Prefer concrete verbs.
-- **Skeptical by default**: treat literature claims as inputs that can fail; when leaning on them, either validate (derivation/check/limit) or label as *unverified* with a plan + kill criterion.
+- **Explicit evidence status**: check that cited sources support the stated claim. Distinguish what a source reports, what this project independently checks, and what remains an assumption. Investigate load-bearing uncertainties and record the needed test.
 - **Definition-hardened**: quantities are defined operationally; if a number is quoted, the definition and extraction procedure are explicit (and uncertainties are discussed).
 - **Comparative and diagnostic**: comparisons to prior methods/results are used to isolate *why* things differ (e.g., left-hand cuts, crossing, coupled channels, thresholds).
 - **PRL/letter targets (when applicable)**: compress the narrative (hook → mechanism → consequence) and avoid multi-paragraph scene-setting; keep the “why now” and the headline result front-loaded.
@@ -27,7 +27,7 @@ This file summarizes a reusable, domain-agnostic technical writing/style registe
 
 ## 3) Technical LaTeX conventions (RevTeX/physics norms)
 
-- Nonbreaking references: `Eq.~\\eqref{...}`, `Fig.~\\ref{...}`, `Ref.~\\cite{...}`, `Refs.~\\cite{...}`.
+- Nonbreaking references: `Eq.~\eqref{...}`, `Fig.~\ref{...}`, `Ref.~\cite{...}`, `Refs.~\cite{...}`.
 - Acronyms: define on first use with parentheses (“quantum chromodynamics (QCD)”).
 - Parenthetical “e.g.” frequently appears as `{\it e.g.},` inside parentheses.
 - Numerical results:
@@ -56,27 +56,27 @@ This file summarizes a reusable, domain-agnostic technical writing/style registe
   - color/line conventions,
   - and (if relevant) what cut/kinematic region is used.
 - Figures are used as part of the argument (not decoration): captions and surrounding text point to what feature matters.
-- **PRL/letter targets (when applicable)**: 1–2 key figures max; captions must be self-contained and interpret the feature that carries the argument.
+- **PRL/letter targets (when applicable)**: select the figures needed for the argument and the venue constraints; captions should identify the feature that carries the inference.
 
 ## 6) “Auditability” add-ons for research-writer
 
-To keep the paper arXiv-ready and auditable when generated from a `research-team` project:
+To support review and reproducibility when writing from a research project:
 
-- Any number quoted in the paper must have a **provenance pointer** (artifact path + key within JSON/CSV).
-- Any external claim used in core reasoning must be either:
-  - **validated** (derivation/check performed in `research_notebook.md` / `research_contract.md`, legacy `Draft_Derivation.md`, or an artifact), or
-  - marked **UNVERIFIED** with:
-    - a validation plan (what to compute/check),
-    - and a kill criterion (what failure would invalidate the claim).
+- Reported research results need a source locator: the derivation, run artifact
+  and value/key that produced them. Keep result-traceability bindings current.
+- Use the existing claim-grounding procedure for citation-backed statements.
+  Check identity, support and scope before treating a statement as established.
+- For unresolved load-bearing assumptions, explain the limitation and the test
+  needed to resolve it. Do not manufacture an uncertainty or validation claim.
 
 ## 7) Exemplar corpus (INSPIRE → arXiv sources)
 
 To expand the exemplar corpus from your papers and coauthor papers (for **discussion-logic** learning only; no verbatim reuse), see:
 - `assets/style/prl_style_corpus.md` (INSPIRE query + arXiv source downloader script)
 
-For the distilled “how to discuss physics” guidance used during drafting, see:
+For optional questions about the scientific argument, see:
 - `assets/style/physics_discussion_logic_playbook.md`
 
-## 8) M0 corpus (inputs scanned; read-only)
+## 8) Project exemplars
 
-The M0 corpus is your own admitted-manuscript set; keep that private list in your project repo, not here — this tool ships only the domain-agnostic writing register.
+Keep any private exemplar list and source-backed observations in the research project. This shared guidance does not assert that a particular corpus was read or that a frequency count establishes good scientific writing.

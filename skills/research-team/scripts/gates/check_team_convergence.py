@@ -715,7 +715,11 @@ def main() -> int:
             independence_errors = ["independent reproduction evidence/assessment is required; nonempty derivation prose is not confirmation"]
         else:
             from member_evidence import validate_original_transport
+            from check_independent_reproduction import _safe_tag
             try:
+                reproduction_result = args.project_root.resolve() / (
+                    f"artifacts/runs/{_safe_tag(args.tag)}/research_team/independent_reproduction_gate.json"
+                )
                 for report, evidence_path in ((args.member_a, args.member_a_evidence), (args.member_b, args.member_b_evidence)):
                     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
                     original = validate_original_transport(evidence, args.project_root.resolve())
@@ -725,24 +729,33 @@ def main() -> int:
                         raise ValueError("consumer report is not the original executed member report")
             except (KeyError, TypeError, ValueError, OSError, UnicodeError) as error:
                 independence_errors = [f"original member report binding unavailable: {error}"]
+            # This is the cycle's sole source-assessor invocation. Persist the
+            # diagnostic verdict, but accept only this subprocess's current
+            # stdout/exit; a previous or project-edited JSON grants no authority.
             checked = subprocess.run([sys.executable, str(Path(__file__).with_name("check_independent_reproduction.py")),
                 "--notes", str(args.notes), "--tag", args.tag, "--project-root", str(args.project_root),
                 "--member-a", str(args.member_a_evidence), "--member-b", str(args.member_b_evidence),
+                "--out-json", str(reproduction_result),
                 *(["--assessor-model", args.assessor_model] if args.assessor_model else []),
                 *(["--assessor-runner", str(args.assessor_runner)] if args.assessor_runner else []),
                 "--assessor-timeout-secs", str(args.assessor_timeout_secs),
                 "--assessor-context-tokens", str(args.assessor_context_tokens),
                 *(["--assessor-context-bytes", str(args.assessor_context_bytes)] if args.assessor_context_bytes is not None else [])],
                 capture_output=True, text=True, check=False) if not independence_errors else None
+            if checked and checked.stderr:
+                print(checked.stderr, end="", file=sys.stderr)
             try:
                 receipt = json.loads(checked.stdout) if checked else {}
             except (ValueError, TypeError):
                 receipt = {}
-            meta = receipt.get("meta", {})
-            if (checked is None or checked.returncode != 0 or receipt.get("status") != "converged"
+            receipt_errors = validate_convergence_result(receipt)
+            meta = receipt.get("meta", {}) if not receipt_errors else {}
+            if (checked is None or checked.returncode != 0 or receipt_errors or receipt.get("status") != "converged"
                     or type(meta.get("independent_confirmations")) is not int
                     or meta["independent_confirmations"] < 2 or not meta.get("confirmation_refs")):
                 independence_errors = independence_errors or ["independent reproduction assessment unavailable/rejected/stale"]
+                if checked:
+                    independence_errors.extend(receipt_errors or receipt.get("reasons", []))
             else:
                 base_meta["independent_confirmations"] = meta["independent_confirmations"]
                 base_meta["confirmation_refs"] = meta["confirmation_refs"]

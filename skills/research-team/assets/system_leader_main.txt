@@ -44,8 +44,7 @@ Scientific notebook closeout boundary:
   then checks structural navigation and content separately with
   `nullius notebook check --json` without a selector. `--result` scopes links alone; `--structure-only`
   establishes navigation alone.
-- That review freezes actual-byte SHA-256, including the automatic block and
-  uncommitted edits, and records every section's full-text coverage plus
+- That review freezes actual-byte SHA-256, including uncommitted edits, and records every section's full-text coverage plus
   source-anchored reasons on derivation completeness, logic, symbols, definitions,
   assumptions and conventions. Changed bytes make the old review stale. Missing,
   partial, failed, unavailable, invalid or stale review cannot grant closeout;

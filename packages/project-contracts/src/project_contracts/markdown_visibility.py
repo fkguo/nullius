@@ -4,6 +4,29 @@ import re
 from collections.abc import Collection
 
 
+def without_inline_code(text: str) -> str:
+    """Hide matched backtick spans, preserving literal unmatched delimiters."""
+    runs = list(re.finditer(r"`+", text))
+    output: list[str] = []
+    cursor = index = 0
+    while index < len(runs):
+        opening = runs[index]
+        prefix = text[:opening.start()]
+        if (len(prefix) - len(prefix.rstrip("\\"))) % 2:
+            index += 1
+            continue
+        closing = next((j for j in range(index + 1, len(runs))
+                        if len(runs[j].group()) == len(opening.group())), None)
+        if closing is None:
+            index += 1
+            continue
+        output.append(text[cursor:opening.start()])
+        output.append(" " * (runs[closing].end() - opening.start()))
+        cursor = runs[closing].end()
+        index = closing + 1
+    return "".join(output) + text[cursor:]
+
+
 def visible_markdown(text: str, *, preserved_markers: Collection[str] = ()) -> str:
     """Return visible Markdown while retaining exact standalone contract markers."""
     markers = set(preserved_markers)

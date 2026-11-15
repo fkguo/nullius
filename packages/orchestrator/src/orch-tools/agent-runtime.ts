@@ -48,6 +48,7 @@ function toSamplingContent(content: MessageParam['content']): SamplingBlock | Sa
         type: 'tool_result',
         toolUseId: block.tool_use_id,
         content: [{ type: 'text', text: block.content }],
+        ...(block.is_error === true ? { isError: true } : {}),
       };
     }
     return block;
@@ -61,6 +62,7 @@ function fromSamplingContent(content: SamplingBlock | SamplingBlock[]): MessageC
         type: 'tool_result',
         tool_use_id: block.toolUseId,
         content: block.content.map(item => item.text).join('\n'),
+        ...(block.isError === true ? { is_error: true } : {}),
       };
     }
     return block;

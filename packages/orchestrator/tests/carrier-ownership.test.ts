@@ -7,7 +7,6 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { _setAtomicWriteAuditHook } from '@nullius/shared';
 import { setCurrentResult, parseResultRegistry } from '../src/result-registry.js';
 import { refreshRunIndexBlock } from '../src/run-index.js';
-import { refreshNotebookCurrentState } from '../src/notebook-current-state.js';
 import { stampRunDirectory } from '../src/run-stamp.js';
 
 let root: string;
@@ -136,13 +135,7 @@ it('refuses non-round-tripping carrier bytes before registry or derived writes',
   expect(refreshRunIndexBlock(root).reason).toContain('not valid UTF-8');
   expect(fs.readFileSync(index)).toEqual(before);
   expect(fs.statSync(index).mode & 0o7777).toBe(0o600);
-  const notebook = path.join(root, 'research_notebook.md');
-  const notebookBytes = Buffer.from([0xff, 0x0d, 0x0a]);
-  fs.writeFileSync(notebook, notebookBytes);
-  fs.chmodSync(notebook, 0o640);
-  expect(refreshNotebookCurrentState(root, { insertIfMissing: true }).reason).toContain('not valid UTF-8');
-  expect(fs.readFileSync(notebook)).toEqual(notebookBytes);
-  expect(fs.statSync(notebook).mode & 0o7777).toBe(0o640);
+
 });
 
 it.each(['target', 'superseded', 'unrelated'])('refuses a duplicate %s ID without rewriting any ambiguous row', (kind) => {

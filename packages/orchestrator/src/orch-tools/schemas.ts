@@ -65,6 +65,7 @@ const AgentToolResultBlockSchema = z.object({
   type: z.literal('tool_result'),
   tool_use_id: z.string().min(1),
   content: z.string(),
+  is_error: z.boolean().optional(),
 });
 const AgentMessageContentSchema = z.union([
   AgentTextBlockSchema,

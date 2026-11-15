@@ -6,11 +6,21 @@ It also does not elevate optional project-root support files into URI authority.
 
 [`project-mcp`](../packages/project-mcp/README.md) and the [personal plugin](../packages/skills-market/docs/PERSONAL_PLUGIN.md) add no URI scheme or MCP resource surface. `nullius runtime path` and host-private runtime configuration resolve local installation paths only; they add no URI authority. `project_file_read` reads permitted real files under `NULLIUS_PROJECT_ROOT` in bounded chunks; it is not a resolver for the schemes below. Provider caches outside the bound project are not exposed through that file API. A delivery ID identifies a transport response in the existing run-manifest machinery, not a new research artifact namespace.
 
+The [source-reading tools](RESEARCH_TOOLS.md) use the same project boundary.
+`project_file_search` returns project-relative paths, source hashes and line/column
+locations with explicit scan coverage. `project_text_read` and
+`project_document_read` continue using source hashes and line or page/Unicode
+character positions. These are tool-result locators, not new URI schemes or
+resolver grants. PDF PNGs are bounded MCP image content associated with page
+numbers and image hashes; they do not advertise an MCP resource. A matching
+hash establishes byte identity, not full reading, OCR or scientific acceptance.
+
 Notebook content-review evidence uses existing `ArtifactRef` references for its
 verification subject, check-run, verdict and coverage records; it introduces no
-URI scheme. The reviewed complete UTF-8 notebook (automatic block included) and
+URI scheme. The reviewed complete UTF-8 notebook and
 required declared dependencies are pinned by SHA-256 of their actual bytes,
-including uncommitted edits. A URI or commit alone cannot establish current
+including uncommitted edits. The existing review scope also binds the relevant runs' ledger states; it introduces
+no additional locator scheme. A URI or commit alone cannot establish current
 content acceptance. See [human notebook integration](../packages/orchestrator/README.md#human-notebook-integration)
 for the full-text review contract.
 
@@ -121,13 +131,13 @@ Interrupted notebook reviews resume in a fresh run from immutable intake and bat
 
 Runtime observations bind the actual report location, so copying signed capture bytes cannot authenticate a new invocation elsewhere. Member episodes freeze every observed file into durable original storage before publication; successful workspace cleanup preserves subsequent verification. Records lacking these bindings remain readable and unavailable for new acceptance.
 
-Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. The canonical team cycle performs a postflight source assessment and a separate fresh assessment at the final consumer; both use the configured assessor request/execution budgets.
+Member origin trusts the configured runner and owning host runtime: the complete runner bytes are recorded, but no runner allowlist or provider attestation is claimed. Offline or injected host execution establishes a local process/callable observation; actual provider capacity evidence requires the corresponding CLI capture. For an eligible full-access candidate, the canonical team cycle performs one fresh source assessment at final convergence with the configured assessor request/execution budgets. Postflight retains structural and isolation checks. The final consumer accepts only its current checker subprocess stdout and exit status, never a stored diagnostic verdict; each later eligible convergence check executes a fresh assessor again.
 
 The owning account can read the authority key, including code executed by a member under that account; this authenticates against non-executing artifact tampering, not hostile same-account code. No OS sandbox or provider attestation is supplied.
 
 The configured token window is frozen before the original reviewer subprocess starts and bound into its authenticated runtime observation. Changing historical window metadata cannot admit that receipt. Older observations without this policy remain readable and require a fresh execution for capacity acceptance.
 
-Local directory links leave notebook dependency closure pending and prevent acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
+Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
 [Research output storage](RUN_STORAGE.md) uses project-relative paths and SHA-256 manifests; the shared local content store is not a new URI namespace and is not transferred by Git clone or push. Ref inventory does not grant authority to rewrite host refs or recovery history.
 
@@ -137,3 +147,7 @@ Task briefs use ordinary project-relative file paths under
 `artifacts/runs/<run-id>/`, not a new URI scheme or MCP resource. Their embedded
 SHA-256 source records are byte-freshness checks rather than lifecycle or
 scientific approval identifiers.
+The explicit Current Status link selects `task_brief` navigation in both status
+recovery views. `restore_argv` is an ephemeral local invocation for the current
+runtime and project location; it is not a portable persisted identifier. The
+brief and its recorded source paths remain project-relative after relocation.

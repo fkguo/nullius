@@ -13,7 +13,6 @@ import {
 import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger, resolveRunIdReference } from '../src/validity-ledger.js';
 import { parseResultRegistry, setCurrentResult, validateResultRegistry } from '../src/result-registry.js';
-import { refreshNotebookCurrentState } from '../src/notebook-current-state.js';
 import { refreshManagedBlock } from '../src/managed-block.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import { runCli } from '../src/cli.js';
@@ -858,13 +857,13 @@ describe('refresh, hooks, and staleness', () => {
     expect(renderRunIndexBlock(projection)).toContain('★handrow (DEFECTIVE)');
   });
 
-  it('a supplied projection is NEVER rendered — both consumers recompute on every attempt (revert-sensitive)', () => {
+  it('a supplied projection is never rendered — the index recomputes on every attempt', () => {
     const projectRoot = makeProject();
     const runId = '20260809-m1-r001-fresh-render';
     mkRun(projectRoot, runId);
     stampRun(projectRoot, runId);
-    // A fabricated stale projection claiming an empty project: if either
-    // consumer ever rendered a supplied projection, the block would claim
+    // A fabricated stale projection claiming an empty project: if the index
+    // ever rendered a supplied projection, the block would claim
     // zero runs while one exists on disk.
     const fake = { ...computeRunIndexProjection(projectRoot) };
     fake.run_directories = 0;
@@ -875,30 +874,7 @@ describe('refresh, hooks, and staleness', () => {
     // ('rewritten' into an empty-state block that loses the run id).
     expect(outcome.action).toBe('unchanged');
     expect(blockText(projectRoot)).toContain(runId);
-    // Same rule for the notebook consumer: a fake projection with a row
-    // must not render — the real (empty) registry state must.
-    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'), [
-      '# Notebook', '',
-      '<!-- NOTEBOOK_CURRENT_STATE_START -->',
-      '(placeholder)',
-      '<!-- NOTEBOOK_CURRENT_STATE_END -->', '',
-    ].join('\n'));
-    const fakeNotebook = {
-      registry_block_found: true,
-      current_rows: [{
-        result_id: 'phantom', run_id: runId, effective_commit: 'a'.repeat(12),
-        has_snapshot: false, artifact: null, defective: false,
-      }],
-      total_rows: 1,
-      issue_codes: [],
-    };
-    const notebookOutcome = refreshNotebookCurrentState(projectRoot, {
-      insertIfMissing: false,
-      projection: fakeNotebook,
-    });
-    expect(notebookOutcome.action).toBe('rewritten');
-    const notebook = fs.readFileSync(path.join(projectRoot, 'research_notebook.md'), 'utf-8');
-    expect(notebook).not.toContain('phantom');
+
   });
 
   it('a CURRENT row naming a run with NO directory renders in the defects footer (never a silent lost star)', async () => {

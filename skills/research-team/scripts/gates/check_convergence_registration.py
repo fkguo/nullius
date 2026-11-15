@@ -6,10 +6,9 @@ record before results are folded.
 
 Milestone convergence is the moment "which result is current" changes, so
 the convergence deliverable includes updating the traceability record —
-registering the headline result, superseding replaced runs, stamping
-rewritten memo sections. Left as prose ("remember to register"), measured
-adoption shows it simply does not happen. This gate is the machine consumer
-at the already-mandatory fold boundary, next to
+registering the headline result, superseding replaced runs, and identifying
+the scientific sections updated for the result. This gate verifies those
+declarations at the already-mandatory fold boundary, next to
 check_adjudication_completeness.py: the adjudication carries an explicit
 `## Result registration` declaration, and every declared fact is verified
 against the read model (`nullius current --json`) — declared-but-absent is
@@ -40,17 +39,13 @@ while traceability declarations are scoped to their declared objects):
     no headline result is legitimate, but say so deliberately);
   - every declared supersession must already be recorded on the validity
     ledger with the declared replacement;
-  - every declared rewritten section must exist in the notebook and carry a
-    fresh written-against stamp (class current / current-modulo-untracked);
-  - a PRESENT notebook current-state block must be in sync with its
-    canonical render (a present block claims currency; an out-of-sync one
-    is a false claim — `nullius notebook sync` refreshes it). A MISSING
-    block claims nothing and is advisory territory, never a fold refusal;
-  - a declared rewritten section must carry zero unacknowledged links to
-    superseded/void runs (the read model accepts any acknowledgment
-    channel: a visible superseded/void word in the CITING paragraph or
-    list item, a link to the replacement run anywhere in the section, or a
-    declared log-role section).
+  - every declared rewritten section must exist in the notebook; the current
+    full-text review binds the notebook and its scientific dependencies, so
+    per-section hidden commit stamps are not required;
+
+Run validity is checked through the result registry and ledger. Whether a
+historical result is explained correctly in scientific prose belongs to the
+current whole-notebook review, not a word list or section-format rule.
 
 The mandatory unscoped notebook check validates the complete result registry,
 including superseded rows; only current rows create human-section link duties.
@@ -259,14 +254,14 @@ def verify_against_view(decl: Declaration, view: dict) -> list[str]:
             failures.append(f"declared headline run {run_id!r} carries conflicting origin stamps")
         if run_id in no_identity:
             failures.append(f"declared headline run {run_id!r} has no authoritative identity (ledger defect)")
-        # A fresh automatic table or stamp cannot substitute for the human
-        # explanation. This is a necessary link check; review owns content.
+        # Registry metadata cannot substitute for the human explanation.
+        # This is a necessary link check; review owns scientific content.
         links = notebook.get("result_links") or {}
         linked = next((r for r in links.get("results", []) if r.get("result_id") == result_id), None)
         if links.get("status") not in ("linked", "missing_links") or linked is None:
             failures.append(f"human notebook result-link check unavailable for {result_id!r}; refresh the runtime and inspect `nullius current --json`")
         elif not set(linked.get("sections") or []).intersection(decl.rewritten):
-            failures.append(f"declared headline result {result_id!r} needs its artifact linked in a declared rewritten notebook section; an automatic table or `Rewritten sections: none` is insufficient")
+            failures.append(f"declared headline result {result_id!r} needs its artifact linked in a declared rewritten notebook section; `Rewritten sections: none` is insufficient")
 
     recorded = {(row.get("run_id"), row.get("by")) for row in superseded_rows}
     for old, new in decl.supersedes:
@@ -280,58 +275,6 @@ def verify_against_view(decl: Declaration, view: dict) -> list[str]:
         entries = sections_by_heading.get(heading, [])
         if not entries:
             failures.append(f"declared rewritten section {heading!r} does not exist in the notebook")
-            continue
-        # Duplicate headings: the declaration cannot name one of them, so
-        # EVERY section under that heading must carry a fresh stamp — a
-        # stale namesake hiding behind a fresh one is exactly the holdover
-        # prose the stamp exists to catch.
-        for entry in entries:
-            if entry.get("class") not in ("current", "current-modulo-untracked"):
-                duplicate_note = (
-                    f" (heading appears {len(entries)} times; every namesake section must be current)"
-                    if len(entries) > 1
-                    else ""
-                )
-                failures.append(
-                    f"declared rewritten section {heading!r} is {entry.get('class')!r} "
-                    f"({entry.get('cause')}){duplicate_note}; a rewrite carries a fresh "
-                    "`<!-- written-against: <commit> -->` stamp"
-                )
-
-    # Current-state block: only a PRESENT block claims currency. Views from
-    # launchers predating the block report no field and add no clause.
-    # `duplicated_markers` is true ONLY when duplication coexists with at
-    # least one complete START..END pair — an ambiguous CURRENCY CLAIM
-    # (which of the structures is authoritative?), hence a refusal. Stray
-    # unpaired marker lines claim nothing: the reader reports them as an
-    # advisory reason with block_found=false, and this gate stays silent
-    # (R3: a missing block never refuses). Fenced or indented-code examples
-    # quoting the markers never reach either state.
-    block = notebook.get("current_state_block") or {}
-    if block.get("duplicated_markers"):
-        failures.append(
-            "the notebook current-state block has duplicated markers — repair by hand, "
-            "then `nullius notebook sync`"
-        )
-    elif block.get("block_found") and block.get("in_sync") is False:
-        failures.append(
-            f"the notebook current-state block is OUT OF SYNC ({block.get('reason')}); "
-            "a present block claims currency — run `nullius notebook sync` before folding"
-        )
-
-    # Dead citations: zero-threshold, but ONLY inside sections this fold
-    # declares rewritten — historical prose elsewhere stays advisory.
-    declared_headings = set(decl.rewritten)
-    if declared_headings:
-        run_links = notebook.get("run_links") or {}
-        for entry in run_links.get("unacknowledged_dead") or []:
-            if entry.get("section") in declared_headings:
-                failures.append(
-                    f"declared rewritten section {entry.get('section')!r} still cites "
-                    f"{entry.get('run_id')} ({entry.get('validity')}) as live-looking prose; "
-                    "acknowledge it in place (say superseded/void or link the replacement run), "
-                    "or remove the link"
-                )
     return failures
 
 

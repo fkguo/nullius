@@ -1,5 +1,5 @@
 // @nullius/orchestrator — public package exports
-export const VERSION = '0.6.0';
+export const VERSION = '0.6.1';
 export { runCli, type CliIo } from './cli.js';
 
 export * from './types.js';

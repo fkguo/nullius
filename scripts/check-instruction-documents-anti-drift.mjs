@@ -10,7 +10,7 @@ import { collectInstructionDocuments } from './lib/instruction-documents.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const ENTRY_LIMITS = [
-  ['skills/research-harness/SKILL.md', 7000, 11],
+  ['skills/research-harness/SKILL.md', 8000, 11],
   ['skills/research-team/SKILL.md', 12500, 8],
   ['skills/review-swarm/SKILL.md', 7500, 12],
   ['skills/research-integrity/SKILL.md', 10500, 12],

@@ -3,13 +3,11 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildTraceabilityView } from '../src/traceability-view.js';
+import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import { appendValidityEvent, buildValidityEvent } from '../src/validity-ledger.js';
 
-/** The view exports EVERY notebook section with its staleness class — the
- *  per-section truth the fold-boundary registration gate consumes (the
- *  aggregates alone cannot say whether a DECLARED rewritten section carries
- *  a fresh stamp). */
+/** Historical version annotations remain readable without requiring them
+ *  in user notes or confusing Git relationships with scientific acceptance. */
 
 let projectRoot: string;
 
@@ -25,6 +23,18 @@ function git(...args: string[]): string {
 }
 
 describe('traceability view notebook.sections export', () => {
+  it('does not ask users to add hidden protocol to unstamped scientific notes', () => {
+    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'),
+      '# 研究笔记\n\n## 11 月 15 日的尝试\n\n零点附近误差变大，暂不能采用这一近似。\n');
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.notebook.sections.map(section => section.heading)).toEqual(['11 月 15 日的尝试']);
+    expect(view.unanswerable.some(entry => entry.clause === 'notebook sections current vs stale')).toBe(false);
+    expect(view.notebook.content_review.status).not.toBe('accepted');
+    const prose = renderTraceabilityProse(view);
+    expect(prose).not.toMatch(/written-against|notebook sync|unstamped|APPEND DRIFT|DEAD CITATIONS/);
+    expect(prose).toContain('Notebook content review:');
+  });
+
   it('lists every section with heading, class, and cause', () => {
     git('init', '-q');
     git('config', 'user.email', 't@example.com');

@@ -3,7 +3,7 @@
   "package_type": "tool-pack",
   "repo": "nullius/nullius",
   "channel": "beta",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "summary": "HEP MCP server stack for literature research and evidence tools.",
   "platforms": ["claude_code", "codex", "opencode"],
   "install": {

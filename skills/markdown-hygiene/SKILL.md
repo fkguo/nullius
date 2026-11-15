@@ -1,6 +1,6 @@
 ---
 name: markdown-hygiene
-description: Check and repair deterministic Markdown hygiene issues in research notes, especially Markdown math escaping, TOC-generated LaTeX escapes, rendered math/link readiness, and portable cleanup before research-harness/research-team/research-writer/research-integrity handoff; also trigger on rendering symptoms such as math showing as raw $...$ source on GitHub or a report page, formulas that render in one viewer but not on the target surface, LaTeX escapes that look doubled, or paper references that are not clickable.
+description: Check Markdown research-note rendering and links, with bounded formatting repairs and TOC symbol cleanup, rendered math/link readiness, and portable cleanup before research-harness/research-team/research-writer/research-integrity handoff; also trigger on rendering symptoms such as math showing as raw $...$ source on GitHub or a report page, formulas that render in one viewer but not on the target surface, LaTeX escapes that look doubled, or paper references that are not clickable.
 metadata:
   short-description: Deterministic Markdown math and link hygiene
 ---
@@ -13,8 +13,8 @@ The TOC repair is one subcommand of this broader Markdown hygiene surface.
 
 ## When to use
 
-- A generated Markdown table of contents escaped LaTeX inside math, such as `$\\gamma\\_{\\rm lin}$`, `$G\\_R$`, or `$k^\\*$`.
-- Markdown math contains accidental doubled command backslashes such as `$\\Delta$` instead of `$\Delta$`.
+- A generated Markdown table of contents escaped mathematical symbols, such as `$G\_R$` or `$k^\*$`. Inspect context before applying `fix-toc`.
+- Math contains ambiguous backslash escapes that need source and rendering inspection. The script does not collapse doubled backslashes: they may be valid TeX row breaks.
 - Display-math blocks contain continuation lines beginning with `=`, `+`, or `-`, which some Markdown renderers can confuse with block syntax.
 - You need a standalone Markdown cleanup/check before invoking `research-harness`, `research-team`, or `research-writer`.
 - You need to verify rendered-note portability for graph or slide artifacts: local Markdown links resolve, absolute local paths are absent, likely note paths are real links rather than code spans, display math is separated from prose, and project-configured raw math/text tokens are gone.
@@ -31,7 +31,7 @@ These rules are not renderer-neutral: the same Markdown source can render cleanl
 - **Local editors and document pipelines (editor previews, KaTeX or MathJax site and slide generators, pandoc-style converters).** Inline `$...$` and display `$$...$$` are the portable forms. These renderers hand the span content to the math engine mostly verbatim, so doubled command backslashes such as `$\\Delta$`, TOC-escaped forms such as `$G\_R$`, and prose-adjacent `$$` blocks are the classic breakage. Typical symptom: stray literal backslashes or underscores inside typeset math, or a display block that renders as plain paragraph text. Run the baseline `check`, plus `--human-facing` for reader-facing notes; leave `--check-github-math` off unless the renderer shares GitHub's failure modes.
 - **Chat clients that render only display blocks.** Some conversation surfaces render standalone `$$...$$` blocks but show inline `$...$` as raw source, so inline math typed into the chat window needs Unicode or display blocks there. That constraint applies to chat replies, not to Markdown files: for files, keep `$...$` as the portable inline form and do not rewrite documents into Unicode-only math (see the Safety Contract). The deterministic script lints Markdown files only and has no checks for chat-reply text.
 
-The deterministic script inspects Markdown source patterns and never invokes any renderer, so a clean run is strong evidence, not proof, that the target surface renders everything. The acid test is always the same: the document must compile and render on the TARGET surface without leaking raw source. When one file must serve several surfaces, write to the strictest target and verify there.
+The deterministic script inspects Markdown source patterns and never invokes any renderer, so a clean run means only that its implemented pattern checks found no problem; it does not establish correct rendering. The acid test is always the same: the document must compile and render on the TARGET surface without leaking raw source. When one file must serve several surfaces, write to the strictest target and verify there.
 
 ### Checking GitHub rendering without pushing
 
@@ -100,7 +100,7 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix --root research_contrac
 python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix --root .
 ```
 
-Run only the old TOC LaTeX-unescape behavior:
+Run the explicit TOC symbol-unescape operation after checking that the symbols were escaped by a generator:
 
 ```bash
 python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix-toc --root Draft.md
@@ -111,7 +111,8 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix-toc --check --root Draf
 
 - Edits only Markdown files.
 - Skips fenced code blocks.
-- Rewrites only Markdown math regions for LaTeX escaping fixes, plus likely formula-like inline code spans that should have been Markdown math.
+- Review in-place changes: symbol unescaping inside a detected TOC and conversion of likely formula-like code spans depend on document intent.
+- Never collapse doubled backslashes. A valid aligned expression or matrix can contain a row break immediately followed by a letter; ambiguity requires contextual reading and rendering inspection.
 - For human-facing Markdown, all formula content intended as math must be written in renderable Markdown math: inline formulas in `$...$`, display formulas in standalone `$$...$$` blocks, or renderer-supported display environments. Do not leave formulas as plain text or inline code when a human reader should see compiled math.
 - For Markdown files, do not rewrite inline math into Unicode text. `$...$` is the portable form for inline formulas in Markdown documents; Unicode-only inline math is a chat-client workaround, not the document standard.
 - Put display `$$` delimiters on standalone lines with a blank line before the opening delimiter and after the closing delimiter. Single-line or prose-adjacent display math is fragile across renderers.

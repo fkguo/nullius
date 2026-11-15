@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import { withLedgerLock, writeBytesAtomicDurable } from '@nullius/shared';
 
-/** Shared engine for MACHINE-OWNED markdown blocks (the notebook
- *  current-state block, the project-index run-index block): one set of
+/** Shared engine for machine-owned blocks in the project index, with
+ *  read-only recognition of historical notebook blocks: one set of
  *  battle-tested rules for locating, validating, splicing, and refreshing
  *  a marker-delimited region inside a human-owned file.
  *
@@ -35,7 +35,7 @@ export type ManagedBlockSpec = {
   digestFirstLinePattern: RegExp;
   /** Short noun used in operator-facing reasons, e.g. 'current-state'. */
   blockNoun: string;
-  /** The repair verb, e.g. '`nullius notebook sync`'. */
+  /** The repair verb, e.g. '`nullius index sync`'. */
   syncCommand: string;
   /** Human name of the carrier file for skip reasons. */
   fileLabel: string;
@@ -55,6 +55,10 @@ export type BlockBounds = { start: number; end: number };
 
 export type ManagedBlockLocation = {
   bounds: BlockBounds | null;
+  /** Independently recognizable blocks with no other marker inside them.
+   * Read-only consumers may exclude each without discarding intervening prose.
+   * This does not relax the single-block requirement of any writer. */
+  recognizedBlocks: BlockBounds[];
   duplicated: boolean;
   markerLinesPresent: boolean;
   strayMarkerLines: number;
@@ -66,7 +70,7 @@ export const normalizeEol = (value: string): string => value.replace(/\r\n/g, '\
 
 /** Keep every byte outside a single recognized machine projection. Ambiguous
  * markers retain their provenance significance instead of hiding content. */
-export function textOutsideManagedBlock(text: string, spec: ManagedBlockSpec): string | null {
+export function textOutsideManagedBlock(text: string, spec: Pick<ManagedBlockSpec, 'startMarker' | 'endMarker' | 'digestFirstLinePattern' | 'frontMatterPosition'>): string | null {
   const location = locateManagedBlock(text, spec);
   if (!location.markerLinesPresent) return text;
   if (!location.bounds || location.duplicated || location.strayMarkerLines > 0) return null;
@@ -95,7 +99,7 @@ export function advanceMarkdownFence(
   return { marker: delimiter[0]! as MarkdownFence['marker'], length: delimiter.length };
 }
 
-export function locateManagedBlock(text: string, spec: ManagedBlockSpec): ManagedBlockLocation {
+export function locateManagedBlock(text: string, spec: Pick<ManagedBlockSpec, 'startMarker' | 'endMarker' | 'digestFirstLinePattern' | 'frontMatterPosition'>): ManagedBlockLocation {
   const lines = text.split('\n');
   let fence: MarkdownFence | null = null;
   let offset = 0;
@@ -183,7 +187,9 @@ export function locateManagedBlock(text: string, spec: ManagedBlockSpec): Manage
   const positionOk = bounds === null || !spec.frontMatterPosition
     ? true
     : bounds.end <= firstHeadingOffset;
-  return { bounds, duplicated, markerLinesPresent, strayMarkerLines, firstHeadingOffset, positionOk };
+  const recognizedBlocks = completeBlocks.filter(block => !markers.some(marker =>
+    marker.start > block.start && marker.end < block.end));
+  return { bounds, recognizedBlocks, duplicated, markerLinesPresent, strayMarkerLines, firstHeadingOffset, positionOk };
 }
 
 export type ManagedBlockStatus = {

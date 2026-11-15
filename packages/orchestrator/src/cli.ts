@@ -93,41 +93,11 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
       const { runNotebookReview } = await import('./notebook-content-review.js');
       return runNotebookReview(projectRoot, { model: parsed.model!, dependencies: parsed.dependencies ?? [], timeoutSecs: parsed.timeoutSecs ?? 1200, json: parsed.json, budgets: parsed.budgets, resume: parsed.resume }, io);
     }
-    const { refreshNotebookCurrentState, checkCurrentStateBlock } = await import('./notebook-current-state.js');
-    try {
-      // The post-write check compares against the projection the refresh
-      // actually RENDERED (one compute, and no window for a concurrent
-      // writer's newer block to be misjudged against a stale recompute —
-      // or vice versa).
-      const outcome = refreshNotebookCurrentState(projectRoot, { insertIfMissing: true });
-      const status = checkCurrentStateBlock(projectRoot, outcome.projection);
-      if (parsed.json) {
-        io.stdout(`${JSON.stringify({ action: outcome.action, reason: outcome.reason, block: status }, null, 2)}\n`);
-      } else if (outcome.action === 'skipped') {
-        io.stderr(`notebook sync: ${outcome.reason}\n`);
-        return 1;
-      } else {
-        io.stdout(
-          `notebook sync: current-state block ${outcome.action}`
-          // The reason already reads "in sync; …" when strays ride along —
-          // print one or the other, never both.
-          + `${status.in_sync === true ? (status.reason !== null ? ` — ${status.reason}` : ' (in sync)') : ''}`
-          + `${status.in_sync !== true
-            ? ` — WARNING: post-write check does not confirm the block (${status.reason ?? (status.block_found ? 'out of sync' : 'block not found')}); a concurrent writer may have landed`
-            : ''}\n`,
-        );
-      }
-      return outcome.action === 'skipped' ? 1 : 0;
-    } catch (error) {
-      io.stderr(`notebook sync: ${error instanceof Error ? error.message : String(error)}\n`);
-      return 1;
-    }
   }
   if (parsed.command === 'index') {
     const { refreshRunIndexBlock, checkRunIndexBlock } = await import('./run-index.js');
     try {
-      // Same post-write discipline as `notebook sync`: the check compares
-      // against the projection the refresh actually RENDERED.
+      // Compare against the projection actually rendered by this refresh.
       const outcome = refreshRunIndexBlock(projectRoot, { insertIfMissing: true });
       const status = checkRunIndexBlock(projectRoot, outcome.projection);
       if (parsed.json) {
@@ -177,16 +147,6 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
         + `${row.effective_commit ? ` @ ${row.effective_commit}${row.has_snapshot ? '+snapshot' : ''}${row.has_untracked ? '+untracked' : ''}` : ''}`
         + `${row.supersedes !== 'none' ? ` (supersedes ${row.supersedes})` : ''}\n`,
       );
-      // Registering a result is exactly the change the notebook's
-      // current-state block exists to reflect; best-effort, never fails
-      // the registration itself.
-      try {
-        const { refreshNotebookCurrentState } = await import('./notebook-current-state.js');
-        const refreshed = refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
-        if (refreshed.action === 'rewritten') io.stdout('notebook current-state block refreshed.\n');
-      } catch {
-        // surfaced as out-of-sync on the next status/current read
-      }
       try {
         const { refreshRunIndexBlock } = await import('./run-index.js');
         const refreshedIndex = refreshRunIndexBlock(projectRoot, { insertIfMissing: false });

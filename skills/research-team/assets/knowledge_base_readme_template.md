@@ -48,8 +48,7 @@ Skepticism policy (real research):
   - In `$$...$$` blocks, no line may start with `+`, `-`, or `=` (prefix with `\quad`).
   - Do not split one multi-line equation into back-to-back `$$` blocks; keep one `$$...$$` block.
   - Deterministic autofix helper: `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/fix_markdown_math_hygiene.py" --root knowledge_base --in-place`
-  - Avoid accidental doubled backslashes in math (common LLM/TOC escape artifact), e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`:
-    - Fix helper: `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/fix_markdown_double_backslash_math.py" --root knowledge_base --in-place`
+  - Inspect rendered math and resolve ambiguous escapes from context; preserve legitimate TeX row breaks, including row breaks immediately followed by a letter.
 
 ## methodology_traces/
 

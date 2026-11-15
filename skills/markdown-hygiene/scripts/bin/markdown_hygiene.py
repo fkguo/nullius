@@ -810,20 +810,9 @@ def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
 
 
 def fix_toc_math(expr: str) -> str:
-    # Undo TOC-generator escaping without touching legitimate LaTeX line breaks.
-    expr = re.sub(r"\\\\(?=[A-Za-z_])", r"\\", expr)
-    expr = expr.replace(r"\\_", "_")
-    expr = expr.replace(r"\_", "_")
-    expr = expr.replace(r"\\*", "*")
-    expr = expr.replace(r"\*", "*")
-    expr = expr.replace(r"\\^", "^")
-    expr = expr.replace(r"\^", "^")
-    return expr
-
-
-def fix_doubled_math_commands(expr: str) -> str:
-    # Fix common accidental command doubling, but leave line breaks and spacing intact.
-    return re.sub(r"\\\\(?=[A-Za-z])", r"\\", expr)
+    # An explicit TOC unescape is limited to singly escaped symbols. Never
+    # collapse backslashes: a row break followed by a letter is valid TeX.
+    return re.sub(r"(?<!\\)\\([_*^])", r"\1", expr)
 
 
 def fix_code_wrapped_math(text: str) -> tuple[str, int]:
@@ -923,22 +912,6 @@ def fix_toc_latex_escapes(text: str) -> tuple[str, int]:
             continue
 
         out.append(line)
-
-    return "".join(out), changes
-
-
-def fix_markdown_math_double_backslash(text: str) -> tuple[str, int]:
-    out: list[str] = []
-    changes = 0
-
-    for line, in_code in split_fenced_lines(text):
-        if in_code:
-            out.append(line)
-            continue
-        fixed = rewrite_math_in_line(line, fix_doubled_math_commands)
-        if fixed != line:
-            changes += 1
-        out.append(fixed)
 
     return "".join(out), changes
 
@@ -1165,7 +1138,6 @@ def main(argv: list[str]) -> int:
             [
                 fix_code_wrapped_math,
                 fix_display_math_blank_lines,
-                fix_markdown_math_double_backslash,
                 fix_toc_latex_escapes,
                 fix_display_math_leading_continuation_lines,
             ],
@@ -1197,7 +1169,6 @@ def main(argv: list[str]) -> int:
             [
                 fix_code_wrapped_math,
                 fix_display_math_blank_lines,
-                fix_markdown_math_double_backslash,
                 fix_toc_latex_escapes,
                 fix_display_math_leading_continuation_lines,
             ],

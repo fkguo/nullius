@@ -7,12 +7,17 @@ reviewer swarm.
 
 ## Quick start
 
+Use this workflow when the project selects formal independent-member milestone
+acceptance. Ordinary research and useful bounded native delegation stay with the
+primary host agent through [research-harness](../research-harness/SKILL.md).
+Calling a subagent does not require team scaffolding or an A/B cycle.
+
 This skill is designed to be driven by a tool-using LLM agent. The commands below
 are what the agent runs; you can also run them manually for reproducibility and
 debugging.
 Commands below use `SKILL_DIR` so they stay portable across install locations.
 
-1) Scaffold a project:
+1) Prepare the selected workflow's assets, reusing them when already present:
 
 ```bash
 SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
@@ -26,11 +31,13 @@ Use an external project root for real work. Public `research-team` scaffold / co
 
 If the project will actually use the HEP provider bundle, add `--with-hep-provider`; otherwise the default full scaffold stays host-local and does not precreate `.hep/` or enable the HEP workspace gate.
 
-2) Keep derivations in `research_notebook.md`, then refresh / maintain the machine-facing `research_contract.md`.
+2) Fill the project goal, milestone scope and contract for the actual task. Keep derivations in `research_notebook.md`, then refresh / maintain the machine-facing `research_contract.md`.
 
-3) Run a team cycle (preflight + reviewers):
+3) Run deterministic preflight from the external project root:
 
 ```bash
+cd /path/to/project
+
 SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag 20260502T023000Z-m0-topic \
@@ -38,7 +45,8 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --out-dir artifacts \
   --member-a-system prompts/_system_member_a.txt \
   --member-b-system prompts/_system_member_b.txt \
-  --auto-tag
+  --auto-tag \
+  --preflight-only
 ```
 
 The resolved `<base>-rN` tag is the parent project-local `run_id`. New team
@@ -46,7 +54,14 @@ and draft payloads use `artifacts/runs/<tag>/research_team/`; origin stamps
 belong to `artifacts/runs/<tag>/`. `--out-dir` is the project artifacts
 folder. Executor evidence and navigation pointers do not grant scientific acceptance.
 
-Note: the scaffolded `research_team_config.json` defaults to `review_access_mode=full_access` (reviewers request file reads/commands/network via a proxy with evidence logs). To force offline/packet-only review, set `review_access_mode=packet_only`.
+Preflight prepares the candidate and packet; it does not execute reviewers or
+accept results. The default `host_native` setting cannot execute members through
+this shell script. For the current formal `full_access` route, explicitly select
+supported CLI runners and retain the required runtime observations; follow
+[Execute a selected cycle](references/usage_guide.md#execute-a-selected-cycle).
+Native reports alone do not provide that evidence. An already applicable
+`packet_only` cycle establishes report consistency with zero independent execution
+confirmations; lowering a required `full_access` configuration does not satisfy it.
 Optional: configure non-blocking sidecar reviewers via `sidecar_review` (single) or `sidecar_reviews` (list) in `research_team_config.json`; scaffolded configs keep them disabled unless you opt in explicitly.
 
 ## Requirements
@@ -54,7 +69,8 @@ Optional: configure non-blocking sidecar reviewers via `sidecar_review` (single)
 - bash, python3
 - julia (recommended)
 - rg (optional)
-- claude CLI and gemini CLI (optional, only for live multi-review runs)
+- An explicitly selected supported model CLI for current formal `full_access`
+  execution; deterministic preflight does not require a model CLI.
 
 ## Docs
 

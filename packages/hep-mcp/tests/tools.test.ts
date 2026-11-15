@@ -37,10 +37,6 @@ vi.mock('../src/tools/research/evidenceGrading.js', () => ({
   gradeEvidence: vi.fn(),
 }));
 
-vi.mock('../src/tools/research/conflictDetector.js', () => ({
-  detectConflicts: vi.fn(),
-}));
-
 vi.mock('../src/tools/research/criticalAnalysis.js', () => ({
   performCriticalAnalysis: vi.fn(),
 }));
@@ -106,7 +102,6 @@ const api = await import('../src/api/client.js');
 const topicAnalysis = await import('../src/tools/research/topicAnalysis.js');
 const networkAnalysis = await import('../src/tools/research/networkAnalysis.js');
 const evidenceGrading = await import('../src/tools/research/evidenceGrading.js');
-const conflictDetector = await import('../src/tools/research/conflictDetector.js');
 const criticalAnalysis = await import('../src/tools/research/criticalAnalysis.js');
 const reviewClassifier = await import('../src/tools/research/reviewClassifier.js');
 const theoreticalConflicts = await import('../src/tools/research/theoreticalConflicts.js');
@@ -681,21 +676,27 @@ describe('Tool Handlers (current exposure)', () => {
     );
   });
 
-  it('inspire_detect_measurement_conflicts should call detectConflicts', async () => {
-    vi.mocked(conflictDetector.detectConflicts).mockResolvedValueOnce({ ok: true } as any);
+  it.each(['standard', 'full'] as const)('refuses the retired measurement operator in %s without executing providers or sampling', async mode => {
     const createMessage = vi.fn();
-
-    await handleToolCall(
-      'inspire_detect_measurement_conflicts',
-      { recids: ['1', '2'] },
-      'standard',
-      { createMessage }
-    );
-
-    expect(conflictDetector.detectConflicts).toHaveBeenCalledWith(
-      { recids: ['1', '2'] },
-      { createMessage }
-    );
+    const callTool = vi.fn();
+    const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected network call'));
+    try {
+      const response = await handleToolCall(
+        'inspire_detect_measurement_conflicts',
+        { project_root: projectRoot, recids: ['1', '2'], target_quantities: ['W mass'] },
+        mode,
+        { createMessage, callTool }
+      );
+      expect(response.isError).toBe(true);
+      expect(readTextBlock(response)).toContain('Unknown tool: inspire_detect_measurement_conflicts');
+      expect(api.getPaper).not.toHaveBeenCalled();
+      expect(arxivTooling.accessPaperSource).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+      expect(createMessage).not.toHaveBeenCalled();
+      expect(callTool).not.toHaveBeenCalled();
+    } finally {
+      fetch.mockRestore();
+    }
   });
 
   it('inspire_critical_analysis should call performCriticalAnalysis', async () => {

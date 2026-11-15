@@ -5,7 +5,7 @@
 - Report ID: `<report-id>`
 - Created: `<YYYY-MM-DD>`
 - Supersedes report ID: `none`
-- Relation registry: [Main research report registry](../project_index.md#main-research-report)
+- Relation registry: [Main research report registry](../project_index.md#main-research-report "nullius-navigation")
 <!-- MAIN_RESEARCH_REPORT_METADATA_END -->
 
 <!-- REPORT_SECTION_ORIGIN_START -->
@@ -91,7 +91,7 @@
 - Method or representation difference: <what makes the validation methodologically distinct>
 - Declared replay risks: `not_applicable`
 - Validation result: <what the validation found, including disagreement>
-- Human-readable validation evidence: [<descriptive evidence label>](<relative-or-stable-web-target>)
+- Human-readable validation evidence: `[<descriptive evidence label>](<relative-or-stable-web-target>)`
 <!-- REPORT_SECTION_VALIDATION_END -->
 
 <!-- REPORT_SECTION_BALANCE_START -->
@@ -113,7 +113,7 @@
 <!-- REPORT_SECTION_EVIDENCE_START -->
 ## Human evidence chain and machine provenance
 
-- Human-readable evidence chain: [<claim or derivation note>](<relative-or-stable-web-target>) → [<result or validation note>](<relative-or-stable-web-target>)
+- Human-readable evidence chain: `[<claim or derivation note>](<relative-or-stable-web-target>)` → `[<result or validation note>](<relative-or-stable-web-target>)`
 - Machine provenance: <JSON, JSONL, hashes, manifests, or receipts that bind the execution>
 - Binding explanation: <how machine provenance binds the human-readable evidence without substituting for its explanation>
 <!-- REPORT_SECTION_EVIDENCE_END -->

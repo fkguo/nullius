@@ -3,7 +3,7 @@
   "package_type": "skill-pack",
   "repo": "nullius/skills-market",
   "channel": "dev",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "summary": "Standalone deterministic Markdown math, link, and generated-TOC hygiene skill for research notes and handoffs.",
   "platforms": [
     "claude_code",

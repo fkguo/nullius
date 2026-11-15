@@ -520,9 +520,9 @@ def _agent_skills_root() -> Path:
 
 # The five cli-runner families share the same layout under the agent skills
 # root: `<family>-cli-runner/scripts/run_<family>.sh`, and all accept the same
-# core flags (--model / --system-prompt-file / --prompt-file / --out). The
-# distiller that consumes these outputs computes cross-model agreement/asymmetry,
-# so it must not be frozen to the claude+gemini pair.
+# core flags (--model / --system-prompt-file / --prompt-file / --out).
+# These optional reading analyses remain available across host/provider families;
+# their interpretation belongs to the agent reading the original sources.
 _RUNNER_FAMILIES: tuple[str, ...] = ("claude", "codex", "gemini", "opencode", "kimi")
 
 

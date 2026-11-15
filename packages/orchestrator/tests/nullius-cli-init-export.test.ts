@@ -278,6 +278,8 @@ describe('nullius CLI init/export', () => {
     for (const rel of CANONICAL_SCAFFOLD_FILES) {
       expect(fs.existsSync(path.join(projectRoot, rel))).toBe(true);
     }
+    const notebook = fs.readFileSync(path.join(projectRoot, 'research_notebook.md'), 'utf-8');
+    expect(notebook).not.toContain('NOTEBOOK_CURRENT_STATE_');
     for (const rel of ABSENT_DEFAULT_SURFACES) {
       expect(fs.existsSync(path.join(projectRoot, rel))).toBe(false);
     }

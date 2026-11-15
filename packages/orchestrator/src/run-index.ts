@@ -31,7 +31,7 @@ import {
  *  curated registries and human navigation remain untouched.
  *
  *  Deterministic render + digest/byte dual-channel freshness, exactly the
- *  notebook current-state block's contract (shared engine). Inputs are
+ *  shared managed-block engine's contract. Inputs are
  *  the directory scan, the ledger view, and the registry PARSE only —
  *  no artifact hashing and no git subprocesses, so the per-ledger-write
  *  refresh hooks stay cheap. */

@@ -10,7 +10,7 @@ Command, script and asset paths in this reference are relative to the `research-
   - Read [`references/capabilities-detail.md`](capabilities-detail.md) when running `literature_fetch.py` or maintaining the literature query and saturation records (the sub-bullets of the literature-fetch entry, moved there verbatim).
 - **Derive the contract's notebook-sync block**: `scripts/bin/refresh_research_contract.py --root /path/to/project`. It writes the derived block to `artifacts/research_contract_block.proposed.md` and **does not modify `research_contract.md` at all** — merge what is right into the contract's sync block by hand.
   - Read [`references/capabilities-detail.md`](capabilities-detail.md) when running `refresh_research_contract.py` or reasoning about the derived notebook-sync block (the sub-bullets of the contract-block entry, moved there verbatim).
-- **Export a portable bundle**: `scripts/bin/export_paper_bundle.sh` (wrapper) / `scripts/bin/export_paper_bundle.py`.
+- **Export selected research files and local document dependencies**: `scripts/bin/export_paper_bundle.sh` (wrapper) / `scripts/bin/export_paper_bundle.py`. Preserve project-relative paths; use `--without-project-docs` with `--include` or `--writer-export` for a focused stage package. The existing `MANIFEST.md` records scope; host delivery is a separate action.
 - **KB index export (deterministic/L1)**: `scripts/bin/kb_export.py` + `scripts/bin/validate_kb_index.py` + `scripts/schemas/kb_index.schema.json`.
 - **Demo generation**: `scripts/bin/generate_demo_milestone.sh`.
 - **Project kickstart prompt**: `scripts/bin/generate_project_start_prompt.py`.

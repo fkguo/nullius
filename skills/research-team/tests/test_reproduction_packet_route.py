@@ -107,7 +107,7 @@ def capacity_project(tmp_path, block):
     return notes
 
 
-def test_exact_assessor_budget_reaches_both_actual_cycle_command_routes(tmp_path):
+def test_exact_assessor_budget_reaches_the_single_final_cycle_route(tmp_path):
     # Execute the actual shell routing fragments with argv-only process spies.
     # They report no gate verdict, review, model output or scientific approval.
     notes = capacity_project(tmp_path, {"assessor_context_tokens": 1000000,
@@ -116,15 +116,14 @@ def test_exact_assessor_budget_reaches_both_actual_cycle_command_routes(tmp_path
     spy.write_text("import json,os,sys\nprint(json.dumps({'argv':sys.argv[1:],'pid':os.getpid()}))\n")
     cycle = SCRIPT.with_name("run_team_cycle.sh").read_text()
     capacity = cycle.split("# Source-assessor capacity settings:", 1)[1].split("\n", 1)[1].split("# Member runner settings", 1)[0]
-    postflight = cycle.split("    independent_reproduction_gate)\n", 1)[1].split("      gate_code=$?", 1)[0]
     final = '  gate_cmd=(\n' + cycle.split('  gate_cmd=(\n', 1)[1].split('\n  )', 1)[0] + '\n  )\n"${gate_cmd[@]}"\n'
     script = tmp_path / "route.sh"
-    script.write_text("set -euo pipefail\n" + capacity + postflight + final)
+    script.write_text("set -euo pipefail\n" + capacity + final)
     import os
     env = dict(os.environ)
     env.pop("RESEARCH_TEAM_CONFIG", None)
     env.update(REVIEW_SETTINGS_SCRIPT=str(CAPACITY_READER), NOTEBOOK_PATH=str(notes),
-        gate_script=str(spy), GATE_SCRIPT=str(spy), RESOLVED_TAG="anonymous",
+        GATE_SCRIPT=str(spy), RESOLVED_TAG="anonymous",
         member_a_evidence="a.json", member_b_evidence="b.json", PROJECT_ROOT=str(tmp_path),
         run_dir=str(tmp_path), member_a_out="a.md", member_b_out="b.md",
         WORKFLOW_MODE="peer", gate_sweep_flag="--no-require-sweep", INDEPENDENCE_ASSESSOR_SPEC="claude/opus")
@@ -132,15 +131,15 @@ def test_exact_assessor_budget_reaches_both_actual_cycle_command_routes(tmp_path
         capture_output=True, text=True, timeout=10)
     assert process.returncode == 0, process.stderr
     calls = [json.loads(line) for line in process.stdout.splitlines()]
-    assert len(calls) == 2 and calls[0]["pid"] != calls[1]["pid"]
+    assert len(calls) == 1
     for call in calls:
         argv = call["argv"]
         for flag, value in (("--assessor-model", "claude/opus"),
             ("--assessor-context-tokens", "1000000"), ("--assessor-context-bytes", "800000"),
             ("--assessor-timeout-secs", "900")):
             assert argv.count(flag) == 1 and argv[argv.index(flag)+1] == value
-    assert "--member-a-evidence" in calls[1]["argv"]
-    assert "--assessment" not in calls[1]["argv"]
+    assert "--member-a-evidence" in calls[0]["argv"]
+    assert "--assessment" not in calls[0]["argv"]
 
 
 def test_unset_assessor_bytes_retains_the_conservative_executor_default(tmp_path):
@@ -201,10 +200,11 @@ def test_cycle_capacity_and_public_config_prose_stay_aligned():
     root = SCRIPT.parents[2]
     template = json.loads((root / "assets/research_team_config_template.json").read_text())
     guide = (root / "references/usage_guide.md").read_text()
-    assert cycle.count('"${independence_assessor_capacity_flags[@]}"') == 2
+    assert cycle.count('"${independence_assessor_capacity_flags[@]}"') == 1
+    assert 'check_independent_reproduction.py' not in cycle
     assert 'it SKIPs (exit 0) on projects without a nullius' not in cycle
     for key, value in (("assessor_context_tokens", 200000), ("assessor_context_bytes", None), ("assessor_timeout_secs", 1200)):
         assert template["independent_reproduction"][key] == value
         assert key in guide
-    assert "two fresh source-assessor invocations" in guide
+    assert "one fresh source-assessor invocation at the final convergence consumer" in guide
     assert "without truncation" in guide

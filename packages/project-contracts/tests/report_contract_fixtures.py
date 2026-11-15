@@ -24,6 +24,7 @@ def complete_report(report_id: str, supersedes: str = "none") -> str:
     text = text.replace("<report-id>", report_id)
     text = text.replace("<YYYY-MM-DD>", "2026-07-21")
     text = text.replace("- Supersedes report ID: `none`", f"- Supersedes report ID: `{supersedes}`")
+    text = re.sub(r"`(\[<[^>]+>\]\(<relative-or-stable-web-target>\))`", r"\1", text)
     text = text.replace("(<relative-or-stable-web-target>)", "(../evidence.md)")
     return re.sub(r"<(?!\!--)[^>\n]+>", "Documented in the linked evidence with scope and rationale.", text)
 
