@@ -17,9 +17,10 @@ hash establishes byte identity, not full reading, OCR or scientific acceptance.
 
 Notebook content-review evidence uses existing `ArtifactRef` references for its
 verification subject, check-run, verdict and coverage records; it introduces no
-URI scheme. The reviewed complete UTF-8 notebook (automatic block included) and
+URI scheme. The reviewed complete UTF-8 notebook and
 required declared dependencies are pinned by SHA-256 of their actual bytes,
-including uncommitted edits. A URI or commit alone cannot establish current
+including uncommitted edits. The existing review scope also binds the relevant runs' ledger states; it introduces
+no additional locator scheme. A URI or commit alone cannot establish current
 content acceptance. See [human notebook integration](../packages/orchestrator/README.md#human-notebook-integration)
 for the full-text review contract.
 

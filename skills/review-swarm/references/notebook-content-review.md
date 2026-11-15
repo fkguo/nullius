@@ -35,10 +35,18 @@ report frozen/discovered material, pending scope and a `--resume` command.
 Resume creates a new run, rechecks original receipts and material identity, and
 never rewrites the old evidence. Batches do not constitute independent reviewers.
 
+The review also freezes the relevant runs' ledger states from its actual source
+closure. Reviewers see validity, replacements and recorded reasons. A change to a
+referenced run's state makes the earlier review stale; unrelated run events do not.
+A failed historical approach may still be discussed and reviewed with its current
+state. Reviews without this binding remain readable history and require a fresh
+review before current acceptance. Single-call, batched and resumed reviews use
+the same requirement.
+
 The coverage inventory partitions every line of the full UTF-8 notebook at
 all top-level Markdown heading depths, including Setext and front matter.
-No extraction removes comments, code or automatic blocks from the byte
-binding. Automatic blocks remain navigation, not a derivation. The real
+No extraction removes comments, code or historical machine-generated blocks
+from the byte binding. Historical blocks remain navigation, not a derivation. The real
 reviewer must read every section and supplied dependency, quote concrete
 source anchors and explain the reasoning it examined: definitions,
 assumptions, conventions, non-obvious intermediate steps, cross-section

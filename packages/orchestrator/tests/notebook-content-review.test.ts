@@ -15,6 +15,7 @@ import { StateManager } from '../src/state-manager.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
 import { createRunArtifactRef } from '../src/computation/artifact-refs.js';
 import { assessNotebookRequestCapacity } from '../src/notebook-review-batches.js';
+import { buildValidityEvent } from '../src/validity-ledger.js';
 import * as runtime from '../src/cli-runtime.js';
 
 // Deterministic transport/contract fixtures. This executable supplies no
@@ -72,6 +73,9 @@ if case == 'held-pass':
     (root / '.nullius/controlled-older-ready').write_text('ready')
     while not (root / '.nullius/controlled-older-release').exists(): time.sleep(0.025)
 if case == 'mutation': (root / 'research_notebook.md').write_text(source + '\nChanged while reviewer executes.\n')
+if case == 'run-state-mutation':
+    with (root / 'artifacts/runs/validity_ledger.jsonl').open('a') as ledger:
+        ledger.write((root / 'pending-validity-event.json').read_text())
 if Path(sys.argv[0]).name == 'codex':
     Path(sys.argv[sys.argv.index('-o') + 1]).write_text(json.dumps(report))
     print('Deterministic transport only.', flush=True)
@@ -119,8 +123,10 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); fs.rmSync(root, { recursive: true, force: true }); });
 
 describe('whole-notebook execution and current-version contract', () => {
-  it('reviews the actual scaffold without following index navigation into its own review run', async () => {
-    write('research_notebook.md', scaffoldNotebook);
+  it('reviews explicitly authored navigation on the scientific scaffold without following it into its own review run', async () => {
+    expect(scaffoldNotebook).not.toContain('nullius-navigation');
+    expect(scaffoldNotebook).not.toContain('NOTEBOOK_CURRENT_STATE_');
+    write('research_notebook.md', scaffoldNotebook + '\n[Project navigation](project_index.md#main-research-report "nullius-navigation").\n');
     const result = await review();
     expect(result.code, result.stdout + result.stderr).toBe(0);
     const scope = JSON.parse(fs.readFileSync(path.join(runDir(), 'inputs/notebook-scope.json'), 'utf8'));
@@ -140,6 +146,100 @@ describe('whole-notebook execution and current-version contract', () => {
     expect((await review()).code).toBe(0);
     write('artifacts/runs/original/input.md', '# Input\n\nChanged premise.\n');
     expect(checkNotebookContentReview(root).status).toBe('stale');
+  });
+
+  it('freezes run identity from recursive, explicit and opaque material without treating unknown runs as active', () => {
+    write('research_notebook.md', '# 笔记\n\n[推导](notes/derivation.md)\n');
+    write('notes/derivation.md', '[辅助证据](../artifacts/runs/aux.v1/evidence.md)\n');
+    write('artifacts/runs/aux.v1/evidence.md', '![原始图](../image.v2/data.bin)\n');
+    write('artifacts/runs/image.v2/data.bin', Buffer.from([0, 255]));
+    write('team/runs/history.v1/derivation.md', 'Historical scientific derivation.\n');
+    const scope = freezeNotebookReviewScope(root, 'closure-run-states', path.join(root, 'artifacts/runs/closure-run-states'), ['team/runs/history.v1/derivation.md']);
+    expect(scope.run_states).toEqual([
+      { run_id: 'aux.v1', state: null }, { run_id: 'history.v1', state: null }, { run_id: 'image.v2', state: null },
+    ]);
+    expect(scope.opaque_links?.map(input => input.path)).toEqual(['artifacts/runs/image.v2/data.bin']);
+  });
+
+  it('withdraws current review when an auxiliary run changes, while unrelated ledger events leave it current', async () => {
+    const original = '# 研究笔记\n\n## 旧路线与适用范围\n这条路线用于说明早期假设的局限，不能用作当前结论的依据。\n[辅助计算](artifacts/runs/aux-premise/result.md)\n';
+    write('research_notebook.md', original);
+    write('artifacts/runs/aux-premise/result.md', 'Original scientific premise.\n');
+    expect((await cli(['trace', 'stamp', 'artifacts/runs/aux-premise'])).code).toBe(0);
+    expect((await review()).code).toBe(0);
+    const oldDir = runDir();
+    const oldScopeBytes = fs.readFileSync(path.join(oldDir, 'inputs/notebook-scope.json'));
+    expect(JSON.parse(oldScopeBytes.toString()).run_states).toMatchObject([{ run_id: 'aux-premise', state: { validity: 'active', stamped: true, origin: { run_id: 'aux-premise' } } }]);
+    write('artifacts/runs/unrelated/result.md', 'Unrelated computation.\n');
+    expect((await cli(['trace', 'stamp', 'artifacts/runs/unrelated'])).code).toBe(0);
+    expect((await cli(['trace', 'void', 'unrelated', '--reason', 'unrelated check'])).code).toBe(0);
+    expect(checkNotebookContentReview(root).status).toBe('accepted');
+    expect((await cli(['trace', 'void', 'aux-premise', '--reason', 'premise does not hold'])).code).toBe(0);
+    expect(fs.readFileSync(path.join(root, 'research_notebook.md'), 'utf8')).toBe(original);
+    expect(checkNotebookContentReview(root)).toMatchObject({ status: 'stale', reason: expect.stringContaining('Referenced run validity or identity changed') });
+    expect((await cli(['notebook', 'check', '--json'])).code).toBe(1);
+    expect(notebookCloseoutGate(root).decision).not.toBe('pass');
+    expect(fs.readFileSync(path.join(oldDir, 'inputs/notebook-scope.json'))).toEqual(oldScopeBytes);
+    // A new executed review can assess a correctly explained failed approach;
+    // validity itself is not a keyword-based scientific rejection.
+    expect((await review()).code).toBe(0);
+    const scope = JSON.parse(fs.readFileSync(path.join(runDir(), 'inputs/notebook-scope.json'), 'utf8'));
+    expect(scope.run_states).toMatchObject([{ run_id: 'aux-premise', state: { validity: 'void', reason: 'premise does not hold' } }]);
+    expect(fs.readFileSync(path.join(runDir(), 'review/inputs/packet.md'), 'utf8')).toContain('"run_states"');
+    expect((await cli(['trace', 'void', 'aux-premise', '--scope', 'small-parameter-limit', '--reason', 'additional scoped restriction'])).code).toBe(0);
+    expect(checkNotebookContentReview(root).status).toBe('stale');
+  }, 30000);
+
+  it('refuses acceptance if a referenced run becomes void during the actual reviewer execution', async () => {
+    write('research_notebook.md', '# Notebook\n\n[Premise](artifacts/runs/aux-premise/result.md).\n');
+    write('artifacts/runs/aux-premise/result.md', 'Original premise.\n');
+    write('pending-validity-event.json', JSON.stringify(buildValidityEvent({ event: 'void', run_id: 'aux-premise', actor: 'test', reason: 'Changed during review' })) + '\n');
+    const result = await review('run-state-mutation');
+    expect(result.code).toBe(1);
+    expect(result.value.status).toBe('stale');
+    expect(JSON.parse(fs.readFileSync(path.join(runDir(), 'artifacts/verification_subject_verdict_notebook_v1.json'), 'utf8')).status).toBe('failed');
+    expect(notebookCloseoutGate(root).decision).not.toBe('pass');
+  });
+
+  it('freezes ambiguous historical markers as complete original text and still requires executed scientific review', async () => {
+    const original = '# 研究笔记\n\n<!-- NOTEBOOK_CURRENT_STATE_START -->\n## 推导\n保留这段完整科学推导。\n<!-- NOTEBOOK_CURRENT_STATE_START -->\n\n## 局限\n这里的适用条件也必须审阅。\n';
+    write('research_notebook.md', original);
+    const scope = freezeNotebookReviewScope(root, 'ambiguous-notes', path.join(root, 'artifacts/runs/ambiguous-notes'), []);
+    expect(scope.notebook.sha256).toBe(digest(Buffer.from(original)));
+    expect(fs.readFileSync(path.join(root, 'artifacts/runs/ambiguous-notes/inputs/source-0.txt'), 'utf8')).toBe(original);
+    expect(scope.sections.map(section => section.heading)).toContain('## 局限');
+    expect(checkNotebookContentReview(root).status).toBe('missing');
+    expect((await review('complete-fail')).code).toBe(1);
+    expect(checkNotebookContentReview(root).status).toBe('rejected');
+    expect(fs.readFileSync(path.join(root, 'research_notebook.md'), 'utf8')).toBe(original);
+  });
+
+  it('requires a new review for historical scopes without run-state binding instead of backfilling current state', async () => {
+    expect((await review()).code).toBe(0);
+    const dir = runDir(); const scopePath = path.join(dir, 'inputs/notebook-scope.json');
+    const scope = JSON.parse(fs.readFileSync(scopePath, 'utf8'));
+    delete scope.run_states;
+    fs.writeFileSync(scopePath, JSON.stringify(scope));
+    // Model a historical artifact graph whose scope had no state binding.
+    // Rebinding its graph must not create reviewer evidence of current state.
+    const rebind = (value: any): void => {
+      if (!value || typeof value !== 'object') return;
+      const match = typeof value.uri === 'string' && /^rep:\/\/runs\/([^/]+)\/artifact\/(.*)$/.exec(value.uri);
+      if (match) {
+        const bytes = fs.readFileSync(path.join(root, 'artifacts/runs', match[1], decodeURIComponent(match[2])));
+        value.sha256 = digest(bytes); if ('size_bytes' in value) value.size_bytes = bytes.length;
+      }
+      Object.values(value).forEach(rebind);
+    };
+    const files = ['review_execution.json', 'artifacts/verification_subject_notebook_v1.json', 'artifacts/verification_check_run_notebook_v1.json', 'artifacts/verification_subject_verdict_notebook_v1.json', 'artifacts/verification_coverage_notebook_v1.json']
+      .map(file => path.join(dir, file)).concat(path.join(root, '.nullius/notebook-review.json'));
+    for (const filename of files) {
+      const value = JSON.parse(fs.readFileSync(filename, 'utf8')); rebind(value); fs.writeFileSync(filename, JSON.stringify(value));
+    }
+    const originalScope = fs.readFileSync(scopePath);
+    expect(checkNotebookContentReview(root)).toMatchObject({ status: 'unavailable', reason: expect.stringContaining('no referenced-run state binding') });
+    expect((await cli(['notebook', 'check', '--json'])).code).toBe(2);
+    expect(fs.readFileSync(scopePath)).toEqual(originalScope);
   });
 
   it('freezes a mixed-use target and reference links while images cannot declare themselves navigation', () => {
@@ -372,7 +472,17 @@ describe('whole-notebook execution and current-version contract', () => {
     } finally { fsDefault.renameSync = rename; syncBuiltinESMExports(); }
   });
 
-  it('does not normalize away automatic blocks, dependencies, deletion or redirection', async () => {
+  it('does not normalize away historical block bytes, dependencies, deletion or redirection', async () => {
+    const historicalBlock = [
+      '<!-- NOTEBOOK_CURRENT_STATE_START -->',
+      `<!-- state-digest: ${'a'.repeat(64)} -->`,
+      '**Current state (auto-maintained).** Machine-rendered from the results',
+      'registry and the validity ledger.',
+      'No result is promoted yet: the results registry has no rows.',
+      '<!-- NOTEBOOK_CURRENT_STATE_END -->',
+    ].join('\n');
+    const original = notebook.replace('# Notebook\n', '# Notebook\n\n' + historicalBlock + '\n');
+    write('research_notebook.md', original);
     expect((await review()).code).toBe(0);
     const dependency = fs.readFileSync(path.join(root, 'dependencies/premises.md'));
     write('dependencies/premises.md', '# Changed premises\n');
@@ -385,7 +495,8 @@ describe('whole-notebook execution and current-version contract', () => {
     fs.symlinkSync('redirected.md', path.join(root, 'dependencies/premises.md'));
     expect(checkNotebookContentReview(root).status).toBe('stale');
     fs.unlinkSync(path.join(root, 'dependencies/premises.md')); write('dependencies/premises.md', dependency);
-    expect((await cli(['notebook', 'sync'])).code).toBe(0);
+    expect(checkNotebookContentReview(root).status).toBe('accepted');
+    write('research_notebook.md', original.replace('No result is promoted yet', 'The historical projection was edited'));
     expect(checkNotebookContentReview(root).status).toBe('stale');
   });
 

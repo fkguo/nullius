@@ -47,7 +47,7 @@ nullius runtime path
 
 `nullius runtime path` reports the running installation, and `nullius runtime mcp <server>` starts a registered stdio server. The package registry owns relative entrypoints; the generic CLI owns discovery and configuration validation. Host-private `servers.<server>.env` settings are read from `${XDG_CONFIG_HOME:-$HOME/.config}/nullius/runtime.json`, or an absolute `NULLIUS_RUNTIME_CONFIG`. They override ambient settings. Explicitly missing/invalid configuration fails closed. Project/data roots required by a server must be outside this installation. These installation commands add no research execution or approval authority. After moving a checkout, rebind the PATH entry above; copied skills and plugins need no source-path edits.
 
-A project-local launcher (`./.nullius/bin/nullius`) is also written during `nullius init` so already-initialized research roots can reconnect without the global wrapper. `nullius init --refresh` generates missing support guidance (`AGENTS.md` and `research_guidance.md`) and preserves differing existing instructions byte-for-byte, without backups or scaffold replacement of user-owned seed content. The CLI may synchronize existing machine-managed notebook and index blocks, without inserting missing blocks. To update existing guidance, render a current scaffold in a separate temporary external root and explicitly merge desired changes. For an existing project that predates the main-report registry, checkpoint it and render a current scaffold in a separate temporary external root; copy only a missing report template and manually merge the `project_index.md#Main research report` section. Refresh never performs that user-owned migration. `report-validate` returns `invalid_registry_markers` before the registry merge and `no_current_report` until a populated current report is registered.
+A project-local launcher (`./.nullius/bin/nullius`) is also written during `nullius init` so already-initialized research roots can reconnect without the global wrapper. `nullius init --refresh` generates missing support guidance (`AGENTS.md` and `research_guidance.md`) and preserves differing existing instructions byte-for-byte, without backups or scaffold replacement of user-owned seed content. The CLI may synchronize an existing machine-managed run index, without inserting a missing block; it preserves all research notebook bytes. To update existing guidance, render a current scaffold in a separate temporary external root and explicitly merge desired changes. For an existing project that predates the main-report registry, checkpoint it and render a current scaffold in a separate temporary external root; copy only a missing report template and manually merge the `project_index.md#Main research report` section. Refresh never performs that user-owned migration. `report-validate` returns `invalid_registry_markers` before the registry merge and `no_current_report` until a populated current report is registered.
 
 ## State and artifacts
 
@@ -105,6 +105,15 @@ Existing `PROJECT_INDEX_AUTO` blocks are historical, unmaintained observations; 
 
 ### Human notebook integration
 
+`research_notebook.md` is the user's scientific research notebook. Its structure
+serves the reasoning: derivations, observations, useful failed approaches and
+open questions belong there, including dated observations when useful. Agent
+instructions, operational state and tool logs live in the existing guidance,
+plan, index and run artifacts. Ordinary lifecycle commands preserve notebook
+bytes. `notebook sync` has been retired; old machine blocks remain readable and
+are never refreshed automatically. Optional historical section stamps are
+informational, not an acceptance requirement.
+
 `nullius current` and `nullius status --json` expose `notebook.result_links`
 (under `traceability` in status): current result artifacts without a direct link
 in a human `##` section are reported as `missing_links`; an unreadable notebook
@@ -120,11 +129,12 @@ At a scientific result fold, rewrite the relevant sections with assumptions,
 reasoning, interpretation and limitations, and cite the registered artifact.
 This applies in file mode as well as engine mode. The team convergence gate
 requires the declared headline in a declared rewritten section. Retired history
-remains readable; all current results participate in the final unscoped check. `nullius notebook sync` only refreshes the automatic table.
+remains readable; all current results participate in the final unscoped check.
+Run citations report their actual ledger status; no English acknowledgment word
+or section-role marker substitutes for scientific review.
 
 Notebook closeout has two separate requirements: structural navigation and a
-current full-text content review. Run the review after finishing the notebook
-and refreshing its automatic block:
+current full-text content review. Run the review after finishing the notebook:
 
 ```bash
 nullius notebook review --model <SPEC> [--dependency <project-relative-path> ...] [--timeout-secs <N>] [--json]
@@ -134,9 +144,17 @@ nullius notebook check [--result <id>] [--structure-only] [--json]
 `notebook review` executes a real reviewer through the existing `review-swarm`
 launcher. Its default hard timeout is 1200 seconds across at most 64 bounded
 calls, with one attempt per call and no automatic reviewer retry. The reviewed input freezes the
-complete UTF-8 notebook, including its automatic block, and required declared
+complete UTF-8 notebook and required declared
 dependencies with SHA-256 digests of their actual bytes. Uncommitted edits are
 included; a commit or section version stamp alone cannot establish identity.
+
+The review also freezes the relevant runs' ledger states from its actual source
+closure. Reviewers see validity, replacements and recorded reasons. A change to a
+referenced run's state makes the earlier review stale; unrelated run events do not.
+A failed historical approach may still be discussed and reviewed with its current
+state. Reviews without this binding remain readable history and require a fresh
+review before current acceptance. Single-call, batched and resumed reviews use
+the same requirement.
 
 Valid UTF-8 text remains text regardless of size; Ordinary Markdown evidence links are discovered
 recursively; explicit `"nullius-navigation"` link titles declare navigation only. Binary or invalid UTF-8 linked files are immutable `opaque_links`

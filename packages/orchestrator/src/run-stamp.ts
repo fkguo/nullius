@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
 import { captureRunOrigin, isControlPlanePath, isTraceabilityArtifactPath, readAttemptSnapshotRef, swapAttemptSnapshotRef } from './run-origin.js';
 import { validateResultRegistry } from './result-registry.js';
-import { refreshNotebookCurrentState, textOutsideNotebookCurrentState } from './notebook-current-state.js';
+import { textOutsideNotebookCurrentState } from './notebook-current-state.js';
 import { refreshRunIndexBlock, textOutsideRunIndex } from './run-index.js';
 
 /** The actor recorded on ledger events when the caller has no better name:
@@ -505,33 +505,8 @@ export function stampRunDirectory(
     rollbackMirror();
     throw new Error('unreachable: plain stamp append reported an attempt-chain skip');
   }
-  // Best-effort notebook current-state refresh at the ONE writer shared by
-  // the CLI stamp verb and the computation front door's launch stamp. The
-  // block renders from the registry projection, so a plain stamp almost
-  // never changes it (zero writes at fast cadence); it does change when a
-  // stamp flips a REGISTERED run's sentinel status. Computing the full
-  // projection re-hashes every registered artifact — unacceptable per stamp
-  // at field cadence — so the hot path first checks cheaply whether this
-  // run id appears in project_index.md at all: a stamp for an unregistered
-  // run cannot alter the projection. (Unrelated pre-existing staleness is
-  // the read side's job to name, not this hook's job to repair.) A refresh
-  // failure must never fail the stamp — the ledger event is the record.
+  // Keep the project index current without changing the user's notebook.
   if (appendOutcome === 'appended') {
-    try {
-      let registryMentionsRun = false;
-      try {
-        registryMentionsRun = fs
-          .readFileSync(path.join(projectRoot, 'project_index.md'), 'utf-8')
-          .includes(runId);
-      } catch {
-        // no index, nothing registered, nothing to refresh
-      }
-      if (registryMentionsRun) {
-        refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
-      }
-    } catch {
-      // surfaced on the next status/current read as out-of-sync
-    }
     try {
       // The run INDEX changes on every new stamp by design (its whole
       // purpose is to show every run) — no registry gate here.

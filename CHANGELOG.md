@@ -11,6 +11,10 @@ the version to cite.
 ## [Unreleased]
 
 ### Changed
+- The research notebook is a user-owned scientific document. New scaffolds
+  contain scientific sections and prompts; agent protocols remain in reachable
+  project guidance. Lifecycle operations preserve notebook bytes, including old
+  machine blocks. Useful dated observations and failed approaches are welcome.
 - Scientific writing is owned by the host agent. The writer skill now guides
   original-source reading, integration into the actual manuscript, applicable
   scientific checks and delivery; its scaffold creates an empty paper only.
@@ -22,6 +26,12 @@ the version to cite.
   off by the host, using existing reports, writer manifests and bundle tooling.
 
 ### Fixed
+- Notebook review binds the validity state of runs referenced by its frozen
+  sources, so a relevant void or supersession invalidates earlier acceptance
+  without making unrelated ledger activity invalidate the review. The same
+  binding applies to single-call, batched and resumed reviews.
+- Repeated complete historical notebook state blocks cannot satisfy the human
+  result-link requirement; scientific text between blocks remains visible.
 - Paper bundles preserve project-relative layouts, include the human notebook
   and referenced local material across runs, and check dependencies before
   publication. Explicit stage selections can omit unrelated project documents.
@@ -36,6 +46,10 @@ the version to cite.
   aligned/matrix line breaks.
 
 ### Removed
+- `nullius notebook sync` and its automatic lifecycle writers; paragraph-order
+  and English-word heuristics for judging notebook prose; mandatory hidden
+  section version stamps. Full scientific review, original-source identity and
+  current-result validity checks remain required.
 - The fixed writer/auditor chapter pipeline, keyword-based LaTeX evidence gate,
   first-formula/first-figure composition, keyword-overlap discussion verdicts,
   and ambiguous double-backslash math auto-rewrites. Existing scientific

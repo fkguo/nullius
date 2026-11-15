@@ -271,10 +271,9 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   rendering checks, result links, automatic tables, formula counts, completed
   checklists, and the writer's assessment cannot supply a content verdict.
 - After rewriting the affected sections into a coherent whole, finish the
-  notebook and refresh its automatic block. From the external project root:
+  notebook. From the external project root:
 
   ```bash
-  nullius notebook sync
   nullius notebook review --model claude/opus --dependency <project-relative-path>
   nullius notebook check --json
   ```
@@ -283,8 +282,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   no such dependency is needed. One semantic review executes via review-swarm
   in bounded calls, with a default hard 1200-second timeout and no automatic retry.
   `--timeout-secs <N>` sets a different hard limit.
-- Review identity binds SHA-256 of the complete UTF-8 notebook, including the
-  automatic block, and required dependency bytes, including uncommitted edits.
+- Review identity binds SHA-256 of the complete UTF-8 notebook and required dependency bytes, including uncommitted edits.
   Commit and section version stamps do not replace those hashes. Changed bytes
   make earlier acceptance stale; preserve historical reports and their input
   identities rather than rewriting them.
@@ -542,8 +540,7 @@ checks remain available for their documented formatting diagnostics.
     any escalation trigger above.
   - The delta confirmation above applies to the selected member-cycle candidate;
     it cannot satisfy `notebook.content_review`. Any edit to the notebook or a
-    required dependency requires a new review of the entire current notebook,
-    including its automatic block, before scientific notebook closeout.
+    required dependency requires a new review of the entire current notebook before scientific notebook closeout.
   - Either way the confirmation round is mandatory after every fix batch —
     convergence is declared by the reviewers on the current artifact, never
     by the leader after applying fixes.

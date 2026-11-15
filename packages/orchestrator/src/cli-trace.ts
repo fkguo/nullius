@@ -2,7 +2,6 @@ import { appendValidityEvent, buildValidityEvent, readValidityLedger, resolveRun
 import { defaultStampActor, gradeExistingStamp, openRetryAttempt, stampRunDirectory } from './run-stamp.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
 import { backfillRunOrigins, confirmRoundChains, proposeRoundChains } from './trace-backfill.js';
-import { refreshNotebookCurrentState } from './notebook-current-state.js';
 import { refreshRunIndexBlock } from './run-index.js';
 
 /** `nullius trace <stamp|supersede|void|reinstate>` — the write surface of
@@ -34,20 +33,9 @@ export type TraceParsed = {
   deps: Record<string, string>;
 };
 
-/** Best-effort current-state refresh after a ledger-writing verb: one call
- *  per COMMAND (not per event), silent unless the block actually changed,
- *  and a failure never fails the verb — the next status/current read names
- *  the block out-of-sync. */
-function refreshCurrentStateAfterWrite(projectRoot: string, io: CliIo): void {
-  try {
-    const outcome = refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
-    if (outcome.action === 'rewritten') {
-      io.stdout('notebook current-state block refreshed.\n');
-    }
-  } catch (error) {
-    io.stderr(`note: notebook current-state refresh failed (${error instanceof Error ? error.message : String(error)}); `
-      + 'the next `nullius current` read will name the block out-of-sync.\n');
-  }
+/** Refresh only the project index after a ledger-writing command.
+ * The user's scientific notebook remains authored content. */
+function refreshIndexAfterWrite(projectRoot: string, io: CliIo): void {
   try {
     const indexOutcome = refreshRunIndexBlock(projectRoot, { insertIfMissing: false });
     if (indexOutcome.action === 'rewritten') {
@@ -72,7 +60,7 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         `backfill: ${result.aligned} aligned (heuristic — never exact), ${result.unbound} unbound, `
         + `${result.skipped} already stamped. Validity was NOT backfilled; run \`nullius trace propose-chains\` next.\n`,
       );
-      refreshCurrentStateAfterWrite(projectRoot, io);
+      refreshIndexAfterWrite(projectRoot, io);
       return 0;
     }
     case 'propose-chains': {
@@ -93,7 +81,7 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
       // The batch writer bypasses stampRunDirectory — without this hook a
       // confirmed chain touching a registered run would leave the block
       // silently behind (judge-verified miss).
-      if (appended > 0) refreshCurrentStateAfterWrite(projectRoot, io);
+      if (appended > 0) refreshIndexAfterWrite(projectRoot, io);
       return 0;
     }
     case 'stamp': {
@@ -181,8 +169,6 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         + `${result.quarantinedTo ? `\nprior products archived under ${result.quarantinedTo}/ (never deleted)` : ''}`
         + `\nevent ${result.eventId}\n`,
       );
-      // A retried run cannot be registry-named (the boundary refuses those),
-      // so the notebook block cannot have moved — no refresh needed.
       return 0;
     }
     case 'supersede':
@@ -244,7 +230,7 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         + `${normalizationNotes.length > 0 ? `(${normalizationNotes.join('; ')})\n` : ''}`
         + `event ${event.event_id}\n`,
       );
-      if (outcome === 'appended') refreshCurrentStateAfterWrite(projectRoot, io);
+      if (outcome === 'appended') refreshIndexAfterWrite(projectRoot, io);
       return 0;
     }
   }

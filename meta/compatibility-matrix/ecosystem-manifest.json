@@ -246,7 +246,7 @@
       "type": "skill-pack",
       "repo": "nullius/skills-market",
       "channel": "dev",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source_path": "skills/research-harness/SKILL.md",
       "depends_on": {
         "hep-mcp": ">=0.6.0 <0.7.0",
@@ -268,7 +268,7 @@
       "type": "skill-pack",
       "repo": "nullius/skills-market",
       "channel": "dev",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source_path": "skills/research-team/SKILL.md",
       "depends_on": {
         "literature-workflows": ">=0.1.0 <0.2.0"
@@ -288,7 +288,7 @@
       "type": "skill-pack",
       "repo": "nullius/skills-market",
       "channel": "dev",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source_path": "skills/review-swarm/SKILL.md"
     },
     "skills-market": {

@@ -221,7 +221,7 @@ preview then apply:
 nullius init --refresh --dry-run
 nullius init --refresh
 
-Refresh preserves an existing AGENTS.md byte-for-byte when it differs from the current template. Template changes do not automatically update existing projects. To update guidance, render a current scaffold in an anonymous temporary external root and manually merge the desired changes, including notebook review instructions, into the existing user-owned files. Refresh may synchronize existing machine-managed notebook and index blocks, while preserving user-owned content and not inserting missing blocks. It does not migrate user-owned report files. For a project that predates
+Refresh preserves an existing AGENTS.md byte-for-byte when it differs from the current template. Template changes do not automatically update existing projects. To update guidance, render a current scaffold in an anonymous temporary external root and manually merge the desired changes, including notebook review instructions, into the existing user-owned files. Refresh may synchronize an existing machine-managed run index; it preserves the research notebook byte-for-byte, including historical blocks. It does not insert missing index blocks. It does not migrate user-owned report files. For a project that predates
 the main-report registry, checkpoint it, render a current scaffold in a separate
 temporary external root with `nullius init --project-root <temporary-root>`, copy
 only a missing reports/main_research_report_template.md, and manually merge the
@@ -247,7 +247,7 @@ Retry a resultless crash under the same run id with: nullius trace retry <run_di
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
 Register headline results with: nullius result set-current <result-id> --run <run_id> --artifact <path>
 Read the whole current-version answer as prose with: nullius current
-Keep the notebook's machine-maintained current-state block fresh with: nullius notebook sync
+Write research_notebook.md for the user; keep operational state in the plan, index and run artifacts.
 Keep the project's machine-maintained run index fresh with: nullius index sync
 Export a public code snapshot (excluding run products and internal notes) with: nullius release <target-dir>
 Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file

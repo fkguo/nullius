@@ -489,12 +489,23 @@ python3 -m pytest -q skills/research-team/tests/test_notebook_capacity_prompt_dr
 
 Content-review acceptance checks must additionally cover real reviewer dispatch,
 bounded original-text calls under one hard budget and no automatic retry, full UTF-8 notebook
-snapshot identity including the automatic block, declared dependency hashes,
+snapshot identity for all original content, declared dependency hashes,
 and edits not represented by a commit. A report needs complete per-section
 coverage and source-anchored reasons on derivations, logic, notation, definitions,
 assumptions and conventions. Include missing, partial, failed, unavailable,
 invalid and stale reports as negative controls; changing either the notebook
 or a dependency must invalidate current acceptance while keeping history readable.
+
+User-notebook regression coverage must execute real init, reconnect, stamp,
+result adoption and validity commands while checking that user bytes and modes
+are unchanged. Historical blocks never supply authored evidence links. Confirm
+Chinese and dated scientific notes need no hidden stamps or English tokens, while
+missing current artifacts, invalid current results and stale or incomplete reviews
+still prevent closeout. Void a referenced auxiliary run after an accepted review:
+check and fold must refuse its old acceptance. A fresh review can assess historical
+failure discussion, and an unrelated run event must not force another review.
+Cover single-call, batched and resumed paths; controlled reviewer fixtures establish
+transport and acceptance boundaries, not real-model scientific judgment.
 
 Include notebooks individually above 1 MiB, recursively linked text files
 individually below that size with a larger total closure, UTF-8/formula boundaries,

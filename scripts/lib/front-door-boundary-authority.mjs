@@ -162,7 +162,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '- `nullius run` 现在是该 seam 的 canonical bounded consumer：它会推进 dependency-satisfied persisted workflow steps，直到完成或遇到 blocking failure，并继续保持唯一 execution front door。',
       '- 当前 slice 仍未提供 canonical closed-loop literature execution runtime；这里还没有 full scheduler、多步自主编排或 end-to-end closed loop。',
       'important literature notes require full-text/source-first reading, auditable section/page/equation/figure coverage, and LaTeX math notation',
-      'dated execution traces, raw run observations, and tool-use traces belong in `research_plan.md` or `artifacts/runs/<run_id>/`',
+      'operational status, execution transcripts, and tool-use traces belong in `research_plan.md` or `artifacts/runs/<run_id>/`',
       'Paper originals, extracted text, arXiv source tarballs, and source trees are filesystem materials',
     ],
     orderedSnippets: [

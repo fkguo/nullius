@@ -68,7 +68,7 @@ export type ParsedCliArgs =
     deps: Record<string, string>;
   }
   | { command: 'current'; projectRoot: string | null; json: boolean }
-  | { command: 'notebook'; projectRoot: string | null; action: 'sync' | 'check' | 'review'; json: boolean; resultId?: string; structureOnly?: boolean; model?: string; dependencies?: string[]; timeoutSecs?: number; budgets?: Partial<NotebookBudgets>; resume?: string }
+  | { command: 'notebook'; projectRoot: string | null; action: 'check' | 'review'; json: boolean; resultId?: string; structureOnly?: boolean; model?: string; dependencies?: string[]; timeoutSecs?: number; budgets?: Partial<NotebookBudgets>; resume?: string }
   | { command: 'index'; projectRoot: string | null; action: 'sync'; json: boolean }
   | {
     command: 'result';
@@ -222,10 +222,10 @@ function parseStatusArgs(args: string[]): { json: boolean } {
   return { json };
 }
 
-function parseNotebookArgs(args: string[]): { action: 'sync' | 'check' | 'review'; json: boolean; resultId?: string; structureOnly?: boolean; model?: string; dependencies?: string[]; timeoutSecs?: number; budgets?: Partial<NotebookBudgets>; resume?: string } {
+function parseNotebookArgs(args: string[]): { action: 'check' | 'review'; json: boolean; resultId?: string; structureOnly?: boolean; model?: string; dependencies?: string[]; timeoutSecs?: number; budgets?: Partial<NotebookBudgets>; resume?: string } {
   const action = args[0];
-  if (action !== 'sync' && action !== 'check' && action !== 'review') {
-    throw new Error('notebook: expected sync, check [--result <id>] [--structure-only], or review --model <spec> [--dependency <path>] [--timeout-secs <n>]');
+  if (action !== 'check' && action !== 'review') {
+    throw new Error(`${action === undefined ? 'notebook' : `unknown notebook subcommand: ${action}`}: expected check [--result <id>] [--structure-only] or review --model <spec> [--dependency <path>] [--timeout-secs <n>]`);
   }
   let json = false;
   let resultId: string | undefined;

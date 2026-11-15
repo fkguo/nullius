@@ -7,8 +7,7 @@ Command, script and asset paths in this reference are relative to the `research-
   - **Non-blocking** (hardening beyond the declared scope, mutation-style test-strengthening ideas, style): reported under Minor Issues, never flipping the verdict by itself. Each non-blocking finding gets an explicit disposition in the adjudication — fix now, attach to a named later acceptance point, or discard with a stated reason — never a silent drop and never an undated "later". This is machine-enforced at the fold boundary: the convergence result carries per-member `minor_issues_count`, and `scripts/gates/check_adjudication_completeness.py` fails closed when a converged cycle's recorded minor issues lack completed disposition rows in the adjudication — run it before folding a converged cycle's results into the durable record.
   - A reviewer whose only findings are non-blocking reports `ready` with the findings listed for disposition; reporting `needs revision` on non-blocking findings alone is a grading error, not extra rigor.
 - **Symbolic claims route through `derivation-verify`**: when a converging milestone rests on a symbolic / derivation claim (a closed form, an identity, a sign/branch choice), the independent confirmation for that claim is at least two independent blind re-derivations via [`derivation-verify`](../../derivation-verify/SKILL.md) — reviewer agreement that a written derivation "looks right" is not independent confirmation. Computed numbers route through `numerical-reliability-gate`, the sibling gate.
-- **Result registration at convergence (mandatory where the project has a
-  nullius launcher)**: milestone convergence is when "which result is
+- **Result registration at convergence**: milestone convergence is when "which result is
   current" changes, so the convergence deliverable includes updating the
   project's traceability record, not only producing the new numbers:
   - a converged headline result gets a row in the results registry
@@ -20,13 +19,13 @@ Command, script and asset paths in this reference are relative to the `research-
     --reason ...`); a run found wrong rather than replaced is voided. This
     is what later makes "which of these hundreds of runs still count"
     answerable by a machine instead of by archaeology;
-  - rewritten memo sections carry a fresh version stamp
-    (`<!-- written-against: <commit> -->` at the section end), so the
-    per-section staleness check keeps discriminating current prose from
-    holdover prose;
+  - update the affected user notebook sections with the scientific reasoning,
+    interpretation and limitations, and link the registered artifact directly.
+    No hidden section stamp is required. Current full-text content review binds
+    the complete notebook and dependencies to their actual bytes;
   - before folding, `nullius current` must answer cleanly for the affected
-    result chain — no defective registry rows, no stale stamped sections
-    citing the milestone's runs — or the residual is named in the
+    result chain — no defective registry rows or invalid current results.
+    Any remaining non-blocking finding is named in the
     adjudication with a disposition, same as any non-blocking finding.
   - This contract is machine-enforced at the fold boundary: the adjudication
     template carries a `Result registration` declaration section, and
@@ -35,11 +34,9 @@ Command, script and asset paths in this reference are relative to the `research-
     the project's traceability record — run it alongside
     `check_adjudication_completeness.py` before folding. A declared fact
     that is not on the record is a refusal, not a warning. The same gate
-    refuses when the notebook's machine-maintained current-state block is
-    present but OUT OF SYNC with its canonical render (a present block
-    claims currency; refresh with `nullius notebook sync`), and when a
-    section this fold declares rewritten still links a superseded/void run
-    as live-looking prose with no acknowledgment (a visible superseded/void
-    word in the citing paragraph or list item, a link to the replacement
-    run anywhere in the section, or a declared log-role section all count). A MISSING block never refuses a fold — it
-    is named as advisory by `nullius status --json` until adopted.
+    verifies declared sections and result links, requires accepted current
+    whole-notebook content review and executes the unscoped
+    `nullius notebook check --json`. Missing launchers or `none` declarations
+    do not waive that check. Historical citations expose their ledger status;
+    scientific review evaluates how the notebook uses them, without English
+    acknowledgment words or special section-role markers.

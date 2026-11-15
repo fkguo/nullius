@@ -10,7 +10,7 @@ Behavior:
   Scaffold refresh preserves user-owned seed content (research_plan.md, research_notebook.md,
   research_contract.md, project_charter.md, project_index.md,
   reports/main_research_report_template.md, .gitignore).
-  Existing machine-managed notebook and index blocks may still synchronize with runtime state.
+  An existing machine-managed run index may synchronize; all notebook bytes are preserved.
   Existing differing instructions are preserved byte-for-byte; refresh creates no backups.
   To update existing guidance, render a scaffold in a separate temporary external root
   and explicitly merge desired changes.

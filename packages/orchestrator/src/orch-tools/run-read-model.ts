@@ -228,9 +228,8 @@ function hasSubstantiveResearchNotebook(projectRoot: string): boolean {
   const notebookPath = path.join(projectRoot, 'research_notebook.md');
   if (!fs.existsSync(notebookPath)) return false;
   try {
-    // The machine-rendered current-state block is a view, not research
-    // content: a pristine scaffold carries one, so counting its lines would
-    // make every fresh notebook "substantive".
+    // Historical machine blocks contain navigation, not authored research.
+    // Current scaffolds are scientific outlines with no generated state block.
     const content = stripCurrentStateBlock(fs.readFileSync(notebookPath, 'utf-8'));
     const templateLines = currentNotebookTemplateLines();
     const lines = content

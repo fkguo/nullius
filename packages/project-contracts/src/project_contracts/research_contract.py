@@ -30,7 +30,7 @@ def _sha256_file(path: Path) -> str:
 
 def _replace_sync_block(contract_text: str, block: str) -> str:
     if SYNC_START not in contract_text or SYNC_END not in contract_text:
-        raise ValueError("research_contract template is missing notebook sync markers")
+        raise ValueError("research_contract template is missing contract sync markers")
     start = contract_text.index(SYNC_START) + len(SYNC_START)
     end = contract_text.index(SYNC_END)
     if end < start:

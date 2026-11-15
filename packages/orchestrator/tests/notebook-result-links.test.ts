@@ -4,7 +4,6 @@ import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkNotebookResultLinks } from '../src/notebook-result-links.js';
-import { renderCurrentStateBlock, refreshNotebookCurrentState, type CurrentStateProjection } from '../src/notebook-current-state.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import { stampRunDirectory } from '../src/run-stamp.js';
 import { runCli } from '../src/cli.js';
@@ -12,15 +11,19 @@ import { parseCliArgs } from '../src/cli-args.js';
 import { setCurrentResult } from '../src/result-registry.js';
 
 let root: string;
-const projection: CurrentStateProjection = {
-  registry_block_found: true, total_rows: 1, issue_codes: [],
-  current_rows: [{ result_id: 'estimate', run_id: '20261001-estimate-r1', effective_commit: 'a'.repeat(40),
-    has_snapshot: false, artifact: 'docs/estimate.md', defective: false }],
-};
+const current = [{ result_id: 'estimate', artifact_target: 'docs/estimate.md' }];
+const historicalBlock = [
+  '<!-- NOTEBOOK_CURRENT_STATE_START -->',
+  `<!-- state-digest: ${'a'.repeat(64)} -->`,
+  '| Result | Artifact |',
+  '|---|---|',
+  '| estimate | [evidence](docs/estimate.md) |',
+  '<!-- NOTEBOOK_CURRENT_STATE_END -->',
+].join('\n');
 beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), 'notebook-links-')); });
 afterEach(() => { fs.rmSync(root, { recursive: true, force: true }); });
 function write(body: string): void { fs.writeFileSync(path.join(root, 'research_notebook.md'), body); }
-function check(body: string) { write(body); return checkNotebookResultLinks(root, projection); }
+function check(body: string) { write(body); return checkNotebookResultLinks(root, current); }
 
 describe('human notebook links to adopted artifacts', () => {
   it('parses result-scoped check and rejects missing or irrelevant selectors', () => {
@@ -30,13 +33,31 @@ describe('human notebook links to adopted artifacts', () => {
     expect(() => parseCliArgs(['notebook', 'check', '--result', 'a', '--result', 'b'])).toThrow();
   });
   it('has no result obligation before any adoption, and reports unreadable notebooks honestly', () => {
-    expect(checkNotebookResultLinks(root, { ...projection, current_rows: [], total_rows: 0 }).status).toBe('not_applicable');
-    expect(checkNotebookResultLinks(root, projection).status).toBe('unavailable');
+    expect(checkNotebookResultLinks(root, []).status).toBe('not_applicable');
+    expect(checkNotebookResultLinks(root, current).status).toBe('unavailable');
   });
-  it('rejects automatic-table-only progress even when the table is exact', () => {
-    const report = check(`# Notebook\n${renderCurrentStateBlock(projection)}\n## Question\nWe will calculate the estimate.\n`);
+  it('does not count a historical machine table as authored explanation', () => {
+    const report = check(`# Notebook\n## Estimate\n${historicalBlock}\nWe will calculate the estimate.\n`);
     expect(report.status).toBe('missing_links');
     expect(report.missing_result_ids).toEqual(['estimate']);
+  });
+  it('does not let duplicate historical tables supply an authored result link', () => {
+    const notebook = `## Estimate\n${historicalBlock}\nA scientific note without a result link.\n${historicalBlock}\n`;
+    expect(check(notebook).status).toBe('missing_links');
+    const authored = notebook.replace('without a result link.', 'with a [derivation](docs/estimate.md).');
+    expect(check(authored).status).toBe('linked');
+    expect(fs.readFileSync(path.join(root, 'research_notebook.md'), 'utf8')).toBe(authored);
+  });
+  it.each([
+    '<!-- NOTEBOOK_CURRENT_STATE_START -->\n## Estimate\nSee [derivation](docs/estimate.md).',
+    '<!-- NOTEBOOK_CURRENT_STATE_END -->\n## Estimate\nSee [derivation](docs/estimate.md).',
+    '<!-- NOTEBOOK_CURRENT_STATE_START -->\n## Estimate\nSee [derivation](docs/estimate.md).\n<!-- NOTEBOOK_CURRENT_STATE_END -->',
+    `${historicalBlock}\n${historicalBlock}\n## Estimate\nSee [derivation](docs/estimate.md).`,
+  ])('keeps scientific links visible when historical markers are ambiguous: %s', notebook => {
+    const bytes = Buffer.from(notebook.replace(/\n/g, '\r\n'));
+    fs.writeFileSync(path.join(root, 'research_notebook.md'), bytes);
+    expect(checkNotebookResultLinks(root, current).status).toBe('linked');
+    expect(fs.readFileSync(path.join(root, 'research_notebook.md'))).toEqual(bytes);
   });
   it.each([
     '```md\n[evidence](docs/estimate.md)\n```',
@@ -127,23 +148,20 @@ describe('human notebook links to adopted artifacts', () => {
     ['docs/rate?1.md', 'docs/rate%3F1.md'],
   ])('matches literal artifact %s with its URI-encoded destination', (artifact, href) => {
     write(`## Estimate\n[evidence](${href}#limits)`);
-    const report = checkNotebookResultLinks(root, { ...projection,
-      current_rows: [{ ...projection.current_rows[0]!, artifact }] });
+    const report = checkNotebookResultLinks(root, [{ ...current[0]!, artifact_target: artifact }]);
     expect(report.status).toBe('linked');
     write(`## Estimate\n[evidence][ref]\n\n[ref]: ${href}`);
-    expect(checkNotebookResultLinks(root, { ...projection,
-      current_rows: [{ ...projection.current_rows[0]!, artifact }] }).status).toBe('linked');
+    expect(checkNotebookResultLinks(root, [{ ...current[0]!, artifact_target: artifact }]).status).toBe('linked');
   });
   it('does not decode a literal registry filename into another artifact', () => {
     write('## Estimate\n[evidence](docs/rate%25.md)');
-    const report = checkNotebookResultLinks(root, { ...projection,
-      current_rows: [{ ...projection.current_rows[0]!, artifact: 'docs/rate%25.md' }] });
+    const report = checkNotebookResultLinks(root, [{ ...current[0]!, artifact_target: 'docs/rate%25.md' }]);
     expect(report.status).toBe('missing_links');
   });
   it('does not let one artifact stand for a different result from the same run', () => {
     write('## Estimate\nSee [evidence](docs/estimate.md).');
-    const report = checkNotebookResultLinks(root, { ...projection, current_rows: [...projection.current_rows,
-      { ...projection.current_rows[0]!, result_id: 'second', artifact: 'docs/second.md' }] });
+    const report = checkNotebookResultLinks(root, [...current,
+      { result_id: 'second', artifact_target: 'docs/second.md' }]);
     expect(report.missing_result_ids).toEqual(['second']);
   });
   it('exposes the diagnostic through status/current and enforces read-only file-mode closeout', async () => {
@@ -155,7 +173,7 @@ describe('human notebook links to adopted artifacts', () => {
     fs.writeFileSync(path.join(root, 'docs/other.md'), 'Another result.');
     fs.writeFileSync(path.join(root, 'project_index.md'), '<!-- RESULT_REGISTRY_START -->\n| Result ID | Description & artifact | Artifact SHA-256 | Current run | Supersedes | Superseded by |\n|---|---|---|---|---|---|\n<!-- RESULT_REGISTRY_END -->\n');
     git('add', '.'); git('commit', '-qm', 'fixture');
-    const run = projection.current_rows[0]!.run_id;
+    const run = '20261001-estimate-r1';
     fs.mkdirSync(path.join(root, 'artifacts/runs', run), { recursive: true });
     expect(stampRunDirectory(root, path.join(root, "artifacts/runs", run), { actor: 'test' }).kind).toBe('stamped');
     let registrationOutput = '';
@@ -163,9 +181,7 @@ describe('human notebook links to adopted artifacts', () => {
       { cwd: root, stdout: text => { registrationOutput += text; }, stderr: () => {} })).toBe(0);
     expect(registrationOutput).toContain('notebook check --json before closeout');
     setCurrentResult(root, { resultId: 'other', runId: run, artifactRelPath: 'docs/other.md' });
-    refreshNotebookCurrentState(root, { insertIfMissing: true });
     const view = buildTraceabilityView(root);
-    expect(view.notebook.current_state_block.in_sync).toBe(true);
     expect(view.notebook.result_links.missing_result_ids).toEqual(['estimate', 'other']);
     expect(renderTraceabilityProse(view)).toContain('HUMAN NOTEBOOK NEEDS ATTENTION');
     expect(view.unanswerable.some(row => row.clause === 'current results explained in the human notebook')).toBe(true);

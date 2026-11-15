@@ -1,150 +1,34 @@
-# research_notebook.md
+# Research notebook
 
 Project: <PROJECT_NAME>
+
 Last updated: <YYYY-MM-DD>
 
-<!-- NOTEBOOK_CURRENT_STATE_START -->
-(rendered by `nullius init` / `nullius notebook sync` — machine-maintained,
-never edited by hand)
-<!-- NOTEBOOK_CURRENT_STATE_END -->
+## Research question and motivation
 
-This file is the human research notebook: the one document a colleague in the field
-could read, without opening anything else in the repository, and come away
-with the project's complete current understanding — including every
-derivation, computation, and piece of analysis that understanding rests on.
-Write it as useful personal research notes, with connected explanations and
-enough detail to check the science. Keep provisional ideas, meaningful failed
-approaches and unresolved questions with their actual status. Publication polish
-is optional; scientific clarity is not.
+*The scientific question, why it matters, and the current understanding.*
 
-This memo is a living synthesis, not the immutable main research report. A
-report promoted for independent scientific use is created as a new file under
-`reports/` from
-[the main-report template](reports/main_research_report_template.md "nullius-navigation"), then
-registered through [project_index.md#Main research report](project_index.md#main-research-report "nullius-navigation").
-Checkpoint/status/closeout summaries and machine receipts never substitute for
-that report.
+## Definitions, assumptions, and conventions
 
-Three disciplines keep it that way:
-
-1. **Organize by the structure of the problem, never by time.** Sections
-   follow the research picture — setup, methods, derivations, results,
-   analysis — not the order in which work happened. "What changed when" is
-   not this file's job: dated logs live in [research_plan.md](research_plan.md "nullius-navigation")
-   and `artifacts/runs/<run_id>/`; machine-checkable claims live in
-   [research_contract.md](research_contract.md).
-2. **Update by rewriting, not appending.** When a result lands, a derivation
-   is corrected, or the direction changes, rewrite the affected sections so
-   the whole document is self-consistent again — as if writing the section
-   fresh with today's knowledge. Never leave stage markers ("in the previous
-   version...", "as of this week...") or patch-on-patch fragments; the
-   revision history is git's job. This discipline is machine-visible:
-   `nullius status --json` / `nullius current` flag sections that read as a
-   run-ordered log (many one-run paragraphs in run order) and links to
-   superseded or void runs that stand as live-looking prose. Both signals
-   are advisory; a section that is deliberately a chronicle declares
-   `<!-- notebook-section-role: log -->` once and is exempt.
-3. **Complete but not cluttered.** Every load-bearing derivation appears in
-   full (all steps a careful reader needs, with conventions stated), every
-   trusted number appears with its uncertainty and provenance link — but
-   raw process detail (tool logs and run transcripts) stays in
-   `artifacts/runs/<run_id>/`, referenced by link where relevant. Explain a failed
-   approach here when its reason changes the scientific understanding or next step.
-   If a section can be deleted
-   without losing understanding, delete it.
-
-At each scientific result fold, in file or engine mode, rewrite the affected
-sections without waiting for whole-project acceptance. Link each current result's
-registered artifact directly from its human `##` section. `nullius current --json`
-exposes `notebook.result_links` for direct inline and explicit reference links,
-not recursive documents, HTML, shortcut references or indented link lines.
-Automatic tables, comments and code examples do not count. These links establish
-navigation only.
-
-After completing the whole notebook and refreshing its automatic block, run
-`nullius notebook review --model <SPEC>` with repeated
-`--dependency <project-relative-path>` for required supporting files, then
-`nullius notebook check --json` without a result selector. One semantic review uses
-bounded calls with a default hard 1200-second timeout (`--timeout-secs <N>` changes
-it), one attempt per call and no automatic retry. It freezes the complete UTF-8 notebook, automatic block included, and
-declared dependency SHA-256 from actual bytes, including uncommitted edits.
-
-Ordinary local links recursively include their original targets as review
-dependencies. Use the Markdown title `"nullius-navigation"` only for a pure
-navigation link, such as `[Project index](project_index.md "nullius-navigation")`.
-Its destination must exist, but its changing contents are not frozen or followed.
-The full notebook bytes and navigation inventory remain visible to the reviewer.
-If the reasoning needs material behind that link, cite the actual source normally
-or supply `--dependency`; a navigation declaration cannot excuse missing evidence.
-Images remain evidence even with that title. Existing notebooks need an authored
-edit to classify their navigation links; refresh never rewrites scientific prose.
-
-The reviewer must read every section and give source-anchored reasons addressing
-derivation completeness, logical consistency, symbols, definitions, assumptions
-and conventions. The reviewer receives the material and question without an
-expected verdict or the writer's initial judgment. Links, automatic tables,
-formula counts, checklists and writing self-assessment cannot supply that verdict.
-The read-only check reports `structure` and `content_review` separately and
-requires structural success plus accepted current full-text review. `--result`
-scopes links alone and is only a diagnostic; final closeout uses the default
-unscoped check for every current result. `none` declarations and a missing
-launcher grant no exception. `--structure-only` success establishes navigation alone.
-Missing, partial, failed, unavailable, invalid or stale review does not pass.
-Any changed notebook or dependency bytes require a new review; history remains
-readable. Semantic acceptance does not prove scientific truth or replace
-claim-specific checks, and a single reviewer's independence limits remain explicit.
-
-Suggested skeleton — rename, merge, and grow sections to fit the actual
-problem; headings with real meaning beat generic labels:
-
-## Scientific picture and motivation
-
-The problem in plain scientific prose: what question is being answered, why
-it matters, what the current best answer looks like and how confident it is.
-A reader should understand the point of the project from this section alone.
-
-## Setup, conventions, and definitions
-
-The framework this work lives in: definitions, notation, units, assumptions,
-and scope boundaries — everything a reader needs to check the mathematics
-that follows. Write mathematics as LaTeX math ($...$ inline, $$...$$ for
-display), not as inline-code text.
+*Notation, units, starting assumptions, and the range in which they apply.*
 
 ## Methods and derivations
 
-The heart of the memo. Each method or derivation gets its own subsection
-with a meaningful title, written as connected prose with complete
-mathematics: starting relations, every non-obvious step, approximations with
-their justification and expected validity range, and the final expressions
-actually used. When a derivation has passed an independent check, say so and
-link the verification artifact; when it has not, say that too.
+*Connected reasoning with the non-obvious intermediate steps, approximations,
+and their justification. Include useful exploratory ideas and failed approaches
+where they help explain the science.*
 
-## Results and analysis
+## Results and interpretation
 
-Current results with uncertainties, presented and interpreted: what the
-numbers/figures show, how they were validated (link the verification
-artifacts next to each trusted value), how they compare with prior work, and
-what scientific conclusions they do and do not support. Superseded results are
-removed, not struck through — if the change of value itself carries a
-lesson, one sentence with a link to the run record is enough; say in that
-sentence that the run was superseded or voided (or link its replacement),
-so the dead link is visibly acknowledged rather than reading as a live
-result.
+*Results, figures, uncertainties, comparisons with previous work, and their
+scientific interpretation. Explain how results were checked and which remain
+provisional, with useful links to the underlying evidence.*
 
-## Open questions and risks
+## Open questions
 
-What is genuinely unresolved, what would falsify the current direction, and
-which assumptions the conclusions are most sensitive to.
+*Unresolved scientific questions, limitations, and promising next investigations.*
 
 ## References
 
-Stable links and local note pointers, kept current with the text above. For
-load-bearing sources, keep the reading honest: record the source form read
-(`latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or
-`unavailable`), the sections/pages/equations/figures actually read, the
-central equations and assumptions taken from each,
-what was not read and why, and each source's
-project relevance, limitations, and remaining gaps.
-Tool-use logs, metadata checks, download attempts, and API/MCP call details
-belong in [research_plan.md](research_plan.md "nullius-navigation") or `artifacts/runs/<run_id>/`,
-not here.
+*Scientific references and relevant source locations, with the assumptions or
+results used from them explained in the text.*

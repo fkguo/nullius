@@ -98,11 +98,14 @@ tool ran. Assess model, method and input independence separately.
 
 ## Durable conclusions
 
-The notebook is the user's living research notes. Keep the connected reasoning,
-load-bearing derivations, useful failed approaches, provisional ideas and open
-questions with their actual verification status. Update the scientific account
-as understanding changes; keep raw tool transcripts in run artifacts. A concise
-status pointer or publication-ready paper cannot replace these notes.
+Write the notebook for the user: connected reasoning, load-bearing derivations,
+useful failed approaches, provisional ideas and open questions with their actual
+verification status. Choose its structure for understanding the science; useful
+dated observations are welcome. Keep agent instructions, status tables, version
+stamps and tool transcripts in the existing guidance, plan and run artifacts.
+Agents may read these scientific notes, but continuation uses the task brief and
+project state. A concise status pointer or publication-ready paper cannot replace
+the user's research notes.
 
 Engine and file mode owe the same evidence and acceptance requirements. Fold
 verified reasoning into the notebook, contract and immutable report with sources.

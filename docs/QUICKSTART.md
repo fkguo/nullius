@@ -178,7 +178,7 @@ preview then apply:
 nullius init --refresh --dry-run
 nullius init --refresh
 
-Refresh preserves an existing AGENTS.md byte-for-byte when it differs from the current template. Template changes do not automatically update existing projects. To update guidance, render a current scaffold in an anonymous temporary external root and manually merge the desired changes, including notebook review instructions, into the existing user-owned files. Refresh may synchronize existing machine-managed notebook and index blocks, while preserving user-owned content and not inserting missing blocks. It does not migrate user-owned report files. For a project that predates
+Refresh preserves an existing AGENTS.md byte-for-byte when it differs from the current template. Template changes do not automatically update existing projects. To update guidance, render a current scaffold in an anonymous temporary external root and manually merge the desired changes, including notebook review instructions, into the existing user-owned files. Refresh may synchronize an existing machine-managed run index; it preserves the research notebook byte-for-byte, including historical blocks. It does not insert missing index blocks. It does not migrate user-owned report files. For a project that predates
 the main-report registry, checkpoint it, render a current scaffold in a separate
 temporary external root with `nullius init --project-root <temporary-root>`, copy
 only a missing reports/main_research_report_template.md, and manually merge the
@@ -201,7 +201,7 @@ Retry a resultless crash under the same run id with: nullius trace retry <run_di
 Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
 Register headline results with: nullius result set-current <result-id> --run <run_id> --artifact <path>
 Read the whole current-version answer as prose with: nullius current
-Keep the notebook's machine-maintained current-state block fresh with: nullius notebook sync
+Write research_notebook.md for the user; keep operational state in the plan, index and run artifacts.
 Keep the project's machine-maintained run index fresh with: nullius index sync
 Export a public code snapshot (excluding run products and internal notes) with: nullius release <target-dir>
 Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file
@@ -287,13 +287,20 @@ Existing `team/runs/<run_id>/` evidence remains readable in place. New execution
 
 ### Keep the human notebook current
 
+The notebook is for the user: scientific reasoning, calculations, useful failed
+approaches and open questions. Choose a structure that makes the science clear;
+dated observations are welcome. Agent protocols and operational state stay in
+the guidance, plan, index and run artifacts. Lifecycle commands do not rewrite
+the notebook. Historical automatic blocks may remain in old notes; they are no
+longer maintained and may be removed in an explicit authored edit. New notes
+need no hidden version stamps or special section-role markers.
+
 When adopting a scientific result, rewrite the affected `research_notebook.md`
 sections with its assumptions, definitions, conventions, derivation, interpretation
 and limits. Link its registered artifact directly from the relevant human `##`
-section, then refresh the automatic block and review the finished notebook:
+section, then review the finished notebook:
 
 ```bash
-nullius notebook sync
 nullius notebook review --model claude/opus --dependency <project-relative-path>
 nullius notebook check --json
 ```
@@ -301,7 +308,7 @@ nullius notebook check --json
 Repeat `--dependency` for every required supporting file; omit it only when the
 notebook needs no such dependency. Review uses a default hard 1200-second total timeout across at most 64 calls,
 with one attempt per call (`--timeout-secs <N>` changes it), freezing SHA-256 for the
-entire UTF-8 notebook, automatic block included, and declared dependency bytes,
+entire UTF-8 notebook, and declared dependency bytes,
 including uncommitted edits.
 
 Valid UTF-8 text remains text regardless of size; Ordinary Markdown evidence links are discovered

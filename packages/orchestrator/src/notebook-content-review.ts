@@ -14,8 +14,8 @@ import { assertNoSymlinkComponents, resolveWithinRoot } from './computation/path
 import { loadVerifiedRunJson, resolveVerifiedRunArtifact } from './orch-tools/validation-chain-binding.js';
 import { installedRuntimeRoot } from './cli-runtime.js';
 import { stampRunDirectory } from './run-stamp.js';
+import { assertNotebookRunStates, captureNotebookRunStates, notebookRunStatesCurrent, type NotebookRunState } from './notebook-run-state.js';
 import { notebookBudgets, notebookShellWord, NotebookRequestCapacityError, assessNotebookRequestCapacity, executeNotebookBatches, assessNotebookBatches, loadNotebookBatchHistory, type NotebookBudgets, type BatchExecution, type BatchPlan } from './notebook-review-batches.js';
-import { textOutsideNotebookCurrentState } from './notebook-current-state.js';
 import artifactSchema from '../../../meta/schemas/artifact_ref_v1.schema.json' with { type: 'json' };
 import subjectSchema from '../../../meta/schemas/verification_subject_v1.schema.json' with { type: 'json' };
 import checkSchema from '../../../meta/schemas/verification_check_run_v1.schema.json' with { type: 'json' };
@@ -46,6 +46,7 @@ export type NotebookReviewScope = {
   notebook: Input; dependencies: Input[]; opaque_links?: Input[]; sections: NotebookReviewSection[];
   explicit_dependencies: string[]; directory_links: string[]; remote_links: string[];
   navigation_links?: NavigationLink[];
+  run_states: NotebookRunState[];
 };
 type ReviewPointer = { schema_version: 1; run_id: string; verification_refs: {
   subject_refs: ArtifactRefV1[]; check_run_refs: ArtifactRefV1[];
@@ -252,8 +253,8 @@ export function freezeNotebookReviewScope(projectRoot: string, runId: string, ru
     }
     snapshotTotal += bytes.length;
     if (snapshotTotal > budgets.snapshotBytes) shortfall(relative, snapshotTotal, 'Notebook storage budget exceeded during snapshot creation; retry with a larger --snapshot-bytes budget.');
-    if (relative === 'research_notebook.md' && (!text!.trim() || textOutsideNotebookCurrentState(text!) === null)) {
-      throw new Error('notebook is empty or has ambiguous managed-block markers');
+    if (relative === 'research_notebook.md' && !text!.trim()) {
+      throw new Error('notebook is empty');
     }
     if (relative === 'research_notebook.md') notebookText = text!;
     const snapshotPath = path.join(runDir, 'inputs', `source-${inputs.length + opaque.length}.${text === null ? 'bin' : 'txt'}`);
@@ -292,8 +293,9 @@ export function freezeNotebookReviewScope(projectRoot: string, runId: string, ru
     }
   }
   const notebook = inputs[0]!;
-  return { schema_version: 1, review_kind: 'notebook', extraction_policy: POLICY, notebook,
-    dependencies: inputs.slice(1), opaque_links: opaque, sections: notebookReviewSections(notebookText),
+  const material = { notebook, dependencies: inputs.slice(1), opaque_links: opaque };
+  return { schema_version: 1, review_kind: 'notebook', extraction_policy: POLICY,
+    ...material, run_states: captureNotebookRunStates(projectRoot, material), sections: notebookReviewSections(notebookText),
     explicit_dependencies: explicit, directory_links: [...dirs].sort(), remote_links: [...remote].sort(), navigation_links: navigation };
 }
 
@@ -301,6 +303,8 @@ function assertScope(scope: NotebookReviewScope, runDir: string, runId: string, 
   if (scope.schema_version !== 1 || scope.review_kind !== 'notebook' || scope.extraction_policy !== POLICY
     || scope.notebook.path !== 'research_notebook.md' || !Array.isArray(scope.dependencies)) throw new Error('invalid whole-notebook review scope');
   if (scope.directory_links?.length) throw new NotebookRequestCapacityError('Historical linked directory content was not frozen; dependency closure remains unavailable. Execute a fresh review with explicit original file links.');
+  if (scope.run_states === undefined) throw new NotebookRequestCapacityError('Historical notebook review has no referenced-run state binding; execute a fresh full-text review. Its original evidence remains readable.');
+  assertNotebookRunStates(scope, scope.run_states);
   const texts = new Map<string, string>();
   for (const input of [scope.notebook, ...scope.dependencies]) {
     if (texts.has(input.path)) throw new Error('duplicate notebook review input');
@@ -456,10 +460,10 @@ function assessNotebookExecution(projectRoot: string, runDir: string, runId: str
       resolveVerifiedRunArtifact(runDir, runId, execution.stdout_ref, 'review stdout');
       resolveVerifiedRunArtifact(runDir, runId, execution.stderr_ref, 'review stderr');
       const scope = loadVerifiedRunJson<NotebookReviewScope>(runDir, runId, execution.scope_ref, 'notebook review scope');
-      const texts = assertScope(scope, runDir, runId, projectRoot);
       result.reviewed_notebook_sha256 = scope.notebook.sha256; result.sections_total = scope.sections.length;
       sourceRefs = [execution.scope_ref, scope.notebook.snapshot_ref, ...scope.dependencies.map(dep => dep.snapshot_ref), ...(scope.opaque_links ?? []).map(input => input.snapshot_ref), ...(execution.manifest_ref ? [execution.manifest_ref] : [])];
       outputRefs = execution.report_ref ? [execution.report_ref] : [];
+      const texts = assertScope(scope, runDir, runId, projectRoot);
       if (execution.exit_status !== 0 && execution.exit_status !== 86) return { ...result, status: 'unavailable', reason: 'Reviewer execution failed or was unavailable; its output supplies no acceptance.' };
       if (execution.exit_status === 86 && execution.pre_freshness_ref && !execution.post_freshness_ref) {
         const pre = loadVerifiedRunJson<any>(runDir, runId, execution.pre_freshness_ref, 'pre-review freshness');
@@ -514,6 +518,9 @@ function assessNotebookExecution(projectRoot: string, runDir: string, runId: str
       if (live.error || live.status !== 0) return { ...result, status: live.status === 3 ? 'stale' : 'unavailable', reason: 'Current review-swarm input freshness cannot be confirmed.' };
       const freshness = JSON.parse(live.stdout);
       if (freshness.status !== 'FRESH' || freshness.manifest_sha256 !== execution.manifest_ref.sha256) return { ...result, status: 'stale', reason: 'Current reviewer inputs are stale.' };
+      try {
+        if (!notebookRunStatesCurrent(projectRoot, scope)) return { ...result, status: 'stale', reason: 'Referenced run validity or identity changed since the whole-notebook review.' };
+      } catch (error) { return { ...result, status: 'unavailable', reason: `Current referenced run state cannot be read: ${error instanceof Error ? error.message : String(error)}` }; }
       executionAccepted = assessed.accepted && execution.exit_status === 0;
       return { ...result, status: assessed.accepted ? 'accepted' : assessed.coverageComplete ? 'rejected' : 'incomplete', reason: assessed.reason };
     } catch (error) {
@@ -706,6 +713,7 @@ export async function runNotebookReview(projectRoot: string, options: { model: s
         if (fs.existsSync(finalPath) && !previous.batch_execution_ref) throw new Error('resume requires a batched notebook review; start a fresh review for a single-call run');
         oldScope = loadVerifiedRunJson<NotebookReviewScope>(origin, options.resume, previous.scope_ref, 'resume full scope');
         assertScope(oldScope, origin, options.resume, projectRoot);
+        if (!notebookRunStatesCurrent(projectRoot, oldScope)) throw new NotebookRequestCapacityError('Referenced run validity or identity changed since the original review; start a fresh review instead of resuming its receipts.');
         oldBudgets = notebookBudgets(previous.request_budgets);
         if (!same(previous.request_budgets, oldBudgets)) throw new Error('resume resource budgets are missing or invalid');
         oldDependencies = oldScope.explicit_dependencies;
