@@ -17,10 +17,10 @@ Use this skill when you need to call the Qwen Code CLI from the command line wit
 - `python3` is version 3.10 or newer. Older runtimes are rejected before model invocation because the shared monotonic deadline must use the same clock reference across processes.
 - You are authenticated/configured for Qwen Code. First-time setup is `qwen auth` (Qwen-OAuth or Alibaba Cloud Coding Plan) or an OpenAI-compatible endpoint via the CLI's own settings/environment. This runner never reads or copies the credential store; authentication stays with the installed CLI configuration.
 
-The exposed command interface was checked against local Qwen Code **0.13.1** (`qwen --help` plus the installed bundle's non-interactive executor) on 2026-11-16. This metadata check does not establish account readiness or successful inference. Headless mode uses:
+The exposed command interface was checked against local Qwen Code **0.27.4** (`qwen --help` plus the installed bundle's non-interactive executor) on 2026-11-16, re-verified after an upgrade from 0.13.1. This metadata check does not establish account readiness or successful inference. Headless mode uses:
 
 ```bash
-qwen -o json --approval-mode plan < prompt.txt
+qwen -o json --approval-mode plan --safe-mode < prompt.txt
 ```
 
 Verified interface facts the runner relies on:
@@ -28,8 +28,9 @@ Verified interface facts the runner relies on:
 - Piped stdin text becomes the prompt in non-interactive mode (no positional query needed). The CLI caps stdin at **8 MiB** and truncates beyond it, so the runner refuses oversized inputs before exec instead of dispatching a silently truncated prompt.
 - `-o json` prints **one JSON array** of CLI messages; the final `type:"result"` element carries `is_error`, `subtype` (`success` / `error_during_execution` / …), the final `result` text, `session_id` and usage. The runner parses this batch document — it is not JSONL.
 - `--system-prompt` overrides the session system prompt for the run (official flag; the file content is passed as one argument).
-- `--approval-mode plan` is analyze-only ("do not modify files or execute commands"). It is the runner default in isolated mode.
-- `-e ""` maps to an empty extension-override list, which filters out all installed extensions. The runner passes it by default; `--allow-extensions` opts back into the CLI's normal extension loading.
+- `--approval-mode plan` is analyze-only ("do not modify files or execute commands"). It is the runner default in isolated mode. Qwen Code >= 0.27 also offers `auto` (LLM-classified approval); the runner accepts it as an explicit override only.
+- `--safe-mode` (Qwen Code >= 0.27) disables context files, hooks, extensions, skills and MCP servers, and clears hierarchical memory/context loading. It is the runner's isolation mechanism in isolated mode; `--no-safe-mode` opts out. Requires Qwen Code >= 0.27 — older CLIs reject the flag.
+- Outside safe mode, `-e none` is the CLI's official disable-all-extensions sentinel (an empty `-e ""` no longer disables extensions on 0.27.x). Workspace mode passes `-e none` by default; `--allow-extensions` opts back into normal extension loading.
 
 ## Recommended: runner script
 
@@ -63,10 +64,10 @@ bash "${SKILL_DIR}/scripts/run_qwen.sh" \
 
 ## Safety notes
 
-- Headless qwen is not a sandbox: with `--approval-mode default/auto-edit/yolo` it can execute tools, and in a non-interactive run there is no human to answer approval prompts. Use non-plan modes only for tasks whose actions are already explicitly authorized.
-- Default `--tool-mode isolated` runs qwen from a fresh temporary working directory, passes no `--include-directories`, disables extensions (`-e ""`), and uses `--approval-mode plan`. This reduces accidental repo exposure; it is not an OS sandbox and does not prove qwen cannot access absolute paths.
-- `--tool-mode workspace` exposes each directory via the official `--include-directories` flag (defaults to the current cwd when no `--workspace-dir` is given) and switches the default approval mode to `default`. Workspace selection is explicit access, not a read-only guarantee and not an authorization grant.
-- Ambient instruction files (e.g. a `QWEN.md` in the working directory) and user-level CLI settings/skills are still loaded by the CLI itself; keep trusted prompts and be aware that user-level configuration applies to isolated runs too.
+- Headless qwen is not a sandbox: with `--approval-mode default/auto-edit/auto/yolo` it can execute tools, and in a non-interactive run there is no human to answer approval prompts. Use non-plan modes only for tasks whose actions are already explicitly authorized.
+- Default `--tool-mode isolated` runs qwen from a fresh temporary working directory, passes no `--include-directories`, uses `--approval-mode plan`, and passes the official `--safe-mode` flag — disabling context files (e.g. `QWEN.md`), hooks, extensions, skills and MCP servers. This reduces accidental repo exposure and ambient-instruction injection; it is still not an OS sandbox and does not prove qwen cannot access absolute paths. `--no-safe-mode` opts out (then `-e none` still disables extensions).
+- `--tool-mode workspace` exposes each directory via the official `--include-directories` flag (defaults to the current cwd when no `--workspace-dir` is given), switches the default approval mode to `default`, and passes `-e none` (extensions off) unless `--allow-extensions` is set. It never passes `--safe-mode`, so workspace context files and user-level skills/MCP configuration apply. Workspace selection is explicit access, not a read-only guarantee and not an authorization grant.
+- Authentication and model routing still come from the installed CLI's user-level configuration in both modes; `--safe-mode` disables customizations, not credentials.
 - `--system-prompt-file` content is passed via `--system-prompt` as one CLI argument. Very large system prompts can hit OS argument limits; keep system instructions bounded (the user prompt goes via stdin and does not have this problem).
 
 ## Notes

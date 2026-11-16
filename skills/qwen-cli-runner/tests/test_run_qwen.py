@@ -28,6 +28,7 @@ system_prompt=""
 resume=""
 include_dirs=()
 extensions_disabled=0
+safe_mode=0
 original_args=("$@")
 
 while [[ $# -gt 0 ]]; do
@@ -53,10 +54,15 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -e|--extensions)
-      if [[ -z "${2:-}" ]]; then
+      if [[ "${2:-}" == "none" ]]; then
         extensions_disabled=1
       fi
       shift 2
+      ;;
+    --safe-mode)
+      safe_mode=1
+      extensions_disabled=1
+      shift
       ;;
     -r|--resume)
       resume="${2:-}"
@@ -77,8 +83,8 @@ if [[ -n "${log_file}" ]]; then
     printf '%q ' "${original_args[@]}"
     printf '\\n'
     printf 'stdin=%s\\n' "${stdin_text}"
-    printf 'model=%s approval=%s format=%s ext_disabled=%s include_count=%s resume=%s\\n' \\
-      "${model}" "${approval_mode}" "${output_format}" "${extensions_disabled}" "${#include_dirs[@]}" "${resume}"
+    printf 'model=%s approval=%s format=%s ext_disabled=%s include_count=%s resume=%s safe=%s\\n' \\
+      "${model}" "${approval_mode}" "${output_format}" "${extensions_disabled}" "${#include_dirs[@]}" "${resume}" "${safe_mode}"
   } >>"${log_file}"
 fi
 
@@ -169,7 +175,7 @@ case "${mode}" in
     emit_array "$(result_ok "Documentation says: reached your usage limit for this billing cycle. A network error can also be transient.")"
     ;;
   emit_metadata)
-    python3 - "${model}" "${approval_mode}" "${output_format}" "${extensions_disabled}" "${#include_dirs[@]}" "${resume}" <<'PY'
+    python3 - "${model}" "${approval_mode}" "${output_format}" "${extensions_disabled}" "${#include_dirs[@]}" "${resume}" "${safe_mode}" <<'PY'
 import json
 import sys
 payload = {
@@ -179,6 +185,7 @@ payload = {
     "extensions_disabled": sys.argv[4] == "1",
     "include_dir_count": int(sys.argv[5]),
     "resume": sys.argv[6],
+    "safe_mode": sys.argv[7] == "1",
 }
 print(json.dumps([{"type": "result", "subtype": "success", "is_error": False,
                    "result": json.dumps(payload, sort_keys=True)}], ensure_ascii=False))
@@ -269,7 +276,9 @@ def test_default_dry_run_is_isolated_plan_with_extensions_disabled(tmp_path: Pat
     assert "Approval mode: plan" in proc.stdout
     assert "Work dir: (temporary isolated directory)" in proc.stdout
     assert "Workspace dirs: (none)" in proc.stdout
-    assert 'Extensions: disabled (-e "")' in proc.stdout
+    assert "Safe mode: on" in proc.stdout
+    assert "Extensions: disabled (--safe-mode)" in proc.stdout
+    assert "--safe-mode" in proc.stdout
     assert "Timeout: 900s total invocation deadline" in proc.stdout
     assert "-o json" in proc.stdout
     assert "--include-directories" not in proc.stdout
@@ -304,6 +313,7 @@ def test_default_run_uses_isolated_workdir_and_feeds_prompt_via_stdin(tmp_path: 
     assert "approval=plan" in log
     assert "ext_disabled=1" in log
     assert "include_count=0" in log
+    assert "safe=1" in log
 
 
 def test_system_prompt_file_goes_through_system_prompt_flag(tmp_path: Path) -> None:
@@ -329,9 +339,12 @@ def test_workspace_mode_passes_include_directories_and_default_approval(tmp_path
     assert proc.returncode == 0, proc.stderr
     assert '"include_dir_count": 1' in _out_text(out_path)
     assert '"approval_mode": "default"' in _out_text(out_path)
+    assert '"safe_mode": false' in _out_text(out_path)
+    assert '"extensions_disabled": true' in _out_text(out_path)
     log = _log_text(log_path)
     assert f"cwd={tmp_path}" not in log
     assert str(workspace) in log
+    assert "--safe-mode" not in log
 
 
 def test_rejects_workspace_dir_without_workspace_mode(tmp_path: Path) -> None:
@@ -342,14 +355,51 @@ def test_rejects_workspace_dir_without_workspace_mode(tmp_path: Path) -> None:
     assert "requires --tool-mode workspace" in proc.stderr
 
 
-def test_allow_extensions_omits_empty_override(tmp_path: Path) -> None:
+def test_allow_extensions_omits_none_sentinel_in_workspace_mode(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
     proc, out_path, _ = _run_runner(
         tmp_path,
-        args=["--allow-extensions"],
+        args=["--tool-mode", "workspace", "--workspace-dir", str(workspace), "--allow-extensions"],
         fake_mode="emit_metadata",
     )
     assert proc.returncode == 0, proc.stderr
     assert '"extensions_disabled": false' in _out_text(out_path)
+    assert '"safe_mode": false' in _out_text(out_path)
+
+
+def test_no_safe_mode_falls_back_to_none_sentinel(tmp_path: Path) -> None:
+    proc, out_path, log_path = _run_runner(
+        tmp_path,
+        args=["--no-safe-mode"],
+        fake_mode="emit_metadata",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert '"safe_mode": false' in _out_text(out_path)
+    assert '"extensions_disabled": true' in _out_text(out_path)
+    assert "--safe-mode" not in _log_text(log_path)
+
+
+def test_no_safe_mode_rejected_in_workspace_mode(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    proc, out_path, _ = _run_runner(
+        tmp_path,
+        args=["--tool-mode", "workspace", "--workspace-dir", str(workspace), "--no-safe-mode"],
+    )
+    assert proc.returncode == 2
+    assert "only applies to --tool-mode isolated" in proc.stderr
+    assert _out_text(out_path) == ""
+
+
+def test_auto_approval_mode_accepted_as_explicit_override(tmp_path: Path) -> None:
+    proc, out_path, _ = _run_runner(
+        tmp_path,
+        args=["--approval-mode", "auto"],
+        fake_mode="emit_metadata",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert '"approval_mode": "auto"' in _out_text(out_path)
 
 
 def test_result_message_is_authoritative_over_earlier_assistant_events(tmp_path: Path) -> None:

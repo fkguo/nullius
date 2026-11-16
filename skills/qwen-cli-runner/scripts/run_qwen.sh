@@ -5,11 +5,13 @@ set -euo pipefail
 # stdin, batch-JSON parsing, an isolated default working directory, retries,
 # and default-model fallback on model-not-found.
 #
-# Interface checked against local Qwen Code 0.13.1 (`qwen --help` and the
+# Interface checked against local Qwen Code 0.27.4 (`qwen --help` and the
 # installed bundle): `-o json` prints ONE JSON array of CLI messages whose
 # final element is a `type:"result"` message; stdin text becomes the prompt
 # when no positional query is given; `--system-prompt` overrides the session
-# system prompt; `--approval-mode plan` is analyze-only.
+# system prompt; `--approval-mode plan` is analyze-only; `--safe-mode`
+# disables context files, hooks, extensions, skills and MCP servers, and is
+# the runner's isolation mechanism in isolated mode.
 
 MODEL="qwen4-max-preview"
 SYSTEM_PROMPT_FILE=""
@@ -22,6 +24,7 @@ WORK_DIR=""
 WORK_DIR_EXPLICIT=0
 WORKSPACE_DIRS=()
 ALLOW_EXTENSIONS=0
+NO_SAFE_MODE=0
 MAX_SESSION_TURNS=""
 MAX_ATTEMPTS=3
 MAX_ATTEMPTS_HARD_MAX=20
@@ -58,10 +61,15 @@ Options:
                           in workspace mode. Defaults to the current cwd when omitted.
   --work-dir DIR          Advanced. Run qwen from this directory instead of an
                           isolated temp dir.
-  --approval-mode MODE    Optional explicit override: plan, default, auto-edit, yolo.
+  --approval-mode MODE    Optional explicit override: plan, default, auto-edit, auto, yolo.
                           Default: plan in isolated mode, default in workspace mode.
                           Non-plan modes can execute tools; use only for authorized tasks.
-  --allow-extensions      Do not pass `-e ""`; allow qwen to load installed extensions.
+  --no-safe-mode          Do not pass --safe-mode in isolated mode. By default isolated
+                          runs disable context files, hooks, extensions, skills and MCP
+                          servers via the official --safe-mode flag (Qwen Code >= 0.27).
+  --allow-extensions      In workspace mode, do not pass `-e none` (qwen's official
+                          disable-all sentinel); allow installed extensions to load.
+                          No effect in isolated mode unless --no-safe-mode is set.
   --max-session-turns N   Optional cap on session turns (qwen --max-session-turns).
   --qwen-bin PATH         Qwen executable (default: qwen).
   --max-attempts N        Total CLI calls, including retries and fallback (default: 3).
@@ -391,6 +399,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --allow-extensions) ALLOW_EXTENSIONS=1; shift 1;;
+    --no-safe-mode) NO_SAFE_MODE=1; shift 1;;
     --max-session-turns)
       require_value "$1" "${2-}"
       MAX_SESSION_TURNS="$2"
@@ -525,12 +534,20 @@ if [[ -z "${APPROVAL_MODE}" ]]; then
   fi
 fi
 case "${APPROVAL_MODE}" in
-  plan|default|auto-edit|yolo) ;;
+  plan|default|auto-edit|auto|yolo) ;;
   *)
-    echo "Invalid --approval-mode: '${APPROVAL_MODE}'. Expected plan, default, auto-edit or yolo." >&2
+    echo "Invalid --approval-mode: '${APPROVAL_MODE}'. Expected plan, default, auto-edit, auto or yolo." >&2
     exit 2
     ;;
 esac
+if [[ "${NO_SAFE_MODE}" -eq 1 && "${TOOL_MODE}" != "isolated" ]]; then
+  echo "--no-safe-mode only applies to --tool-mode isolated (workspace mode never passes --safe-mode)." >&2
+  exit 2
+fi
+SAFE_MODE_ACTIVE=0
+if [[ "${TOOL_MODE}" == "isolated" && "${NO_SAFE_MODE}" -ne 1 ]]; then
+  SAFE_MODE_ACTIVE=1
+fi
 if [[ "${TOOL_MODE}" == "isolated" && "${APPROVAL_MODE}" != "plan" ]]; then
   echo "Warning: --approval-mode ${APPROVAL_MODE} in isolated mode can execute tools with automatic approval; isolation is not an OS sandbox." >&2
 fi
@@ -565,10 +582,17 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   else
     echo "Workspace dirs: (none)"
   fi
+  if [[ "${SAFE_MODE_ACTIVE}" -eq 1 ]]; then
+    echo "Safe mode: on (--safe-mode: no context files, hooks, extensions, skills or MCP servers)"
+  else
+    echo "Safe mode: off"
+  fi
   if [[ "${ALLOW_EXTENSIONS}" -eq 1 ]]; then
     echo "Extensions: (qwen default loading)"
+  elif [[ "${SAFE_MODE_ACTIVE}" -eq 1 ]]; then
+    echo "Extensions: disabled (--safe-mode)"
   else
-    echo "Extensions: disabled (-e \"\")"
+    echo "Extensions: disabled (-e none)"
   fi
   if [[ -n "${SYSTEM_PROMPT_FILE}" ]]; then
     sys_size="$(file_size_bytes "${SYSTEM_PROMPT_FILE}")"
@@ -604,8 +628,10 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     cmd+=(-m "${MODEL}")
   fi
   cmd+=(-o json --approval-mode "${APPROVAL_MODE}")
-  if [[ "${ALLOW_EXTENSIONS}" -ne 1 ]]; then
-    cmd+=(-e "")
+  if [[ "${SAFE_MODE_ACTIVE}" -eq 1 ]]; then
+    cmd+=(--safe-mode)
+  elif [[ "${ALLOW_EXTENSIONS}" -ne 1 ]]; then
+    cmd+=(-e none)
   fi
   if [[ -n "${MAX_SESSION_TURNS}" ]]; then
     cmd+=(--max-session-turns "${MAX_SESSION_TURNS}")
@@ -705,8 +731,10 @@ run_once() {
     cmd+=(-m "${MODEL}")
   fi
   cmd+=(-o json --approval-mode "${APPROVAL_MODE}")
-  if [[ "${ALLOW_EXTENSIONS}" -ne 1 ]]; then
-    cmd+=(-e "")
+  if [[ "${SAFE_MODE_ACTIVE}" -eq 1 ]]; then
+    cmd+=(--safe-mode)
+  elif [[ "${ALLOW_EXTENSIONS}" -ne 1 ]]; then
+    cmd+=(-e none)
   fi
   if [[ -n "${MAX_SESSION_TURNS}" ]]; then
     cmd+=(--max-session-turns "${MAX_SESSION_TURNS}")
