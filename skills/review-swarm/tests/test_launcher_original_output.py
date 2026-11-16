@@ -97,3 +97,42 @@ def test_invalid_original_contract_remains_invalid_without_byte_rewrite(tmp_path
     result={'out':str(output),'backend':'claude','success':True,'exit_code':0}
     run_multi_task._postprocess_result(result,check_review_contract=True)
     assert output.read_bytes()==body.encode() and result['contract_ok'] is False
+
+
+def test_native_launcher_publishes_observed_capture_to_capacity_consumer(tmp_path):
+    sys.path.insert(0, str(BIN.parents[2] / 'research-team/scripts/lib'))
+    from request_capacity import request_budgets, validate_request_capacity
+    script=tmp_path/'native_backend.py'
+    script.write_text('''import argparse,hashlib,json
+from pathlib import Path
+p=argparse.ArgumentParser();p.add_argument('--out');p.add_argument('--system-prompt-file');p.add_argument('--prompt-file');a,_=p.parse_known_args()
+out=Path(a.out);body='Complete neutral answer.\\n';out.write_text(body)
+root=Path(str(out)+'.attempts')/'run.current';root.mkdir(parents=True)
+budget={'status':'completed','runner_exit_code':0,'input_sha256':[hashlib.sha256(Path(x).read_bytes()).hexdigest() for x in (a.system_prompt_file,a.prompt_file)],'attempts':[{'index':1,'status':'exited','exit_code':0,'stdout':'attempt_1.stdout','stderr':'attempt_1.stderr'}]}
+(root/'budget.json').write_text(json.dumps(budget))
+records=[{'role':'meta','type':'system.version','version':'2.6.0'},{'role':'assistant','content':body}]
+(root/'attempt_1.stdout').write_text(''.join(json.dumps(x)+'\\n' for x in records))
+(root/'attempt_1.stderr').write_text('')
+''')
+    shell=tmp_path/'native_backend.sh'
+    shell.write_text('#!/usr/bin/env bash\nexec '+shlex.quote(sys.executable)+' '+shlex.quote(str(script))+' "$@"\n');shell.chmod(0o755)
+    system=tmp_path/'system.txt';system.write_text('Neutral system.')
+    prompt=tmp_path/'prompt.txt';prompt.write_text('Neutral question.')
+    output=tmp_path/'native-output'
+    old_argv=sys.argv
+    try:
+        sys.argv=['run_multi_task.py','--models','kimi/offline','--system',str(system),'--prompt',str(prompt),'--out-dir',str(output),'--kimi-runner',str(shell),'--context-tokens','200000']
+        assert run_multi_task.main()==0
+    finally:
+        sys.argv=old_argv
+    meta=json.loads((output/'meta.json').read_text())
+    agent=meta['agents'][0]
+    assert agent['success'] is True
+    assert Path(agent['capture_receipt']).name=='budget.json'
+    budgets=request_budgets(200000,None)
+    result=validate_request_capacity(system.read_text(),prompt.read_text(),
+        {'exit_code':0,'output':agent['out']},budgets,expected_working_directory=Path.cwd())
+    assert result['capacity_evidence']=='conservative_configured_bound'
+    assert result['observed_usage']==[]
+    assert result['compaction_witness']=='unavailable'
+    assert result['usage_scope']=='unavailable'

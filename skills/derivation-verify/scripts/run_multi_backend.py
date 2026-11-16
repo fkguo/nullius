@@ -1572,7 +1572,7 @@ def _execute_derivation(run, spec, system, prompt, tag, refusals: Optional[list]
                 # One read per file: the reference and the captured text describe the same bytes.
                 data = path.read_bytes()
                 artifacts.append({"path": str(path), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)})
-                if path.suffix in {".json", ".jsonl", ".log"}:
+                if path.suffix in {".json", ".jsonl", ".log", ".stdout", ".stderr"}:
                     captured[str(path)] = data.decode("utf-8")
     result.update(execution_id=tag, transport={"execution_id": tag, "exit_code": exit_code,
         "request": request, "raw_output": raw, "request_sha256": hashlib.sha256(json.dumps(request, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),

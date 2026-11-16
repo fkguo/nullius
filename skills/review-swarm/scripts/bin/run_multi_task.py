@@ -1235,7 +1235,7 @@ def _run_one(
             },
         )
 
-    prior_capture_runs = set(Path(str(out_path)+".attempts").glob("run.*")) if plan.backend == "claude" else set()
+    prior_capture_runs = set(Path(str(out_path)+".attempts").glob("run.*")) if plan.backend in {"claude", "kimi"} else set()
     try:
         proc = _run_with_timeout(cmd, timeout_secs=remaining, **({"context_tokens": budget.context_tokens} if budget.context_tokens is not None else {}))
         if gemini_cli_home:
@@ -1261,7 +1261,7 @@ def _run_one(
         }
         result["reported_model"] = None
         result["progress"] = {"capture_health": "unknown"}
-        if plan.backend == "claude":
+        if plan.backend in {"claude", "kimi"}:
             current_runs = set(Path(str(out_path)+".attempts").glob("run.*")) - prior_capture_runs
             if len(current_runs) == 1:
                 capture_root = next(iter(current_runs))

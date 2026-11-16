@@ -122,8 +122,14 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
         complete = validate_stream_report(capture_root, output.read_bytes().decode("utf-8"))
         if observation.get("complete_output") != complete:
             raise ValueError("unavailable: complete output is not bound by the original runtime observation")
-        result_files = [capture_root / complete["terminal"]]
-        stream = capture_root / complete["events"]
+        if complete.get("protocol") == "complete_assistant_text_v1":
+            result_files = [capture_root / complete["terminal"]]
+            stream = capture_root / complete["events"]
+        elif complete.get("protocol") != "kimi_prompt_stream_json":
+            raise ValueError("unavailable: unsupported complete-output capture protocol")
+        # Native prompt completion is the observed local process exit. It
+        # supplies neither provider token usage nor a context-compaction witness;
+        # the conservative configured bound remains mandatory below.
     for file in event_files:
         for line in file.read_text(encoding="utf-8").splitlines():
             try:
@@ -153,5 +159,5 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
     return {**budgets, "conservative_input_bound": bound, "observed_usage": observations,
             "capacity_evidence": "observed_usage" if observations else "conservative_configured_bound",
             "compaction_witness": "captured_claude_events" if event_files else "unavailable",
-            "usage_scope": "per_call" if usage_per_call and stream is not None and observations else "result",
+            "usage_scope": "per_call" if usage_per_call and stream is not None and observations else "result" if result_files else "unavailable",
             "capture_stream": str(stream) if stream is not None else None}

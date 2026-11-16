@@ -20,7 +20,7 @@ def host_authority(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "_authority_dir", lambda: tmp_path / "host-authority")
 
 
-def observation(tmp_path, usage=None, compact=False, *, system="neutral", prompt="small original", context_tokens=200000):
+def observation(tmp_path, usage=None, compact=False, *, system="neutral", prompt="small original", context_tokens=200000, native=False):
     from uuid import uuid4
     run = tmp_path / uuid4().hex
     run.mkdir()
@@ -37,12 +37,22 @@ def observation(tmp_path, usage=None, compact=False, *, system="neutral", prompt
     # sidecar is reconstructed from the stream and must agree with it.
     stream = (json.dumps({"type": "system", "subtype": "compact_boundary"}) + "\n" if compact else "") + json.dumps(event) + "\n"
     script = run / "observed_fixture_runner.py"
-    script.write_text('from pathlib import Path\nimport json\n'
+    code = ('from pathlib import Path\nimport json\n'
         + f'capture=Path({str(capture)!r});capture.mkdir(parents=True)\n'
-        + f'Path({str(output)!r}).write_text("original model result")\n'
-        + f'(capture/"budget.json").write_text({json.dumps(budget)!r})\n'
-        + f'(capture/"attempt_1.events.result.json").write_text({json.dumps(event)!r})\n'
-        + f'(capture/"attempt_1.events.jsonl").write_text({stream!r})\n')
+        + f'Path({str(output)!r}).write_text({("original model result" + (chr(10) if native else ""))!r})\n')
+    if native:
+        budget['attempts'] = [{'index': 1, 'status': 'exited', 'exit_code': 0,
+                               'stdout': 'attempt_1.stdout', 'stderr': 'attempt_1.stderr'}]
+        stream = '\n'.join(map(json.dumps, [
+            {'role': 'meta', 'type': 'system.version', 'version': '2.6.0'},
+            {'role': 'assistant', 'content': 'original model result'}])) + '\n'
+        code += (f'(capture/"attempt_1.stdout").write_text({stream!r})\n'
+                 + '(capture/"attempt_1.stderr").write_text("Original diagnostics\\n")\n')
+    else:
+        code += (f'(capture/"attempt_1.events.result.json").write_text({json.dumps(event)!r})\n'
+                 + f'(capture/"attempt_1.events.jsonl").write_text({stream!r})\n')
+    code += f'(capture/"budget.json").write_text({json.dumps(budget)!r})\n'
+    script.write_text(code)
     process = run_multi_task._run_with_timeout([sys.executable,str(script),'--system-prompt-file',str(system_path),'--prompt-file',str(prompt_path),'--out',str(output)],timeout_secs=10, context_tokens=context_tokens)
     assert process['exit_code'] == 0
     (run / "meta.json").write_text(json.dumps({"agents": [{"success": True, "out": str(output), "capture_receipt": str(receipt)}]}))
@@ -130,3 +140,40 @@ def test_result_text_and_usage_cannot_replace_successful_exact_request_receipt(t
     receipt.write_text(json.dumps(record))
     with pytest.raises(ValueError,match='exact successful original request'):
         capacity.validate_request_capacity('neutral',original,actual,capacity.request_budgets(50000,120000))
+
+
+def test_native_prompt_capacity_uses_only_conservative_bound(tmp_path):
+    actual = observation(tmp_path, native=True)
+    result = capacity.validate_request_capacity('neutral', 'small original', actual, capacity.request_budgets(),
+                                                expected_working_directory=Path.cwd(), usage_per_call=True)
+    assert result['capacity_evidence'] == 'conservative_configured_bound'
+    assert result['observed_usage'] == []
+    assert result['usage_scope'] == 'unavailable'
+    assert result['compaction_witness'] == 'unavailable'
+    assert result['capture_stream'] is None
+
+
+@pytest.mark.parametrize('above_byte_budget', [False, True])
+def test_native_prompt_cannot_supply_missing_observed_capacity(tmp_path, above_byte_budget):
+    prompt = 'Original neutral request.\n' * 9000
+    actual = observation(tmp_path, native=True, prompt=prompt, context_tokens=200000)
+    budgets = capacity.request_budgets(200000, 500000)
+    with pytest.raises(ValueError, match='no observed token'):
+        capacity.validate_request_capacity('neutral', prompt, actual, budgets, above_byte_budget=above_byte_budget)
+
+
+@pytest.mark.parametrize('change', ['raw', 'report', 'request', 'window'])
+def test_native_capacity_rejects_changed_original_bindings(tmp_path, change):
+    actual = observation(tmp_path, native=True)
+    system, prompt, budgets = 'neutral', 'small original', capacity.request_budgets()
+    if change == 'raw':
+        path = next(Path(actual['output'] + '.attempts').glob('run.*/attempt_1.stdout'))
+        path.write_bytes(path.read_bytes() + b'changed\n')
+    elif change == 'report':
+        Path(actual['output']).write_text('replacement')
+    elif change == 'request':
+        prompt = 'different original'
+    elif change == 'window':
+        budgets = capacity.request_budgets(60000)
+    with pytest.raises(ValueError):
+        capacity.validate_request_capacity(system, prompt, actual, budgets)

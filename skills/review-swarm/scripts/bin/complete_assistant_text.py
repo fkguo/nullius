@@ -238,8 +238,100 @@ def read_stream(path):
     return collector
 
 
+def capture_profile(root):
+    """Select an original transport, never convert one provider's events to another's."""
+    root = Path(root)
+    if list(root.glob("*.events.jsonl")) or list(root.glob("*.events.result.json")):
+        return "claude_stream_json"
+    if list(root.glob("*.stdout")) or list(root.glob("*.stderr")):
+        return "kimi_prompt_stream_json"
+    raise CompleteTextError("unsupported original capture format")
+
+
+def kimi_capture_files(root):
+    """The supported native prompt profile is one supervised, successful call."""
+    root = Path(root)
+    budget = json.loads((root / "budget.json").read_text(encoding="utf-8"))
+    attempts = budget.get("attempts")
+    if (budget.get("status") != "completed" or type(budget.get("runner_exit_code")) is not int
+            or budget["runner_exit_code"] != 0 or not isinstance(attempts, list) or len(attempts) != 1):
+        raise CompleteTextError("unsupported or unsuccessful native prompt attempt")
+    attempt = attempts[0]
+    if (not isinstance(attempt, dict) or type(attempt.get("index")) is not int or attempt["index"] != 1
+            or attempt.get("status") != "exited" or type(attempt.get("exit_code")) is not int
+            or attempt["exit_code"] != 0 or attempt.get("stdout") != "attempt_1.stdout"
+            or attempt.get("stderr") != "attempt_1.stderr"):
+        raise CompleteTextError("incomplete native prompt process receipt")
+    names = {"budget.json", "attempt_1.stdout", "attempt_1.stderr"}
+    entries = list(root.iterdir())
+    if {p.name for p in entries} != names or any(not p.is_file() or p.is_symlink() for p in entries):
+        raise CompleteTextError("unsupported native prompt capture files")
+    return [root / "attempt_1.stdout", root / "attempt_1.stderr"]
+
+
+def _unique_object(pairs):
+    record = {}
+    for key, value in pairs:
+        if key in record:
+            raise CompleteTextError("duplicate key in native prompt stream")
+        record[key] = value
+    return record
+
+
+def _invalid_constant(value):
+    raise CompleteTextError("non-finite value in native prompt stream")
+
+
+def _validate_kimi_prompt_report(root, report):
+    stdout, stderr = kimi_capture_files(root)
+    data = stdout.read_bytes()
+    # A partial last JSON record or missing line terminator is never completion.
+    if not data.endswith(b"\n"):
+        raise CompleteTextError("truncated native prompt JSONL")
+    try:
+        # JSON strings may contain literal Unicode line/paragraph separators.
+        # Only the transport's newline byte delimits records.
+        lines = data.decode("utf-8").split("\n")[:-1]
+        records = [json.loads(line, object_pairs_hook=_unique_object, parse_constant=_invalid_constant)
+                   for line in lines]
+        # Comparator transport carries text verbatim; binary diagnostics need a separate profile.
+        stderr.read_bytes().decode("utf-8")
+        json.dumps(records, ensure_ascii=False).encode("utf-8")
+    except (ValueError, UnicodeError) as exc:
+        raise CompleteTextError("malformed original native prompt stream") from exc
+    if len(records) not in (2, 3) or any(not isinstance(record, dict) for record in records):
+        raise CompleteTextError("unsupported native prompt stream shape")
+    header, assistant = records[:2]
+    if (set(header) != {"role", "type", "version"} or header.get("role") != "meta"
+            or header.get("type") != "system.version" or header.get("version") != "2.6.0"):
+        raise CompleteTextError("unsupported native prompt version envelope")
+    if (set(assistant) != {"role", "content"} or assistant.get("role") != "assistant"
+            or not isinstance(assistant.get("content"), str) or not assistant["content"].strip()):
+        raise CompleteTextError("unsupported or incomplete native assistant output")
+    if len(records) == 3:
+        hint = records[2]
+        if (set(hint) != {"role", "type", "session_id", "command", "content"}
+                or hint.get("role") != "meta" or hint.get("type") != "session.resume_hint"
+                or any(not isinstance(hint.get(key), str) or not hint[key].strip()
+                       for key in ("session_id", "command", "content"))):
+            raise CompleteTextError("unsupported native prompt trailing record")
+    # This is the original runner's documented text policy. Keep both identities;
+    # the original unnormalized assistant and all metadata remain in stdout.
+    text = assistant["content"]
+    if report != text.rstrip() + "\n":
+        raise CompleteTextError("report differs from complete original native assistant output")
+    return {"protocol": "kimi_prompt_stream_json", "cli_version": header["version"],
+            "stdout": stdout.name, "stderr": stderr.name,
+            "completion_authority": "observed_process_exit_zero", "provider_terminal_event": False,
+            "text_policy": "rstrip_then_final_newline",
+            "assistant_text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "report_text_sha256": hashlib.sha256(report.encode("utf-8")).hexdigest()}
+
+
 def validate_stream_report(root, report):
     """Reconstruct from unchanged originals before runtime signing, never from a header."""
+    if capture_profile(root) == "kimi_prompt_stream_json":
+        return _validate_kimi_prompt_report(root, report)
     matches = []
     for terminal_path in sorted(Path(root).glob("*.events.result.json")):
         terminal = json.loads(terminal_path.read_text(encoding="utf-8"))
