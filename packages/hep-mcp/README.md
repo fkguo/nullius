@@ -125,7 +125,7 @@ Wire into an MCP client (Cursor / Claude Desktop / Claude Code / Codex / OpenCod
 }
 ```
 
-`inspire_literature` accepts the common optional `project_root` in all seven modes while retaining each mode's own required and allowed provider arguments. Its advertised catalog, parser and dispatcher agree; `size` is optional and is not required by modes that reject it.
+`inspire_literature` accepts the common optional `project_root` in all seven modes while retaining each mode's own required and allowed provider arguments. Use a digit string or a positive JSON integer for a literature record ID. Quote IDs above 9007199254740991 to preserve every digit. `get_bibtex` accepts an array of these IDs, a single ID, or a comma- or whitespace-separated string.
 
 ## Front-door drift lock
 

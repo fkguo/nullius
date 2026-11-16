@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { optionalBudgetInt } from '@nullius/shared';
+import { InspireRecidSchema } from '../inspireRecid.js';
 
 export const TimeRangeSchema = z
   .object({
@@ -66,7 +67,7 @@ export const NetworkAnalysisToolSchema = z.object({
 }).strict();
 
 export const TraceOriginalSourceToolSchema = z.object({
-  recid: z.string().min(1),
+  recid: InspireRecidSchema,
   max_depth: optionalBudgetInt({ min: 1 }),
   max_refs_per_level: optionalBudgetInt({ min: 1 }),
   cross_validate: z.boolean().optional(),

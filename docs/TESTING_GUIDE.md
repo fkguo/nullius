@@ -334,12 +334,12 @@ EOF
 **调用**
 
 ```json
-{ "mode": "get_paper", "recid": "1833986" }
+{ "mode": "get_paper", "recid": 1833986 }
 ```
 
 **预期**
 
-- 返回单篇论文的结构化元信息
+- 数字 `1833986` 与字符串 `"1833986"` 应返回同一篇论文的元信息。超过 9007199254740991 的编号须以字符串传入。
 - `get_paper` 不需要 `size`
 - `lookup_by_id` 语义上只传 `identifier`；agent 误带的 `size` 会被忽略，但不要主动附带
 - `get_author` 语义上只传 `identifier`；agent 误带的 `size` 会被忽略，但不要主动附带

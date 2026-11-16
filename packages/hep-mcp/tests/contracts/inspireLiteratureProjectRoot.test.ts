@@ -8,6 +8,7 @@ vi.mock('../../src/api/client.js', () => ({
   getPaper: vi.fn(async () => ({ recid: '1' })),
   getReferences: vi.fn(async () => []),
   getByDoi: vi.fn(async () => ({ recid: '1' })),
+  getByArxiv: vi.fn(async () => ({ recid: '1' })),
   getCitations: vi.fn(async () => ({ total: 0, papers: [], has_more: false })),
   search: vi.fn(async () => ({ total: 0, papers: [], has_more: false })),
   getBibtex: vi.fn(async () => '@article{Example, title={Example}}'),
@@ -73,6 +74,55 @@ describe('INSPIRE literature common project_root contract', () => {
 
   it.each(cases)('still requires the mode-specific identifier for $mode', ({ mode }) => {
     expect(getToolSpec('inspire_literature')!.zodSchema.safeParse({ mode, project_root: projectRoot }).success).toBe(false);
+  });
+
+  it.each([
+    { mode: 'get_paper', args: { recid: 123 }, method: 'getPaper', call: ['123'] },
+    { mode: 'get_references', args: { recid: 456, size: 2 }, method: 'getReferences', call: ['456', 2] },
+    { mode: 'get_citations', args: { recid: 789 }, method: 'getCitations', call: ['789', { size: 25, sort: undefined }] },
+    { mode: 'lookup_by_id', args: { identifier: 123 }, method: 'getPaper', call: ['123'] },
+    { mode: 'lookup_by_id', args: { identifier: ' 123 ' }, method: 'getPaper', call: ['123'] },
+    { mode: 'get_paper', args: { recid: '9007199254740993' }, method: 'getPaper', call: ['9007199254740993'] },
+    { mode: 'get_bibtex', args: { recids: 123 }, method: 'getBibtex', call: [['123']] },
+    { mode: 'get_bibtex', args: { recids: [123, '9007199254740993'] }, method: 'getBibtex', call: [['123', '9007199254740993']] },
+    { mode: 'get_bibtex', args: { recids: '123, 456' }, method: 'getBibtex', call: [['123', '456']] },
+  ] as const)('advertises and dispatches $mode $args with exact string IDs', async ({ mode, args, method, call }) => {
+    const input = { mode, ...args, project_root: projectRoot };
+    for (const exposure of ['standard', 'full'] as const) {
+      const tool = getTools(exposure).find(t => t.name === 'inspire_literature')!;
+      const validate = new Ajv({ strict: false }).compile(tool.inputSchema);
+      expect(validate(input), JSON.stringify(validate.errors)).toBe(true);
+    }
+    const result = await handleToolCall('inspire_literature', input);
+    expect(result.isError, result.content[0]?.text).not.toBe(true);
+    expect(api[method]).toHaveBeenCalledExactlyOnceWith(...call);
+  });
+
+  it('rejects malformed and imprecise IDs before contacting INSPIRE', async () => {
+    const tool = getTools('standard').find(t => t.name === 'inspire_literature')!;
+    const validate = new Ajv({ strict: false }).compile(tool.inputSchema);
+    for (const recid of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, true, null, '', '1.5']) {
+      for (const input of [{ mode: 'get_paper', recid }, { mode: 'get_bibtex', recids: [123, recid] }]) {
+        expect(validate(input)).toBe(false);
+        const result = await handleToolCall('inspire_literature', input);
+        expect(JSON.parse(result.content[0]!.text).error.code).toBe('INVALID_PARAMS');
+      }
+    }
+    expect(api.getPaper).not.toHaveBeenCalled();
+    expect(api.getBibtex).not.toHaveBeenCalled();
+  });
+
+  it.each([0, ' 00 '])('rejects zero as a lookup_by_id record identifier (%j)', async identifier => {
+    const result = await handleToolCall('inspire_literature', { mode: 'lookup_by_id', identifier });
+    expect(JSON.parse(result.content[0]!.text).error.code).toBe('INVALID_PARAMS');
+    expect(api.getPaper).not.toHaveBeenCalled();
+    expect(api.getByArxiv).not.toHaveBeenCalled();
+  });
+
+  it('keeps author identifiers textual', async () => {
+    const result = await handleToolCall('inspire_literature', { mode: 'get_author', identifier: 123 });
+    expect(JSON.parse(result.content[0]!.text).error.code).toBe('INVALID_PARAMS');
+    expect(api.getAuthor).not.toHaveBeenCalled();
   });
 
   it('rejects non-string project_root at the shared schema boundary', () => {

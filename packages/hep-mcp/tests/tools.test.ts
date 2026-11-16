@@ -563,7 +563,7 @@ describe('Tool Handlers (current exposure)', () => {
       return bibtex;
     });
 
-    const res = await handleToolCall('inspire_resolve_citekey', { recid });
+    const res = await handleToolCall('inspire_resolve_citekey', { recid: Number(recid) });
     expect(res.isError).toBeFalsy();
 
     const payload = JSON.parse(readTextBlock(res)) as {
@@ -632,7 +632,7 @@ describe('Tool Handlers (current exposure)', () => {
   it('inspire_find_connections should call findConnections', async () => {
     vi.mocked(findConnections.findConnections).mockResolvedValueOnce({ ok: true } as any);
     await handleToolCall('inspire_find_connections', {
-      recids: ['1', '2'],
+      recids: [1, '2'],
       include_external: true,
       max_external_depth: 2,
     });
@@ -646,7 +646,7 @@ describe('Tool Handlers (current exposure)', () => {
   it('inspire_trace_original_source should call traceOriginalSource', async () => {
     vi.mocked(traceSource.traceOriginalSource).mockResolvedValueOnce({ ok: true } as any);
     await handleToolCall('inspire_trace_original_source', {
-      recid: '1',
+      recid: 1,
       max_depth: 3,
       max_refs_per_level: 2,
       cross_validate: true,
@@ -665,7 +665,7 @@ describe('Tool Handlers (current exposure)', () => {
 
     await handleToolCall(
       'inspire_grade_evidence',
-      { recid: '1' },
+      { recid: 1 },
       'standard',
       { createMessage }
     );
@@ -705,7 +705,7 @@ describe('Tool Handlers (current exposure)', () => {
 
     await handleToolCall(
       'inspire_critical_analysis',
-      { recid: '1' },
+      { recid: 1 },
       'standard',
       { createMessage }
     );
@@ -722,7 +722,7 @@ describe('Tool Handlers (current exposure)', () => {
 
     await handleToolCall(
       'inspire_classify_reviews',
-      { recids: ['1', '2'] },
+      { recids: [1, '2'] },
       'standard',
       { createMessage }
     );
@@ -739,7 +739,7 @@ describe('Tool Handlers (current exposure)', () => {
 
     await handleToolCall(
       'inspire_theoretical_conflicts',
-      { output_dir: 'out', recids: ['1', '2'] },
+      { output_dir: 'out', recids: [1, '2'] },
       'standard',
       { createMessage }
     );
@@ -926,8 +926,8 @@ describe('Tool Handlers (current exposure)', () => {
 
   it('inspire_analyze_citation_stance should call analyzeStanceFromLatex', async () => {
     vi.mocked(stance.analyzeStanceFromLatex).mockResolvedValueOnce({ ok: true } as any);
-    await handleToolCall('inspire_analyze_citation_stance', { latex_content: 'text', target_recid: '1' }, 'full');
-    expect(stance.analyzeStanceFromLatex).toHaveBeenCalled();
+    await handleToolCall('inspire_analyze_citation_stance', { latex_content: 'text', target_recid: 1 }, 'full');
+    expect(stance.analyzeStanceFromLatex).toHaveBeenCalledWith(expect.objectContaining({ targetRecid: '1' }));
   });
 
   it('inspire_cleanup_downloads should call cleanupDownloads', async () => {

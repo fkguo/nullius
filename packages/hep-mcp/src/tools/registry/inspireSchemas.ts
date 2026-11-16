@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
 import { optionalBudgetInt, FindConnectionsParamsSchema } from '@nullius/shared';
+import { InspireRecidSchema, NumericRecidSchema } from '../inspireRecid.js';
 import {
   TimeRangeSchema,
   NetworkAnalysisToolSchema,
@@ -35,7 +36,9 @@ export const InspireSearchNextToolSchema = z.object({
   review_mode: z.enum(['mixed', 'separate', 'deprioritize', 'exclude']).optional().default('mixed'),
 });
 
-export const FindConnectionsToolSchema = FindConnectionsParamsSchema.strict();
+export const FindConnectionsToolSchema = FindConnectionsParamsSchema.extend({
+  recids: z.array(InspireRecidSchema).min(1),
+}).strict();
 
 const InspireLiteratureModeSchema = z.enum([
   'get_paper',
@@ -47,44 +50,27 @@ const InspireLiteratureModeSchema = z.enum([
   'get_author',
 ]);
 
-const InspireLiteratureRecidsSchema = z.preprocess(
-  value => {
-    if (Array.isArray(value)) {
-      return value
-        .map(v => (typeof v === 'number' ? String(v) : v))
-        .map(v => (typeof v === 'string' ? v.trim() : v))
-        .filter(v => (typeof v === 'string' ? v.length > 0 : true));
-    }
-
-    if (typeof value === 'number') {
-      return [String(value)];
-    }
-
-    if (typeof value === 'string') {
-      return value
-        .split(/[,\s]+/g)
-        .map(v => v.trim())
-        .filter(v => v.length > 0);
-    }
-
-    return value;
-  },
-  z.array(z.string().min(1)).min(1)
-);
+// BibTeX and citekey lookups also accept a single ID or a delimited list.
+const InspireLiteratureRecidsSchema = z.union([
+  z.array(InspireRecidSchema).min(1),
+  NumericRecidSchema.transform(id => [String(id)]),
+  z.string().regex(/^[,\s]*0*[1-9]\d*(?:[,\s]+0*[1-9]\d*)*[,\s]*$/)
+    .transform(ids => ids.split(/[,\s]+/).filter(Boolean)),
+]);
 
 export const InspireLiteratureToolSchema = z
   .object({
     mode: InspireLiteratureModeSchema.describe(
       "Operation to run. Mode contracts: get_paper={recid} (size tolerated only for compatibility), lookup_by_id={identifier only; accidental size ignored}, get_references={recid,size?}, get_citations={recid,size?,sort?}, search_affiliation={affiliation,size?,sort?}, get_bibtex={recids}, get_author={identifier only; accidental size ignored}."
     ),
-    recid: z.string().min(1).optional().describe(
-      "INSPIRE literature record id. Required for get_paper, get_references, and get_citations."
+    recid: InspireRecidSchema.optional().describe(
+      "INSPIRE literature record id as a digit string or a positive safe integer. Required for get_paper, get_references, and get_citations."
     ),
     size: optionalBudgetInt({ min: 1, max: 1000 }).optional().describe(
       "Page size / result limit. Only used by get_references, get_citations, and search_affiliation. Ignored by lookup_by_id, get_paper, and get_author for agent-call compatibility."
     ),
-    identifier: z.string().min(1).optional().describe(
-      "Lookup identifier for lookup_by_id or get_author. For lookup_by_id and get_author, pass identifier; accidental size is tolerated and ignored, but sort/page/options are not part of these modes. For lookup_by_id, identifier can be a recid, DOI, or arXiv id. For get_author, identifier can be an INSPIRE BAI, ORCID, or a name query."
+    identifier: z.union([z.string().trim().min(1), NumericRecidSchema]).optional().describe(
+      "Lookup identifier for lookup_by_id or get_author. For lookup_by_id and get_author, pass identifier; accidental size is tolerated and ignored, but sort/page/options are not part of these modes. For lookup_by_id, identifier can be a recid (digit string or positive safe integer), DOI, or arXiv id. For get_author, use text containing an INSPIRE BAI, ORCID, or name query."
     ),
     sort: SortSchema.optional().describe(
       "Optional INSPIRE sort order. Only for get_citations and search_affiliation."
@@ -149,9 +135,17 @@ export const InspireLiteratureToolSchema = z
       case 'search_affiliation':
         requireKey('affiliation', "mode='search_affiliation' requires affiliation");
         break;
-      case 'lookup_by_id':
       case 'get_author':
-        requireKey('identifier', `mode='${v.mode}' requires identifier`);
+        if (typeof v.identifier === 'number') {
+          ctx.addIssue({ code: 'custom', message: 'get_author requires a text identifier', path: ['identifier'] });
+        }
+        requireKey('identifier', "mode='get_author' requires identifier");
+        break;
+      case 'lookup_by_id':
+        if (typeof v.identifier === 'string' && /^0+$/.test(v.identifier)) {
+          ctx.addIssue({ code: 'custom', message: 'An INSPIRE recid must be positive', path: ['identifier'] });
+        }
+        requireKey('identifier', "mode='lookup_by_id' requires identifier");
         break;
       case 'get_bibtex':
         requireKey('recids', "mode='get_bibtex' requires recids");
@@ -160,15 +154,6 @@ export const InspireLiteratureToolSchema = z
         break;
     }
   });
-
-const InspireRecidSchema = z.preprocess(
-  value => {
-    if (typeof value === 'number') return String(value);
-    if (typeof value === 'string') return value.trim();
-    return value;
-  },
-  z.string().min(1)
-);
 
 export const InspireResolveCitekeyToolSchema = z
   .object({
@@ -189,13 +174,13 @@ export const InspireResolveCitekeyToolSchema = z
   });
 
 export const InspireGradeEvidenceToolSchema = z.object({
-  recid: z.string().min(1),
+  recid: InspireRecidSchema,
   search_confirmations: z.boolean().optional(),
   max_search_results: optionalBudgetInt({ min: 1 }).optional(),
 }).strict();
 
 export const InspireCriticalAnalysisToolSchema = z.object({
-  recid: z.string().min(1),
+  recid: InspireRecidSchema,
   include_evidence: z.boolean().optional(),
   include_questions: z.boolean().optional(),
   include_assumptions: z.boolean().optional(),
@@ -206,13 +191,13 @@ export const InspireCriticalAnalysisToolSchema = z.object({
 }).strict();
 
 export const InspireClassifyReviewsToolSchema = z.object({
-  recids: z.array(z.string().min(1)).min(1),
+  recids: z.array(InspireRecidSchema).min(1),
   current_threshold_years: z.number().int().optional(),
 }).strict();
 
 export const InspireTheoreticalConflictsToolSchema = z.object({
   output_dir: OutputDirSchema,
-  recids: z.array(z.string().trim().regex(/^\d+$/, 'an INSPIRE recid is a string of digits')).min(1),
+  recids: z.array(InspireRecidSchema).min(1),
   subject_entity: z.string().trim().min(1).optional(),
   inputs: z.array(z.enum(['title', 'abstract'])).min(1).optional(),
   max_papers: strictBudgetInt({ min: 1 }).optional(),
@@ -279,7 +264,7 @@ export const FindCrossoverTopicsToolSchema = z.object({
 
 export const AnalyzeCitationStanceToolSchema = z.object({
   latex_content: z.string().min(1),
-  target_recid: z.string().min(1),
+  target_recid: InspireRecidSchema,
   bib_content: z.string().optional(),
   max_contexts: optionalBudgetInt({ min: 1 }).default(20),
 });

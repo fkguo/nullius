@@ -187,7 +187,7 @@ Modes + required args:
 - get_author: { identifier } only. Do not pass size, sort, page, or options; accidental size is ignored. identifier can be INSPIRE BAI (e.g. E.Witten.1), ORCID, or a name query; returns \`bai\` for disambiguation.
 
 Examples:
-- get_paper: \`{ mode: "get_paper", recid: "854586" }\`
+- get_paper: \`{ mode: "get_paper", recid: 854586 }\`
 - lookup_by_id: \`{ mode: "lookup_by_id", identifier: "2109.01038" }\`
 - get_citations: \`{ mode: "get_citations", recid: "854586", size: 10, sort: "mostcited" }\`
 
@@ -200,7 +200,7 @@ Tip: For ambiguous names, call \`get_author\` first, then use \`inspire_search\`
         case 'get_references':
           return api.getReferences(params.recid!, params.size);
         case 'lookup_by_id': {
-          const identifier = params.identifier!;
+          const identifier = String(params.identifier!);
           if (/^\d+$/.test(identifier)) return api.getPaper(identifier);
           if (identifier.startsWith('10.')) return api.getByDoi(identifier);
           return api.getByArxiv(identifier);
