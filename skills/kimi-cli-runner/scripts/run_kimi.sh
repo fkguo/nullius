@@ -30,6 +30,7 @@ RESUME_SESSION=""
 CONTINUE_WORK_DIR=0
 TRACE_DIR=""
 PROCESS_BUDGET="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/process_budget.py"
+CLIENT_COMPAT="$(dirname "${PROCESS_BUDGET}")/client_compat.py"
 ACTIVE_PID=""
 
 usage() {
@@ -70,6 +71,7 @@ Options:
                           runs in different directories (the default isolated fresh temp dir has
                           no previous session to continue).
   --dry-run               Print invocation details and exit 0.
+  --check-client           Show the selected client version and check the baseline CLI flags offline.
 
 Important:
   Kimi Code prompt mode currently accepts -p/--prompt <prompt>, not stdin or a
@@ -250,7 +252,7 @@ def error_from_obj(obj):
         return message
     return json.dumps(obj, ensure_ascii=False)
 
-for line in raw_path.read_text(encoding="utf-8", errors="replace").splitlines():
+for line in raw_path.read_bytes().decode("utf-8", errors="replace").split("\n"):
     stripped = line.strip()
     if not stripped:
         continue
@@ -378,8 +380,10 @@ classify_deterministic_failure() {
   printf '%s\n' "${reason}"
 }
 
+CHECK_CLIENT=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --check-client) CHECK_CLIENT=1; shift;;
     --model)
       require_value "$1" "${2-}"
       MODEL="$2"
@@ -478,6 +482,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
 done
+
+if [[ "$CHECK_CLIENT" == 1 ]]; then
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/client_compat.py" check "${KIMI_BIN}" "" --output-format --prompt --skills-dir
+fi
 
 if [[ -z "${PROMPT_FILE}" || -z "${OUT}" ]]; then
   echo "Missing required args: --prompt-file and --out are required." >&2
@@ -794,6 +802,10 @@ run_mode() {
     if [[ "${code}" -eq 124 || "${code}" -eq 125 || "${code}" -ge 128 ]]; then
       return "${code}"
     fi
+    if [[ "${code}" -ne 0 && -s "${tmp_stderr}" ]] && python3 "${CLIENT_COMPAT}" options "${KIMI_BIN}" "${tmp_stderr}" >&2; then
+      cat "${tmp_stderr}" >&2
+      return "${code}"
+    fi
     if [[ "${code}" -ne 0 ]] && is_model_not_found_error "${tmp_stdout}" "${tmp_stderr}"; then
       LAST_MODEL_NOT_FOUND=1
     fi
@@ -812,6 +824,9 @@ run_mode() {
       fi
       cat "${tmp_parse_err}" >&2 || true
       code="${parse_code}"
+      if [[ "${parse_code}" -eq 13 ]]; then
+        python3 "${CLIENT_COMPAT}" output "${KIMI_BIN}" "Kimi stream-json assistant content" >&2 || true
+      fi
       if is_deterministic_parse_error "${parse_code}"; then
         echo "Kimi produced a deterministic parse failure in ${label} mode; not retrying identical output." >&2
         return "${parse_code}"

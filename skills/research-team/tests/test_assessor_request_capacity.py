@@ -53,7 +53,7 @@ def observation(tmp_path, usage=None, compact=False, *, system="neutral", prompt
                  + f'(capture/"attempt_1.events.jsonl").write_text({stream!r})\n')
     code += f'(capture/"budget.json").write_text({json.dumps(budget)!r})\n'
     script.write_text(code)
-    process = run_multi_task._run_with_timeout([sys.executable,str(script),'--system-prompt-file',str(system_path),'--prompt-file',str(prompt_path),'--out',str(output)],timeout_secs=10, context_tokens=context_tokens)
+    process = run_multi_task._run_with_timeout([sys.executable,str(script),'--system-prompt-file',str(system_path),'--prompt-file',str(prompt_path),'--out',str(output)],timeout_secs=10, context_tokens=context_tokens, backend="kimi" if native else "claude")
     assert process['exit_code'] == 0
     (run / "meta.json").write_text(json.dumps({"agents": [{"success": True, "out": str(output), "capture_receipt": str(receipt)}]}))
     return {"exit_code": 0, "output": str(output)}

@@ -99,23 +99,22 @@ def test_invalid_original_contract_remains_invalid_without_byte_rewrite(tmp_path
     assert output.read_bytes()==body.encode() and result['contract_ok'] is False
 
 
-def test_native_launcher_publishes_observed_capture_to_capacity_consumer(tmp_path):
+def test_native_launcher_publishes_observed_capture_to_capacity_consumer(tmp_path, monkeypatch):
     sys.path.insert(0, str(BIN.parents[2] / 'research-team/scripts/lib'))
     from request_capacity import request_budgets, validate_request_capacity
-    script=tmp_path/'native_backend.py'
-    script.write_text('''import argparse,hashlib,json
-from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('--out');p.add_argument('--system-prompt-file');p.add_argument('--prompt-file');a,_=p.parse_known_args()
-out=Path(a.out);body='Complete neutral answer.\\n';out.write_text(body)
-root=Path(str(out)+'.attempts')/'run.current';root.mkdir(parents=True)
-budget={'status':'completed','runner_exit_code':0,'input_sha256':[hashlib.sha256(Path(x).read_bytes()).hexdigest() for x in (a.system_prompt_file,a.prompt_file)],'attempts':[{'index':1,'status':'exited','exit_code':0,'stdout':'attempt_1.stdout','stderr':'attempt_1.stderr'}]}
-(root/'budget.json').write_text(json.dumps(budget))
-records=[{'role':'meta','type':'system.version','version':'2.6.0'},{'role':'assistant','content':body}]
-(root/'attempt_1.stdout').write_text(''.join(json.dumps(x)+'\\n' for x in records))
-(root/'attempt_1.stderr').write_text('')
-''')
-    shell=tmp_path/'native_backend.sh'
-    shell.write_text('#!/usr/bin/env bash\nexec '+shlex.quote(sys.executable)+' '+shlex.quote(str(script))+' "$@"\n');shell.chmod(0o755)
+    shell = BIN.parents[2] / 'kimi-cli-runner/scripts/run_kimi.sh'
+    cli = tmp_path / 'kimi'
+    body = 'Complete λ\u0085first\u2028second\u2029end.\n'
+    records = [
+        {'role': 'meta', 'type': 'system.version', 'version': '2.6.2'},
+        {'role': 'assistant', 'content': body},
+        {'role': 'meta', 'type': 'session.resume_hint', 'session_id': 'offline',
+         'command': 'kimi -r offline', 'content': 'To resume this session: kimi -r offline'},
+    ]
+    raw = ''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in records).encode()
+    cli.write_text(f'#!{sys.executable}\nimport sys\nsys.stdout.buffer.write({raw!r})\n')
+    cli.chmod(0o755)
+    monkeypatch.setenv('KIMI_BIN', str(cli))
     system=tmp_path/'system.txt';system.write_text('Neutral system.')
     prompt=tmp_path/'prompt.txt';prompt.write_text('Neutral question.')
     output=tmp_path/'native-output'
@@ -128,7 +127,12 @@ records=[{'role':'meta','type':'system.version','version':'2.6.0'},{'role':'assi
     meta=json.loads((output/'meta.json').read_text())
     agent=meta['agents'][0]
     assert agent['success'] is True
-    assert Path(agent['capture_receipt']).name=='budget.json'
+    assert Path(agent['out']).read_bytes() == body.encode()
+    budget = Path(agent['capture_receipt'])
+    assert (budget.parent / 'attempt_1.stdout').read_bytes() == raw
+    capture = json.loads(budget.read_text())['runtime_observation']['payload']
+    assert capture['backend'] == 'kimi'
+    assert capture['capture']['complete_output']['cli_version'] == '2.6.2'
     budgets=request_budgets(200000,None)
     result=validate_request_capacity(system.read_text(),prompt.read_text(),
         {'exit_code':0,'output':agent['out']},budgets,expected_working_directory=Path.cwd())
@@ -136,3 +140,9 @@ records=[{'role':'meta','type':'system.version','version':'2.6.0'},{'role':'assi
     assert result['observed_usage']==[]
     assert result['compaction_witness']=='unavailable'
     assert result['usage_scope']=='unavailable'
+
+    agent['backend'] = 'claude'
+    (output / 'meta.json').write_text(json.dumps(meta))
+    with pytest.raises(ValueError, match='runner backend mismatch'):
+        validate_request_capacity(system.read_text(),prompt.read_text(),
+            {'exit_code':0,'output':agent['out']},budgets)

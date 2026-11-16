@@ -62,6 +62,7 @@ Optional:
                               long run keeps its partial progress across transient failures.
                               Falls back to the normal fresh restart when no id was captured.
   --dry-run                   Print planned command; exit 0 (no Codex call)
+  --check-client           Show the selected client version and check the baseline CLI flags offline.
   -h, --help                  Show this help
 
 Sandbox safety:
@@ -72,8 +73,10 @@ Sandbox safety:
 EOF
 }
 
+CHECK_CLIENT=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --check-client) CHECK_CLIENT=1; shift;;
     --model) MODEL="$2"; shift 2;;
     --system-prompt-file) SYSTEM_PROMPT_FILE="$2"; shift 2;;
     --prompt-file) PROMPT_FILE="$2"; shift 2;;
@@ -93,6 +96,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
 done
+
+if [[ "$CHECK_CLIENT" == 1 ]]; then
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/client_compat.py" check codex "exec" --sandbox --skip-git-repo-check --output-last-message --config
+fi
 
 # --- Validation ---
 
@@ -476,6 +483,11 @@ while true; do
   # diagnostic lands at the end.
   if [[ $code -ne 0 ]]; then
     tail -n 40 "${ATTEMPT_LOG}" >"${ATTEMPT_TAIL}" 2>/dev/null || true
+    # Clap rejects an option before starting a session and prints its usage to the same log.
+    if [[ "$code" -eq 2 ]] && grep -Eiq '^Usage: codex( exec)? ' "${ATTEMPT_LOG}" &&
+        python3 "$(dirname "${BASH_SOURCE[0]}")/client_compat.py" options codex "${ATTEMPT_LOG}"; then
+      exit "$code"
+    fi
     if det_reason="$(classify_deterministic_failure "${code}" "${ATTEMPT_TAIL}")"; then
       echo "Codex failed with a deterministic error (${det_reason}); not retrying." >&2
       exit $code

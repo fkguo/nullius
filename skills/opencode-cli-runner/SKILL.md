@@ -19,7 +19,7 @@ Use this skill when you need to invoke `opencode` from shell scripts (review, dr
 - `python3` is version 3.10 or newer. Older runtimes are rejected before model invocation because the shared monotonic deadline must use the same reference across processes.
 - You are authenticated/configured for your target model provider in OpenCode.
 
-The exposed interface was checked against local OpenCode **1.18.32** and the [official CLI reference](https://opencode.ai/docs/cli/) on 2026-10-01. This does not attest provider availability or account entitlements. Model aliases can change their upstream routing; preserve the requested alias and require provider evidence for an exact executed-model claim.
+The runner uses the first `opencode` on `PATH`. Its `run` and `serve` options were checked with OpenCode 1.18.18 and 1.19.5. Model aliases can change their upstream routing; preserve the requested alias and require provider evidence for an exact executed-model claim. [OpenCode CLI reference](https://opencode.ai/docs/cli/)
 
 ## Recommended: runner script (JSON parsing + fallback + retries)
 

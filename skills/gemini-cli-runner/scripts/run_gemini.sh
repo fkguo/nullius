@@ -16,12 +16,14 @@ EXTENSIONS_MODE=""
 APPROVAL_MODE="default"
 APPROVAL_MODE_EXPLICIT=0
 SANDBOX=0
+SKIP_TRUST=0
 DRY_RUN=0
 NO_FALLBACK=0
 NO_PROXY_FIRST=0
 GEMINI_CLI_HOME_OVERRIDE="${GEMINI_CLI_HOME:-}"
 MANAGED_GEMINI_HOME=""
 GEMINI_PID=""
+CLIENT_COMPAT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/client_compat.py"
 
 usage() {
   cat <<'EOF'
@@ -36,6 +38,7 @@ Options:
   --tool-mode MODE        Default: none. Choices: none, review. "review" maps to approval-mode=plan + sandbox + --extensions none.
   --approval-mode MODE    Default: default. Choices: default, auto_edit, yolo, plan.
   --sandbox               Run Gemini CLI in sandbox mode.
+  --skip-trust            Trust the current workspace for this Gemini CLI invocation.
   --system-prompt-file F  Optional. If set, it is prepended to stdin before the prompt file (separated by a blank line).
   --gemini-cli-home DIR   Optional user-owned state dir; its authentication is never copied or replaced by this runner.
   --prompt-file FILE      Required
@@ -43,6 +46,7 @@ Options:
   --no-fallback           If set, do not retry without -m when the model alias is invalid (strict mode).
   --no-proxy-first        Skip the generateContent fast-path and force the local Gemini CLI path.
   --dry-run               Do not call gemini. Print the planned command + prompt file size/hash. Returns 0.
+  --check-client           Show the selected client version and check the baseline CLI flags offline.
 EOF
 }
 
@@ -285,7 +289,7 @@ while text:
     if changed:
         continue
 
-    lines = text.splitlines()
+    lines = text.split("\n")
     if not lines:
         break
     first = lines[0].strip()
@@ -298,7 +302,7 @@ while text:
     break
 
 if text and not text.startswith("{") and not text.startswith("```"):
-    lines = text.splitlines()
+    lines = text.split("\n")
     for i, line in enumerate(lines):
         if line.strip().startswith("VERDICT: "):
             text = "\n".join(lines[i:]).lstrip()
@@ -676,13 +680,16 @@ PY
   return 0
 }
 
+CHECK_CLIENT=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --check-client) CHECK_CLIENT=1; shift;;
     --model) MODEL="$2"; shift 2;;
     --output-format) OUTPUT_FORMAT="$2"; shift 2;;
     --tool-mode) TOOL_MODE="$2"; shift 2;;
     --approval-mode) APPROVAL_MODE="$2"; APPROVAL_MODE_EXPLICIT=1; shift 2;;
     --sandbox) SANDBOX=1; shift 1;;
+    --skip-trust) SKIP_TRUST=1; shift;;
     --system-prompt-file) SYSTEM_PROMPT_FILE="$2"; shift 2;;
     --gemini-cli-home) GEMINI_CLI_HOME_OVERRIDE="$2"; shift 2;;
     --prompt-file) PROMPT_FILE="$2"; shift 2;;
@@ -694,6 +701,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
 done
+
+if [[ "$CHECK_CLIENT" == 1 ]]; then
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/client_compat.py" check gemini "" --output-format --approval-mode --prompt
+fi
 
 if [[ -z "${PROMPT_FILE}" || -z "${OUT}" ]]; then
   echo "Missing required args." >&2
@@ -757,6 +768,7 @@ fi
 # while keeping semantics neutral.
 prompt_suffix=" "
 base_args=(--approval-mode "${APPROVAL_MODE}" -o "${OUTPUT_FORMAT}")
+if [[ "${SKIP_TRUST}" -eq 1 ]]; then base_args+=(--skip-trust); fi
 if [[ -n "${EXTENSIONS_MODE}" ]]; then
   base_args+=(--extensions "${EXTENSIONS_MODE}")
 fi
@@ -915,6 +927,18 @@ fi
 set -e
 redact_gemini_home "${tmp_out}" "${tmp_err}"
 
+stop_on_cli_refusal() {
+  if [[ "${code}" -eq 55 ]]; then
+    cat "${tmp_err}" >&2
+    echo "Gemini refused workspace trust. To trust this directory for this call, pass --skip-trust." >&2
+    exit "${code}"
+  fi
+  if [[ "${code}" -ne 0 ]] && python3 "${CLIENT_COMPAT}" options gemini "${tmp_err}"; then
+    exit "${code}"
+  fi
+}
+stop_on_cli_refusal
+
 # Deterministic failures reproduce identically on every retry: exit with the
 # diagnostic instead of trying the model-alias / generateContent fallbacks (a
 # usage/auth/region-ineligibility error does not depend on the model alias).
@@ -941,6 +965,7 @@ if [[ $code -ne 0 && -n "${MODEL}" ]]; then
     code=$?
     set -e
     redact_gemini_home "${tmp_out}" "${tmp_err}"
+    stop_on_cli_refusal
   fi
 fi
 
@@ -982,6 +1007,53 @@ if ! require_meaningful_output "${tmp_out}"; then
     echo "--- end raw Gemini stdout preview ---" >&2
   fi
   exit 1
+fi
+
+if [[ "${OUTPUT_FORMAT}" == json || "${OUTPUT_FORMAT}" == stream-json ]]; then
+  protocol_code=0
+  python3 - "${OUTPUT_FORMAT}" "${tmp_out}" <<'PY' || protocol_code=$?
+import json
+from pathlib import Path
+import sys
+
+mode, file = sys.argv[1:]
+try:
+    data = Path(file).read_text(encoding="utf-8")
+    if mode == "json":
+        result = json.loads(data)
+        if isinstance(result, dict) and result.get("error"):
+            sys.exit("Gemini reported an error in its JSON result.")
+        if not isinstance(result, dict) or not isinstance(result.get("response"), str):
+            sys.exit(65)
+    else:
+        seen_event = False
+        final_status = None
+        for line in data.split("\n"):
+            if not line.strip():
+                continue
+            event = json.loads(line)
+            if not isinstance(event, dict):
+                sys.exit(65)
+            kind = event.get("type")
+            if kind in ("init", "message", "tool_use", "tool_result", "error", "result"):
+                seen_event = True
+            if kind == "result":
+                final_status = event.get("status")
+                if final_status not in ("success", "error"):
+                    sys.exit(65)
+        if not seen_event:
+            sys.exit(65)
+        if final_status != "success":
+            sys.exit("Gemini stream has no successful terminal result.")
+except (UnicodeError, ValueError):
+    sys.exit(65)
+PY
+  if [[ "${protocol_code}" -ne 0 ]]; then
+    if [[ "${protocol_code}" -eq 65 ]]; then
+      python3 "${CLIENT_COMPAT}" output gemini "${OUTPUT_FORMAT} result"
+    fi
+    exit "${protocol_code}"
+  fi
 fi
 
 mkdir -p "$(dirname "${OUT}")"

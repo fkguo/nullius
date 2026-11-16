@@ -15,6 +15,7 @@ def _write_fake_opencode(bin_dir: Path) -> Path:
         """#!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${1:-}" == "--version" ]]; then echo "1.19.5"; exit 0; fi
 mode="${FAKE_MODE:-success}"
 log_file="${FAKE_LOG:-}"
 state_file="${FAKE_STATE:-}"
@@ -84,6 +85,14 @@ done
 cat >"${stdin_file}" || true
 
 case "${mode}" in
+  unknown_option)
+    echo "error: unexpected argument '--dir' found" >&2
+    exit 1
+    ;;
+  unknown_output)
+    echo '{"kind":"answer","payload":"new format"}'
+    exit 0
+    ;;
   echo_input)
     python3 - "${stdin_file}" <<'PY'
 import json
@@ -422,3 +431,17 @@ def test_transient_failure_still_retries_then_succeeds(tmp_path: Path) -> None:
     assert _fake_run_call_count(tmp_path) == 2, "transient failure must keep the retry budget"
     assert "retrying in" in proc.stderr
     assert _out_text(out_path) == "OK_TRANSIENT_RETRY\n"
+
+
+def test_rejected_option_stops_retries(tmp_path: Path) -> None:
+    proc, out = _run_runner(tmp_path, args=["--max-attempts", "3"], fake_mode="unknown_option")
+    assert proc.returncode != 0 and not out.exists()
+    assert _fake_run_call_count(tmp_path) == 1
+    assert "version 1.19.5" in proc.stderr and "--dir" in proc.stderr
+
+
+def test_unknown_json_event_format_reports_client(tmp_path: Path) -> None:
+    proc, out = _run_runner(tmp_path, args=["--max-attempts", "3"], fake_mode="unknown_output")
+    assert proc.returncode != 0 and not out.exists()
+    assert _fake_run_call_count(tmp_path) == 1
+    assert "version 1.19.5" in proc.stderr and "Nullius" in proc.stderr

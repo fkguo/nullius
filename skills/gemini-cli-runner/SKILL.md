@@ -13,11 +13,9 @@ Use this skill when you need to call Gemini from the command line (any task), in
 > reaching Gemini from a DIFFERENT host (Claude / Codex / OpenCode / …) for cross-model work. Pick the
 > model / reasoning depth by task difficulty (quality first, not token thrift).
 
-> **Session continuation is deliberately NOT wired into this runner** (unlike the codex / claude /
-> kimi runners, which expose explicit-session resume). The upstream `gemini` CLI only offers
-> `-r latest` / `-r <index>` — resolution by recency or list position, which is RACY across parallel
-> runs (no explicit session-id form) — and this runner's direct-API fallback path cannot resume a CLI
-> session at all. For multi-turn cross-model workflows, use a runner with explicit-session support.
+> This runner performs one-shot calls. Gemini CLI 0.68.0 supports `--resume <session UUID>`
+> and `--session-file` for an existing conversation. The runner's direct-API fallback has no CLI
+> session to resume. For a multi-turn workflow, use a runner that exposes explicit-session resume.
 
 ## Preconditions
 
@@ -58,4 +56,6 @@ Notes:
   - `--tool-mode review` maps to Gemini CLI `--approval-mode plan` plus `--sandbox`, `--no-proxy-first`, and `--extensions none`
 - If `--gemini-cli-home` is set, the runner treats it as an isolated Gemini home root. When auth env vars are not already exported, it bootstraps the minimum Gemini auth env from `$HOME/.gemini/.env` so isolated review runs do not silently lose API connectivity.
 - Use `--dry-run` to print the planned command + prompt file size/hash without calling `gemini`.
+- Gemini CLI checks workspace trust in headless mode. If it refuses the current directory,
+  the runner stops. To trust that directory for one invocation, pass `--skip-trust`.
 - `--no-proxy-first` still exists as an escape hatch, but read-only review/file access should normally use `--tool-mode review`.

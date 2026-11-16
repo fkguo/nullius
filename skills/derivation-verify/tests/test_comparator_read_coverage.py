@@ -193,7 +193,7 @@ class ReadingComparator:
             try:
                 if material_dir is not None:
                     os.chdir(material_dir)  # the comparator's working directory is the frozen material
-                process = run_multi_task._run_with_timeout(cmd, timeout_secs=10, context_tokens=self.request_budgets['context_tokens'])
+                process = run_multi_task._run_with_timeout(cmd, timeout_secs=10, context_tokens=self.request_budgets['context_tokens'], backend='claude')
             finally:
                 os.chdir(old)
         (d / 'meta.json').write_text(json.dumps({'agents': [{'success': True, 'out': str(out), 'capture_receipt': str(cap / 'budget.json')}]}))

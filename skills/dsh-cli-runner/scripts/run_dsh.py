@@ -18,7 +18,7 @@ import time
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dsh_runtime import SUPPORTED_VERSION, RunError, runtime, overlay, check_runtime_identity
+from dsh_runtime import incompatible, RunError, runtime, overlay, check_runtime_identity
 from dsh_session import check_events
 
 
@@ -110,7 +110,29 @@ def main(argv: list[str] | None = None) -> int:
     if sys.version_info < (3, 10):
         print("dsh-cli-runner requires Python 3.10+", file=sys.stderr)
         return 1
-    parser = argparse.ArgumentParser(description=__doc__)
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if "--check-client" in argv:
+        probe = argparse.ArgumentParser(description="Check the installed DSH launcher and headless profile offline")
+        probe.add_argument("--check-client", action="store_true", required=True)
+        probe.add_argument("--cli-entry")
+        selection = probe.parse_args(argv)
+        try:
+            with tempfile.TemporaryDirectory(prefix="nullius-dsh-client-") as tmp:
+                scratch = Path(tmp).resolve()
+                (scratch / "home").mkdir()
+                (scratch / "workspace").mkdir()
+                env = os.environ | {"DSH_HOME": str(scratch / "home"), "DSH_TELEMETRY_DISABLED": "1"}
+                env.pop("DSH_TOOLS_MODE", None)
+                _, _, identity = runtime(selection.cli_entry, scratch, env, time.monotonic() + 30)
+                check_runtime_identity(identity)
+                print(f"DSH {identity['version']} at {identity['entry']}")
+                print(f"Headless profile verified ({identity['tool_profile']}); session.v4.jsonl is verified on dispatch.")
+            return 0
+        except (RunError, OSError, ValueError) as exc:
+            print(f"dsh-cli-runner: {exc}", file=sys.stderr)
+            return 1
+    parser = argparse.ArgumentParser(description=__doc__,
+        epilog="Use --check-client [--cli-entry PATH] to check the installed desktop profile without dispatch.")
     parser.add_argument("--cli-entry", help="Installed desktop dsh launcher (otherwise resolve dsh on PATH)")
     parser.add_argument("--provider", required=True)
     parser.add_argument("--model", required=True)
@@ -156,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         env.pop("DSH_TOOLS_MODE", None)
         command, entries, identity = runtime(args.cli_entry, run, env, started + args.timeout_secs)
         patch = run / "dispatch.patch.json"
-        write_json(patch, overlay(entries, run, profile, args.provider, args.model, persona))
+        write_json(patch, overlay(entries, run, profile, args.provider, args.model, persona, identity["tool_profile"]))
         task = "Task:\n" + prompt
         cmd = command + ["--profile", "headless", "--patch", str(patch), task]
         # execve limits include argv, environment and pointers; Linux also has
@@ -200,10 +222,15 @@ def main(argv: list[str] | None = None) -> int:
             (run / "output.partial").write_bytes(raw)
         if proc.returncode != 0:
             raise RunError("DSH exited unsuccessfully; retain stderr and session log as failure evidence")
-        logs = list((run / "home/sessions").rglob("session.v4.jsonl"))
+        logs = list((run / "home/sessions").rglob("session*.jsonl"))
         if len(logs) != 1:
-            raise RunError("expected exactly one durable plaintext session log")
-        events = [json.loads(line) for line in logs[0].read_text(encoding="utf-8").splitlines()]
+            raise RunError(f"DSH {identity['version']}: expected exactly one durable plaintext session log; found {len(logs)}")
+        if logs[0].name != "session.v4.jsonl":
+            raise incompatible(identity["version"], f"unsupported session log {logs[0].name}; expected session.v4.jsonl")
+        events = [json.loads(line) for line in logs[0].read_text(encoding="utf-8").removesuffix("\n").split("\n")]
+        if not events or not isinstance(events[0], dict) or events[0].get("version") != 4:
+            observed = events[0].get("version") if events and isinstance(events[0], dict) else None
+            raise incompatible(identity["version"], f"unsupported session header version {observed!r}; expected 4")
         final, evidence = check_events(events, args.provider, args.model, args.max_tokens, args.reasoning, str(run / "workspace"))
         if raw.decode("utf-8") != final + "\n":
             raise RunError("stdout differs from the complete committed final assistant text")

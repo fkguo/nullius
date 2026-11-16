@@ -91,12 +91,14 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
     observations = []
     capture_root = None
     receipt_path = None
+    expected_backend = None
     meta_path = output.parent / "meta.json"
     if meta_path.is_file():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         agents = meta.get("agents", [])
         if len(agents) != 1 or agents[0].get("success") is not True or Path(agents[0].get("out", "")).resolve() != output.resolve():
             raise ValueError("unavailable: request capture belongs to another or failed invocation")
+        expected_backend = agents[0].get("backend")
         receipt = agents[0].get("capture_receipt")
         if receipt:
             receipt_path = Path(receipt)
@@ -114,7 +116,7 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
     original_hashes = sorted(hashlib.sha256(text.encode("utf-8")).hexdigest() for text in (system, prompt))
     observation = verify_capture_observation(receipt_path, output, original_hashes,
         str(expected_working_directory) if expected_working_directory is not None else None,
-        expected_context_tokens=budgets["context_tokens"])
+        expected_context_tokens=budgets["context_tokens"], expected_backend=expected_backend)
     event_files = list(capture_root.glob("*.events.jsonl")) if capture_root else []
     result_files = []
     stream = None

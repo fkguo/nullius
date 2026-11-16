@@ -59,6 +59,8 @@ bash "${SKILL_DIR}/scripts/run_kimi.sh" \
   --dry-run
 ```
 
+For an observed review or derivation, the launcher reads the CLI version from the original stream header and verifies stable Kimi Code 2.6.x prompt captures with one successful attempt, one assistant text record and an optional session resume hint. It binds the report to the original stdout, stderr and local process exit. Capacity checks use the configured conservative limit because this stream carries no token usage. Tool calls, additional turns and unknown stream shapes cannot supply this receipt. A different CLI series requires an updated Nullius capture reader. If the executable rejects a command-line option, the runner reports its installed version so you can update Kimi Code.
+
 ## Safety notes
 
 - Kimi Code prompt mode rejects `--plan`, `--auto`, and `--yolo` combined with `--prompt`.

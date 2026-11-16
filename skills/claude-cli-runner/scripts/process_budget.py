@@ -178,6 +178,7 @@ class Capture:
                 self.state["capture_health"] = "degraded"
                 continue
             if not isinstance(obj, dict):
+                self.state["unparsed_lines"] += 1
                 self.complete_text.error_seen = True
                 self.state["capture_health"] = "degraded"
                 continue
@@ -404,6 +405,10 @@ def main() -> int:
                 capture.read(final=True)
                 terminal = capture.terminal
                 if code == 0:
+                    kinds = progress['event_kinds']
+                    if not terminal and (kinds or progress['unparsed_lines']) and not (kinds.keys() - {'unknown'}):
+                        from client_compat import main as report_client_compat
+                        report_client_compat(['output', command[0], 'stream-json events'])
                     if (not terminal or terminal.get('is_error') or terminal.get('subtype') != 'success'
                             or not isinstance(terminal.get('result'), str) or not terminal['result'].strip()):
                         code = 65

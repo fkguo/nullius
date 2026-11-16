@@ -1093,9 +1093,10 @@ def _stop_and_collect(proc: subprocess.Popen, reader: Optional[_PipeReader]) -> 
     return reader.result()
 
 
-def _run_with_timeout(cmd: list[str], *, timeout_secs: float, context_tokens: Optional[int] = None) -> dict[str, Any]:
+def _run_with_timeout(cmd: list[str], *, timeout_secs: float, context_tokens: Optional[int] = None,
+                      backend: Optional[str] = None) -> dict[str, Any]:
     global _MAIN_SPAWNING
-    observation = runtime_capture_observation._prepare(cmd, context_tokens=context_tokens)
+    observation = runtime_capture_observation._prepare(cmd, context_tokens=context_tokens, backend=backend)
     on_main_thread = threading.current_thread() is threading.main_thread()
     if _sigchld_ignored():
         # main() sets SIGCHLD to its default on the main thread; a caller that
@@ -1237,7 +1238,7 @@ def _run_one(
 
     prior_capture_runs = set(Path(str(out_path)+".attempts").glob("run.*")) if plan.backend in {"claude", "kimi"} else set()
     try:
-        proc = _run_with_timeout(cmd, timeout_secs=remaining, **({"context_tokens": budget.context_tokens} if budget.context_tokens is not None else {}))
+        proc = _run_with_timeout(cmd, timeout_secs=remaining, context_tokens=budget.context_tokens, backend=plan.backend)
         if gemini_cli_home:
             for stream in ("stdout", "stderr"):
                 proc[stream] = proc[stream].replace(gemini_cli_home, "[Gemini home]")

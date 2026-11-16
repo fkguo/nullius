@@ -55,6 +55,7 @@ Options:
   --prompt-file F          Required
   --out PATH               Required (stdout+stderr captured)
   --dry-run                Print invocation details and exit 0 (no Claude call)
+  --check-client           Show the selected client version and check the baseline CLI flags offline.
   --max-retries N          Default: 6
   --sleep-secs SECONDS     Default: 10 (base; exponential backoff)
   --timeout-secs SECONDS   Explicit hard cap across calls/backoff; default: no hard budget (0).
@@ -75,8 +76,10 @@ Session continuation (OPT-IN; the default stays a clean-room one-shot with --no-
 EOF
 }
 
+CHECK_CLIENT=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --check-client) CHECK_CLIENT=1; shift;;
     --model) MODEL="$2"; shift 2;;
     --tool-mode) TOOL_MODE="$2"; shift 2;;
     --tools) TOOLS="$2"; TOOLS_EXPLICIT=1; shift 2;;
@@ -102,6 +105,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
 done
+
+if [[ "$CHECK_CLIENT" == 1 ]]; then
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/client_compat.py" check claude "" --print --tools --output-format --strict-mcp-config
+fi
 
 if [[ -z "${SYSTEM_PROMPT_FILE}" || -z "${PROMPT_FILE}" || -z "${OUT}" ]]; then
   echo "Missing required args." >&2
@@ -484,6 +491,13 @@ while true; do
   wait "${ACTIVE_PID}" || code=$?
   ACTIVE_PID=""
 
+  if [[ "${code}" -ne 0 ]] && python3 "${PROCESS_BUDGET%/*}/client_compat.py" options claude "${tmp_stderr}"; then
+    write_attempt_logs "${attempt}" "${code}" 0 "${tmp_stdout}" "${tmp_stderr}"
+    det_reason="$(classify_deterministic_failure "${code}" "${tmp_stderr}" || printf 'unsupported CLI option')"
+    echo "Claude failed with a deterministic error (${det_reason}); not retrying." >&2
+    exit "${code}"
+  fi
+
   if [[ "${LIVE_CAPTURE}" -eq 1 ]]; then
     sleep_for=0
     write_attempt_logs "${attempt}" "${code}" "${sleep_for}" "${tmp_stdout}" "${tmp_stderr}"
@@ -523,21 +537,33 @@ while true; do
     if python3 - "${tmp_stdout}" "${tmp_out}" "${SESSION_ID_FILE}" <<'PY'
 import json
 import sys
+from pathlib import Path
 
-raw = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-obj = json.loads(raw)
-result = obj.get("result")
-sid = obj.get("session_id")
-if not isinstance(result, str) or not isinstance(sid, str) or not sid:
-    raise SystemExit(1)
+try:
+    obj = json.loads(Path(sys.argv[1]).read_bytes())
+except (UnicodeError, ValueError):
+    raise SystemExit(65)
+if not isinstance(obj, dict):
+    raise SystemExit(65)
+if obj.get("is_error") or str(obj.get("subtype", "")).startswith("error"):
+    sys.exit("Claude reported an unsuccessful terminal result.")
+result, sid = obj.get("result"), obj.get("session_id")
+if not isinstance(result, str) or not isinstance(sid, str) or not sid.strip():
+    raise SystemExit(65)
+if not result.strip():
+    sys.exit("Claude returned an empty result.")
 open(sys.argv[2], "w", encoding="utf-8").write(result)
 open(sys.argv[3], "w", encoding="utf-8").write(sid + "\n")
 PY
     then
       :
     else
-      echo "Warning: could not parse the claude JSON envelope; OUT falls back to raw stdout+stderr and NO session id was captured." >&2
-      cat "${tmp_stdout}" "${tmp_stderr}" >"${tmp_out}" || true
+      parse_code=$?
+      if [[ "${parse_code}" -eq 65 ]]; then
+        python3 "${PROCESS_BUDGET%/*}/client_compat.py" output claude 'result JSON with result and session_id'
+      fi
+      write_attempt_logs "${attempt}" "${parse_code}" 0 "${tmp_stdout}" "${tmp_stderr}"
+      exit "${parse_code}"
     fi
   else
     cat "${tmp_stdout}" "${tmp_stderr}" >"${tmp_out}" || true

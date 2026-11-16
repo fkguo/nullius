@@ -30,6 +30,7 @@ def _write_fake_codex(bin_dir: Path) -> Path:
         """#!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${1:-}" == "--version" ]]; then echo "codex-cli 0.10.0"; exit 0; fi
 mode="${FAKE_MODE:-success}"
 count_file="${FAKE_COUNT_FILE:-}"
 
@@ -69,6 +70,11 @@ done
 cat >/dev/null || true
 
 case "${mode}" in
+  incompatible_option)
+    echo "error: unexpected argument '--sandbox' found" >&2
+    echo "Usage: codex exec [PROMPT]" >&2
+    exit 2
+    ;;
   deterministic_unbound_variable)
     echo "codex banner line"
     echo "codex: line 1: CODEX_FAKE_VAR: unbound variable" >&2
@@ -178,3 +184,9 @@ def test_transient_failure_still_retries_then_succeeds(tmp_path: Path) -> None:
     assert _fake_call_count(tmp_path) == 2, "transient failure must keep the retry budget"
     assert "retrying in" in proc.stderr
     assert _out_text(out_path) == "OK_RETRY\n"
+
+
+def test_unknown_flag_identifies_the_client_without_redispatch(tmp_path):
+    proc, _ = _run_runner(tmp_path, args=[], fake_mode="incompatible_option")
+    assert proc.returncode == 2 and _fake_call_count(tmp_path) == 1
+    assert "version 0.10.0" in proc.stderr and "rejected the option --sandbox" in proc.stderr

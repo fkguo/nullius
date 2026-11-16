@@ -88,6 +88,7 @@ Options:
                           sessions per project directory). Continuation is not an
                           independent review.
   --dry-run               Print invocation details and exit 0 without calling qwen.
+  --check-client           Show the selected client version and check the baseline CLI flags offline.
 
 Notes:
   The prompt file is fed via stdin; qwen reads piped stdin in non-interactive
@@ -248,7 +249,7 @@ def salvage_objects(text):
     # the complete elements before the cut.
     objs = []
     decoder = json.JSONDecoder()
-    for line in text.splitlines():
+    for line in text.split("\n"):
         line = line.strip()
         if not line:
             continue
@@ -373,7 +374,12 @@ if errors:
     raise SystemExit(11)
 
 if not results:
-    err_path.write_text("No type:result message found in Qwen JSON output.\n", encoding="utf-8")
+    if messages and all(isinstance(m, dict) and m.get("type") not in
+                        ("system", "user", "assistant", "tool_use", "tool_result") for m in messages):
+        diagnostic = "Unsupported Qwen JSON payload shape."
+    else:
+        diagnostic = "No type:result message found in Qwen JSON output."
+    err_path.write_text(diagnostic + "\n", encoding="utf-8")
     emit_partial(assistant_body, tool_activity)
     raise SystemExit(13)
 
@@ -475,8 +481,10 @@ classify_deterministic_failure() {
   printf '%s\n' "${reason}"
 }
 
+CHECK_CLIENT=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --check-client) CHECK_CLIENT=1; shift;;
     --model)
       require_value "$1" "${2-}"
       MODEL="$2"
@@ -575,6 +583,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
 done
+
+if [[ "$CHECK_CLIENT" == 1 ]]; then
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/client_compat.py" check "${QWEN_BIN}" "" --output-format --approval-mode --safe-mode --model
+fi
 
 if [[ -z "${PROMPT_FILE}" || -z "${OUT}" ]]; then
   echo "Missing required args: --prompt-file and --out are required." >&2
@@ -965,7 +977,14 @@ run_mode() {
       return "${code}"
     fi
     if [[ "${cli_code}" -eq 0 ]] && is_deterministic_parse_error "${parse_code}"; then
+      if grep -q '^Unsupported Qwen JSON payload shape' "${tmp_parse_err}"; then
+        python3 "${PROCESS_BUDGET%/*}/client_compat.py" output "${QWEN_BIN}" "Qwen batch JSON"
+      fi
       echo "Qwen produced a deterministic parse failure in ${label} mode; not retrying identical output." >&2
+      return "${code}"
+    fi
+    if [[ "${cli_code}" -ne 0 ]] &&
+        python3 "${PROCESS_BUDGET%/*}/client_compat.py" options "${QWEN_BIN}" "${tmp_stderr}"; then
       return "${code}"
     fi
     if is_model_not_found_error "${tmp_stderr}" "${tmp_parse_err}"; then

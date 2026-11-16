@@ -66,7 +66,7 @@ def actual(tmp_path, monkeypatch, mode='complete', *, budget=None):
         try:
             if mode=='foreign-cwd':os.chdir(tmp_path)
             window = None if mode == 'unsigned-window' else (50000 if mode == 'relabeled-window' else run.request_budgets['context_tokens'])
-            process=run_multi_task._run_with_timeout(cmd,timeout_secs=10,context_tokens=window)
+            process=run_multi_task._run_with_timeout(cmd,timeout_secs=10,context_tokens=window,backend="claude")
         finally:os.chdir(old)
         (d/'meta.json').write_text(json.dumps({'agents':[{'success':True,'out':str(out),'capture_receipt':str(receipt)}]}))
         run.invocations[tag]={'exit_code':process['exit_code'],'output':str(out)}

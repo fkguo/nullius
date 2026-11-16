@@ -265,7 +265,7 @@ def _validate_context_tokens(value: int | None) -> None:
         raise ValueError("unavailable: capacity policy context_tokens must be a positive safe integer")
 
 
-def _prepare(cmd: list[str], *, context_tokens: int | None = None) -> dict | None:
+def _prepare(cmd: list[str], *, context_tokens: int | None = None, backend: str | None = None) -> dict | None:
     """Before Popen, freeze request bytes, caller policy and prior captures."""
     _validate_context_tokens(context_tokens)
     try:
@@ -276,7 +276,7 @@ def _prepare(cmd: list[str], *, context_tokens: int | None = None) -> dict | Non
         # failed-attempt output may still receive the existing empty retry.
         if output.is_file() and output.read_bytes().strip():
             return None
-        return {"nonce": object(), "cmd": list(cmd), "inputs": inputs,
+        return {"nonce": object(), "cmd": list(cmd), "inputs": inputs, "backend": backend,
                 "capacity_policy": {"context_tokens": context_tokens} if context_tokens is not None else None,
                 "input_paths": [system, prompt], "output": output,
                 "working_directory": str(Path.cwd().resolve()),
@@ -340,6 +340,9 @@ def _finish(state: dict | None, proc: subprocess.Popen) -> dict | None:
         if "runtime_observation" in budget:
             raise ValueError("unavailable: capture already contains an authored observation")
         _successful_budget(budget, hashes)
+        expected_profile = {"claude": "claude_stream_json", "kimi": "kimi_prompt_stream_json"}.get(state["backend"])
+        if capture_profile(root) != expected_profile:
+            raise ValueError("unavailable: capture format does not match the invoked runner backend")
         files = _capture_files(root)
         complete_output = validate_stream_report(root, report)
         capture = {"budget_relative": str(receipt.relative_to(state["output"].parent)),
@@ -350,7 +353,7 @@ def _finish(state: dict | None, proc: subprocess.Popen) -> dict | None:
                "process_exit_code": proc.returncode, "request": state["inputs"],
                "capacity_policy": state["capacity_policy"],
                "working_directory": state["working_directory"],
-               "runner": state["runner"], "command_sha256": hashlib.sha256(_canonical(state["cmd"])).hexdigest(),
+               "backend": state["backend"], "runner": state["runner"], "command_sha256": hashlib.sha256(_canonical(state["cmd"])).hexdigest(),
                "capture": capture, "report_path": str(state["output"].resolve()), "report": _identity(state["output"])}
     signature = hmac.new(_key(create=True), _DOMAIN + _canonical(payload), hashlib.sha256).hexdigest()
     observation = {"payload": payload, "hmac_sha256": signature}
@@ -372,7 +375,7 @@ def _discard(state: dict | None) -> None:
         _LIVE.pop(id(state), None)
 
 
-def verify_capture_observation(budget_path: Path | None, report_path: Path, input_sha256: list[str], expected_working_directory: str | None = None, expected_context_tokens: int | None = None) -> dict:
+def verify_capture_observation(budget_path: Path | None, report_path: Path, input_sha256: list[str], expected_working_directory: str | None = None, expected_context_tokens: int | None = None, expected_backend: str | None = None) -> dict:
     _validate_context_tokens(expected_context_tokens)
     if not isinstance(input_sha256, list) or len(input_sha256) != 2 or any(not isinstance(h, str) or len(h) != 64 or any(c not in "0123456789abcdef" for c in h) for h in input_sha256):
         raise ValueError("unavailable: invalid complete original request hashes")
@@ -389,6 +392,8 @@ def verify_capture_observation(budget_path: Path | None, report_path: Path, inpu
         raise ValueError("unavailable: forged runtime capture observation")
     if payload.get("kind") != "runtime_capture_observation" or type(payload.get("process_exit_code")) is not int or payload["process_exit_code"] != 0:
         raise ValueError("unavailable: unsuccessful runtime capture observation")
+    if expected_backend is not None and payload.get("backend") != expected_backend:
+        raise ValueError("unavailable: runtime observation runner backend mismatch")
     policy = payload.get("capacity_policy")
     if policy is not None:
         if not isinstance(policy, dict) or set(policy) != {"context_tokens"}:
@@ -427,4 +432,4 @@ def verify_capture_observation(budget_path: Path | None, report_path: Path, inpu
         if "complete_output" in capture:
             if validate_stream_report(budget_path.parent, report_path.read_bytes().decode("utf-8")) != capture["complete_output"]:
                 raise ValueError("unavailable: original complete-output binding mismatch")
-    return {"valid": True, "capacity_policy": policy, "observation_id": payload["observation_id"], "request": payload["request"], "report": payload["report"], "working_directory": payload["working_directory"], "complete_output": capture.get("complete_output") if capture else None}
+    return {"valid": True, "backend": payload.get("backend"), "capacity_policy": policy, "observation_id": payload["observation_id"], "request": payload["request"], "report": payload["report"], "working_directory": payload["working_directory"], "complete_output": capture.get("complete_output") if capture else None}

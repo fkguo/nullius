@@ -65,6 +65,7 @@ Options:
   --trace-dir DIR         Retain every call's raw events and budget receipt here
   --no-fallback           Do not retry without -m when a model run fails
   --dry-run               Print invocation details and exit 0
+  --check-client           Show the selected client version and check the baseline CLI flags offline.
 EOF
 }
 
@@ -130,11 +131,12 @@ text_path = Path(sys.argv[2])
 err_path = Path(sys.argv[3])
 
 raw = raw_path.read_text(encoding="utf-8", errors="replace")
-lines = raw.splitlines()
+lines = raw.split("\n")
 
 text_chunks = []
 error_msgs = []
 non_json_lines = []
+recognized_event = False
 
 for line in lines:
     stripped = line.strip()
@@ -150,6 +152,8 @@ for line in lines:
         continue
 
     typ = obj.get("type")
+    if typ in ("step_start", "step_finish", "reasoning", "tool_use", "error"):
+        recognized_event = True
     if typ == "error" or obj.get("error"):
         err = obj.get("error")
         msg = ""
@@ -171,6 +175,7 @@ for line in lines:
         if isinstance(part, dict):
             text = part.get("text")
             if isinstance(text, str):
+                recognized_event = True
                 text_chunks.append(text)
 
 if error_msgs:
@@ -186,7 +191,7 @@ if not text_chunks or not any(chunk.strip() for chunk in text_chunks):
     if non_json_lines:
         msg += " First raw line: " + non_json_lines[0][:240]
     err_path.write_text(msg + "\n", encoding="utf-8")
-    raise SystemExit(12)
+    raise SystemExit(13 if raw.strip() and not recognized_event else 12)
 
 merged = "".join(text_chunks)
 if not merged.endswith("\n"):
@@ -249,8 +254,10 @@ raise SystemExit(1)
 PY
 }
 
+CHECK_CLIENT=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --check-client) CHECK_CLIENT=1; shift;;
     --model)
       require_value "$1" "${2-}"
       MODEL="$2"
@@ -352,6 +359,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
 done
+
+if [[ "$CHECK_CLIENT" == 1 ]]; then
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/client_compat.py" check opencode "run" --format --dir
+fi
 
 if [[ -z "${PROMPT_FILE}" || -z "${OUT}" ]]; then
   echo "Missing required args." >&2
@@ -642,6 +653,7 @@ if [[ "${START_SERVER}" -eq 1 ]]; then
   if [[ "${server_wait_code}" -ne 0 ]]; then
     echo "Failed to start opencode serve on ${SERVER_HOSTNAME}:${SERVER_PORT}" >&2
     if [[ -s "${server_stderr}" ]]; then
+      python3 "${PROCESS_BUDGET%/*}/client_compat.py" options opencode "${server_stderr}" || true
       echo "--- opencode serve stderr ---" >&2
       tail -n 40 "${server_stderr}" >&2 || true
       echo "--- end opencode serve stderr ---" >&2
@@ -772,6 +784,17 @@ run_once() {
 
   parse_opencode_json "${raw_file}" "${text_file}" "${err_file}" || parse_code=$?
 
+  if [[ "${cmd_code}" -ne 0 ]] && python3 "${PROCESS_BUDGET%/*}/client_compat.py" options opencode "${stderr_file}"; then
+    return 13
+  fi
+  if [[ "${parse_code}" -eq 13 ]]; then
+    if [[ "${cmd_code}" -eq 0 ]]; then
+      python3 "${PROCESS_BUDGET%/*}/client_compat.py" output opencode 'run --format json events'
+      return 13
+    fi
+    parse_code=12
+  fi
+
   if [[ "${parse_code}" -eq 0 && ( "${cmd_code}" -ne 0 || -n "$(detect_length_cut "${raw_file}")" ) ]]; then
     cp "${text_file}" "${OUT}.partial"
     printf 'Incomplete OpenCode execution (exit=%s, final length=%s); text retained as partial.\n' \
@@ -891,7 +914,7 @@ run_with_retries() {
     if [[ "${rc}" -eq 10 ]]; then
       return 10
     fi
-    if [[ "${rc}" -eq 14 || "${rc}" -eq 124 || "${rc}" -eq 125 || "${rc}" -ge 128 ]]; then return "${rc}"; fi
+    if [[ "${rc}" -eq 13 || "${rc}" -eq 14 || "${rc}" -eq 124 || "${rc}" -eq 125 || "${rc}" -ge 128 ]]; then return "${rc}"; fi
 
     # Deterministic failures reproduce identically on every retry: fail
     # immediately with the diagnostic instead of burning the backoff budget.

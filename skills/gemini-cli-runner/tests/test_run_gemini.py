@@ -20,12 +20,14 @@ def _write_fake_gemini(bin_dir: Path) -> Path:
         """#!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${1:-}" == "--version" ]]; then echo "0.68.0"; exit 0; fi
 mode="${FAKE_MODE:-success}"
 model=""
 approval_mode=""
 output_format=""
 extensions=""
 sandbox=0
+trusted=0
 prompt=""
 stdin_file="$(mktemp)"
 trap 'rm -f "${stdin_file}"' EXIT
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
       sandbox=1
       shift
       ;;
+    --skip-trust)
+      trusted=1
+      shift
+      ;;
     *)
       shift
       ;;
@@ -71,6 +77,14 @@ done
 cat >"${stdin_file}" || true
 
   case "${mode}" in
+  trust_check)
+    if [[ "${trusted}" -eq 0 ]]; then echo 'Untrusted workspace' >&2; exit 55; fi
+    echo OK_TRUST
+    ;;
+  unknown_option)
+    echo 'Unknown arguments: approval-mode' >&2
+    exit 1
+    ;;
   echo_input)
     cat "${stdin_file}"
     ;;
@@ -420,6 +434,39 @@ def test_transient_failure_still_reaches_model_alias_fallback(tmp_path: Path) ->
     assert proc.returncode == 0, proc.stderr
     assert _fake_call_count(tmp_path) == 2, "transient failure must still fall back to the default model alias"
     assert _out_text(out_path) == "OK_FALLBACK\n"
+
+
+def test_cli_rejected_option_does_not_trigger_model_fallback(tmp_path: Path) -> None:
+    proc, out = _run_runner(tmp_path, args=["--model", "auto"], fake_mode="unknown_option")
+    assert proc.returncode != 0 and not out.exists()
+    assert _fake_call_count(tmp_path) == 1
+    assert "version 0.68.0" in proc.stderr and "approval-mode" in proc.stderr
+
+
+@pytest.mark.parametrize("trust", [False, True])
+def test_headless_workspace_trust_is_explicit(tmp_path: Path, trust: bool) -> None:
+    args = ["--model", "auto"] + (["--skip-trust"] if trust else [])
+    proc, out = _run_runner(tmp_path, args=args, fake_mode="trust_check")
+    assert proc.returncode == (0 if trust else 55), proc.stderr
+    assert _fake_call_count(tmp_path) == 1
+    assert out.exists() == trust
+    if not trust:
+        assert "--skip-trust" in proc.stderr and "update" not in proc.stderr.lower()
+
+
+@pytest.mark.parametrize(("form", "payload", "code"), [
+    ("json", '{"session_id":"demo","response":"ok"}', 0),
+    ("json", '{"payload":"new"}', 65),
+    ("stream-json", '{"type":"message"}\n{"type":"result","status":"success"}', 0),
+    ("stream-json", '{"new":"protocol"}', 65),
+    ("stream-json", '{"type":"message"}', 1),
+    ("stream-json", '{"type":"result","status":"error"}', 1),
+])
+def test_requested_structured_output(tmp_path: Path, form: str, payload: str, code: int) -> None:
+    proc, out = _run_runner(tmp_path, args=["--output-format", form], fake_mode="echo_input", prompt_text=payload)
+    assert proc.returncode == code, proc.stderr
+    assert out.exists() == (code == 0)
+    assert ("Nullius" in proc.stderr) == (code == 65)
 
 
 if __name__ == "__main__":

@@ -135,7 +135,22 @@ if "--dump-config-schema" in args:
     ids=os.environ["FAKE_DSH_IDS"].split()
     if mode == "missing-isolation": ids.remove("agent-instructions")
     if mode == "unknown-plugin": ids.append("future-executable-extension")
-    print(json.dumps({"x-cordis":{"profile":"headless","complete":True,"entries":[{"id":i,"name":"@deepseek-ai/dsh-"+i} for i in ids]}}))
+    aliases = {"timer":"@deepseek-ai/cordis-plugin-timer","subprocess":"@deepseek-ai/dsh-subprocess-local",
+               "headless-startup":"@deepseek-ai/dsh-headless/startup","headless-runner":"@deepseek-ai/dsh-headless"}
+    fields = {"agent-default-model":["provider","model"],"session-persistence-jsonl":["root","compression"],
+              "llm-pi-ai":["providers"],"system-prompt":["includeHarnessIdentity","includeRuntimeContext","personaPrefix","personaSuffix"]}
+    defs = {key:{"properties":dict.fromkeys(names,{})} for key,names in fields.items()}
+    tools_mode = {"default":"native","anyOf":[{"const":"native"}]}
+    if mode == "separate-executor":
+        ids.extend(["tool-executor-native","tool-executor-ptc"])
+        tools_mode = {"anyOf":[{"type":"null"},{"$ref":"#/$defs/loaderExpression"}]}
+    elif mode == "unknown-tools":
+        tools_mode = {"type":"boolean"}
+    defs["tools"] = {"properties":{"mode":tools_mode}}
+    if mode == "missing-config-field":
+        del defs["system-prompt"]["properties"]["includeRuntimeContext"]
+    entries = [{"id":i,"name":aliases.get(i,"@deepseek-ai/dsh-"+i),"configRef":"#/$defs/"+i} for i in ids]
+    print(json.dumps({"$defs":defs, "x-cordis":{"profile":"headless","complete":True,"entries":entries}}))
     raise SystemExit(0)
 if "--dump-default-config" in args:
     print("\n".join("- id: "+i+"\n  name: '@deepseek-ai/dsh-"+i+"'" for i in os.environ["FAKE_DSH_IDS"].split()))
@@ -156,7 +171,11 @@ assert row("agent-instructions")["disabled"]
 assert row("skill-filesystem")["disabled"]
 assert row("llm-deepseek")["disabled"]
 assert row("llm-deepseek-account")["disabled"]
-assert all(r["disabled"] for r in patch if r["id"].startswith("tool-"))
+assert all(r["disabled"] for r in patch if r["id"].startswith("tool-") and r["id"] != "tool-executor-native")
+if mode == "separate-executor":
+    assert not row("tool-executor-native")["disabled"] and "config" not in row("tools")
+else:
+    assert row("tools")["config"] == {"mode":"native"}
 if mode == "unknown-plugin":
     assert row("future-executable-extension")["disabled"]
 assert row("system-prompt")["config"] == {"personaPrefix":"", "personaSuffix":"", "includeHarnessIdentity":False, "includeRuntimeContext":False}
@@ -318,14 +337,38 @@ def test_inline_credentials_refused(dispatch, bad):
     assert "secret" not in result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("version", ["0.1.0-rc.7", "0.2.1-rc.3", "999.0.0"])
-def test_old_or_unknown_runtime_refused(dispatch, version):
+@pytest.mark.parametrize("version,mode", [("0.2.1-rc.3", "complete"), ("0.2.2-rc.3", "separate-executor"),
+                                           ("5.0.0", "separate-executor")])
+def test_version_with_supported_profile(dispatch, version, mode):
     cmd, env, out, _ = dispatch
-    env["FAKE_DSH_VERSION"] = version
-    result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=4)
-    assert result.returncode == 1
+    env.update(FAKE_DSH_VERSION=version, FAKE_DSH_CASE=mode)
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stderr
+    receipt = json.loads(next(Path(str(out) + ".attempts").glob("run.*/receipt.json")).read_text())
+    assert receipt["runtime"]["version"] == version
+
+
+@pytest.mark.parametrize("version,mode,hint", [
+    ("0.1.0-rc.7", "missing-isolation", "update the DSH client"),
+    ("1.0.0", "unknown-tools", "update Nullius"),
+    ("0.2.2-rc.3", "missing-config-field", "system-prompt"),
+])
+def test_refusal_names_observed_contract(dispatch, version, mode, hint):
+    cmd, env, out, _ = dispatch
+    env.update(FAKE_DSH_VERSION=version, FAKE_DSH_CASE=mode)
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=5)
+    assert result.returncode == 1 and not out.exists()
+    assert version in result.stderr and hint in result.stderr
+
+
+def test_offline_client_check(dispatch):
+    cmd, env, out, _ = dispatch
+    entry = cmd[cmd.index("--cli-entry")+1]
+    env.pop("TEST_MODEL_KEY")
+    result = subprocess.run([*cmd[:2], "--cli-entry", entry, "--check-client"], env=env,
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0 and entry in result.stdout and "0.2.1-rc.2" in result.stdout
     assert not out.exists()
-    assert "unsupported DSH runtime" in result.stderr
 
 
 def test_missing_isolation_row_refused(dispatch):

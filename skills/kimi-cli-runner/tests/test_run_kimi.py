@@ -68,6 +68,10 @@ output_format=""
 add_dirs=()
 skills_dirs=()
 original_args=("$@")
+if [[ "$#" == 1 && "$1" == "--version" ]]; then
+  echo '2.5.4'
+  exit 0
+fi
 
 record_call() {
   if [[ -n "${log_file}" ]]; then
@@ -176,6 +180,14 @@ PY
       exit 8
     fi
     echo '{"role":"assistant","content":"OK_FALLBACK_AFTER_ANY_MODEL_MISS"}'
+    ;;
+  unknown_cli_option)
+    echo "error: unknown option '--skills-dir'" >&2
+    exit 2
+    ;;
+  auth_denied)
+    echo "Unauthorized: invalid API key" >&2
+    exit 2
     ;;
   deterministic_stdout_diagnostic)
     echo "Error: this account is not eligible for the requested endpoint"
@@ -462,6 +474,7 @@ def test_unknown_assistant_content_shape_fails_explicitly(tmp_path: Path) -> Non
     )
     assert proc.returncode != 0
     assert "Unsupported assistant content shape" in proc.stderr
+    assert "2.5.4" in proc.stderr and "Nullius" in proc.stderr
     assert _out_text(out_path) == ""
 
 
@@ -613,4 +626,19 @@ def test_billing_cycle_words_in_normal_body_do_not_classify_failure(tmp_path):
     proc, out, log = _run_runner(tmp_path, args=[], fake_mode="quota_quote_in_body")
     assert proc.returncode == 0
     assert "billing cycle" in _out_text(out)
+    assert _log_text(log).count("args=") == 1
+
+def test_rejected_cli_option_reports_version_without_another_model_attempt(tmp_path):
+    proc, output, log = _run_runner(tmp_path, args=["--max-attempts", "3", "--model", "offline"],
+                                    fake_mode="unknown_cli_option")
+    assert proc.returncode == 2 and not output.exists()
+    assert "2.5.4" in proc.stderr and "--skills-dir" in proc.stderr
+    assert "updat" in proc.stderr.lower() or "upgrad" in proc.stderr.lower()
+    assert _log_text(log).count("args=") == 1
+
+
+def test_authentication_failure_does_not_request_a_client_upgrade(tmp_path):
+    proc, _, log = _run_runner(tmp_path, args=["--max-attempts", "2"], fake_mode="auth_denied")
+    assert proc.returncode == 2 and "Unauthorized" in proc.stderr
+    assert "2.5.4" not in proc.stderr
     assert _log_text(log).count("args=") == 1

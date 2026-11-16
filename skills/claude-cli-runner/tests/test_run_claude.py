@@ -54,6 +54,7 @@ def _write_fake_claude(bin_dir: Path) -> Path:
         """#!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${1:-}" == "--version" ]]; then echo "2.1.303"; exit 0; fi
 mode="${FAKE_MODE:-success}"
 log_file="${FAKE_LOG:-}"
 state_file="${FAKE_STATE:-}"
@@ -276,3 +277,21 @@ def test_unknown_option_fails_fast(tmp_path: Path) -> None:
     assert proc.returncode == 1, proc.stdout + proc.stderr
     assert _log_text(log_path).count("args=") == 1
     assert "matched 'unknown option'" in proc.stderr
+    assert "version 2.1.303" in proc.stderr and "--safe-mode" in proc.stderr
+    assert "update" in proc.stderr.lower()
+
+
+def test_unknown_session_json_is_not_published(tmp_path: Path) -> None:
+    session = tmp_path / "session-id"
+    proc, out, log = _run_runner(tmp_path, args=["--session-id-file", str(session)], fake_mode="success")
+    assert proc.returncode == 65
+    assert not session.exists() and not out.exists()
+    assert _log_text(log).count("args=") == 1
+    assert "version 2.1.303" in proc.stderr and "Nullius" in proc.stderr
+
+
+def test_unrecognized_live_stream_reports_version(tmp_path: Path) -> None:
+    proc, out, log = _run_runner(tmp_path, args=["--live-capture"], fake_mode="success")
+    assert proc.returncode == 65
+    assert not out.exists() and _log_text(log).count("args=") == 1
+    assert "stream-json" in proc.stderr and "version 2.1.303" in proc.stderr and "Nullius" in proc.stderr

@@ -19,7 +19,7 @@ def authority(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "_authority_dir", lambda: tmp_path / "native-host/authority")
 
 
-def observed(tmp_path, capture=True, exit_code=0, context_tokens=None):
+def observed(tmp_path, capture=True, exit_code=0, context_tokens=None, backend="claude"):
     project = tmp_path / "project"; project.mkdir()
     system = project / "system.md"; system.write_bytes(b"neutral original system\r\n")
     prompt = project / "prompt.md"; prompt.write_text("Complete original request λ\n")
@@ -40,7 +40,7 @@ def observed(tmp_path, capture=True, exit_code=0, context_tokens=None):
         code += f'(root/"attempt_1.events.jsonl").write_text({(json.dumps(result)+chr(10))!r})\n'
     code += f'sys.exit({exit_code})\n'; script.write_text(code)
     cmd = [sys.executable,str(script),'--system-prompt-file',str(system),'--prompt-file',str(prompt),'--out',str(output)]
-    process=run_multi_task._run_with_timeout(cmd,timeout_secs=10,context_tokens=context_tokens)
+    process=run_multi_task._run_with_timeout(cmd,timeout_secs=10,context_tokens=context_tokens,backend=backend)
     return output, receipt if capture else None, hashes, process, cmd
 
 
@@ -113,7 +113,7 @@ def test_actual_verification_cli_uses_fixed_native_authority(tmp_path,monkeypatc
     import subprocess
     monkeypatch.setattr(runtime,'_authority_dir',_NATIVE_AUTHORITY_DIR)
     output,budget,hashes,_,_=observed(tmp_path)
-    request={'budget_path':str(budget),'report_path':str(output),'input_sha256':hashes,'expected_working_directory':str(Path.cwd())}
+    request={'budget_path':str(budget),'report_path':str(output),'input_sha256':hashes,'expected_working_directory':str(Path.cwd()),'expected_backend':'claude'}
     result=subprocess.run([sys.executable,str(BIN/'verify_capture_observation.py')],input=json.dumps(request),capture_output=True,text=True,timeout=10)
     assert result.returncode==0 and json.loads(result.stdout)['valid'] is True
     output.write_bytes(output.read_bytes()+b'\nchanged original bytes\n')
@@ -211,7 +211,7 @@ def native_records(hint=True, text="Original complete report λ\n"):
 
 
 def observed_native(tmp_path, *, records=None, raw=None, report=None, exit_code=0,
-                    budget_changes=None, mutate_input=False, extra_files=None):
+                    budget_changes=None, mutate_input=False, extra_files=None, backend="kimi"):
     """Fresh actual subprocess bytes; these fixtures never call a model or import saved captures."""
     project = tmp_path / "project"; project.mkdir()
     system = project / "system"; system.write_bytes(b"Neutral system\r\n")
@@ -242,7 +242,7 @@ def observed_native(tmp_path, *, records=None, raw=None, report=None, exit_code=
     script.write_text(code)
     cmd = [sys.executable, str(script), "--system-prompt-file", str(system),
            "--prompt-file", str(prompt), "--out", str(output)]
-    process = run_multi_task._run_with_timeout(cmd, timeout_secs=10, context_tokens=50000)
+    process = run_multi_task._run_with_timeout(cmd, timeout_secs=10, context_tokens=50000, backend=backend)
     return output, root / "budget.json", hashes, process, cmd, files
 
 
@@ -351,3 +351,47 @@ def test_native_raw_files_cannot_be_relabelled_as_claude_events(tmp_path):
     (budget.parent / "attempt_1.stdout").rename(budget.parent / "attempt_1.events.jsonl")
     with pytest.raises((ValueError, OSError)):
         runtime.verify_capture_observation(budget, output, hashes)
+
+@pytest.mark.parametrize("backend", ["claude", "opencode", None])
+def test_other_runner_cannot_issue_native_prompt_receipt(tmp_path, backend):
+    with pytest.raises(ValueError, match="does not match the invoked runner"):
+        observed_native(tmp_path, backend=backend)
+    assert not (tmp_path / "project/report.runtime-observation.json").exists()
+
+
+def test_kimi_runner_cannot_issue_claude_event_receipt(tmp_path):
+    with pytest.raises(ValueError, match="does not match the invoked runner"):
+        observed(tmp_path, backend="kimi")
+    assert not (tmp_path / "project/report.txt.runtime-observation.json").exists()
+
+
+def test_mixed_capture_rejected_before_signing(tmp_path):
+    with pytest.raises(ValueError, match="mixed original capture formats"):
+        observed_native(tmp_path, extra_files={"attempt_1.events.jsonl": b"{}\\n"})
+    assert not (tmp_path / "project/report.runtime-observation.json").exists()
+
+@pytest.mark.parametrize("version", ["2.6.0", "2.6.1", "2.6.17"])
+def test_compatible_patch_records_its_actual_version(tmp_path, version):
+    records = native_records()
+    records[0]["version"] = version
+    output, budget, hashes, _, _, _ = observed_native(tmp_path, records=records)
+    observation = runtime.verify_capture_observation(budget, output, hashes, expected_backend="kimi")
+    assert observation["complete_output"]["cli_version"] == version
+
+
+@pytest.mark.parametrize("version", ["2.5.9", "2.7.0", "2.6.10-beta.1"])
+def test_unknown_cli_series_names_observed_version_and_reader_update(tmp_path, version):
+    records = native_records()
+    records[0]["version"] = version
+    with pytest.raises(ValueError) as failure:
+        observed_native(tmp_path, records=records)
+    assert version in str(failure.value) and "update Nullius" in str(failure.value)
+    assert not (tmp_path / "project/report.runtime-observation.json").exists()
+
+
+def test_new_patch_still_rejects_new_record_fields(tmp_path):
+    records = native_records()
+    records[0]["version"] = "2.6.17"
+    records[1]["unrecognized"] = "additional original material"
+    with pytest.raises(ValueError, match="Kimi Code 2.6.17: update Nullius"):
+        observed_native(tmp_path, records=records)

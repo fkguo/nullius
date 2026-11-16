@@ -42,12 +42,12 @@ numerical contracts and lifecycle checks, and
 [`julia-perf`](../../skills/julia-perf/SKILL.md) for kernel discipline and
 performance measurements. Both support standalone use.
 
+Use the runner’s `--check-client` option without a prompt for an offline check of the selected executable and its interface. CLI runners use the executable selected on PATH or through the runner’s explicit override. When a client rejects a required option, the diagnostic identifies the executable and suggests checking the client installation. When a structured response uses an unfamiliar format, check for a compatible Nullius runner update. Authentication and service failures have separate diagnostics.
+
 For bounded, tool-free file-prompt tasks through DeepSeek Harness, the catalog
 includes [`dsh-cli-runner`](../../skills/dsh-cli-runner/SKILL.md). It requires an
 explicit provider/model and retains complete session evidence; it does not
-register a review-swarm backend or install DSH. The current adapter accepts the
-DSH Desktop 0.2.1-rc.2 macOS launcher and v4 session format; it refuses unvalidated
-versions/layouts rather than treating a launcher as an npm package directory.
+register a review-swarm backend or install DSH. The adapter checks the installed macOS desktop launcher, headless profile and session format before accepting results. See the skill for supported contracts.
 
 For one-shot headless tasks through the local Qwen Code CLI, the catalog includes
 [`qwen-cli-runner`](../../skills/qwen-cli-runner/SKILL.md). It feeds prompt files

@@ -11,12 +11,18 @@ If already running in DSH, prefer the host's native task facilities.
 
 ## Dispatch
 
-Requires Python 3.10+ and DeepSeek Harness Desktop **0.2.1-rc.2** using its
+Requires Python 3.10+ and DeepSeek Harness Desktop using its
 installed macOS `dsh` launcher. Resolve `dsh` on PATH, or select that executable
 with `--cli-entry`. The runner checks the public version/profile schema in a
 fresh `DSH_HOME` and binds the launcher, application archive, Electron executable
-and runtime metadata by hash. Other versions or installation layouts are refused;
-it does not install or upgrade DSH. `--node-bin` is no longer an input: the desktop
+and runtime metadata by hash. Run `run_dsh.sh --check-client` to check the installed
+launcher and its headless profile offline. Compatible builds expose a complete
+profile schema for the isolated tool-free request and a v4 session log. Desktop
+0.2.1-rc.2 selects native mode on the tools row. Desktop 0.2.2-rc.3 registers a
+separate native executor and disables the PTC executor and every model tool.
+Selection follows the actual schema. The runner checks session evidence when a
+task runs. Update an older DSH client if it lacks the required profile; when an
+updated client exposes an unfamiliar protocol, update the Nullius runner. `--node-bin` is no longer an input: the desktop
 launcher supplies its own execution runtime. A source checkout is not an installed
 runtime.
 

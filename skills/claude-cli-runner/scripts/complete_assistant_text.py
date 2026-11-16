@@ -2,6 +2,7 @@
 from __future__ import annotations
 import hashlib
 import json
+import re
 from collections import OrderedDict
 from pathlib import Path
 
@@ -241,9 +242,13 @@ def read_stream(path):
 def capture_profile(root):
     """Select an original transport, never convert one provider's events to another's."""
     root = Path(root)
-    if list(root.glob("*.events.jsonl")) or list(root.glob("*.events.result.json")):
+    claude = any(root.glob("*.events.jsonl")) or any(root.glob("*.events.result.json"))
+    native = any(root.glob("*.stdout")) or any(root.glob("*.stderr"))
+    if claude and native:
+        raise CompleteTextError("mixed original capture formats")
+    if claude:
         return "claude_stream_json"
-    if list(root.glob("*.stdout")) or list(root.glob("*.stderr")):
+    if native:
         return "kimi_prompt_stream_json"
     raise CompleteTextError("unsupported original capture format")
 
@@ -299,22 +304,37 @@ def _validate_kimi_prompt_report(root, report):
         json.dumps(records, ensure_ascii=False).encode("utf-8")
     except (ValueError, UnicodeError) as exc:
         raise CompleteTextError("malformed original native prompt stream") from exc
+    if not records or not isinstance(records[0], dict):
+        raise CompleteTextError("Kimi capture lacks its system.version record; check the original stdout")
+    header = records[0]
+    if header.get("role") != "meta" or header.get("type") != "system.version":
+        raise CompleteTextError("Kimi capture lacks its system.version record; check the original stdout")
+    version = header.get("version")
+    if not isinstance(version, str) or re.fullmatch(r"[0-9A-Za-z.+-]{1,64}", version) is None:
+        raise CompleteTextError("Kimi capture has no valid reported CLI version; check the original stdout")
+    update_hint = f"Kimi Code {version}: update Nullius for this stream-json format"
+    if re.fullmatch(r"2\.6\.(?:0|[1-9][0-9]*)", version) is None:
+        raise CompleteTextError(f"{update_hint} (supported CLI series: stable 2.6.x)")
+    if set(header) != {"role", "type", "version"}:
+        raise CompleteTextError(f"{update_hint} (unrecognized system.version fields)")
     if len(records) not in (2, 3) or any(not isinstance(record, dict) for record in records):
-        raise CompleteTextError("unsupported native prompt stream shape")
-    header, assistant = records[:2]
-    if (set(header) != {"role", "type", "version"} or header.get("role") != "meta"
-            or header.get("type") != "system.version" or header.get("version") != "2.6.0"):
-        raise CompleteTextError("unsupported native prompt version envelope")
-    if (set(assistant) != {"role", "content"} or assistant.get("role") != "assistant"
-            or not isinstance(assistant.get("content"), str) or not assistant["content"].strip()):
-        raise CompleteTextError("unsupported or incomplete native assistant output")
+        raise CompleteTextError(f"Kimi Code {version}: expected one assistant text record and an optional resume hint")
+    assistant = records[1]
+    if assistant.get("role") in {"error", "tool"} or "tool_calls" in assistant:
+        raise CompleteTextError(f"Kimi Code {version}: an error or tool call cannot supply a text-only receipt")
+    if set(assistant) != {"role", "content"} or assistant.get("role") != "assistant":
+        raise CompleteTextError(f"{update_hint} (unrecognized assistant record)")
+    if not isinstance(assistant["content"], str) or not assistant["content"].strip():
+        raise CompleteTextError(f"Kimi Code {version}: incomplete or non-text assistant output")
     if len(records) == 3:
         hint = records[2]
+        if hint.get("role") in {"assistant", "error", "tool"}:
+            raise CompleteTextError(f"Kimi Code {version}: additional assistant, error or tool record in text-only capture")
         if (set(hint) != {"role", "type", "session_id", "command", "content"}
                 or hint.get("role") != "meta" or hint.get("type") != "session.resume_hint"
                 or any(not isinstance(hint.get(key), str) or not hint[key].strip()
                        for key in ("session_id", "command", "content"))):
-            raise CompleteTextError("unsupported native prompt trailing record")
+            raise CompleteTextError(f"{update_hint} (unrecognized resume hint)")
     # This is the original runner's documented text policy. Keep both identities;
     # the original unnormalized assistant and all metadata remain in stdout.
     text = assistant["content"]

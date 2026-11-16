@@ -1567,12 +1567,15 @@ def _execute_derivation(run, spec, system, prompt, tag, refusals: Optional[list]
             path = Path(invocation[key]); data = path.read_bytes()
             artifacts.append({"path": str(path), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)})
     if invocation.get("output"):
+        text_suffixes = {".json", ".jsonl", ".log"}
+        if family_of(spec) == "kimi":
+            text_suffixes.update({".stdout", ".stderr"})
         for path in Path(invocation["output"] + ".attempts").glob("run.*/*"):
             if path.is_file():
                 # One read per file: the reference and the captured text describe the same bytes.
                 data = path.read_bytes()
                 artifacts.append({"path": str(path), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)})
-                if path.suffix in {".json", ".jsonl", ".log", ".stdout", ".stderr"}:
+                if path.suffix in text_suffixes:
                     captured[str(path)] = data.decode("utf-8")
     result.update(execution_id=tag, transport={"execution_id": tag, "exit_code": exit_code,
         "request": request, "raw_output": raw, "request_sha256": hashlib.sha256(json.dumps(request, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),

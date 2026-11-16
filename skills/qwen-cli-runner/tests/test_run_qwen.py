@@ -20,6 +20,7 @@ def _write_fake_qwen(bin_dir: Path) -> Path:
         """#!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${1:-}" == "--version" ]]; then echo "0.10.0"; exit 0; fi
 mode="${FAKE_MODE:-success}"
 log_file="${FAKE_LOG:-}"
 state_file="${FAKE_STATE:-}"
@@ -128,6 +129,12 @@ case "${mode}" in
     ;;
   error_result)
     emit_array '{"type":"result","subtype":"error_during_execution","is_error":true,"error":{"message":"provider exploded"}}'
+    ;;
+  unknown_format)
+    echo '{"type":"new-output-envelope"}'
+    ;;
+  unknown_option)
+    echo "Unknown argument: safe-mode" >&2; exit 2
     ;;
   no_result)
     emit_array '{"type":"system","subtype":"init","session_id":"s-1"}'
@@ -810,3 +817,12 @@ def test_cancel_during_backoff_does_not_wait_or_start_retry(tmp_path: Path) -> N
         if proc.poll() is None:
             os.killpg(proc.pid, signal.SIGTERM)
             proc.communicate(timeout=5)
+
+
+@pytest.mark.parametrize(("mode", "diagnostic"), [
+    ("unknown_format", "unsupported Qwen batch JSON"),
+    ("unknown_option", "rejected the option safe-mode"),
+])
+def test_client_diagnostics_include_actual_version(tmp_path, mode, diagnostic):
+    proc, _, _ = _run_runner(tmp_path, args=[], fake_mode=mode)
+    assert proc.returncode and diagnostic in proc.stderr and "version 0.10.0" in proc.stderr

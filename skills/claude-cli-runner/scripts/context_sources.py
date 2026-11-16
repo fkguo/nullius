@@ -80,7 +80,7 @@ def declare(args: argparse.Namespace) -> int:
 
 def _init_event(events: Path) -> dict | None:
     try:
-        lines = events.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = events.read_text(encoding="utf-8", errors="replace").split("\n")
     except OSError:
         return None
     for line in lines:
