@@ -37,6 +37,11 @@ Size policy
   through a symbolic link (files behind one are refused or flagged).
 
 Subcommands
+  install-hook      install the staged storage check in the repository's pre-commit hook.
+  sparse-exclude-bulk  omit selected tracked outputs from a checkout with Git sparse patterns.
+  store-put         copy a file into a verified content-addressed store.
+  tree-digest       hash a directory inventory and optionally store or compare it.
+  closeout          preview or apply cleanup to a finished scratch directory.
   inventory         read-only counts, duplicate index objects and retention review.
   check             report bulk files under the run roots (``--staged``: in
                     the index, i.e. about to be committed). Warns; exits 1
@@ -73,9 +78,8 @@ environment errors and inputs refused before any change (unrecordable file
 names, damaged ignore-block markers, a run directory inside or around another
 stowed run, a malformed manifest or policy, a store inside a checkout).
 POSIX (macOS/Linux) only.
-Nothing here deletes data: a damaged store object is renamed aside, never
-removed, and run files are never replaced (stow only makes them read-only);
-``worktree-check`` and ``report`` only read.
+Scratch closeout is previewed before application. Sparse exclusion leaves the
+original tracked bytes in Git. Stow keeps run files readable in place.
 
 Operating assumptions: one user's own files (not an adversarial setting),
 and nothing still writing into a run directory that is being stowed. Hashes
@@ -144,6 +148,10 @@ def sha256_file(path: Path) -> str:
         for block in iter(lambda: fh.read(CHUNK), b""):
             h.update(block)
     return h.hexdigest()
+
+
+def canonical_json(obj) -> bytes:
+    return (json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8", "backslashreplace")
 
 
 def fsync_dir(path: Path) -> None:
@@ -546,7 +554,12 @@ def resolve_threshold(repo: "Repo | None", override: "int | None") -> int:
 # ------------------------------------------------------------ content store
 
 def store_path(store: Path, sha: str) -> Path:
-    return store / "sha256" / sha[:2] / sha
+    if not is_sha256_hex(sha):
+        raise StorageError("invalid content store SHA-256")
+    obj = store / "sha256" / sha[:2] / sha
+    if obj.parent.resolve() != store.resolve() / "sha256" / sha[:2]:
+        raise StorageError("content store shard passes through a symbolic link")
+    return obj
 
 
 def verify_store_object(obj: Path, sha: str, size: "int | None" = None) -> bool:
@@ -684,6 +697,28 @@ def store_put(path: Path, store: Path) -> "tuple[str, Path, str]":
     return sha, dest, method
 
 
+def store_put_bytes(data: bytes, store: Path) -> "tuple[str, Path]":
+    sha = hashlib.sha256(data).hexdigest()
+    dest = store_path(store, sha)
+    if (dest.exists() or dest.is_symlink()) and verify_store_object(dest, sha):
+        return sha, dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = incoming_path(dest.parent)
+    try:
+        with open(tmp, "xb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, 0o444)
+        publish(tmp, dest, sha)
+    finally:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+    return sha, dest
+
+
 def place_from_store(obj: Path, target: Path, sha: str) -> str:
     """Create ``target`` (absent) as an independent read-only file with the
     bytes of the verified store object: a clone, else a byte copy. Returns
@@ -712,6 +747,47 @@ def place_from_store(obj: Path, target: Path, sha: str) -> str:
 
 RESERVED_NOTE = (f"under a run root the file name {MANIFEST_NAME} is reserved for run storage manifests; "
                  "rename a data file that has this name")
+
+
+def tree_inventory(root: Path, skip: "set[str] | None" = None) -> dict:
+    """Inventory of every entry under ``root``: {relative path: record}.
+    Symlinks are recorded by target, never followed."""
+    root = Path(root)
+    skip = skip or set()
+    inventory: dict = {}
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False, onerror=walk_error):
+        here = Path(dirpath)
+        dirnames.sort()
+        for name in sorted(dirnames + filenames):
+            full = here / name
+            rel = full.relative_to(root).as_posix()
+            if rel in skip:
+                if name in dirnames:
+                    dirnames.remove(name)
+                continue
+            st = full.lstat()
+            mode = stat.S_IMODE(st.st_mode)
+            if stat.S_ISLNK(st.st_mode):
+                inventory[rel] = {"type": "symlink", "target": os.readlink(full)}
+            elif stat.S_ISDIR(st.st_mode):
+                inventory[rel] = {"type": "directory", "mode": mode}
+            elif stat.S_ISREG(st.st_mode):
+                inventory[rel] = {"type": "file", "mode": mode, "size": st.st_size, "sha256": sha256_file(full)}
+            else:
+                inventory[rel] = {"type": "other", "mode": mode}
+    return inventory
+
+
+def tree_digest(inventory: dict) -> str:
+    return hashlib.sha256(canonical_json(inventory)).hexdigest()
+
+
+def diff_inventories(a: dict, b: dict) -> dict:
+    return {
+        "added": sorted(set(b) - set(a)),
+        "removed": sorted(set(a) - set(b)),
+        "changed": sorted(k for k in set(a) & set(b) if a[k] != b[k]),
+    }
 
 
 def load_manifest(run_dir: Path) -> "dict | None":
@@ -2208,6 +2284,115 @@ def check_one_worktree(path: Path, base: str, main_root: "Path | None", store: P
     return report
 
 
+HOOK_MARKER = "# run_storage.py pre-commit check"
+
+
+def cmd_install_hook(args) -> int:
+    repo = Repo(args.project_root)
+    hooks_dir = Path(git_text(["rev-parse", "--git-path", "hooks"], repo.toplevel))
+    if not hooks_dir.is_absolute():
+        hooks_dir = (repo.toplevel / hooks_dir).resolve()
+    if hooks_dir.resolve() != repo.common_dir / "hooks":
+        raise StorageError("custom hooks path is in use; add check --staged to that hook manually")
+    hook = hooks_dir / "pre-commit"
+    script = shlex.quote(str(Path(__file__).resolve()))
+
+    def hook_body(strict: bool) -> bytes:
+        options = " --strict" if strict else ""
+        return (f"#!/bin/sh\n{HOOK_MARKER}\nSCRIPT={script}\n"
+                'if [ -f "$SCRIPT" ] && command -v python3 >/dev/null 2>&1; then\n'
+                f'  exec python3 "$SCRIPT" check --staged --quiet{options}\n'
+                "fi\n"
+                'echo "run-storage check could not run: $SCRIPT or python3 is missing" >&2\n'
+                f"exit {1 if strict else 0}\n").encode("utf-8")
+
+    body = hook_body(args.strict)
+    if hook.exists() or hook.is_symlink():
+        if hook.is_symlink() or not hook.is_file() or hook.read_bytes() not in (hook_body(False), hook_body(True)):
+            raise StorageError(f"keeping existing pre-commit hook {hook}; add check --staged manually")
+    if args.dry_run:
+        print(f"would write {hook}:\n{body.decode()}")
+        return EXIT_OK
+    write_atomic(hook, body, mode=0o755)
+    print(f"installed {hook} ({'blocks' if args.strict else 'warns about'} commits adding bulk files)")
+    return EXIT_OK
+
+
+def cmd_sparse_exclude_bulk(args) -> int:
+    repo = Repo(args.worktree or ".")
+    if not repo.is_linked_worktree:
+        raise StorageError("sparse exclusion requires a linked worktree; the main checkout keeps its files")
+    threshold = resolve_threshold(repo, args.threshold)
+    if git(["config", "--bool", "core.sparseCheckout"], repo.toplevel, check=False).stdout.decode().strip() == "true":
+        raise StorageError("sparse checkout is already configured in this worktree; not overwriting it "
+                           "(`git sparse-checkout list` shows the current patterns)")
+    sparse_file = repo.git_dir / "info" / "sparse-checkout"
+    if sparse_file.exists() or sparse_file.is_symlink():
+        raise StorageError("existing sparse-checkout patterns must be preserved")
+    if repo.symlinked_run_roots():
+        raise StorageError("a configured run root passes through a symbolic link")
+    listing = git_z(["ls-tree", "-r", "-l", "-z", "HEAD", "--", *repo.run_roots], repo.toplevel)
+    bulk = []
+    for item in listing:
+        meta, _, rel = item.partition("\t")
+        parts = meta.split()
+        if (len(parts) == 4 and parts[0] in ("100644", "100755") and parts[3].isdigit()
+                and not is_storage_record(rel) and bulk_candidate(repo, rel, int(parts[3]), threshold)):
+            bulk.append({"path": rel, "size": int(parts[3])})
+    bulk.sort(key=lambda r: r["path"])
+    total = sum(r["size"] for r in bulk)
+    if not bulk:
+        emit({"excluded": []}, args.json, [f"run-storage: no tracked file at or above {human(threshold)} "
+                                            "under the run roots; nothing to exclude"])
+        return EXIT_OK
+    bulk_paths = {r["path"] for r in bulk}
+    modified = set(git_z(["diff", "--name-only", "-z", "HEAD", "--", *repo.run_roots], repo.toplevel)) & bulk_paths
+    modified |= set(hidden_tracked_changes(repo.toplevel)) & bulk_paths  # edits git status does not show
+    if modified:
+        raise StorageError(f"{len(modified)} bulk file(s) have local modifications; commit or restore them first")
+    staged = set(git_z(["diff", "--cached", "--name-only", "-z", "HEAD"], repo.toplevel))
+    if staged & bulk_paths:
+        raise StorageError("a candidate has staged changes")
+    for item in listing:
+        meta, _, rel = item.partition("\t")
+        if rel not in bulk_paths:
+            continue
+        mode, _, blob, _ = meta.split()
+        full = repo.toplevel / rel
+        st = full.lstat()
+        if (full.resolve() != full or not stat.S_ISREG(st.st_mode)
+                or bool(st.st_mode & stat.S_IXUSR) != (mode == "100755")
+                or git_text(["hash-object", "--no-filters", "--", rel], repo.toplevel) != blob):
+            raise StorageError(f"working copy of {rel!r} differs from the bytes or mode in Git")
+    patterns = ["/*", *["!" + gitignore_escape(r["path"]) for r in bulk]]
+    rules = ("\n".join(patterns) + "\n").encode("utf-8")
+    # Ask Git which index paths these patterns actually leave out, including case-folded aliases.
+    tracked = git(["ls-files", "-z"], repo.toplevel).stdout
+    with tempfile.NamedTemporaryFile() as rulefile:
+        rulefile.write(rules)
+        rulefile.flush()
+        included = git(["sparse-checkout", "check-rules", "--no-cone", "--rules-file", rulefile.name, "-z"],
+                       repo.toplevel, input_bytes=tracked).stdout
+    if set(tracked.split(b"\0")) - set(included.split(b"\0")) != {os.fsencode(p) for p in bulk_paths}:
+        raise StorageError("Git's sparse patterns would omit a different set of tracked paths")
+    lines = [f"run-storage: {len(bulk)} tracked bulk file(s), {human(total)}, left out of this checkout "
+             f"({repo.toplevel})"]
+    if args.dry_run:
+        lines += [f"  would exclude {human(r['size']):>12}  {r['path']}" for r in bulk[: args.limit]]
+        emit({"dry_run": True, "excluded": bulk}, args.json, lines)
+        return EXIT_OK
+    git(["sparse-checkout", "set", "--no-cone", "--stdin"], repo.toplevel,
+        input_bytes=rules)
+    still_present = [r["path"] for r in bulk if (repo.toplevel / r["path"]).exists()]
+    if still_present:
+        print(f"run-storage: {len(still_present)} file(s) are still checked out; check the patterns with "
+              "`git sparse-checkout list`", file=sys.stderr)
+        return EXIT_FINDINGS
+    lines.append(f"  restore the full checkout with: git -C {shlex.quote(str(repo.toplevel))} sparse-checkout disable")
+    emit({"excluded": bulk, "restore_command": f"git -C {repo.toplevel} sparse-checkout disable"}, args.json, lines)
+    return EXIT_OK
+
+
 def cmd_worktree_check(args) -> int:
     repo = Repo(args.project_root or (args.worktree if args.worktree else "."))
     base = args.base or default_base(repo)
@@ -2651,6 +2836,77 @@ def cmd_report(args) -> int:
 
 # ------------------------------------------------------------------- main
 
+def store_for_path(path: Path, override: str | None) -> Path:
+    directory = path if path.is_dir() else path.parent
+    if git(["rev-parse", "--show-toplevel"], directory, check=False).returncode == 0:
+        return Repo(directory).store(override)
+    if not override:
+        raise StorageError(f"{path} is outside a working tree; pass --store")
+    store = Path(override).expanduser().resolve()
+    existing = store
+    while not existing.exists():
+        existing = existing.parent
+    if not existing.is_dir() or git(["rev-parse", "--git-dir"], existing, check=False).returncode == 0:
+        raise StorageError("an external content store must be outside a Git repository")
+    return store
+
+
+def cmd_store_put(args) -> int:
+    results = []
+    for f in args.files:
+        path = Path(f).expanduser()
+        store = store_for_path(path, args.store)
+        sha, dest, method = store_put(path, store)
+        results.append({"path": str(path), "sha256": sha, "store_entry": str(dest), "method": method})
+    emit({"stored": results}, args.json, [f"{r['sha256']}  {r['store_entry']}  ({r['method']})" for r in results])
+    return EXIT_OK
+
+
+def cmd_tree_digest(args) -> int:
+    root = Path(args.root).expanduser().resolve()
+    if not root.is_dir():
+        raise StorageError(f"not a directory: {root}")
+    store = store_for_path(root, args.store) if args.store else None
+    if store is not None and is_under(store, root):
+        raise StorageError("the inventory store must be outside the tree being hashed")
+    if args.compare and (store is None or not is_sha256_hex(args.compare)):
+        raise StorageError("--compare requires --store and a lowercase SHA-256 digest")
+    inventory = tree_inventory(root)
+    digest = tree_digest(inventory)
+    result = {"root": str(root), "digest": digest, "entries": len(inventory),
+              "bytes": sum(v.get("size", 0) for v in inventory.values())}
+    lines = [f"{digest}  {root}  ({len(inventory)} entries)"]
+    if args.compare:
+        other = store_path(store, args.compare)
+        if not verify_store_object(other, args.compare):
+            raise StorageError(f"no intact stored inventory for digest {args.compare}")
+        try:
+            earlier = json.loads(other.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise StorageError(f"the stored object {args.compare} is not an inventory ({exc})")
+        if not isinstance(earlier, dict):
+            raise StorageError(f"the stored object {args.compare} is not an inventory")
+        diff = diff_inventories(earlier, inventory)
+        result["compare"] = {"digest": args.compare, "equal": args.compare == digest, **diff}
+        if args.compare == digest:
+            lines.append("identical to the compared tree")
+        else:
+            for key in ("added", "removed", "changed"):
+                lines += [f"  {key}: {p}" for p in diff[key][: args.limit]]
+    if store is not None:
+        sha, dest = store_put_bytes(canonical_json(inventory), store)
+        assert sha == digest
+        result["inventory_entry"] = str(dest)
+    emit(result, args.json, lines)
+    return EXIT_FINDINGS if (args.compare and args.compare != digest) else EXIT_OK
+
+
+def cmd_closeout(args) -> int:
+    import run_storage
+    import storage_closeout
+    return storage_closeout.cmd_closeout(args, run_storage)
+
+
 def non_negative_int(text: str) -> int:
     value = int(text)
     if value < 0:
@@ -2741,16 +2997,54 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("inventory", help="read-only file counts, duplicate index objects and retention review")
     common(p)
     p.set_defaults(func=cmd_inventory)
+
+    p = sub.add_parser("install-hook", help="install a pre-commit hook running `check --staged`")
+    common(p, json_flag=False, limit=False)
+    p.add_argument("--strict", action="store_true", help="the hook refuses commits that add bulk files")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(func=cmd_install_hook)
+
+    p = sub.add_parser("sparse-exclude-bulk", help="leave tracked bulk files out of a linked worktree's checkout")
+    common(p, project=False)
+    p.add_argument("--worktree", default=None, help="worktree path (default: cwd)")
+    p.add_argument("--threshold", type=int, default=None)
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(func=cmd_sparse_exclude_bulk)
+
+    p = sub.add_parser("store-put", help="put files into a content store")
+    common(p, project=False, limit=False)
+    p.add_argument("files", nargs="+")
+    p.add_argument("--store", default=None)
+    p.set_defaults(func=cmd_store_put)
+
+    p = sub.add_parser("tree-digest", help="one digest for a whole tree")
+    common(p, project=False)
+    p.add_argument("root")
+    p.add_argument("--store", default=None, help="store the canonical inventory under its digest")
+    p.add_argument("--compare", default=None, help="digest of an earlier stored inventory")
+    p.set_defaults(func=cmd_tree_digest)
+
+    p = sub.add_parser("closeout", help="after a verdict: hash manifest, prune regenerable paths, compress")
+    common(p, project=False, limit=False)
+    p.add_argument("dir")
+    p.add_argument("--verdict", required=True, help="recorded verdict file (required)")
+    p.add_argument("--prune", action="append", default=[], help="relative path to remove (repeatable)")
+    p.add_argument("--prune-caches", action="store_true", help="also remove dependency trees and caches found inside")
+    p.add_argument("--compress-min-size", type=non_negative_int, default=CHUNK)
+    p.add_argument("--no-compress", action="store_true")
+    p.add_argument("--apply", action="store_true", help="execute (default: print the plan only)")
+    p.set_defaults(func=cmd_closeout)
     return parser
 
 
-SUBCOMMANDS = ("check", "stow", "verify", "materialize", "inventory", "worktree-check", "report")
+SUBCOMMANDS = ("check", "stow", "verify", "materialize", "inventory", "worktree-check", "report",
+               "install-hook", "sparse-exclude-bulk", "store-put", "tree-digest", "closeout")
 
 
 def main(argv: "list[str] | None" = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if getattr(args, "project_root", None) is None and args.command in ("check", "inventory"):
+    if getattr(args, "project_root", None) is None and args.command in ("check", "inventory", "install-hook"):
         args.project_root = "."
     try:
         return args.func(args)
@@ -2769,4 +3063,5 @@ def stop_on_error(args, message: str) -> int:
 
 
 if __name__ == "__main__":
+    sys.modules["run_storage"] = sys.modules[__name__]
     sys.exit(main())

@@ -591,7 +591,7 @@ The configured token window is frozen before the original reviewer subprocess st
 
 Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
-Research storage fixtures cover semantic classifications, aggregate admission, bundle content detection, duplicate index objects, zero-write inspection and byte-exact restoration. Run `python3 -m pytest skills/research-harness/tests/test_run_storage.py` and `pnpm -C packages/orchestrator test tests/run-origin-foreign-paths.test.ts tests/validity-ledger.test.ts tests/traceability-stage3.test.ts`. See [Research output storage](RUN_STORAGE.md).
+Research storage fixtures cover semantic classifications, aggregate admission, bundle content detection, duplicate index objects, zero-write inspection and byte-exact restoration. Run `python3 -m pytest skills/research-harness/tests/test_run_storage.py skills/research-harness/tests/test_storage_closeout.py` and `pnpm -C packages/orchestrator test tests/run-origin-foreign-paths.test.ts tests/validity-ledger.test.ts tests/traceability-stage3.test.ts`. See [Research output storage](RUN_STORAGE.md).
 
 ## Workflow evidence acceptance
 

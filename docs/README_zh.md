@@ -386,7 +386,7 @@ The configured token window is frozen before the original reviewer subprocess st
 
 Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
-研究输出保存、按用途分类、只读清单、提交检查及运行来源快照前的自动拦截见[研究输出存储](RUN_STORAGE.md)。存储命令不会删除数据、改写历史或清空恢复记录。
+研究输出保存、按用途分类、只读清单、提交检查及运行来源快照前的自动拦截见[研究输出存储](RUN_STORAGE.md)。项目证据和恢复记录保留在原处；仓库外已结束的临时任务可单独预览并执行缓存清理。
 
 
 可用 `--evidence-manifest <项目内JSON路径>` 显式声明科学依据：完整笔记和每份主要文本原文分批审读；不透明来源仍保持未读，其余引用保留为未读定位信息。最终核对完整笔记、真实阅读收据和经字节核验的原文片段，逐节覆盖并重新判断全部引用。必需来源未读、缺失或仍需补充原文时不能通过；不得声称全部递归历史均已阅读。见[笔记审查](NOTEBOOK_REVIEW.md)。

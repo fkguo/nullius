@@ -260,7 +260,7 @@ The configured token window is frozen before the original reviewer subprocess st
 
 Unmarked local directory links leave notebook dependency closure pending and prevent acceptance. A pure navigation link may use the Markdown title `"nullius-navigation"`: its local target must exist, but its content is not frozen or followed unless also linked as evidence or explicitly supplied with `--dependency`. The declaration stays visible in the complete original text and review inventory; a required unread source still prevents acceptance. The complete-original joint audit requires exact substantive original-byte anchors for every interval; a reasoning checkbox alone cannot supply coverage.
 
-Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](../../docs/RUN_STORAGE.md). No storage command deletes data, rewrites history or expires recovery records.
+Research output preservation, path classification, read-only inventory, commit checks and automatic origin-snapshot admission are described in [Research output storage](../../docs/RUN_STORAGE.md). Project evidence and recovery history stay in place. Optional scratch cleanup applies to finished directories outside repositories.
 
 `status.resume_context.read_order` gives `AGENTS.md`, `research_plan.md` and
 `project_index.md` first. `context_selection` preserves applicable constraints

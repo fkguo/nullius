@@ -18,9 +18,8 @@ from pathlib import Path
 import pytest
 
 _MOD = Path(__file__).resolve().parent.parent / "scripts" / "run_storage.py"
-_spec = importlib.util.spec_from_file_location("run_storage", _MOD)
-rs = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(rs)
+sys.path.insert(0, str(_MOD.parent))
+import run_storage as rs
 
 SKILL_MD = Path(__file__).resolve().parent.parent / "SKILL.md"
 RUN_STORAGE_REFERENCE_MD = Path(__file__).resolve().parent.parent / "references" / "run-storage.md"
@@ -3459,3 +3458,197 @@ def test_record_exemption_uses_staged_manifest_bytes_not_later_working_bytes(tmp
     f.write_text(json.dumps({"schema": rs.MANIFEST_SCHEMA, "entries": []}))
     assert run_main(["check", "--staged", "--strict", "--json"], repo, monkeypatch) == rs.EXIT_FINDINGS
     assert json.loads(capsys.readouterr().out)["admission_findings"][0]["source"] == "index"
+
+
+def test_sparse_exclude_bulk_in_linked_worktree(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "legacy"
+    run.mkdir()
+    (run / "huge.bin").write_bytes(blob(THRESHOLD * 2, 70))
+    (run / "notes.txt").write_text("small evidence\n")
+    sh("git", "add", "-A", cwd=repo)
+    sh("git", "commit", "-q", "-m", "legacy bulk", cwd=repo)
+    assert run_main(["sparse-exclude-bulk"], repo, monkeypatch) == rs.EXIT_ERROR  # main checkout refused
+    wt = _worktree(repo, tmp_path, "lane")
+    other = _worktree(repo, tmp_path, "other")
+    assert run_main(["sparse-exclude-bulk"], wt, monkeypatch) == rs.EXIT_OK
+    assert not (wt / "artifacts/runs/legacy/huge.bin").exists()
+    assert (wt / "artifacts/runs/legacy/notes.txt").exists() and (wt / "README.md").exists()
+    assert (run / "huge.bin").exists() and (other / "artifacts/runs/legacy/huge.bin").exists(), \
+        "the main checkout and other worktrees keep their full checkouts"
+    assert sh("git", "status", "--porcelain", cwd=wt).stdout == ""
+    capsys.readouterr()  # sparse-checkout bookkeeping alone never blocks removal
+    assert run_main(["worktree-check", str(wt), "--json"], repo, monkeypatch) == rs.EXIT_OK
+    assert run_main(["sparse-exclude-bulk"], wt, monkeypatch) == rs.EXIT_ERROR  # never overwrites patterns
+    sh("git", "sparse-checkout", "disable", cwd=wt)
+    assert (wt / "artifacts/runs/legacy/huge.bin").exists()
+
+
+def test_sparse_exclude_bulk_refuses_a_hidden_edit_of_a_bulk_file(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    run = repo / "artifacts" / "runs" / "legacy"
+    run.mkdir()
+    (run / "huge.bin").write_bytes(blob(THRESHOLD * 2, 72))
+    sh("git", "add", "-A", cwd=repo)
+    sh("git", "commit", "-q", "-m", "legacy bulk", cwd=repo)
+    wt = _worktree(repo, tmp_path, "lane")
+    edited = blob(THRESHOLD * 2, 73)
+    (wt / "artifacts/runs/legacy/huge.bin").write_bytes(edited)
+    sh("git", "update-index", "--assume-unchanged", "artifacts/runs/legacy/huge.bin", cwd=wt)
+    assert run_main(["sparse-exclude-bulk"], wt, monkeypatch) == rs.EXIT_ERROR
+    assert (wt / "artifacts/runs/legacy/huge.bin").read_bytes() == edited
+
+
+def test_tree_digest_compare_refuses_a_damaged_inventory(tmp_path, monkeypatch, capsys):
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "f").write_text("x")
+    store = tmp_path / "store"
+    capsys.readouterr()
+    assert run_main(["tree-digest", str(tree), "--store", str(store), "--json"], tmp_path, monkeypatch) == rs.EXIT_OK
+    digest = json.loads(capsys.readouterr().out)["digest"]
+    obj = rs.store_path(store, digest)
+    os.chmod(obj, 0o644)
+    obj.write_text("not json")
+    (tree / "g").write_text("changed")  # a different tree, so the damaged object is not simply rewritten
+    assert run_main(["tree-digest", str(tree), "--store", str(store), "--compare", digest], tmp_path,
+                    monkeypatch) == rs.EXIT_ERROR
+
+
+def test_tree_digest_store_and_compare(tmp_path, monkeypatch, capsys):
+    tree = tmp_path / "tree"
+    (tree / "d").mkdir(parents=True)
+    (tree / "d" / "f.txt").write_text("one\n")
+    store = tmp_path / "store"
+    capsys.readouterr()
+    assert run_main(["tree-digest", str(tree), "--store", str(store), "--json"], tmp_path, monkeypatch) == rs.EXIT_OK
+    first = json.loads(capsys.readouterr().out)["digest"]
+    assert rs.verify_store_object(rs.store_path(store, first), first)
+    assert run_main(["tree-digest", str(tree), "--store", str(store), "--compare", first], tmp_path,
+                    monkeypatch) == rs.EXIT_OK
+    (tree / "d" / "f.txt").write_text("two\n")
+    (tree / "g.txt").write_text("new\n")
+    capsys.readouterr()
+    assert run_main(["tree-digest", str(tree), "--store", str(store), "--compare", first, "--json"], tmp_path,
+                    monkeypatch) == rs.EXIT_FINDINGS
+    cmp = json.loads(capsys.readouterr().out)["compare"]
+    assert cmp["added"] == ["g.txt"] and cmp["changed"] == ["d/f.txt"] and cmp["removed"] == []
+
+
+def test_store_put_stores_once_and_leaves_the_source_untouched(tmp_path, monkeypatch, capsys):
+    a = tmp_path / "a.bin"
+    b = tmp_path / "b.bin"
+    a.write_bytes(blob(5000, 1))
+    b.write_bytes(blob(5000, 1))
+    before = stat.S_IMODE(a.stat().st_mode)
+    store = tmp_path / "store"
+    capsys.readouterr()
+    assert run_main(["store-put", str(a), str(b), "--store", str(store), "--json"], tmp_path,
+                    monkeypatch) == rs.EXIT_OK
+    methods = [r["method"] for r in json.loads(capsys.readouterr().out)["stored"]]
+    assert methods[0] in ("clone", "copy") and methods[1] == "existing"
+    real = rs.verify_store_object
+
+    def verify_then_writer(obj, sha):  # the observed file changes while the existing object is verified
+        ok = real(obj, sha)
+        with open(b, "ab") as fh:
+            fh.write(b"late")
+        return ok
+
+    monkeypatch.setattr(rs, "verify_store_object", verify_then_writer)
+    with pytest.raises(rs.StorageError):
+        rs.store_put(b, store)
+    assert stat.S_IMODE(a.stat().st_mode) == before, "recording a file never changes it"
+    with open(a, "ab") as fh:  # the observed program can keep writing
+        fh.write(b"more")
+
+
+def test_install_hook_warns_blocks_and_respects_foreign_hooks(tmp_path, monkeypatch, capsys):
+    repo = make_repo(tmp_path)
+    assert run_main(["install-hook"], repo, monkeypatch) == rs.EXIT_OK
+    run = repo / "artifacts" / "runs" / "r1"
+    run.mkdir()
+    (run / "big.dat").write_bytes(blob(THRESHOLD, 100))
+    sh("git", "add", "-A", cwd=repo)
+    commit = sh("git", "commit", "-q", "-m", "warned", cwd=repo, check=False)
+    assert commit.returncode == 0 and "artifacts/runs/r1/big.dat" in commit.stdout + commit.stderr
+    assert run_main(["install-hook", "--strict"], repo, monkeypatch) == rs.EXIT_OK
+    (run / "big2.dat").write_bytes(blob(THRESHOLD, 101))
+    sh("git", "add", "-A", cwd=repo)
+    assert sh("git", "commit", "-q", "-m", "blocked", cwd=repo, check=False).returncode != 0
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    text = hook.read_text()  # a strict hook whose helper is gone refuses as well
+    hook.write_text(text.replace(str(_MOD.resolve()), str(tmp_path / "moved-away.py")))
+    (run / "big3.dat").write_bytes(blob(THRESHOLD, 102))
+    sh("git", "add", "-A", cwd=repo)
+    assert sh("git", "commit", "-q", "-m", "blocked too", cwd=repo, check=False).returncode != 0
+    hook.write_text("#!/bin/sh\nexit 0\n")
+    assert run_main(["install-hook"], repo, monkeypatch) == rs.EXIT_ERROR
+    assert hook.read_text() == "#!/bin/sh\nexit 0\n"
+    hook.unlink()
+    os.symlink(tmp_path / "shared-hooks-not-mounted" / "pre-commit", hook)  # a foreign, currently dangling hook
+    assert run_main(["install-hook"], repo, monkeypatch) == rs.EXIT_ERROR
+    assert hook.is_symlink()
+
+
+def test_sparse_respects_policy_records_and_checkout_local_files(tmp_path, monkeypatch, capsys):
+    prefix = "artifacts/runs/test"
+    repo = make_repo(tmp_path, {"path_rules": [
+        {"path": prefix + "/evidence", "disposition": "git", "reason": "original input"},
+        {"path": prefix + "/cache", "disposition": "store", "reason": "reproducible output"},
+    ]})
+    run = repo / prefix
+    (run / "cache").mkdir(parents=True)
+    (run / "evidence").write_bytes(blob(THRESHOLD + 1))
+    (run / rs.MANIFEST_NAME).write_bytes(blob(THRESHOLD + 1))
+    (run / "cache/raw[*]").write_bytes(b"small")
+    (run / "cache/rawX").write_bytes(b"also small")
+    (repo / ".gitignore").write_text("local-only\n")
+    sh("git", "add", ".", cwd=repo)
+    sh("git", "commit", "-qm", "history", cwd=repo)
+    wt = _worktree(repo, tmp_path, "lane")
+    ignored = wt / prefix / "cache/local-only"
+    ignored.write_bytes(b"unique working bytes")
+    args = ["sparse-exclude-bulk", "--json"]
+    assert run_main(args + ["--dry-run"], wt, monkeypatch) == rs.EXIT_OK
+    preview = json.loads(capsys.readouterr().out)
+    assert [r["path"] for r in preview["excluded"]] == [prefix + "/cache/rawX", prefix + "/cache/raw[*]"]
+    assert (wt / prefix / "cache/raw[*]").is_file()
+    assert run_main(args, wt, monkeypatch) == rs.EXIT_OK
+    assert ignored.read_bytes() == b"unique working bytes"
+    assert (wt / prefix / "evidence").read_bytes() == blob(THRESHOLD + 1)
+    assert (wt / prefix / rs.MANIFEST_NAME).is_file()
+    sh("git", "sparse-checkout", "disable", cwd=wt)
+    assert (wt / prefix / "cache/raw[*]").read_bytes() == b"small"
+
+
+def test_hook_preserves_edited_hook_and_shared_hook_path(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    assert run_main(["install-hook"], repo, monkeypatch) == rs.EXIT_OK
+    hook = repo / ".git/hooks/pre-commit"
+    edited = hook.read_bytes() + b"# other local checks\n"
+    hook.write_bytes(edited)
+    assert run_main(["install-hook", "--strict"], repo, monkeypatch) == rs.EXIT_ERROR
+    assert hook.read_bytes() == edited
+    shared = tmp_path / "shared-hooks"
+    sh("git", "config", "core.hooksPath", str(shared), cwd=repo)
+    assert run_main(["install-hook"], repo, monkeypatch) == rs.EXIT_ERROR
+    assert not shared.exists()
+
+
+def test_store_and_digest_refuse_unsafe_destinations(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path)
+    item = repo / "README.md"
+    assert run_main(["store-put", str(item), "--store", str(repo / "unsafe")], repo, monkeypatch) == rs.EXIT_ERROR
+    tree = tmp_path / "scratch"
+    tree.mkdir()
+    assert run_main(["tree-digest", str(tree), "--store", str(tree / "inside")], repo, monkeypatch) == rs.EXIT_ERROR
+    store = tmp_path / "storage"
+    assert run_main(["tree-digest", str(tree), "--store", str(store), "--compare", "../outside"], repo, monkeypatch) == rs.EXIT_ERROR
+    assert not (repo / "unsafe").exists() and not (tree / "inside").exists() and not store.exists()
+    store.mkdir()
+    redirected = tmp_path / "unrelated"
+    redirected.mkdir()
+    (store / "sha256").symlink_to(redirected, target_is_directory=True)
+    assert run_main(["store-put", str(item), "--store", str(store)], repo, monkeypatch) == rs.EXIT_ERROR
+    assert not list(redirected.iterdir())
