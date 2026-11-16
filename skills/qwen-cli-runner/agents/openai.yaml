@@ -1,0 +1,4 @@
+interface:
+  display_name: "Qwen CLI Runner"
+  short_description: "Run qwen CLI headless with prompt files."
+  default_prompt: "Run Qwen Code non-interactively for this prompt packet and save the parsed assistant text output to a file."

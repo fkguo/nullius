@@ -117,12 +117,12 @@ DSH runner 的回归覆盖当前桌面 launcher、完整运行时字节绑定、
 ```bash
 pnpm --filter @nullius/orchestrator exec vitest run tests/cli-run-workflow-recovery.test.ts tests/agent-runner-history-compaction.test.ts tests/cli-run-workflow.test.ts tests/agent-runner.test.ts tests/workflow-runtime.test.ts tests/nullius-cli.test.ts
 pnpm --filter @nullius/hep-mcp exec vitest run tests/contracts/inspireLiteratureProjectRoot.test.ts tests/toolContracts.test.ts tests/docs/docToolDrift.test.ts
-python3 -m pytest -q skills/kimi-cli-runner/tests skills/opencode-cli-runner/tests skills/review-swarm/tests/test_seat_budget.py skills/dsh-cli-runner/tests
+python3 -m pytest -q skills/kimi-cli-runner/tests skills/opencode-cli-runner/tests skills/qwen-cli-runner/tests skills/review-swarm/tests/test_seat_budget.py skills/dsh-cli-runner/tests
 ```
 
 使用虚构工具与临时项目验证真正进程死亡、未知副作用停止、已提交响应回放、暂停和审批续接。压缩测试保留约束与完整工具配对，过长指令不通过删约束恢复。INSPIRE 七种模式的 catalog、parser 与 dispatch 接纳共同参数并拒绝错误模式参数。runner 测试使用虚构 CLI，验证空输出、异常退出、最终长度截断、总调用/时间预算及本地进程树清理；这不证明真实 provider 可用或科研结果正确。
 
-Kimi/OpenCode 需要 Python 3.10 或更新版本；不满足时在调用模型之前拒绝运行。`--max-attempts` 是包括 fallback/续写的总 CLI 调用数，`--timeout-secs` 是包括 backoff 的总期限。review launcher 的同名预算统计每个 seat 的 runner 进程调用；Gemini 没有内层尝试数控制，不能把该统计声称为准确的底层 HTTP 请求数。每次调用保留 trace；`OUT.partial` 不算完成的 `OUT`。复制安装须重新从当前源码构建/安装并验证；本地定向检查不更新其他安装或已有外部项目。
+Kimi/OpenCode/Qwen 需要 Python 3.10 或更新版本；不满足时在调用模型之前拒绝运行。`--max-attempts` 是包括 fallback/续写的总 CLI 调用数，`--timeout-secs` 是包括 backoff 的总期限。review launcher 的同名预算统计每个 seat 的 runner 进程调用；Gemini 没有内层尝试数控制，不能把该统计声称为准确的底层 HTTP 请求数。每次调用保留 trace；`OUT.partial` 不算完成的 `OUT`。复制安装须重新从当前源码构建/安装并验证；本地定向检查不更新其他安装或已有外部项目。
 
 #### 本地个人插件与项目 MCP
 

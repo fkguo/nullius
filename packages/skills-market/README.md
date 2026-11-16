@@ -49,6 +49,13 @@ register a review-swarm backend or install DSH. The current adapter accepts the
 DSH Desktop 0.2.1-rc.2 macOS launcher and v4 session format; it refuses unvalidated
 versions/layouts rather than treating a launcher as an npm package directory.
 
+For one-shot headless tasks through the local Qwen Code CLI, the catalog includes
+[`qwen-cli-runner`](../../skills/qwen-cli-runner/SKILL.md). It feeds prompt files
+via stdin, parses the batch-JSON result message, defaults to an isolated working
+directory with analyze-only approval, and shares the file-based runner interface.
+Like `dsh-cli-runner`, it is independently usable and does not register a
+review-swarm backend or install the Qwen Code CLI.
+
 ## Layout
 
 - `packages/`: package metadata (`*.json`)

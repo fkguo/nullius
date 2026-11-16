@@ -242,6 +242,13 @@
       "version": "0.1.0",
       "source_path": "skills/physics-diagrams/SKILL.md"
     },
+    "qwen-cli-runner": {
+      "type": "skill-pack",
+      "repo": "nullius/skills-market",
+      "channel": "beta",
+      "version": "0.1.0",
+      "source_path": "skills/qwen-cli-runner/SKILL.md"
+    },
     "referee-review": {
       "type": "skill-pack",
       "repo": "nullius/skills-market",

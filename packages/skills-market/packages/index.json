@@ -1,6 +1,6 @@
 {
   "index_version": "1.4.0",
-  "updated_at": "2026-11-15T00:00:00Z",
+  "updated_at": "2026-11-16T00:00:00Z",
   "packages": [
     "citation-triangulation.json",
     "claim-grounding.json",
@@ -31,6 +31,7 @@
     "paper-reviser.json",
     "pdg-lookup.json",
     "physics-diagrams.json",
+    "qwen-cli-runner.json",
     "referee-review.json",
     "research-harness.json",
     "research-integrity.json",

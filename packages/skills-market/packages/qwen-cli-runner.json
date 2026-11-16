@@ -1,0 +1,40 @@
+{
+  "package_id": "qwen-cli-runner",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "beta",
+  "version": "0.1.0",
+  "summary": "Non-interactive Qwen Code CLI runner skill for file-based prompt execution via stdin with retries and default-model fallback.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "kimi_code",
+    "opencode"
+  ],
+  "source_path": "skills/qwen-cli-runner/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "kimi_code": "Link into ~/.kimi-code/skills for Kimi Code discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/qwen-cli-runner",
+    "include": [
+      "SKILL.md",
+      "agents/**",
+      "scripts/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store"
+    ]
+  }
+}
