@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _LIVE: dict[int, tuple[object, subprocess.Popen]] = {}
-from complete_assistant_text import validate_stream_report
+from complete_assistant_text import capture_profile, kimi_capture_files, validate_stream_report
 
 _DOMAIN = b"nullius-runtime-capture-observation\x00"
 _MEMBER_DOMAIN = b"nullius-runtime-member-episode\x00"
@@ -292,6 +292,8 @@ def _bind(state: dict | None, proc: subprocess.Popen) -> None:
 
 
 def _capture_files(root: Path) -> dict:
+    if capture_profile(root) == "kimi_prompt_stream_json":
+        return {p.name: _identity(p) for p in kimi_capture_files(root)}
     files = sorted({*root.glob("*.events.jsonl"), *root.glob("*.events.result.json")})
     if not files or not any(p.name.endswith(".events.jsonl") for p in files) or not any(p.name.endswith(".events.result.json") for p in files):
         raise ValueError("unavailable: incomplete original captured events/result")

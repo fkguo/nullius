@@ -199,3 +199,155 @@ def test_an_empty_key_left_by_a_crashed_creator_is_replaced_by_a_complete_key():
     key = runtime._key(create=True)
     assert len(key) == 32 and runtime._key(create=False) == key
     assert sorted(p.name for p in directory.iterdir()) == ["authority.key", "authority.lock"]
+
+
+def native_records(hint=True, text="Original complete report λ\n"):
+    records = [{"role": "meta", "type": "system.version", "version": "2.6.0"},
+               {"role": "assistant", "content": text}]
+    if hint:
+        records.append({"role": "meta", "type": "session.resume_hint", "session_id": "neutral-session",
+                        "command": "continue neutral-session", "content": "Resume the session."})
+    return records
+
+
+def observed_native(tmp_path, *, records=None, raw=None, report=None, exit_code=0,
+                    budget_changes=None, mutate_input=False, extra_files=None):
+    """Fresh actual subprocess bytes; these fixtures never call a model or import saved captures."""
+    project = tmp_path / "project"; project.mkdir()
+    system = project / "system"; system.write_bytes(b"Neutral system\r\n")
+    prompt = project / "prompt"; prompt.write_text("Original neutral request λ\n")
+    output = project / "report"
+    root = Path(str(output) + ".attempts") / "run.fresh"
+    hashes = [hashlib.sha256(p.read_bytes()).hexdigest() for p in (system, prompt)]
+    records = native_records() if records is None else records
+    raw = ("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records).encode()
+           if raw is None else raw)
+    report = records[1]["content"].rstrip() + "\n" if report is None else report
+    budget = {"status": "completed", "runner_exit_code": 0, "input_sha256": hashes,
+              "attempts": [{"index": 1, "status": "exited", "exit_code": 0,
+                            "stdout": "attempt_1.stdout", "stderr": "attempt_1.stderr"}]}
+    budget.update(budget_changes or {})
+    files = {"budget.json": json.dumps(budget).encode(), "attempt_1.stdout": raw,
+             "attempt_1.stderr": b"Original diagnostic bytes\r\n"}
+    files.update(extra_files or {})
+    script = project / "runner.py"
+    code = 'from pathlib import Path\nimport sys\n'
+    code += f'root=Path({str(root)!r});root.mkdir(parents=True)\n'
+    for name, data in files.items():
+        code += f'(root/{name!r}).write_bytes({data!r})\n'
+    code += f'Path({str(output)!r}).write_bytes({report.encode()!r})\n'
+    if mutate_input:
+        code += f'Path({str(prompt)!r}).write_text("Changed original request")\n'
+    code += f'sys.exit({exit_code})\n'
+    script.write_text(code)
+    cmd = [sys.executable, str(script), "--system-prompt-file", str(system),
+           "--prompt-file", str(prompt), "--out", str(output)]
+    process = run_multi_task._run_with_timeout(cmd, timeout_secs=10, context_tokens=50000)
+    return output, root / "budget.json", hashes, process, cmd, files
+
+
+@pytest.mark.parametrize("hint", [True, False])
+def test_native_prompt_observes_original_process_and_complete_raw_identity(tmp_path, hint):
+    text = "Earlier original reasoning.\r\nUnicode separators:\u0085\u2028\u2029Complete final report λ\n\n  "
+    output, budget, hashes, process, _, originals = observed_native(
+        tmp_path, records=native_records(hint, text))
+    assert process["exit_code"] == 0
+    verified = runtime.verify_capture_observation(budget, output, hashes, str(Path.cwd()), 50000)
+    complete = verified["complete_output"]
+    assert complete["protocol"] == "kimi_prompt_stream_json"
+    assert complete["completion_authority"] == "observed_process_exit_zero"
+    assert complete["provider_terminal_event"] is False
+    assert complete["text_policy"] == "rstrip_then_final_newline"
+    assert complete["assistant_text_sha256"] == hashlib.sha256(text.encode()).hexdigest()
+    assert output.read_bytes() == (text.rstrip() + "\n").encode()
+    capture = json.loads(budget.read_text())["runtime_observation"]["payload"]["capture"]
+    assert set(capture["files"]) == {"attempt_1.stdout", "attempt_1.stderr"}
+    assert not list(budget.parent.glob("*.events.*"))
+    for name in capture["files"]:
+        assert (budget.parent / name).read_bytes() == originals[name]
+        assert capture["files"][name] == {"sha256": hashlib.sha256(originals[name]).hexdigest(),
+                                           "size_bytes": len(originals[name])}
+
+
+@pytest.mark.parametrize("change", ["stdout", "stderr", "budget", "extra", "report", "request", "hmac"])
+def test_native_prompt_mutations_never_verify(tmp_path, change):
+    output, budget, hashes, _, _, _ = observed_native(tmp_path)
+    if change in ("stdout", "stderr"):
+        path = budget.parent / ("attempt_1." + change)
+        path.write_bytes(path.read_bytes() + b"changed\n")
+    elif change == "budget":
+        record = json.loads(budget.read_text()); record["attempts"][0]["elapsed_secs"] = 1
+        budget.write_text(json.dumps(record))
+    elif change == "extra":
+        (budget.parent / "attempt_2.stdout").write_text("additional original bytes\n")
+    elif change == "report":
+        output.write_text("replacement report\n")
+    elif change == "request":
+        hashes = ["0" * 64, "1" * 64]
+    elif change == "hmac":
+        sidecar = Path(str(output) + ".runtime-observation.json")
+        record = json.loads(sidecar.read_text()); record["hmac_sha256"] = "0" * 64
+        sidecar.write_text(json.dumps(record))
+    with pytest.raises((ValueError, OSError)):
+        runtime.verify_capture_observation(budget, output, hashes)
+
+
+@pytest.mark.parametrize("invalid", ["truncated", "missing_newline", "malformed", "duplicate_key", "invalid_utf8",
+    "error", "tool", "tool_call", "array", "unknown_role", "unknown_meta", "unknown_version", "extra_assistant",
+    "extra_field", "empty", "missing_header", "bad_hint", "nonfinite", "report_mismatch", "extra_file",
+    "nonzero_inner", "unknown_receipt", "wrong_input", "input_mutation"])
+def test_native_prompt_rejects_incomplete_unknown_and_unbound_shapes(tmp_path, invalid):
+    records = native_records(); kwargs = {}; raw = None
+    if invalid == "truncated": raw = b'{"role":"assistant","content":"unfinished'
+    elif invalid == "missing_newline": raw = "\n".join(map(json.dumps, records)).encode()
+    elif invalid == "malformed": raw = b'not JSON\n'
+    elif invalid == "duplicate_key": raw = (json.dumps(records[0]) + '\n{"role":"assistant","content":"old","content":"Original complete report λ\\n"}\n').encode()
+    elif invalid == "invalid_utf8": raw = b'\xff\n'
+    elif invalid == "error": records.append({"role": "error", "content": "failed"})
+    elif invalid == "tool": records.insert(2, {"role": "tool", "tool_call_id": "pending", "content": "unresolved"})
+    elif invalid == "tool_call": records[1]["tool_calls"] = [{"id": "pending"}]
+    elif invalid == "array": records[1]["content"] = [{"type": "text", "text": "unsupported"}]
+    elif invalid == "unknown_role": records[1]["role"] = "unrecognized"
+    elif invalid == "unknown_meta": records[2]["type"] = "session.unknown"
+    elif invalid == "unknown_version": records[0]["version"] = "unrecognized"
+    elif invalid == "extra_assistant": records.insert(2, {"role": "assistant", "content": "extra"})
+    elif invalid == "extra_field": records[1]["unknown"] = "cannot be silently omitted"
+    elif invalid == "empty": records[1]["content"] = "  "
+    elif invalid == "missing_header": records = records[1:]
+    elif invalid == "bad_hint": records[2]["content"] = {}
+    elif invalid == "nonfinite": records[1]["unknown"] = float("nan")
+    elif invalid == "report_mismatch": kwargs["report"] = "different report\n"
+    elif invalid == "extra_file": kwargs["extra_files"] = {"unknown.txt": b"unobserved?"}
+    elif invalid == "nonzero_inner": kwargs["budget_changes"] = {"attempts": [{"status": "exited", "exit_code": 9}]}
+    elif invalid == "unknown_receipt": kwargs["budget_changes"] = {"runner_exit_code": 0, "attempts": [{"status": "exited", "exit_code": 0}]}
+    elif invalid == "wrong_input": kwargs["budget_changes"] = {"input_sha256": ["0" * 64, "1" * 64]}
+    elif invalid == "input_mutation": kwargs["mutate_input"] = True
+    # Keep the report neutral even when the deliberately invalid assistant has no string content.
+    kwargs.setdefault("report", "Original complete report λ\n")
+    with pytest.raises((ValueError, OSError)):
+        observed_native(tmp_path, records=records, raw=raw, **kwargs)
+    assert not (tmp_path / "project/report.runtime-observation.json").exists()
+
+
+def test_native_nonzero_process_cannot_issue_successful_capture(tmp_path):
+    output, budget, hashes, process, _, _ = observed_native(tmp_path, exit_code=9)
+    assert process["exit_code"] == 9
+    assert not Path(str(output) + ".runtime-observation.json").exists()
+    with pytest.raises(ValueError, match="runtime observation missing"):
+        runtime.verify_capture_observation(budget, output, hashes)
+
+
+def test_native_saved_capture_cannot_be_reobserved_by_successful_noop(tmp_path):
+    output, budget, hashes, _, cmd, _ = observed_native(tmp_path)
+    sidecar = Path(str(output) + ".runtime-observation.json"); sidecar.unlink()
+    assert runtime._prepare(cmd) is None
+    assert runtime._finish(None, object()) is None
+    with pytest.raises(ValueError, match="runtime observation missing"):
+        runtime.verify_capture_observation(budget, output, hashes)
+
+
+def test_native_raw_files_cannot_be_relabelled_as_claude_events(tmp_path):
+    output, budget, hashes, _, _, _ = observed_native(tmp_path)
+    (budget.parent / "attempt_1.stdout").rename(budget.parent / "attempt_1.events.jsonl")
+    with pytest.raises((ValueError, OSError)):
+        runtime.verify_capture_observation(budget, output, hashes)
