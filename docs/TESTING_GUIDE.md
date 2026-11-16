@@ -340,6 +340,7 @@ EOF
 **预期**
 
 - 数字 `1833986` 与字符串 `"1833986"` 应返回同一篇论文的元信息。超过 9007199254740991 的编号须以字符串传入。
+- `lookup_by_id` 查询未收录的标识符时应返回 `NOT_FOUND`、`retryable: false` 和所查询的标识符。若只知道题名或作者，先用 `inspire_search` 找到目标记录。
 - `get_paper` 不需要 `size`
 - `lookup_by_id` 语义上只传 `identifier`；agent 误带的 `size` 会被忽略，但不要主动附带
 - `get_author` 语义上只传 `identifier`；agent 误带的 `size` 会被忽略，但不要主动附带

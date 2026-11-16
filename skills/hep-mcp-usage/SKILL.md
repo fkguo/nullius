@@ -33,7 +33,7 @@ This skill is an agent-facing operating contract. It does not replace `research-
 ## Evidence Workflow
 
 1. Start with a health/config check when the session has not already proved the MCP server is available.
-2. Search with the most authoritative provider for the question. For HEP literature identity and author queries, start with INSPIRE-backed `hep-mcp` search; for non-HEP scholarly metadata or citation context, start with the general provider most suited to the task, such as OpenAlex or arXiv.
+2. Search with the most authoritative provider for the question. For HEP literature identity and author queries, start with INSPIRE-backed `hep-mcp` search; for non-HEP scholarly metadata or citation context, start with the general provider most suited to the task, such as OpenAlex or arXiv. Use direct identifier lookup for an ID supplied by the user or found in a source or catalog record. When working from memory, a topic, or a partial citation, search by title words, author or collaboration first. Check the returned title, authors and subject against the intended work before copying its identifier. If the matched record has no arXiv ID, use its DOI or INSPIRE recid. An INSPIRE miss alone says nothing about availability on arXiv.
 3. For arXiv papers, prefer source retrieval and LaTeX/source-level reading over abstract-only summaries or PDF-only skim when the claim is load-bearing.
 4. Treat metadata resolution as identification, not verification. A paper, DOI, recid, arXiv id, or citekey match does not prove the cited content supports the claim.
 5. Check author/name collisions, year/topic outliers, and suspicious citation mappings explicitly. Report collisions instead of silently accepting a mixed result set.

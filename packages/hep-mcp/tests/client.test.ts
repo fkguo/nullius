@@ -188,15 +188,6 @@ describe('API Client', () => {
       expect(paper.keywords).toContain('pentaquark');
       expect(paper.arxiv_categories).toContain('hep-ex');
     });
-
-    it('should throw on 404', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-      });
-
-      await expect(clientModule.getPaper('nonexistent')).rejects.toThrow();
-    });
   });
 
   describe('getReferences', () => {
@@ -453,19 +444,28 @@ describe('API Client', () => {
         code: 'INVALID_PARAMS',
       });
     });
+  });
 
-    it('404 includes normalized arXiv id in error payload', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
+  describe('direct INSPIRE literature record lookups', () => {
+    const lookups = [
+      { name: 'record', lookup: () => clientModule.getPaper('123'), fields: { recid: '123' } },
+      { name: 'references', lookup: () => clientModule.getReferences('123'), fields: { recid: '123' } },
+      { name: 'DOI', lookup: () => clientModule.getByDoi('10.1000/example'), fields: { doi: '10.1000/example' } },
+      { name: 'arXiv', lookup: () => clientModule.getByArxiv('arXiv:2504.14997v2'), fields: {
+        input_arxiv_id: 'arXiv:2504.14997v2', normalized_arxiv_id: '2504.14997',
+      } },
+    ];
+
+    it.each(lookups)('reports a $name miss separately from a provider outage', async ({ lookup, fields }) => {
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 404 });
+      await expect(lookup()).rejects.toMatchObject({
+        code: 'NOT_FOUND', retryable: false, data: { status: 404, url: expect.any(String), ...fields },
       });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
 
-      await expect(clientModule.getByArxiv('arXiv:2504.14997')).rejects.toMatchObject({
-        code: 'UPSTREAM_ERROR',
-        data: expect.objectContaining({
-          status: 404,
-          normalized_arxiv_id: '2504.14997',
-        }),
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+      await expect(lookup()).rejects.toMatchObject({
+        code: 'UPSTREAM_ERROR', retryable: true, data: { status: 503, ...fields },
       });
     });
   });

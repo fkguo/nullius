@@ -5,6 +5,7 @@ import {
   type PaperSummary,
   type Paper,
   invalidParams,
+  notFound,
   upstreamError,
   cleanMathTitle,
 } from '@nullius/shared';
@@ -703,17 +704,27 @@ export async function searchAll(
   };
 }
 
+async function fetchLiteratureRecord(url: string, identifiers: Record<string, string>): Promise<Response> {
+  const response = await limitedFetch(url);
+  if (response.ok) return response;
+
+  const data = { url, status: response.status, ...identifiers };
+  if (response.status === 404) {
+    throw notFound(
+      'No INSPIRE literature record found for this identifier. Search by title and author with inspire_search to identify the intended paper.',
+      data,
+    );
+  }
+  throw upstreamError(`INSPIRE API error: ${response.status}`, data);
+}
+
 export async function getPaper(recid: string): Promise<Paper> {
   // Check cache first (with TTL)
   const cached = getPaperFromCache(recid);
   if (cached) return cached;
 
   const url = `${API_BASE}/literature/${recid}`;
-  const response = await limitedFetch(url);
-
-  if (!response.ok) {
-    throw upstreamError(`INSPIRE API error: ${response.status}`, { url, status: response.status });
-  }
+  const response = await fetchLiteratureRecord(url, { recid });
 
   const data = await response.json() as InspireHit;
   const meta = data.metadata || {};
@@ -740,11 +751,7 @@ export async function getPaper(recid: string): Promise<Paper> {
  */
 export async function getByDoi(doi: string): Promise<Paper> {
   const url = `${API_BASE}/doi/${encodeURIComponent(doi)}`;
-  const response = await limitedFetch(url);
-
-  if (!response.ok) {
-    throw upstreamError(`INSPIRE API error: ${response.status}`, { url, status: response.status });
-  }
+  const response = await fetchLiteratureRecord(url, { doi });
 
   const data = await response.json() as InspireHit;
   const meta = data.metadata || {};
@@ -774,24 +781,10 @@ export async function getByArxiv(arxivId: string): Promise<Paper> {
   }
 
   const url = `${API_BASE}/arxiv/${encodeURIComponent(normalized)}`;
-  const response = await limitedFetch(url);
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw upstreamError('INSPIRE API error: 404 (arXiv record not found)', {
-        url,
-        status: response.status,
-        input_arxiv_id: arxivId,
-        normalized_arxiv_id: normalized,
-      });
-    }
-    throw upstreamError(`INSPIRE API error: ${response.status}`, {
-      url,
-      status: response.status,
-      input_arxiv_id: arxivId,
-      normalized_arxiv_id: normalized,
-    });
-  }
+  const response = await fetchLiteratureRecord(url, {
+    input_arxiv_id: arxivId,
+    normalized_arxiv_id: normalized,
+  });
 
   const data = await response.json() as InspireHit;
   const meta = data.metadata || {};
@@ -816,11 +809,7 @@ export async function getReferences(recid: string, size?: number): Promise<Paper
   // Use fields parameter to get references from paper metadata (more reliable than /references endpoint)
   // This approach doesn't have size limits and returns all references
   const url = `${API_BASE}/literature/${recid}?fields=metadata.references`;
-  const response = await limitedFetch(url);
-
-  if (!response.ok) {
-    throw upstreamError(`INSPIRE API error: ${response.status}`, { url, status: response.status });
-  }
+  const response = await fetchLiteratureRecord(url, { recid });
 
   const data = await response.json() as InspireHit;
   const refs = data.metadata?.references || [];

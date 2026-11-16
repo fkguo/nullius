@@ -175,7 +175,7 @@ Example combined query: "a:Feng.Kun.Guo.1 topcite:250+ authorcount:1->10"`,
     title: 'INSPIRE literature lookup',
     tier: 'consolidated',
     exposure: 'standard',
-    description: `Unified INSPIRE literature access tool (network).
+    description: `Unified INSPIRE literature access tool (network). Use identifiers supplied by the caller or found in a source or catalog record. If only the paper's subject or bibliographic details are known, use inspire_search first. Match the title and authors or collaboration before copying an identifier from the result.
 
 Modes + required args:
 - get_paper: { recid } only. Do not pass size, page, or options.
