@@ -7,6 +7,8 @@ import subprocess
 import time
 from pathlib import Path
 
+import pytest
+
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 RUNNER = SKILL_DIR / "scripts" / "run_qwen.sh"
@@ -148,6 +150,47 @@ case "${mode}" in
       exit 8
     fi
     emit_array "$(result_ok "OK_RETRY")"
+    ;;
+  tool_activity_then_disconnect)
+    # Batch array never closed: the run executed a tool, emitted assistant
+    # text, then the connection dropped before the result message.
+    printf '[{"type":"system","subtype":"init","session_id":"s-tool"},'
+    printf '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"write_file","input":{}}]}},'
+    printf '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"written"}]}},'
+    printf '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"PARTIAL_AFTER_TOOL"}]}}'
+    echo "connection reset by peer" >&2
+    exit 1
+    ;;
+  tool_activity_jsonl_then_disconnect)
+    echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"run_shell","input":{}}]}}'
+    echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"PARTIAL_JSONL"}]}}'
+    echo "connection reset by peer" >&2
+    exit 1
+    ;;
+  tool_activity_error_result_zero_exit)
+    python3 - <<'PY'
+import json
+import os
+
+print(json.dumps([
+    {"type": "assistant", "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "id": "t1", "name": "write_file", "input": {}}
+    ]}},
+    {"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "t1", "content": "written"}
+    ]}},
+    {"type": "assistant", "message": {"role": "assistant", "content": [
+        {"type": "text", "text": "PARTIAL_BEFORE_ERROR_RESULT"}
+    ]}},
+    {"type": "result", "subtype": "error_during_execution", "is_error": True,
+     "error": {"message": os.environ["FAKE_TOOL_ERROR"]}},
+]))
+PY
+    ;;
+  text_only_disconnect)
+    printf '[{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"PARTIAL_NO_TOOL"}]}}'
+    echo "connection reset by peer" >&2
+    exit 1
     ;;
   model_not_found)
     if [[ -n "${model}" ]]; then
@@ -519,13 +562,150 @@ def test_no_fallback_fails_on_model_not_found(tmp_path: Path) -> None:
 
 
 def test_resume_session_passes_explicit_session_id(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    proc, out_path, _ = _run_runner(
+        tmp_path,
+        args=["--resume-session", "abc-123", "--work-dir", str(work)],
+        fake_mode="emit_metadata",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert '"resume": "abc-123"' in _out_text(out_path)
+
+
+def test_resume_session_requires_work_dir(tmp_path: Path) -> None:
     proc, out_path, _ = _run_runner(
         tmp_path,
         args=["--resume-session", "abc-123"],
         fake_mode="emit_metadata",
     )
-    assert proc.returncode == 0, proc.stderr
-    assert '"resume": "abc-123"' in _out_text(out_path)
+    assert proc.returncode == 2
+    assert "--resume-session requires --work-dir" in proc.stderr
+    assert _out_text(out_path) == ""
+
+
+def test_tool_activity_failure_is_not_redispatched_and_keeps_partial(tmp_path: Path) -> None:
+    proc, out_path, log_path = _run_runner(
+        tmp_path,
+        args=["--max-attempts", "3", "--sleep-secs", "1"],
+        fake_mode="tool_activity_then_disconnect",
+    )
+    assert proc.returncode == 1
+    assert _log_text(log_path).count("args=") == 1, "must not re-dispatch after recorded tool activity"
+    assert "recorded tool activity" in proc.stderr
+    assert not out_path.exists()
+    partial = Path(str(out_path) + ".partial")
+    assert partial.exists()
+    assert "PARTIAL_AFTER_TOOL" in partial.read_text(encoding="utf-8")
+    assert "tool_activity:" not in partial.read_text(encoding="utf-8")
+
+
+def test_tool_activity_in_jsonl_salvage_also_stops_redispatch(tmp_path: Path) -> None:
+    proc, out_path, log_path = _run_runner(
+        tmp_path,
+        args=["--max-attempts", "3", "--sleep-secs", "1"],
+        fake_mode="tool_activity_jsonl_then_disconnect",
+    )
+    assert proc.returncode == 1
+    assert _log_text(log_path).count("args=") == 1
+    assert "recorded tool activity" in proc.stderr
+    partial = Path(str(out_path) + ".partial")
+    assert partial.exists()
+    assert "PARTIAL_JSONL" in partial.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("error_text", ["connection reset by peer", "Model not found: fixture-model"])
+def test_zero_exit_error_after_tool_stops_retry_and_fallback(tmp_path: Path, error_text: str) -> None:
+    proc, out_path, log_path = _run_runner(
+        tmp_path,
+        args=["--max-attempts", "2", "--sleep-secs", "1", "--timeout-secs", "10"],
+        fake_mode="tool_activity_error_result_zero_exit",
+        extra_env={"FAKE_TOOL_ERROR": error_text},
+    )
+    assert proc.returncode == 11, proc.stderr
+    assert _log_text(log_path).count("args=") == 1
+    assert "recorded tool activity" in proc.stderr
+    assert "retrying" not in proc.stderr
+    assert not out_path.exists()
+    partial = Path(str(out_path) + ".partial").read_text(encoding="utf-8")
+    assert partial == "PARTIAL_BEFORE_ERROR_RESULT\n"
+    receipt_path = next(Path(str(out_path) + ".attempts").glob("run.*/budget.json"))
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["status"] == "failed"
+    assert receipt["attempts_used"] == 1
+    assert receipt["attempts"][0]["exit_code"] == 0
+
+
+def test_text_only_disconnect_keeps_partial_without_tool_stop(tmp_path: Path) -> None:
+    proc, out_path, log_path = _run_runner(
+        tmp_path,
+        args=["--max-attempts", "1"],
+        fake_mode="text_only_disconnect",
+    )
+    assert proc.returncode != 0
+    assert "recorded tool activity" not in proc.stderr
+    partial = Path(str(out_path) + ".partial")
+    assert partial.exists()
+    assert "PARTIAL_NO_TOOL" in partial.read_text(encoding="utf-8")
+    assert not out_path.exists()
+
+
+def test_raw_out_cannot_alias_prompt_file(tmp_path: Path) -> None:
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("task input\n", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_qwen(bin_dir)
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    proc = subprocess.run(
+        ["bash", str(RUNNER), "--prompt-file", str(prompt), "--out", str(tmp_path / "out.txt"),
+         "--raw-out", str(prompt)],
+        text=True, capture_output=True, env=env, cwd=tmp_path, check=False,
+    )
+    assert proc.returncode == 2
+    assert "must differ from prompt inputs" in proc.stderr
+    assert prompt.read_text(encoding="utf-8") == "task input\n"
+
+
+def test_stderr_out_cannot_alias_prompt_file(tmp_path: Path) -> None:
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("task input\n", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_qwen(bin_dir)
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    proc = subprocess.run(
+        ["bash", str(RUNNER), "--prompt-file", str(prompt), "--out", str(tmp_path / "out.txt"),
+         "--stderr-out", str(prompt)],
+        text=True, capture_output=True, env=env, cwd=tmp_path, check=False,
+    )
+    assert proc.returncode == 2
+    assert "must differ from prompt inputs" in proc.stderr
+    assert prompt.read_text(encoding="utf-8") == "task input\n"
+
+
+def test_out_cannot_alias_system_prompt_file(tmp_path: Path) -> None:
+    proc, out_path, _ = _run_runner(
+        tmp_path,
+        args=[],
+        system_text="SYSTEM\n",
+    )
+    # separate invocation where --out points at the system file
+    system = tmp_path / "system.txt"
+    bin_dir = tmp_path / "bin"
+    _write_fake_qwen(bin_dir)
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    proc = subprocess.run(
+        ["bash", str(RUNNER), "--prompt-file", str(tmp_path / "prompt.txt"),
+         "--system-prompt-file", str(system), "--out", str(system)],
+        text=True, capture_output=True, env=env, cwd=tmp_path, check=False,
+    )
+    assert proc.returncode == 2
+    assert "must differ from prompt inputs" in proc.stderr
+    assert system.read_text(encoding="utf-8") == "SYSTEM\n"
 
 
 def test_rejects_prompt_over_configured_limit(tmp_path: Path) -> None:

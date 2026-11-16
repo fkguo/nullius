@@ -83,7 +83,9 @@ Options:
                           (default: OUT.attempts).
   --no-fallback           Do not retry without -m after a model-not-found failure.
   --resume-session ID     Resume a specific recorded qwen session (qwen -r ID); the
-                          prompt is that session's next turn. Continuation is not an
+                          prompt is that session's next turn. Requires --work-dir DIR
+                          pointing at the prior run's working directory (qwen scopes
+                          sessions per project directory). Continuation is not an
                           independent review.
   --dry-run               Print invocation details and exit 0 without calling qwen.
 
@@ -177,12 +179,17 @@ EOF
 parse_qwen_json() {
   # Batch `-o json` output: ONE JSON array of CLI messages. The final
   # `type:"result"` element carries is_error/subtype and the final text.
+  # Optional 4th arg: a sidecar file that receives any recoverable assistant
+  # text even on failure, plus a `tool_activity: true/false` header line.
+  # Tool activity means the run may already have executed tools with side
+  # effects; callers must not blindly re-dispatch such a failed attempt.
   # Exit codes: 0 ok; 11 error result/events; 12 no usable text; 13 bad shape.
   local raw_file="$1"
   local text_file="$2"
   local err_file="$3"
+  local partial_file="${4:-}"
 
-  python3 - "$raw_file" "$text_file" "$err_file" <<'PY'
+  python3 - "$raw_file" "$text_file" "$err_file" "$partial_file" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -190,15 +197,110 @@ from pathlib import Path
 raw_path = Path(sys.argv[1])
 text_path = Path(sys.argv[2])
 err_path = Path(sys.argv[3])
+partial_path = Path(sys.argv[4]) if sys.argv[4] else None
 
 raw = raw_path.read_text(encoding="utf-8", errors="replace").strip()
+
+
+def emit_partial(text, tool_activity):
+    if partial_path is None:
+        return
+    body = text.rstrip() + "\n" if text.strip() else ""
+    partial_path.write_text(f"tool_activity: {'true' if tool_activity else 'false'}\n{body}", encoding="utf-8")
+
+
+def assistant_text_of(obj):
+    message = obj.get("message")
+    if not isinstance(message, dict):
+        return None
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str):
+                parts.append(block["text"])
+            elif isinstance(block, str):
+                parts.append(block)
+        return "".join(parts)
+    return None
+
+
+def has_tool_activity(obj):
+    typ = obj.get("type")
+    if typ in ("tool_use", "tool_result"):
+        return True
+    message = obj.get("message")
+    if isinstance(message, dict):
+        content = message.get("content")
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") in ("tool_use", "tool_result"):
+                    return True
+    return False
+
+
+def salvage_objects(text):
+    # Interrupted runs leave either newline-delimited events or ONE truncated
+    # batch-array line. Recover complete objects from both shapes: try each
+    # line as JSON, and for an unterminated '[' prefix use raw_decode to walk
+    # the complete elements before the cut.
+    objs = []
+    decoder = json.JSONDecoder()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception:
+            if line.startswith("["):
+                idx = 1
+                while idx < len(line):
+                    while idx < len(line) and line[idx] in " \t\r\n,":
+                        idx += 1
+                    if idx >= len(line) or line[idx] == "]":
+                        break
+                    try:
+                        obj, end = decoder.raw_decode(line, idx)
+                    except Exception:
+                        break
+                    objs.append(obj)
+                    idx = end
+            continue
+        if isinstance(obj, list):
+            objs.extend(obj)
+        else:
+            objs.append(obj)
+    return objs
+
+
+def salvage_stream_lines(text):
+    texts = []
+    activity = False
+    for obj in salvage_objects(text):
+        if not isinstance(obj, dict):
+            continue
+        if has_tool_activity(obj):
+            activity = True
+        if obj.get("type") == "assistant":
+            t = assistant_text_of(obj)
+            if t and t.strip():
+                texts.append(t)
+    return "\n".join(texts), activity
+
+
 if not raw:
     err_path.write_text("Qwen produced no JSON output.\n", encoding="utf-8")
+    emit_partial("", False)
     raise SystemExit(12)
 
 try:
     payload = json.loads(raw)
 except Exception:
+    salvaged, activity = salvage_stream_lines(raw)
+    emit_partial(salvaged, activity)
     err_path.write_text(
         "Qwen stdout is not a single JSON document. First 240 chars: " + raw[:240] + "\n",
         encoding="utf-8",
@@ -211,6 +313,7 @@ elif isinstance(payload, list):
     messages = payload
 else:
     err_path.write_text("Unsupported Qwen JSON payload shape.\n", encoding="utf-8")
+    emit_partial("", False)
     raise SystemExit(13)
 
 
@@ -246,9 +349,12 @@ def assistant_text(obj):
 results = []
 assistants = []
 errors = []
+tool_activity = False
 for obj in messages:
     if not isinstance(obj, dict):
         continue
+    if has_tool_activity(obj):
+        tool_activity = True
     typ = obj.get("type")
     if typ == "result":
         results.append(obj)
@@ -259,29 +365,43 @@ for obj in messages:
     elif typ == "error" or obj.get("is_error") is True:
         errors.append(error_text(obj))
 
+assistant_body = "\n".join(t for t in assistants if t.strip())
+
 if errors:
     err_path.write_text(" | ".join(errors) + "\n", encoding="utf-8")
+    emit_partial(assistant_body, tool_activity)
     raise SystemExit(11)
 
 if not results:
     err_path.write_text("No type:result message found in Qwen JSON output.\n", encoding="utf-8")
+    emit_partial(assistant_body, tool_activity)
     raise SystemExit(13)
 
 result = results[-1]
 if result.get("is_error") is True or result.get("subtype") not in (None, "success"):
     err_path.write_text(error_text(result) + "\n", encoding="utf-8")
+    result_text = result.get("result") if isinstance(result.get("result"), str) else ""
+    emit_partial(result_text or assistant_body, tool_activity)
     raise SystemExit(11)
 
 text = result.get("result")
 if not isinstance(text, str) or not text.strip():
-    text = "\n".join(t for t in assistants if t.strip())
+    text = assistant_body
 if not text.strip():
     err_path.write_text("Qwen result message carries no nonblank final text.\n", encoding="utf-8")
+    emit_partial("", tool_activity)
     raise SystemExit(12)
 
 text_path.write_text(text.rstrip() + "\n", encoding="utf-8")
 err_path.write_text("", encoding="utf-8")
+emit_partial(text, tool_activity)
 PY
+}
+
+has_recorded_tool_activity() {
+  # True when the parser sidecar reports executed/attempted tool calls.
+  local partial_file="$1"
+  [[ -s "${partial_file}" ]] && head -n 1 "${partial_file}" | grep -q '^tool_activity: true$'
 }
 
 is_model_not_found_error() {
@@ -481,6 +601,29 @@ if [[ -n "${STDERR_OUT}" && -d "${STDERR_OUT}" ]]; then
   echo "Stderr output path points to a directory: ${STDERR_OUT}" >&2
   exit 2
 fi
+# No output artifact may alias a prompt input: copying raw captures or the
+# parsed body onto the prompt/system file would destroy the task inputs.
+paths_collide() {
+  local a="$1" b="$2"
+  [[ -n "${a}" && -n "${b}" ]] || return 1
+  if [[ "${a}" == "${b}" ]]; then return 0; fi
+  if [[ -e "${a}" && -e "${b}" && "${a}" -ef "${b}" ]]; then return 0; fi
+  local da db fa fb
+  da="$(cd "$(dirname "${a}")" 2>/dev/null && pwd -P)" || return 1
+  db="$(cd "$(dirname "${b}")" 2>/dev/null && pwd -P)" || return 1
+  fa="$(basename "${a}")"; fb="$(basename "${b}")"
+  [[ "${da}/${fa}" == "${db}/${fb}" ]]
+}
+for artifact in "${OUT}" "${OUT}.partial" "${RAW_OUT}" "${STDERR_OUT}"; do
+  [[ -n "${artifact}" ]] || continue
+  for input in "${PROMPT_FILE}" "${SYSTEM_PROMPT_FILE}"; do
+    [[ -n "${input}" ]] || continue
+    if paths_collide "${artifact}" "${input}"; then
+      echo "Output path must differ from prompt inputs: ${artifact} aliases ${input}" >&2
+      exit 2
+    fi
+  done
+done
 if ! [[ "${MAX_ATTEMPTS}" =~ ^[0-9]+$ ]] || [[ "${MAX_ATTEMPTS}" -lt 1 ]]; then
   echo "--max-attempts must be an integer >= 1" >&2
   exit 2
@@ -524,6 +667,10 @@ for dir in "${WORKSPACE_DIRS[@]+"${WORKSPACE_DIRS[@]}"}"; do
 done
 if [[ "${WORK_DIR_EXPLICIT}" -eq 1 && ! -d "${WORK_DIR}" ]]; then
   echo "Work directory not found: ${WORK_DIR}" >&2
+  exit 2
+fi
+if [[ -n "${RESUME_SESSION}" && "${WORK_DIR_EXPLICIT}" -ne 1 ]]; then
+  echo "--resume-session requires --work-dir DIR pointing at the prior run's working directory: qwen scopes recorded sessions per project directory, and the default fresh temporary directory has no sessions." >&2
   exit 2
 fi
 if [[ -z "${APPROVAL_MODE}" ]]; then
@@ -682,6 +829,7 @@ tmp_stderr="$(mktemp)"
 tmp_text="$(mktemp)"
 tmp_parse_err="$(mktemp)"
 tmp_stdout_tail="$(mktemp)"
+tmp_salvage="$(mktemp)"
 mkdir -p "${TRACE_DIR:-${OUT}.attempts}"
 TRACE_RUN_DIR="$(mktemp -d "${TRACE_DIR:-${OUT}.attempts}/run.XXXXXX")"
 BUDGET_STATE="${TRACE_RUN_DIR}/budget.json"
@@ -707,7 +855,7 @@ cleanup() {
     ACTIVE_PID=""
   fi
   python3 "${PROCESS_BUDGET}" finish --state "${BUDGET_STATE}" --exit-code "${result}" || true
-  rm -f "${tmp_stdout}" "${tmp_stderr}" "${tmp_text}" "${tmp_parse_err}" "${tmp_stdout_tail}"
+  rm -f "${tmp_stdout}" "${tmp_stderr}" "${tmp_text}" "${tmp_parse_err}" "${tmp_stdout_tail}" "${tmp_salvage}"
   if [[ -n "${TEMP_WORK_DIR}" ]]; then
     rm -rf "${TEMP_WORK_DIR}"
   fi
@@ -762,6 +910,7 @@ run_mode() {
   local use_model="$1"
   local label="$2"
   local attempt=1
+  local cli_code=0
   local code=0
   local parse_code=0
   local det_reason=""
@@ -772,48 +921,52 @@ run_mode() {
     : >"${tmp_stderr}"
     : >"${tmp_text}"
     : >"${tmp_parse_err}"
+    : >"${tmp_salvage}"
 
     if run_once "${use_model}"; then
-      code=0
+      cli_code=0
     else
-      code=$?
+      cli_code=$?
     fi
+    code="${cli_code}"
     copy_attempt_artifacts
     if [[ "${code}" -eq 124 || "${code}" -eq 125 ]]; then
       echo "Qwen total deadline or call budget exhausted (exit ${code})." >&2
       cat "${tmp_stderr}" >&2 || true
     fi
-    # Preserve any body on interrupted execution, without presenting it as completed.
-    if [[ "${code}" -ne 0 ]] && parse_qwen_json "${tmp_stdout}" "${tmp_text}" "${tmp_parse_err}"; then
-      mkdir -p "$(dirname "${OUT}")"
-      cp "${tmp_text}" "${OUT}.partial"
-      return "${code}"
-    fi
-    if [[ "${code}" -eq 124 || "${code}" -eq 125 || "${code}" -ge 128 ]]; then
-      return "${code}"
-    fi
-    if [[ "${code}" -ne 0 ]] && is_model_not_found_error "${tmp_stderr}" "${tmp_parse_err}"; then
-      LAST_MODEL_NOT_FOUND=1
-    fi
-
+    # Always parse for salvage: recover any assistant body and tool-execution
+    # evidence even when the batch document is incomplete or the run errored.
     parse_code=0
-    if [[ "${code}" -eq 0 ]]; then
-      if parse_qwen_json "${tmp_stdout}" "${tmp_text}" "${tmp_parse_err}"; then
-        parse_code=0
-      else
-        parse_code=$?
-      fi
-      if [[ "${parse_code}" -eq 0 ]]; then
+    parse_qwen_json "${tmp_stdout}" "${tmp_text}" "${tmp_parse_err}" "${tmp_salvage}" || parse_code=$?
+    # A clean process exit is successful only when its JSON result is also
+    # successful. Normalize that decision before saving partials or retrying.
+    if [[ "${cli_code}" -eq 0 ]]; then
+      code="${parse_code}"
+      if [[ "${code}" -eq 0 ]]; then
         mkdir -p "$(dirname "${OUT}")"
         mv "${tmp_text}" "${OUT}"
         return 0
       fi
       cat "${tmp_parse_err}" >&2 || true
-      code="${parse_code}"
-      if is_deterministic_parse_error "${parse_code}"; then
-        echo "Qwen produced a deterministic parse failure in ${label} mode; not retrying identical output." >&2
-        return "${parse_code}"
-      fi
+    fi
+
+    # Both process failures and JSON-result failures reach the same handling.
+    if [[ -s "${tmp_salvage}" ]] && tail -n +2 "${tmp_salvage}" | grep -q '[^[:space:]]'; then
+      mkdir -p "$(dirname "${OUT}")"
+      tail -n +2 "${tmp_salvage}" >"${OUT}.partial"
+    fi
+    # Tool activity may already have side effects. Stop before either retry
+    # or model fallback; continuation requires an explicit session decision.
+    if has_recorded_tool_activity "${tmp_salvage}"; then
+      echo "Qwen attempt failed (exit ${code}) after recorded tool activity; not re-dispatching to avoid duplicating side effects. Recovered text (if any) is in ${OUT}.partial; raw events are under the trace dir. Use --resume-session with the recorded session ID to continue deliberately." >&2
+      return "${code}"
+    fi
+    if [[ "${code}" -eq 124 || "${code}" -eq 125 || "${code}" -ge 128 ]]; then
+      return "${code}"
+    fi
+    if [[ "${cli_code}" -eq 0 ]] && is_deterministic_parse_error "${parse_code}"; then
+      echo "Qwen produced a deterministic parse failure in ${label} mode; not retrying identical output." >&2
+      return "${code}"
     fi
     if is_model_not_found_error "${tmp_stderr}" "${tmp_parse_err}"; then
       LAST_MODEL_NOT_FOUND=1
