@@ -147,8 +147,10 @@ caller's context) — the episodes that created **G0**:
   observable already meets its required accuracy by an independent route, the residual threshold needs
   a detection rationale or it is an over-tight gate; refining the method is not the response;
 - integration differences were orders of magnitude below a few-percent residual left by a finite
-  representation, and the agent kept tightening the integration precision. **G0** — refine only the dominant
-  error source; tightening a subdominant one is not progress;
+  representation, and the agent kept tightening the integration precision. **G0** — choose a refinement
+  for its expected effect on the total error or conclusion and its cost; further integration digits
+  were not useful in that case. This does not prohibit a subdominant reduction that can meet the target,
+  especially when the largest contribution cannot be reduced;
 - a displayed result was held out of a manuscript for three review re-entries by a gate stricter than the
   stroke width of the figure and the digits of the table that displayed it. **G0** — the display and the
   downstream use set the required accuracy;

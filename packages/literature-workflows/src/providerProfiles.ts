@@ -11,6 +11,8 @@ type ProviderProfile = {
   display_name: string;
   capabilities: WorkflowCapabilityId[];
   toolByAction: Partial<Record<WorkflowActionId, string>>;
+  /** Recipe parameter names mapped to the selected provider's tool contract. */
+  parameterNamesByAction?: Partial<Record<WorkflowActionId, Record<string, string>>>;
   notes: string;
 };
 
@@ -45,7 +47,6 @@ const PROVIDER_PROFILES: ProviderProfile[] = [
       'analysis.citation_network',
       'analysis.paper_set_connections',
       'analysis.provenance_trace',
-      'analysis.paper_set_critical_review',
     ],
     toolByAction: {
       'discover.seed_search': 'inspire_search',
@@ -53,9 +54,9 @@ const PROVIDER_PROFILES: ProviderProfile[] = [
       'analyze.citation_network': 'inspire_network_analysis',
       'analyze.paper_connections': 'inspire_find_connections',
       'analyze.provenance_trace': 'inspire_trace_original_source',
-      'analyze.paper_set_critical_review': 'inspire_critical_analysis',
     },
-    notes: 'Primary executor for checked-in topic, network, provenance, connections, and critical-review operators.',
+    parameterNamesByAction: { 'discover.seed_search': { size: 'size' } },
+    notes: 'Executor for bounded topic metadata, citation networks, reference source candidates, and paper connections.',
   },
   {
     provider: 'openalex',
@@ -64,6 +65,7 @@ const PROVIDER_PROFILES: ProviderProfile[] = [
     toolByAction: {
       'discover.seed_search': 'openalex_search',
     },
+    parameterNamesByAction: { 'discover.seed_search': { size: 'per_page' } },
     notes: 'Discovery expansion and metadata enrichment only; workflow-analysis operators remain incomplete.',
   },
   {
@@ -73,6 +75,7 @@ const PROVIDER_PROFILES: ProviderProfile[] = [
     toolByAction: {
       'discover.seed_search': 'arxiv_search',
     },
+    parameterNamesByAction: { 'discover.seed_search': { size: 'max_results' } },
     notes: 'Known-item lookup, keyword intake, and source retrieval only.',
   },
   {
@@ -117,5 +120,8 @@ export function getWorkflowProviderProfiles(): ProviderProfile[] {
     ...profile,
     capabilities: [...profile.capabilities],
     toolByAction: { ...profile.toolByAction },
+    parameterNamesByAction: profile.parameterNamesByAction && Object.fromEntries(
+      Object.entries(profile.parameterNamesByAction).map(([action, names]) => [action, { ...names }]),
+    ),
   }));
 }

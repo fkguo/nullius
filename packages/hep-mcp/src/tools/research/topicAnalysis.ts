@@ -1,140 +1,50 @@
-/**
- * Topic Analysis Tool (Consolidated)
- * Combines: research_timeline, topic_evolution, find_emerging_papers
- *
- * Modes:
- * - 'timeline': Generate research timeline showing yearly publication trends
- * - 'evolution': Analyze topic evolution over time with phases
- * - 'emerging': Find papers with rapidly growing citation momentum
- * - 'all': Run all analyses
- */
-
+/** Bounded publication timeline and topic metadata views. */
 import { buildResearchTimeline, type TimelineResult } from './timeline.js';
-import type { TopicEvolution, TopicEvolutionParams as SharedTopicEvolutionParams } from '@nullius/shared';
-import { analyzeTopicEvolution } from './topicEvolution.js';
-import { findEmergingPapers, type FindEmergingResult } from './emergingPapers.js';
+import type { TopicEvolutionParams as SharedTopicEvolutionParams } from '@nullius/shared';
+import { analyzeTopicEvolution, type TopicEvolutionResult } from './topicEvolution.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type TopicAnalysisMode = 'timeline' | 'evolution' | 'emerging' | 'all';
+export type TopicAnalysisMode = 'timeline' | 'evolution' | 'all';
 
 export interface TopicAnalysisParams {
-  /** Topic keywords to analyze */
   topic: string;
-  /** Analysis mode */
   mode: TopicAnalysisMode;
-  /** Time range filter */
   time_range?: { start: number; end: number };
-  /** Mode-specific options */
   options?: TopicAnalysisOptions;
-  /** Max results for emerging papers (default: 10) */
-  limit?: number;
 }
 
 export interface TopicAnalysisOptions {
-  // Timeline options
   start_year?: number;
   end_year?: number;
-
-  // Evolution options
   granularity?: SharedTopicEvolutionParams['granularity'];
-  include_subtopics?: SharedTopicEvolutionParams['include_subtopics'];
-
-  // Emerging options
-  min_citations?: number;
-  min_momentum?: number;
-  include_sociology?: boolean;
-  sample_mode?: 'full' | 'fast';
-  sociology_options?: {
-    disruption?: {
-      max_refs_to_check?: number;
-      max_refs_for_nj_query?: number;
-      max_refs_for_nk_estimate?: number;
-      nk_search_limit_fast?: number;
-      nk_search_limit_full?: number;
-    };
-    new_entrant?: {
-      lookback_years?: number;
-      fast_mode_sample_size?: number;
-    };
-  };
 }
 
 export interface TopicAnalysisResult {
   topic: string;
   mode: TopicAnalysisMode;
-  /** Timeline results (if mode includes 'timeline') */
   timeline?: TimelineResult;
-  /** Evolution results (if mode includes 'evolution') */
-  evolution?: TopicEvolution;
-  /** Emerging papers results (if mode includes 'emerging') */
-  emerging?: FindEmergingResult;
+  evolution?: TopicEvolutionResult;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Function
-// ─────────────────────────────────────────────────────────────────────────────
+export async function analyzeTopicUnified(params: TopicAnalysisParams): Promise<TopicAnalysisResult> {
+  const { topic, mode, time_range, options = {} } = params;
+  const result: TopicAnalysisResult = { topic, mode };
+  const pending: Promise<void>[] = [];
 
-/**
- * Unified topic analysis tool
- */
-export async function analyzeTopicUnified(
-  params: TopicAnalysisParams
-): Promise<TopicAnalysisResult> {
-  const { topic, mode, time_range, options = {}, limit = 10 } = params;
-
-  const result: TopicAnalysisResult = {
-    topic,
-    mode,
-  };
-
-  const runTimeline = mode === 'timeline' || mode === 'all';
-  const runEvolution = mode === 'evolution' || mode === 'all';
-  const runEmerging = mode === 'emerging' || mode === 'all';
-
-  // Run analyses in parallel where possible
-  const promises: Promise<void>[] = [];
-
-  if (runTimeline) {
-    promises.push(
-      buildResearchTimeline({
-        topic,
-        start_year: options.start_year ?? time_range?.start,
-        end_year: options.end_year ?? time_range?.end,
-      }).then(r => { result.timeline = r; })
-    );
+  if (mode === 'timeline' || mode === 'all') {
+    pending.push(buildResearchTimeline({
+      topic,
+      start_year: options.start_year ?? time_range?.start,
+      end_year: options.end_year ?? time_range?.end,
+    }).then(value => { result.timeline = value; }));
   }
-
-  if (runEvolution) {
-    promises.push(
-      analyzeTopicEvolution({
-        topic,
-        start_year: options.start_year ?? time_range?.start,
-        end_year: options.end_year ?? time_range?.end,
-        granularity: options.granularity ?? '5year',
-        include_subtopics: options.include_subtopics ?? false,
-      }).then(r => { result.evolution = r; })
-    );
+  if (mode === 'evolution' || mode === 'all') {
+    pending.push(analyzeTopicEvolution({
+      topic,
+      start_year: options.start_year ?? time_range?.start,
+      end_year: options.end_year ?? time_range?.end,
+      granularity: options.granularity ?? '5year',
+    }).then(value => { result.evolution = value; }));
   }
-
-  if (runEmerging) {
-    promises.push(
-      findEmergingPapers({
-        topic,
-        time_range,
-        limit,
-        min_citations: options.min_citations,
-        min_momentum: options.min_momentum,
-        include_sociology: options.include_sociology,
-        sample_mode: options.sample_mode,
-        sociology_options: options.sociology_options,
-      }).then(r => { result.emerging = r; })
-    );
-  }
-
-  await Promise.all(promises);
-
+  await Promise.all(pending);
   return result;
 }

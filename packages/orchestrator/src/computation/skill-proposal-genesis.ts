@@ -133,9 +133,9 @@ export function maybeGenerateSkillProposal(params: {
     proposal_type: 'new_skill',
     origin: 'agent_trace',
     name: `package-playbook-${createHash('sha1').update(signature.workflowSignature).digest('hex').slice(0, 8)}`,
-    description: `Repeated successful research workflows using ${signature.packageNames.join(', ')} should be suggested as a reusable package playbook.`,
+    description: `Repeated completed executions using ${signature.packageNames.join(', ')} may warrant review for a reusable package playbook.`,
     trigger: {
-      description: `Repeated successful package-usage workflow detected for ${signature.packageNames.join(', ')}`,
+      description: `Repeated completed package-usage executions detected for ${signature.packageNames.join(', ')}`,
       pattern_kind: 'package_usage_pattern',
       tool_names: signature.toolNames,
       package_names: signature.packageNames,
@@ -144,10 +144,9 @@ export function maybeGenerateSkillProposal(params: {
     },
     action: {
       type: 'package_playbook',
-      rule: `Suggest the established package playbook before manually recomposing the same ${signature.packageNames.join(', ')} workflow.`,
+      rule: `Review the recorded execution evidence before deciding whether to reuse this ${signature.packageNames.join(', ')} workflow.`,
     },
     evidence_traces: evidence as SkillProposalV2['evidence_traces'],
-    generalization_confidence: Math.min(0.5 + (distinctRuns.length - 2) * 0.1, 0.8),
     gate_level: 'A1',
     status: 'pending_review',
     created_at: new Date().toISOString(),

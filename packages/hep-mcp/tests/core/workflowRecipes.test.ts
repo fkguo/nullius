@@ -1,188 +1,96 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import Ajv2020 from 'ajv/dist/2020.js';
+import { WorkflowTaskKindSchema } from '@nullius/shared';
 import { describe, expect, it } from 'vitest';
 
-import { zodToPortableJsonSchema } from '../support/portableJsonSchema.js';
-import { z } from 'zod';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../../..');
-
 const recipeSchemaPath = path.join(repoRoot, 'meta/schemas/workflow_recipe_v1.schema.json');
 const recipeDir = path.join(repoRoot, 'packages/literature-workflows/recipes');
+const recipeFiles = fs.readdirSync(recipeDir).filter(name => name.endsWith('.json')).sort();
+const recipeSchema = JSON.parse(fs.readFileSync(recipeSchemaPath, 'utf-8'));
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+const validate = ajv.compile(recipeSchema);
 
-function readJson(filePath: string): any {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
-
-function validateNode(schema: any, value: any, pathLabel: string): string[] {
-  if (schema === undefined || schema === null) return [];
-
-  if (schema.anyOf && Array.isArray(schema.anyOf)) {
-    const branchErrors = schema.anyOf.map((branch: any) => validateNode(branch, value, pathLabel));
-    if (branchErrors.some(errs => errs.length === 0)) return [];
-    return branchErrors.flat();
-  }
-
-  if (schema.oneOf && Array.isArray(schema.oneOf)) {
-    const branchErrors = schema.oneOf.map((branch: any) => validateNode(branch, value, pathLabel));
-    const okCount = branchErrors.filter(errs => errs.length === 0).length;
-    if (okCount === 1) return [];
-    return [`${pathLabel}: oneOf match count ${okCount} (expected 1)`];
-  }
-
-  const errors: string[] = [];
-  const expectedType = schema.type;
-
-  const isObject = (v: any) => typeof v === 'object' && v !== null && !Array.isArray(v);
-
-  const checkType = (typeName: string): boolean => {
-    switch (typeName) {
-      case 'object':
-        return isObject(value);
-      case 'array':
-        return Array.isArray(value);
-      case 'string':
-        return typeof value === 'string';
-      case 'integer':
-        return typeof value === 'number' && Number.isInteger(value);
-      case 'number':
-        return typeof value === 'number';
-      case 'boolean':
-        return typeof value === 'boolean';
-      case 'null':
-        return value === null;
-      default:
-        return true;
-    }
-  };
-
-  if (Array.isArray(expectedType)) {
-    if (!expectedType.some(t => checkType(t))) {
-      errors.push(`${pathLabel}: expected one of types ${expectedType.join(', ')}`);
-      return errors;
-    }
-  } else if (typeof expectedType === 'string' && !checkType(expectedType)) {
-    errors.push(`${pathLabel}: expected type ${expectedType}`);
-    return errors;
-  }
-
-  if (typeof value === 'string') {
-    if (typeof schema.minLength === 'number' && value.length < schema.minLength) {
-      errors.push(`${pathLabel}: string shorter than minLength=${schema.minLength}`);
-    }
-  }
-
-  if (typeof value === 'number') {
-    if (typeof schema.minimum === 'number' && value < schema.minimum) {
-      errors.push(`${pathLabel}: number smaller than minimum=${schema.minimum}`);
-    }
-  }
-
-  if (Array.isArray(value)) {
-    if (typeof schema.minItems === 'number' && value.length < schema.minItems) {
-      errors.push(`${pathLabel}: array shorter than minItems=${schema.minItems}`);
-    }
-    if (schema.items) {
-      for (let i = 0; i < value.length; i += 1) {
-        errors.push(...validateNode(schema.items, value[i], `${pathLabel}[${i}]`));
-      }
-    }
-  }
-
-  if (isObject(value)) {
-    const props = schema.properties ?? {};
-    const required = Array.isArray(schema.required) ? schema.required : [];
-
-    for (const key of required) {
-      if (!(key in value)) {
-        errors.push(`${pathLabel}.${String(key)}: missing required property`);
-      }
-    }
-
-    if (schema.additionalProperties === false) {
-      for (const key of Object.keys(value)) {
-        if (!(key in props)) {
-          errors.push(`${pathLabel}.${key}: additional property not allowed`);
-        }
-      }
-    }
-
-    for (const [key, childSchema] of Object.entries<any>(props)) {
-      if (key in value) {
-        errors.push(...validateNode(childSchema, value[key], `${pathLabel}.${key}`));
-      }
-    }
-  }
-
-  return errors;
+function readRecipe(name: string): { steps: Record<string, unknown>[]; [key: string]: unknown } {
+  return JSON.parse(fs.readFileSync(path.join(recipeDir, name), 'utf-8'));
 }
 
 describe('workflow recipe schema and fixtures', () => {
-  it('schema file is valid and generated by zod parser', () => {
-    const schema = readJson(recipeSchemaPath);
-    const schemaFromZod = zodToPortableJsonSchema(
-      z.object({
-        recipe_id: z.string().min(1),
-        name: z.string().min(1),
-        description: z.string().min(1),
-        entry_tool: z.string().min(1),
-        steps: z.array(
-          z.object({
-            id: z.string().min(1),
-            tool: z.string().min(1).optional(),
-            action: z.enum([
-              'discover.seed_search',
-              'analyze.topic_evolution',
-              'analyze.citation_network',
-              'analyze.paper_connections',
-              'analyze.provenance_trace',
-              'analyze.paper_set_critical_review',
-            ]).optional(),
-            purpose: z.string().min(1),
-            depends_on: z.array(z.string().min(1)).optional(),
-            params: z.record(z.string(), z.any()).optional(),
-            required_capabilities: z.array(z.string().min(1)).optional(),
-            preferred_providers: z.array(z.string().min(1)).optional(),
-            degrade_mode: z.enum(['fail_closed', 'skip_with_reason', 'partial_result']).optional(),
-            consumer_hints: z.object({
-              phases: z.array(z.string().min(1)).optional(),
-              artifact: z.string().min(1).optional(),
-              project_required: z.boolean().optional(),
-              run_required: z.boolean().optional(),
-            }).optional(),
-          }).strict().refine(value => Boolean(value.tool || value.action), {
-            message: 'step requires tool or action',
-          })
-        ).min(1),
-      }).strict()
-    );
-
-    expect(schema.type).toBe('object');
-    expect(schema.required).toEqual(expect.arrayContaining(['recipe_id', 'name', 'description', 'entry_tool', 'steps']));
-    expect(schemaFromZod.type).toBe('object');
-  });
-
-  it('all recipe fixtures validate against workflow_recipe_v1 schema', () => {
-    const schema = readJson(recipeSchemaPath);
-    const recipeFiles = fs
-      .readdirSync(recipeDir)
-      .filter(name => name.endsWith('.json'))
-      .sort()
-      .map(name => path.join(recipeDir, name));
-
-    expect(recipeFiles.map(filePath => path.basename(filePath))).toEqual([
+  it('covers all three checked-in recipes', () => {
+    expect(recipeFiles).toEqual([
       'literature_gap_analysis.json',
       'literature_landscape.json',
       'research_brainstorm.json',
     ]);
+  });
 
-    for (const recipeFile of recipeFiles) {
-      const recipe = readJson(recipeFile);
-      const errors = validateNode(schema, recipe, path.basename(recipeFile));
-      expect(errors, `${path.basename(recipeFile)} errors:\n${errors.join('\n')}`).toEqual([]);
-    }
+  it('keeps task kinds aligned with the shared task projection contract', () => {
+    expect(recipeSchema.properties.steps.items.properties.task_kind.enum).toEqual(
+      WorkflowTaskKindSchema.options,
+    );
+  });
+
+  it.each(recipeFiles)('%s validates against the Draft 2020-12 recipe schema', name => {
+    expect(validate(readRecipe(name)), JSON.stringify(validate.errors, null, 2)).toBe(true);
+  });
+
+  it('rejects a missing task kind even when the action branch matches', () => {
+    const recipe = readRecipe('literature_landscape.json');
+    delete recipe.steps[0].task_kind;
+
+    expect(validate(recipe)).toBe(false);
+    expect(validate.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ keyword: 'required', params: { missingProperty: 'task_kind' } }),
+    ]));
+  });
+
+  it('rejects an unknown task kind', () => {
+    const recipe = readRecipe('literature_landscape.json');
+    recipe.steps[0].task_kind = 'automatic_scientific_judgment';
+
+    expect(validate(recipe)).toBe(false);
+    expect(validate.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ keyword: 'enum', instancePath: '/steps/0/task_kind' }),
+    ]));
+  });
+
+  it('rejects the retired provider critical-review action and capability', () => {
+    const recipe = readRecipe('literature_landscape.json');
+    recipe.steps[0].action = 'analyze.paper_set_critical_review';
+    recipe.steps[0].required_capabilities = ['analysis.paper_set_critical_review'];
+
+    expect(validate(recipe)).toBe(false);
+    expect(validate.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ keyword: 'enum', instancePath: '/steps/0/action' }),
+      expect.objectContaining({ keyword: 'enum', instancePath: '/steps/0/required_capabilities/0' }),
+    ]));
+  });
+
+  it('enforces sibling properties after a tool/action anyOf branch matches', () => {
+    const recipe = readRecipe('research_brainstorm.json');
+    recipe.steps[0].undeclared_field = true;
+
+    expect(validate(recipe)).toBe(false);
+    expect(validate.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        keyword: 'additionalProperties',
+        instancePath: '/steps/0',
+        params: { additionalProperty: 'undeclared_field' },
+      }),
+    ]));
+  });
+
+  it('rejects a step without either action or tool', () => {
+    const recipe = readRecipe('literature_landscape.json');
+    delete recipe.steps[0].action;
+    delete recipe.steps[0].tool;
+
+    expect(validate(recipe)).toBe(false);
+    expect(validate.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ keyword: 'anyOf', instancePath: '/steps/0' }),
+    ]));
   });
 });

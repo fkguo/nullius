@@ -245,6 +245,9 @@ describe('memory-graph hookup', () => {
     const recent = await graph.getRecentEvents(4);
     expect(recent.some((event) => event.event_type === 'signal' && event.run_id === runId)).toBe(true);
     expect(recent.some((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:compute_result:failed')).toBe(true);
+    const failedOutcome = recent.find((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:compute_result:failed')!.payload;
+    expect(failedOutcome).not.toHaveProperty('validation_passed');
+    expect(failedOutcome).not.toHaveProperty('quality_score');
 
     const topSignals = await graph.topSignals(30, 20);
     expect(topSignals).toEqual(expect.arrayContaining([
@@ -280,6 +283,13 @@ describe('memory-graph hookup', () => {
     const graph = createMemoryGraph({ dbPath: memoryGraphDbPath(projectRoot) });
     const recent = await graph.getRecentEvents(10);
     expect(recent.some((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:verification:passed')).toBe(true);
+    const completedOutcome = recent.find((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:compute_result:completed');
+    expect(completedOutcome).toBeDefined();
+    expect(completedOutcome!.payload).not.toHaveProperty('validation_passed');
+    expect(completedOutcome!.payload).not.toHaveProperty('quality_score');
+    const verificationOutcome = recent.find((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:verification:passed')!.payload;
+    expect(verificationOutcome).toHaveProperty('validation_passed', true);
+    expect(verificationOutcome).not.toHaveProperty('quality_score');
     expect(recent.some((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:final_conclusions:A5')).toBe(false);
 
     const topSignals = await graph.topSignals(30, 30);

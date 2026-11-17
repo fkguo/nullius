@@ -10,10 +10,6 @@ vi.mock('../../src/api/client.js', () => ({
 const api = await import('../../src/api/client.js');
 const { classifyPaper } = await import('../../src/tools/research/paperClassifier.js');
 const { classifyContentType } = await import('../../src/tools/research/paperClassifier.js');
-const { classifyReviews } = await import('../../src/tools/research/reviewClassifier.js');
-const { generateCriticalQuestions } = await import('../../src/tools/research/criticalQuestions.js');
-const { trackAssumptions } = await import('../../src/tools/research/assumptionTracker.js');
-const { performCriticalAnalysis } = await import('../../src/tools/research/criticalAnalysis.js');
 const { traceOriginalSource } = await import('../../src/tools/research/traceSource.js');
 
 function makePaper(overrides: Record<string, unknown> = {}) {
@@ -94,77 +90,11 @@ describe('semantic provenance cleanup regressions', () => {
     expect(content.provenance).not.toHaveProperty('authority');
   });
 
-  it('returns unavailable review records instead of dropping fetch failures', async () => {
-    vi.mocked(api.getPaper).mockRejectedValueOnce(new Error('boom'));
 
-    const result = await classifyReviews({ recids: ['2002'] });
 
-    expect(() => SemanticAssessmentProvenanceSchema.parse(result.classifications[0]?.provenance)).not.toThrow();
-    expect(result.success).toBe(false);
-    expect(result.classifications).toHaveLength(1);
-    expect(result.summary.total).toBe(1);
-    expect(result.classifications[0]?.review_type).toBe('uncertain');
-    expect(result.classifications[0]).not.toHaveProperty('authority_score');
-    expect(result.classifications[0]).not.toHaveProperty('is_authoritative_source');
-    expect(result.summary).not.toHaveProperty('authoritative_count');
-    expect(result.summary).not.toHaveProperty('average_authority_score');
-    expect(result.classifications[0]?.provenance.reason_code).toBe('paper_fetch_failed');
-    expect(result.classifications[0]?.provenance.status).toBe('unavailable');
-    expect(result.classifications[0]?.provenance).not.toHaveProperty('authority');
-  });
 
-  it('marks review sampling errors as unavailable semantic provenance', async () => {
-    vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({
-      recid: '3003',
-      title: 'Explicit review metadata',
-      publication_type: ['review'],
-    }) as never);
-    vi.mocked(api.getReferences).mockResolvedValueOnce([{ recid: 'r1' }, { recid: 'r2' }] as never);
 
-    const result = await classifyReviews(
-      { recids: ['3003'] },
-      { createMessage: vi.fn().mockRejectedValue(new Error('Method not found')) },
-    );
-
-    expect(() => SemanticAssessmentProvenanceSchema.parse(result.classifications[0]?.provenance)).not.toThrow();
-    expect(result.success).toBe(false);
-    expect(result.classifications[0]?.provenance.backend).toBe('mcp_sampling');
-    expect(result.classifications[0]?.provenance.status).toBe('unavailable');
-    expect(result.classifications[0]?.provenance.reason_code).toBe('sampling_error');
-    expect(result.classifications[0]?.provenance).not.toHaveProperty('authority');
-  });
-
-  it('fails closed when critical-question sampling is unavailable', async () => {
-    vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({ recid: '4004' }) as never);
-
-    const result = await generateCriticalQuestions({ recid: '4004' });
-
-    expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
-    expect(result.success).toBe(false);
-    expect(result).not.toHaveProperty('reliability_score');
-    expect(result.red_flags.some(flag => flag.type === 'excessive_claims')).toBe(false);
-    expect(result.provenance.reason_code).toBe('sampling_required');
-    expect(result.provenance).not.toHaveProperty('authority');
-  });
-
-  it('returns unavailable provenance when critical-question sampling fails', async () => {
-    vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({ recid: '5005' }) as never);
-
-    const result = await generateCriticalQuestions(
-      { recid: '5005' },
-      { createMessage: vi.fn().mockRejectedValue(new Error('sampling offline')) },
-    );
-
-    expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
-    expect(result.success).toBe(false);
-    expect(result).not.toHaveProperty('reliability_score');
-    expect(result.provenance.backend).toBe('mcp_sampling');
-    expect(result.provenance.status).toBe('unavailable');
-    expect(result.provenance.reason_code).toBe('sampling_error');
-    expect(result.provenance).not.toHaveProperty('authority');
-  });
-
-  it('does not convert metadata-only review priors into trace-source confidence bonuses', async () => {
+  it('does not convert metadata-only review priors into scientific-priority judgments', async () => {
     vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({
       recid: '7007',
       publication_type: ['review'],
@@ -173,58 +103,13 @@ describe('semantic provenance cleanup regressions', () => {
     const result = await traceOriginalSource({ recid: '7007', max_depth: 1 });
 
     expect(result.trace_chain).toHaveLength(1);
-    expect(result.trace_chain[0]?.review_classification.decision).toBe('uncertain');
-    expect(result.trace_chain[0]?.review_classification.provenance.reason_code).toBe('review_metadata_prior');
-    expect(result.trace_chain[0]?.confidence_score).toBeLessThan(0.5);
-    expect(result.trace_chain[0]?.confidence).not.toBe('likely_original');
+    expect(result.analysis_scope.scientific_priority).toBe('not_assessed');
+    expect(result.trace_chain[0]?.reference_lookup).toEqual({ status: 'not_requested', reason: 'depth_limit' });
+    expect(result.trace_chain[0]).not.toHaveProperty('confidence_score');
+    expect(result.trace_chain[0]).not.toHaveProperty('confidence');
+    expect(result).not.toHaveProperty('original_sources');
+    expect(api.getReferences).not.toHaveBeenCalled();
   });
 
-  it('fails closed when semantic assumption tracking is unavailable', async () => {
-    vi.mocked(api.getPaper).mockResolvedValueOnce(makePaper({
-      recid: '6006',
-      abstract: 'We compute observables numerically and compare to reference values.',
-    }) as never);
 
-    const result = await trackAssumptions({ recid: '6006' });
-
-    expect(() => SemanticAssessmentProvenanceSchema.parse(result.provenance)).not.toThrow();
-    expect(result.success).toBe(false);
-    expect(result.analysis).toBeNull();
-    expect(result.provenance?.reason_code).toBe('sampling_required');
-    expect(result.provenance).not.toHaveProperty('authority');
-  });
-
-  it('exposes component_status when critical analysis fails closed on sampling-unavailable components', async () => {
-    vi.mocked(api.getPaper).mockResolvedValue(makePaper({ recid: '9009' }) as never);
-
-    const result = await performCriticalAnalysis({
-      recid: '9009',
-      include_evidence: false,
-      include_questions: true,
-      include_assumptions: true,
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.component_status).toMatchObject({
-      evidence: {
-        requested: false,
-        status: 'not_requested',
-        available_output: false,
-      },
-      questions: {
-        requested: true,
-        status: 'unavailable',
-        reason_code: 'sampling_required',
-        available_output: true,
-      },
-      assumptions: {
-        requested: true,
-        status: 'unavailable',
-        reason_code: 'sampling_required',
-        available_output: false,
-      },
-    });
-    expect(result.integrated_assessment).not.toHaveProperty('reliability_score');
-    expect(result.integrated_assessment).not.toHaveProperty('verdict');
-  });
 });

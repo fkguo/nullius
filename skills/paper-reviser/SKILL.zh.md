@@ -13,9 +13,12 @@ metadata:
 - 同时产出**干净稿**与**可审计的修订产物**（diff + tracked delivery 合同），
 - 并生成需要**文献查证/进一步确认**的清单。
 
-本 skill **不放进** `research-writer` 的原因：
-- `research-writer` 侧重 arXiv-ready RevTeX 成稿脚手架、引用与溯源等“出版流程”；
-- `paper-reviser` 侧重对任何 LaTeX 模板/类文件的论文草稿做“内容优先”的逐句修订，通常在写作早期反复使用。
+`research-writer` 由宿主 agent 负责科学阅读、选材、写作与交付，其 scaffold
+只是空白格式模板。`paper-reviser` 面向已有草稿，在任何 LaTeX 模板下做内容优先
+修订，保留 tracked changes 并实际调用 auditor。需要单独的论文评审时，按
+[referee-review](../referee-review/SKILL.md) 委派独立宿主 agent 或使用
+[review-swarm](../review-swarm/SKILL.md)。文档结构检查和 `--stub-models`
+产生的 smoke 输出不能作为科学审稿证据。
 
 ## 输出内容
 

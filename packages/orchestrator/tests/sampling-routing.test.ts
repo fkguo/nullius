@@ -14,17 +14,17 @@ describe('sampling routing', () => {
         careful: { backend: 'anthropic', model: 'claude-opus-4-6', max_tokens: 1800 },
       },
       selectors: {
-        modules: { sem02_claim_extraction: 'cheap' },
-        module_prompt_versions: { 'sem04_theoretical_conflicts@v2': 'careful' },
+        modules: { fixture_extract: 'cheap' },
+        module_prompt_versions: { 'fixture_compare@v2': 'careful' },
         risk_levels: { read: 'balanced' },
         cost_classes: { high: 'careful' },
       },
     }, 'balanced');
 
     const extractionRoute = resolveSamplingRoute(config, {
-      module: 'sem02_claim_extraction',
-      tool: 'inspire_grade_evidence',
-      prompt_version: 'sem02_claim_extraction_v1',
+      module: 'fixture_extract',
+      tool: 'fixture_extract_records',
+      prompt_version: 'fixture_extract_v1',
       risk_level: 'read',
       cost_class: 'high',
     });
@@ -32,8 +32,8 @@ describe('sampling routing', () => {
     expect(extractionRoute.selector.kind).toBe('module');
 
     const theoreticalRoute = resolveSamplingRoute(config, {
-      module: 'sem04_theoretical_conflicts',
-      tool: 'inspire_theoretical_conflicts',
+      module: 'fixture_compare',
+      tool: 'fixture_compare_records',
       prompt_version: 'v2',
       risk_level: 'read',
       cost_class: 'high',
@@ -60,8 +60,8 @@ describe('sampling routing', () => {
       },
       selectors: {},
     }, 'balanced'), {
-      module: 'sem02_claim_extraction',
-      tool: 'inspire_grade_evidence',
+      module: 'fixture_extract',
+      tool: 'fixture_extract_records',
       prompt_version: 'v1',
       risk_level: 'read',
     } as never)).toThrow(/cost_class/i);
@@ -81,7 +81,7 @@ describe('sampling routing', () => {
         careful: { backend: 'anthropic', model: 'claude-opus-4-6', max_tokens: 1200 },
       },
       selectors: {
-        tools: { inspire_theoretical_conflicts: 'balanced' },
+        tools: { fixture_compare_records: 'balanced' },
         cost_classes: { high: 'balanced' },
       },
     }, 'balanced');
@@ -100,8 +100,8 @@ describe('sampling routing', () => {
         messages: [{ role: 'user', content: { type: 'text', text: 'Please adjudicate.' } }],
         maxTokens: 800,
         metadata: {
-          module: 'sem04_theoretical_conflicts',
-          tool: 'inspire_theoretical_conflicts',
+          module: 'fixture_compare',
+          tool: 'fixture_compare_records',
           prompt_version: 'v2',
           risk_level: 'read',
           cost_class: 'high',
@@ -126,7 +126,7 @@ describe('sampling routing', () => {
         balanced: { backend: 'anthropic', model: 'claude-sonnet-4-6', fallbacks: ['careful'] },
         careful: { backend: 'anthropic', model: 'claude-opus-4-6' },
       },
-      selectors: { tools: { inspire_theoretical_conflicts: 'balanced' } },
+      selectors: { tools: { fixture_compare_records: 'balanced' } },
     }, 'balanced');
 
     const createMessage = vi.fn().mockRejectedValue(new Error('all backends unavailable'));
@@ -135,8 +135,8 @@ describe('sampling routing', () => {
       request: {
         messages: [{ role: 'user', content: { type: 'text', text: 'Please adjudicate.' } }],
         metadata: {
-          module: 'sem04_theoretical_conflicts',
-          tool: 'inspire_theoretical_conflicts',
+          module: 'fixture_compare',
+          tool: 'fixture_compare_records',
           prompt_version: 'v2',
           risk_level: 'read',
           cost_class: 'high',

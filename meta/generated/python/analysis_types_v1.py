@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field
 
 
 class AnalysisTypesV1(BaseModel):
@@ -20,16 +20,30 @@ class PaperSummaryRef(BaseModel):
         extra="forbid",
     )
     recid: str | None = None
-    inspire_id: str | None = None
     arxiv_id: str | None = None
     doi: str | None = None
+    openalex_id: str | None = None
+    zotero_key: str | None = None
+    texkey: str | None = None
     title: str
     authors: list[str]
-    author_count: int | None = None
-    year: int | None = None
-    citation_count: int | None = None
-    citation_count_without_self_citations: int | None = None
+    author_count: Annotated[
+        int | None, Field(ge=-9007199254740991, le=9007199254740991)
+    ] = None
     collaborations: list[str] | None = None
+    year: float | None = None
+    earliest_date: str | None = None
+    citation_count: float | None = None
+    citation_count_without_self_citations: float | None = None
+    publication_summary: str | None = None
+    inspire_url: AnyUrl | None = None
+    arxiv_url: AnyUrl | None = None
+    doi_url: AnyUrl | None = None
+    pdf_url: AnyUrl | None = None
+    source_url: AnyUrl | None = None
+    publication_type: list[str] | None = None
+    document_type: list[str] | None = None
+    arxiv_primary_category: str | None = None
     arxiv_categories: list[str] | None = None
 
 
@@ -176,8 +190,7 @@ class TopicEvolutionParams(BaseModel):
     topic: Annotated[str, Field(min_length=1)]
     start_year: Annotated[int | None, Field(ge=1900)] = None
     end_year: int | None = None
-    granularity: Granularity | None = "year"
-    include_subtopics: bool | None = False
+    granularity: Granularity | None = "5year"
 
 
 class BatchImportParams(BaseModel):
@@ -371,12 +384,47 @@ class SurveyResult(BaseModel):
     suggested_reading_order: list[str]
 
 
+class Status(StrEnum):
+    available = "available"
+    unavailable = "unavailable"
+
+
+class TopicMetadataQuery(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    status: Status
+    query: str
+    requested_page_size: Annotated[int, Field(ge=1)]
+    sort: str | None = None
+    returned_count: Annotated[int | None, Field(ge=0)]
+    sample_complete: bool | None
+    has_more: bool | None
+    next_url: str | None = None
+    warning: str | None = None
+    error: str | None = None
+
+
 class TimeRange(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    start: float
-    end: float
+    start: int
+    end: int
+
+
+class TimeRangeBasis(StrEnum):
+    requested_start = "requested_start"
+    default_20_year_lookback = "default_20_year_lookback"
+
+
+class PublicationCountChange(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    previous_period: str
+    previous_paper_count: Annotated[int, Field(ge=1)]
+    fraction: float
 
 
 class Phase(BaseModel):
@@ -384,30 +432,48 @@ class Phase(BaseModel):
         extra="forbid",
     )
     period: str
-    paper_count: float
-    citation_momentum: float
+    time_range: TimeRange
+    paper_count: Annotated[int | None, Field(ge=0)]
+    publication_count_change: PublicationCountChange | None
     key_papers: list[PaperSummaryRef]
     key_authors: list[str]
-    description: str | None = None
-
-
-class Subtopic(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    name: str
-    emerged_year: float
-    paper_count: float
-    key_papers: list[str]
+    search: TopicMetadataQuery
 
 
 class CurrentStatus(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    recent_papers: float
-    growth_rate: float
-    trend: TopicTrend
+    recent_papers: Annotated[int | None, Field(ge=0)]
+    time_range: TimeRange
+    search: TopicMetadataQuery
+
+
+class SampleBasis(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    papers: Literal["single_mostcited_page_per_period"]
+    key_papers_limit: Literal[5]
+    key_authors: Literal["occurrences_among_first_three_authors_of_sampled_papers"]
+
+
+class PeriodQueries(StrEnum):
+    complete = "complete"
+    partial = "partial"
+
+
+class PaperSamples(StrEnum):
+    complete = "complete"
+    partial = "partial"
+
+
+class Coverage(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    period_queries: PeriodQueries
+    paper_samples: PaperSamples
 
 
 class TopicEvolution(BaseModel):
@@ -416,9 +482,11 @@ class TopicEvolution(BaseModel):
     )
     topic: str
     time_range: TimeRange
+    time_range_basis: TimeRangeBasis
     phases: list[Phase]
-    subtopics: list[Subtopic] | None = None
     current_status: CurrentStatus
+    sample_basis: SampleBasis
+    coverage: Coverage
 
 
 class Detail(BaseModel):

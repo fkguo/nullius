@@ -1,6 +1,6 @@
-import type { ComputationResultV1 } from '@nullius/shared';
+import type { ArtifactRefV1, ComputationResultV1 } from '@nullius/shared';
 
-export type FeedbackLowering = ComputationResultV1['feedback_lowering'];
+export type FeedbackLowering = NonNullable<ComputationResultV1['feedback_lowering']>;
 
 export function loopNodeIdsFor(runId: string) {
   return {
@@ -16,11 +16,17 @@ export function loopNodeIdsFor(runId: string) {
 export function deriveFeedbackLowering(params: {
   runId: string;
   executionStatus: ComputationResultV1['execution_status'];
-  signal: FeedbackLowering['signal'];
-}): FeedbackLowering {
+  signal: FeedbackLowering['signal'] | null;
+  declarationRef?: ArtifactRefV1;
+}): FeedbackLowering | null {
+  if (params.signal === null || params.executionStatus !== 'completed') return null;
   const ids = loopNodeIdsFor(params.runId);
-  if (params.executionStatus === 'failed') {
+  const declaration = params.declarationRef
+    ? { basis: 'producer_declaration' as const, declaration_ref: params.declarationRef }
+    : {};
+  if (params.signal === 'failure') {
     return {
+      ...declaration,
       signal: params.signal,
       decision_kind: 'downgrade_idea',
       priority_change: 'lower',
@@ -34,6 +40,7 @@ export function deriveFeedbackLowering(params: {
   }
   if (params.signal === 'weak_signal') {
     return {
+      ...declaration,
       signal: params.signal,
       decision_kind: 'branch_idea',
       priority_change: 'keep',
@@ -46,6 +53,7 @@ export function deriveFeedbackLowering(params: {
     };
   }
   return {
+    ...declaration,
     signal: params.signal,
     decision_kind: 'capture_finding',
     priority_change: 'raise',

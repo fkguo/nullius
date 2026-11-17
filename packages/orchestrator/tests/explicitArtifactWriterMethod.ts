@@ -1,7 +1,7 @@
 import type { ExecutionPlanV1 } from '@nullius/shared';
 import { compileExecutionPlan, type StagedIdeaSurface } from '../src/computation/execution-plan.js';
 
-function controlledArtifactWriterContent(): string {
+function controlledArtifactWriterContent(lastTaskId?: string, feedbackSignal?: 'success' | 'weak_signal' | 'failure'): string {
   return [
     'import argparse',
     'import json',
@@ -52,12 +52,18 @@ function controlledArtifactWriterContent(): string {
     '    }',
     "    output_path.write_text(json.dumps(payload, indent=2) + '\\n', encoding='utf-8')",
     '',
+    ...(feedbackSignal ? [
+      `if args.task_id == ${JSON.stringify(lastTaskId)}:`,
+      "    feedback_path = Path('outputs/research_feedback.json')",
+      "    feedback_path.parent.mkdir(parents=True, exist_ok=True)",
+      `    feedback_path.write_text(json.dumps({'feedback_signal': '${feedbackSignal}'}) + '\\n', encoding='utf-8')`,
+    ] : []),
   ].join('\n');
 }
 
-export function explicitArtifactWriterMethod(plan: ExecutionPlanV1): Record<string, unknown> {
+export function explicitArtifactWriterMethod(plan: ExecutionPlanV1, feedbackSignal?: 'success' | 'weak_signal' | 'failure'): Record<string, unknown> {
   return {
-    files: [{ path: 'scripts/execution_plan_runner.py', content: controlledArtifactWriterContent() }],
+    files: [{ path: 'scripts/execution_plan_runner.py', content: controlledArtifactWriterContent(plan.tasks.at(-1)?.task_id, feedbackSignal) }],
     run_card: {
       schema_version: 2,
       workflow_id: 'computation',
@@ -68,7 +74,7 @@ export function explicitArtifactWriterMethod(plan: ExecutionPlanV1): Record<stri
           kind: 'shell', argv: ['python3', 'scripts/execution_plan_runner.py', '--task-id', task.task_id, '--execution-plan', 'execution_plan_v1.json'],
           cwd: '.', timeout_seconds: 10,
         },
-        outputs: task.expected_artifacts.map(artifact => artifact.path),
+        outputs: [...task.expected_artifacts.map(artifact => artifact.path), ...(feedbackSignal && task === plan.tasks.at(-1) ? ['outputs/research_feedback.json'] : [])],
         ...(task.depends_on_task_ids?.length ? { depends_on: [...task.depends_on_task_ids] } : {}),
       })),
     },

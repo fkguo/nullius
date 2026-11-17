@@ -3,19 +3,17 @@
 /**
  * Knob-threading anti-drift CI check.
  *
- * A convergence ladder and an orthogonal-method cross-check both certify a
+ * A convergence ladder and an independently constructed cross-check both assess a
  * number only if they can actually see the setting they are testing. Two
  * ways they silently cannot:
  *
  *   1. THE KNOB NEVER REACHED THE COMPUTATION (G1). A ladder whose steps
- *      return bit-identical values did not refine anything — the knob was
- *      read once at load time, frozen in a cached configuration, or
- *      overridden by a default in the consuming stage. Read as a plateau,
- *      that ladder certifies an arbitrary setting as converged. The
- *      countermeasure is to treat identical values across a ladder step as
- *      a threading failure to diagnose, and to confirm with a cheap
- *      positive control that the knob-sensitive intermediate really differs
- *      between steps.
+ *      return bit-identical values may have reused a knob read once at load
+ *      time, frozen in a cached configuration, or overridden by a default.
+ *      Identical values alone do not establish this failure: exactness,
+ *      symmetry, or rounding can also explain them. The countermeasure is
+ *      to inspect the consumed settings and use a sensitive control when
+ *      useful, without requiring a correct exact result to change.
  *
  *   2. THE CROSS-CHECK INHERITED THE SUSPECT SETTING (G2). When a specific
  *      setting is what is in doubt, a second route that shares that setting
@@ -91,13 +89,14 @@ const skill = read(SKILL_FILE);
 
 // 1. G1: a ladder is evidence only if the knob reached the computation.
 requireAll(`${SKILL_FILE} (G1)`, gateItem(SKILL_FILE, skill, 'G1'), [
-  ['threading clause heading', '**A ladder is evidence only if the knob demonstrably changed what was computed.**'],
-  ['bit-identical signature', 'Bit-identical values across nominally different settings mean the knob is **not threading**'],
-  ['threading failure mechanisms', 'read once at load time, frozen in a cached configuration, or silently overridden by a default in the stage that consumes it'],
-  ['diagnose-not-convergence consequence', '**threading failure to diagnose, not as convergence**'],
-  ['plateau definition', 'a plateau is values that *stop moving*, never values that never moved'],
-  ['cheap positive control', 'the intermediate quantity most sensitive to the knob actually differs between ladder steps'],
-  ['positive control precedes the reading', 'before the ladder is read at all'],
+  ['threading clause heading', '**A ladder is evidence only if its settings demonstrably reached the computation.**'],
+  ['bit-identical values alone are inconclusive', 'Bit-identical values alone establish neither convergence nor a threading failure.'],
+  ['consumed configuration inspected', 'Inspect the actual configuration consumed at each step'],
+  ['threading failure mechanisms', 'a value read only at load time, a frozen cache, or a default that overrides the requested setting'],
+  ['sensitive control when useful', 'Use a knob-sensitive control when it can distinguish those failures.'],
+  ['exactness and rounding considered', 'explain whether exactness, a symmetry or zero, or output rounding accounts for the identical values'],
+  ['exact result need not move', 'Do not force a correct exact result to move.'],
+  ['ignored setting supplies no evidence', 'a knob that never reached the calculation supplies no convergence evidence and must be repaired'],
 ]);
 
 // 2. G2: independence must hold in the setting under suspicion.
@@ -122,10 +121,11 @@ requireAll(`${PROVENANCE_FILE} (recorded failure modes)`, read(PROVENANCE_FILE),
 
 // 4. The matrix contract carries both as field rules.
 requireAll(CONTRACT_FILE, read(CONTRACT_FILE), [
-  ['bit-identical ladder entries rejected', 'Two `refinement` entries whose `value`s are **bit-identical** do not establish a plateau either'],
-  ['threading-failure diagnosis required', 'Diagnose the threading failure'],
-  ['knob-sensitive intermediate recorded', 'record the knob-sensitive intermediate that actually differs between the settings'],
-  ['converged gated on the diagnosis', 'before `converged` may be `true`'],
+  ['bit-identical values alone are inconclusive', '**Bit-identical** values alone establish neither a plateau nor a threading failure.'],
+  ['consumed configuration change recorded', 'Record that the actual consumed configuration changed'],
+  ['exactness and rounding considered', 'explain any exactness, symmetry or rounding that keeps the values identical'],
+  ['sensitive control when applicable', 'A sensitive control can distinguish an ignored knob when applicable'],
+  ['exact result need not move', 'different result values are not mandatory for an exact calculation'],
   ['suspect-setting independence rule', 'Independence must also hold **in the setting under suspicion**'],
   ['inherited-setting entries do not agree', 'does **not** set `methods_agree` for that setting'],
 ]);

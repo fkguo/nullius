@@ -1,4 +1,5 @@
 import type { ComputationResultV1 } from '@nullius/shared';
+import { feedbackAuthorityError } from './feedback-authority.js';
 import { createTeamExecutionState } from '../team-execution-state.js';
 import type { TeamExecutionState } from '../team-execution-types.js';
 import { TeamExecutionStateManager } from '../team-execution-storage.js';
@@ -62,6 +63,7 @@ export async function progressDelegatedFeedbackFollowups(params: {
   computationResult: ComputationResultV1;
   projectRoot: string;
   runId: string;
+  runDir: string;
   launchTask: (params: {
     computationResult: ComputationResultV1;
     projectRoot: string;
@@ -78,6 +80,9 @@ export async function progressDelegatedFeedbackFollowups(params: {
   if (!task) {
     return { status: 'skipped_no_pending_task' };
   }
+
+  const authorityError = feedbackAuthorityError(params.computationResult, params.runDir);
+  if (authorityError) return { status: 'skipped_invalid_team_execution', task_id: task.task_id, task_kind: task.kind, error: authorityError };
 
   let team: DelegatedFollowupTeamConfig;
   try {

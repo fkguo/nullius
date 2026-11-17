@@ -39,7 +39,7 @@
 // Bucket 1: ALWAYS_STATE_TOUCHING
 // hep_import_from_zotero, hep_inspire_search_export,
 // hep_inspire_resolve_identifiers, inspire_parse_latex and
-// inspire_theoretical_conflicts require output_dir and write into it inside
+// These tools require output_dir and write into it inside
 // the project.
 // ─────────────────────────────────────────────────────────────────────────────
 const ALWAYS_STATE_TOUCHING = new Set<string>([
@@ -50,7 +50,6 @@ const ALWAYS_STATE_TOUCHING = new Set<string>([
   'hep_inspire_resolve_identifiers',
   // inspire_* tools that write into output_dir (required):
   'inspire_parse_latex',
-  'inspire_theoretical_conflicts',
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,13 +98,7 @@ export function isStateTouchingHepMcp(
 ): boolean {
   if (ALWAYS_STATE_TOUCHING.has(toolName)) return true;
   if (VERIFY_IF_PROJECT_ROOT.has(toolName)) return hasProjectRootArg(args);
-  // Default for unknown / no-state-touch tools (hep_health, arxiv_*, openalex_*,
-  // hepdata_*, zotero_*, inspire_search_next / inspire_literature /
-  // inspire_resolve_citekey / inspire_grade_evidence /
-  // inspire_critical_analysis /
-  // inspire_classify_reviews / inspire_topic_analysis /
-  // inspire_network_analysis / inspire_find_connections /
-  // inspire_trace_original_source / inspire_find_crossover_topics /
-  // inspire_analyze_citation_stance / inspire_validate_bibliography): no anchor.
+  // Tools without a durable project write do not acquire a run anchor.
+  // Source downloads and other stateful cases are classified above.
   return false;
 }

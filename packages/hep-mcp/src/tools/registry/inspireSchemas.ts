@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { optionalBudgetInt, FindConnectionsParamsSchema } from '@nullius/shared';
 import { InspireRecidSchema, NumericRecidSchema } from '../inspireRecid.js';
 import {
-  TimeRangeSchema,
   NetworkAnalysisToolSchema,
   TopicAnalysisToolSchema,
   TraceOriginalSourceToolSchema,
@@ -173,41 +172,6 @@ export const InspireResolveCitekeyToolSchema = z
     }
   });
 
-export const InspireGradeEvidenceToolSchema = z.object({
-  recid: InspireRecidSchema,
-  search_confirmations: z.boolean().optional(),
-  max_search_results: optionalBudgetInt({ min: 1 }).optional(),
-}).strict();
-
-export const InspireCriticalAnalysisToolSchema = z.object({
-  recid: InspireRecidSchema,
-  include_evidence: z.boolean().optional(),
-  include_questions: z.boolean().optional(),
-  include_assumptions: z.boolean().optional(),
-  check_literature: z.boolean().optional(),
-  search_confirmations: z.boolean().optional(),
-  max_search_results: optionalBudgetInt({ min: 1 }).optional(),
-  assumption_max_depth: optionalBudgetInt({ min: 0 }).optional(),
-}).strict();
-
-export const InspireClassifyReviewsToolSchema = z.object({
-  recids: z.array(InspireRecidSchema).min(1),
-  current_threshold_years: z.number().int().optional(),
-}).strict();
-
-export const InspireTheoreticalConflictsToolSchema = z.object({
-  output_dir: OutputDirSchema,
-  recids: z.array(InspireRecidSchema).min(1),
-  subject_entity: z.string().trim().min(1).optional(),
-  inputs: z.array(z.enum(['title', 'abstract'])).min(1).optional(),
-  max_papers: strictBudgetInt({ min: 1 }).optional(),
-  max_claim_candidates_per_paper: strictBudgetInt({ min: 1, max: 200 }).optional(),
-  max_candidates_total: strictBudgetInt({ min: 1, max: 5000 }).optional(),
-  max_llm_requests: strictBudgetInt({ min: 1 }).optional(),
-  prompt_version: z.string().min(1).optional(),
-  stable_sort: z.boolean().optional(),
-}).strict();
-
 export const PaperSourceToolSchema = z.object({
   identifier: z.string().min(1),
   mode: z.enum(['urls', 'content', 'metadata', 'auto']),
@@ -253,21 +217,6 @@ export const InspireParseLatexToolSchema = z.object({
     .strict()
     .optional(),
 }).strict();
-
-export const FindCrossoverTopicsToolSchema = z.object({
-  categories: z.array(z.string().min(1)).length(2).optional(),
-  scan_popular: z.boolean().optional().default(true),
-  time_range: TimeRangeSchema,
-  min_papers: z.number().int().optional(),
-  limit: optionalBudgetInt({ min: 1 }),
-});
-
-export const AnalyzeCitationStanceToolSchema = z.object({
-  latex_content: z.string().min(1),
-  target_recid: InspireRecidSchema,
-  bib_content: z.string().optional(),
-  max_contexts: optionalBudgetInt({ min: 1 }).default(20),
-});
 
 export const CleanupDownloadsToolSchema = z.object({
   arxiv_id: z.string().optional(),

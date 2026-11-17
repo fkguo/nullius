@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import * as SharedRoot from '../index.js';
 import * as SharedGenerated from '../generated/index.js';
+import analysisContract from '../../../../meta/schemas/analysis_types_v1.schema.json' with { type: 'json' };
 import {
   AnalyzePapersParamsSchema,
   AnalyzeCollectionParamsSchema,
@@ -84,12 +85,15 @@ describe('GenerateSurveyParamsSchema', () => {
 describe('TopicEvolutionParamsSchema', () => {
   it('validates minimal', () => {
     const result = TopicEvolutionParamsSchema.parse({ topic: 'QCD' });
-    expect(result.granularity).toBe('year');
-    expect(result.include_subtopics).toBe(false);
+    expect(result.granularity).toBe('5year');
+    expect(TopicEvolutionParamsSchema.safeParse({ topic: 'QCD', include_subtopics: false }).success).toBe(false);
   });
 });
 
 describe('Analysis-type public ownership', () => {
+  it('keeps all actual paper metadata fields in the analysis JSON contract', () => {
+    expect(Object.keys(analysisContract.$defs.PaperSummaryRef.properties).sort()).toEqual(Object.keys(SharedRoot.PaperSummarySchema.shape).sort());
+  });
   it('keeps runtime topic-evolution authority on the handwritten shared surface', () => {
     expect(SharedRoot.TopicEvolutionParamsSchema).toBe(TopicEvolutionParamsSchema);
     expect(SharedRoot.TopicEvolutionSchema).toBe(TopicEvolutionSchema);

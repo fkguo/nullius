@@ -72,7 +72,7 @@ const ACTIVE_DIGEST_RUN_STATUSES = new Set([
 ]);
 
 type DigestProposalKind = 'repair' | 'skill' | 'optimize' | 'innovate';
-const CURATED_WORKFLOW_OUTPUT_KEYS = ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'] as const;
+const CURATED_WORKFLOW_OUTPUT_KEYS = ['topic_analysis', 'network_analysis', 'connection_scan'] as const;
 type WorkflowOutputSource = 'state' | 'legacy_workflow_projection';
 const RECOVERY_STARTUP_READ_ORDER = ['AGENTS.md', 'research_plan.md', 'project_index.md'] as const;
 const RECOVERY_CONTEXT_SELECTION = 'Start at research_plan.md#Current Status and project_index.md; select task-relevant guidance and original sources. Read applicable charter/contract constraints and complete originals whenever verification requires them. recommended_files lists candidates, not a mandatory preload.';

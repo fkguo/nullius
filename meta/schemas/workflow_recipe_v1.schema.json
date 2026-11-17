@@ -36,6 +36,7 @@
         "additionalProperties": false,
         "required": [
           "id",
+          "task_kind",
           "purpose"
         ],
         "anyOf": [
@@ -55,6 +56,18 @@
             "type": "string",
             "minLength": 1
           },
+          "task_kind": {
+            "type": "string",
+            "enum": [
+              "literature",
+              "idea",
+              "compute",
+              "evidence_search",
+              "finding",
+              "draft_update",
+              "review"
+            ]
+          },
           "tool": {
             "type": "string",
             "minLength": 1
@@ -66,8 +79,7 @@
               "analyze.topic_evolution",
               "analyze.citation_network",
               "analyze.paper_connections",
-              "analyze.provenance_trace",
-              "analyze.paper_set_critical_review"
+              "analyze.provenance_trace"
             ]
           },
           "purpose": {
@@ -95,8 +107,7 @@
                 "analysis.topic_evolution",
                 "analysis.citation_network",
                 "analysis.paper_set_connections",
-                "analysis.provenance_trace",
-                "analysis.paper_set_critical_review"
+                "analysis.provenance_trace"
               ]
             }
           },

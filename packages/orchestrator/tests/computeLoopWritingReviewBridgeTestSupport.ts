@@ -22,7 +22,7 @@ export function createBridgeRun(runId: string, projectRoot: string, runDir = pat
     },
   });
   writeJson(executionPlanArtifactPath(runDir), executionPlan);
-  const { manifestPath } = materializeExecutionPlan(runDir, executionPlan, { methodSpec: explicitArtifactWriterMethod(executionPlan) });
+  const { manifestPath } = materializeExecutionPlan(runDir, executionPlan, { methodSpec: explicitArtifactWriterMethod(executionPlan, 'success') });
   return { runDir, manifestPath };
 }
 

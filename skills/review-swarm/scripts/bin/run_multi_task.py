@@ -175,7 +175,7 @@ def _atomic_write_text(path: Path, text: str) -> None:
         raise
 
 
-def _agent_skills_root() -> Path:
+def _agent_skills_root(backend: Optional[str] = None) -> Path:
     """Host-neutral agent skills root holding the sibling runner skills.
 
     Prefer runners alongside this skill; otherwise honor an advertised host home
@@ -184,10 +184,14 @@ def _agent_skills_root() -> Path:
     location (which also covers hosts not listed here). Explicit `--*-runner`
     flags override the result entirely.
     """
-    # A complete checkout/plugin carries its own reviewed runner versions.
+    # A checkout/plugin or selective copy install can carry its own runner.
+    # Resolve each backend separately so one backend's presence is not required
+    # to discover another, and a partial install can still use host runners.
     # Explicit command-line runner overrides still take precedence.
     sibling_root = Path(__file__).resolve().parents[3]
-    if (sibling_root / "claude-cli-runner" / "scripts" / "run_claude.sh").is_file():
+    backends = (backend,) if backend else ("claude", "codex", "gemini", "kimi", "opencode")
+    if any((sibling_root / f"{name}-cli-runner" / "scripts" / f"run_{name}.sh").is_file()
+           for name in backends):
         return sibling_root
     for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
         val = os.environ.get(env_var, "").strip()
@@ -201,23 +205,23 @@ def _agent_skills_root() -> Path:
 
 
 def _opencode_runner() -> Path:
-    return _agent_skills_root() / "opencode-cli-runner" / "scripts" / "run_opencode.sh"
+    return _agent_skills_root("opencode") / "opencode-cli-runner" / "scripts" / "run_opencode.sh"
 
 
 def _claude_runner() -> Path:
-    return _agent_skills_root() / "claude-cli-runner" / "scripts" / "run_claude.sh"
+    return _agent_skills_root("claude") / "claude-cli-runner" / "scripts" / "run_claude.sh"
 
 
 def _codex_runner() -> Path:
-    return _agent_skills_root() / "codex-cli-runner" / "scripts" / "run_codex.sh"
+    return _agent_skills_root("codex") / "codex-cli-runner" / "scripts" / "run_codex.sh"
 
 
 def _gemini_runner() -> Path:
-    return _agent_skills_root() / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
+    return _agent_skills_root("gemini") / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
 
 
 def _kimi_runner() -> Path:
-    return _agent_skills_root() / "kimi-cli-runner" / "scripts" / "run_kimi.sh"
+    return _agent_skills_root("kimi") / "kimi-cli-runner" / "scripts" / "run_kimi.sh"
 
 
 def _require_file(p: Path, *, label: str) -> None:

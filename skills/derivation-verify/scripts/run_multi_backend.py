@@ -701,8 +701,9 @@ def pick_next_spec(pool: list[str], used: list[str]) -> Optional[str]:
 # Operates on each deriver's MODEL-DECLARED `checkable_form` (a strict sympy rewrite of its answer) —
 # NOT on the free-text canonical_answer, because naive parsing of free text is unsafe (e.g. implicit
 # multiplication turns "arctan(q/2m)" into a*r*c*t*a*n*..., and "Θ(n log n)" parses to a symbol product).
-# When >=2 cross-family derivations are CAS-verified equal, convergence is decided WITHOUT the
-# (anchored) comparator — the blind/de-anchored adjudication the design targets. Any doubt -> abstain.
+# This establishes equivalence of declared forms only. Convergence still requires >=2 assessed
+# independent lanes and agreeing adjudicator recomputation; CAS cannot override a comparator veto.
+# Any doubt in the deterministic comparison -> abstain.
 # --------------------------------------------------------------------------------------
 try:
     import sympy as _sp
@@ -1639,13 +1640,12 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     # `unavailable` (from run_gate's per-backend failure tracker) drops derivers whose backend has
     # repeatedly failed at the infrastructure level (blank output / timeout / crash) so later claims
     # and tie-break rounds stop re-trying a dead CLI. Convergence rules are NOT relaxed: a shrunken
-    # pool just means R1 (>=2 distinct families) fails honestly and the claim reports unconverged.
+    # pool still needs >=2 independently executed and assessed lanes; one family can supply both.
     is_down = unavailable or (lambda _spec: False)
     cli_pool = [s for s in pool if roster_family_of(s) not in native_families and not is_down(s)]
 
-    # Round 0: seed enough DISTINCT new CLI families to reach >=2 total (native + CLI). With no natives
-    # this is the original 2-distinct-family seed; with a native family it is one independent CLI engine
-    # to corroborate it.
+    # Round 0: prefer distinct available CLI families, then fill the two-lane floor with fresh
+    # executions from the available pool. Family diversity is reported separately from independence.
     need_cli = 2 if native_seeded == 0 else max(1, 2 - len(native_families))
     seed_specs: list[str] = []
     picked = set(native_families)

@@ -39,15 +39,18 @@ replace the notebook or turn it into an index of artifacts.
    `research-integrity`, `numerical-reliability-gate` or the project workflow.
    Distinguish assumptions, literature statements and independently checked
    results; do not manufacture verification details to fill a template.
-4. **Review and revise.** For a substantive manuscript, delegate a source-aware
-   scientific review using `referee-review` or the host's agents. Give the
+4. **Review and revise.** For a substantive manuscript, follow
+   [referee-review](../referee-review/SKILL.md) and delegate the scientific
+   assessment to an independent host agent or the existing
+   [review-swarm](../review-swarm/SKILL.md) launcher. Give the
    reviewer the actual manuscript, research question, relevant source passages
    and artifact paths with access to the files. Ask for counterexamples,
    unsupported steps and missing checks. A different provider may help but is
    not a substitute for independent examination. Read the findings, perform the
    necessary checks, edit the real files and re-review the changed claims. When
    an independent reviewer is unavailable, disclose that limitation rather than
-   inventing a passed review. Do not require a fixed provider pair, section
+   inventing a passed review. A packet's headings, a report schema or a
+   mechanical check cannot issue the scientific assessment. Do not require a fixed provider pair, section
    count or number of review rounds.
 5. **Check the current deliverable.** Run the applicable checks below and read
    their outputs. Mechanical success checks file integrity and declared

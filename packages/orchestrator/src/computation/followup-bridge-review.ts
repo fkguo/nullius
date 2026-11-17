@@ -25,7 +25,7 @@ export function buildReviewFollowup(params: {
   runId: string;
   objectiveTitle: string;
   summary: string;
-  feedbackLowering: ComputationResultV1['feedback_lowering'];
+  feedbackLowering: NonNullable<ComputationResultV1['feedback_lowering']>;
   resultUri: string;
   reviewBridgeUri: string;
   reviewNodeId: string;

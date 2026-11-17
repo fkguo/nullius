@@ -82,7 +82,7 @@ function selectLatestSectionOutputForTask(
 }
 
 export function planComputationFollowupBridges(runDir: string, input: BridgeAuthorityInput): ComputationFollowupBridges {
-  if (input.feedback_lowering.decision_kind !== 'capture_finding') {
+  if (input.feedback_lowering?.decision_kind !== 'capture_finding') {
     return { bridgePlans: [] };
   }
   const context = detectDraftContext(runDir);

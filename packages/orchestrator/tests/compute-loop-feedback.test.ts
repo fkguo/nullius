@@ -59,13 +59,13 @@ function createBridgeRun(runId: string, projectRoot: string) {
   const executionPlan = compileExecutionPlan(runId, {
     outline_seed_path: 'artifacts/outline_seed_v1.json',
     outline: {
-      thesis: 'Deterministic failed execution should lower into idea refinement.',
+      thesis: 'Execution status and declared research feedback remain separate.',
       claims: [{ claim_text: 'Claim A' }],
       hypotheses: ['Hypothesis A'],
       source_handoff_uri: '/tmp/idea-handoff.json',
     },
     hints: {
-      minimal_compute_plan: [{ step: 'Fail the bridge task', method: 'generic execution', estimated_difficulty: 'low' }],
+      minimal_compute_plan: [{ step: 'Execute the bridge task', method: 'generic execution', estimated_difficulty: 'low' }],
     },
   });
   writeJson(executionPlanArtifactPath(runDir), executionPlan);
@@ -86,7 +86,7 @@ function createIdeaOriginBridgeRun(runId: string, projectRoot: string) {
     idea_id: ideaId,
     promoted_at: '2026-03-25T00:00:00Z',
     idea_card: {
-      thesis_statement: 'Idea-originated execution failure should queue feedback back into idea-engine.',
+      thesis_statement: 'Idea-originated execution queues only explicitly declared research feedback.',
       claims: [{ claim_text: 'Claim A' }],
       testable_hypotheses: ['Hypothesis A'],
       candidate_formalisms: ['lagrangian'],
@@ -117,7 +117,7 @@ function createIdeaOriginBridgeRun(runId: string, projectRoot: string) {
   return { campaignId, handoffPath, manifestPath, runDir };
 }
 
-function writeFeedbackSignalRunner(runDir: string, feedbackSignal: 'success' | 'weak_signal'): void {
+function writeFeedbackSignalRunner(runDir: string, feedbackSignal: 'success' | 'weak_signal' | 'failure'): void {
   fs.writeFileSync(
     path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'),
     [
@@ -134,13 +134,19 @@ function writeFeedbackSignalRunner(runDir: string, feedbackSignal: 'success' | '
       "output_path = Path('outputs') / f\"{args.task_id}.json\"",
       'output_path.parent.mkdir(parents=True, exist_ok=True)',
       "output_path.write_text(json.dumps(payload) + '\\n', encoding='utf-8')",
+      "Path('outputs/research_feedback.json').write_text(json.dumps(payload) + '\\n', encoding='utf-8')",
     ].join('\n'),
     'utf-8',
   );
+  const manifestPath = path.join(runDir, 'computation', 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  manifest.steps.at(-1).expected_outputs = [...new Set([...manifest.steps.at(-1).expected_outputs, 'outputs/research_feedback.json'])];
+  manifest.outputs = [...new Set([...manifest.outputs, 'outputs/research_feedback.json'])];
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 }
 
-describe('compute-loop failure lowering', () => {
-  it('writes a failed computation_result_v1 artifact and feedback handoff without emitting a false finding', async () => {
+describe('compute-loop declared feedback boundary', () => {
+  it('records execution failure without inventing a negative scientific result or handoff', async () => {
     const projectRoot = makeTmpDir();
     const runId = 'run-loop-failure';
     registerCleanup(projectRoot);
@@ -163,9 +169,7 @@ describe('compute-loop failure lowering', () => {
 
     expect(result.status).toBe('failed');
     expect(fs.existsSync(result.artifact_paths.computation_result)).toBe(true);
-    expect(result.next_actions[0]?.action_kind).toBe('downgrade_idea');
-    expect(result.next_actions[0]?.task_kind).toBe('idea');
-    expect(result.next_actions[0]?.handoff_kind).toBe('feedback');
+    expect(result.next_actions).toEqual([]);
 
     const outcome = assertComputationResultValid(
       JSON.parse(fs.readFileSync(result.artifact_paths.computation_result, 'utf-8')) as unknown,
@@ -173,34 +177,13 @@ describe('compute-loop failure lowering', () => {
 
     expect(outcome.execution_status).toBe('failed');
     expect(outcome.failure_reason).toContain("step 'task_001' exited with code 1");
-    expect(outcome.feedback_lowering.signal).toBe('failure');
-    expect(outcome.feedback_lowering.decision_kind).toBe('downgrade_idea');
-    expect(outcome.feedback_lowering.priority_change).toBe('lower');
-    expect(outcome.feedback_lowering.prune_candidate).toBe(true);
-    expect(outcome.workspace_feedback.workspace.edges.some(edge => edge.kind === 'backtracks_to' && edge.to_node_id === `idea:${runId}`)).toBe(true);
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'compute' && task.status === 'blocked')).toBe(true);
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'idea' && task.status === 'pending')).toBe(true);
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'finding')).toBe(false);
-    expect(outcome.workspace_feedback.handoffs).toHaveLength(1);
-    expect(outcome.workspace_feedback.handoffs[0]?.handoff_kind).toBe('feedback');
-    expect(outcome.workspace_feedback.handoffs[0]?.payload.disposition).toBe('downgrade_idea');
-    expect(outcome.workspace_feedback.handoffs[0]?.payload.feedback_signal).toBe('failure');
-    expect(outcome.workspace_feedback.handoffs[0]?.payload.priority_change).toBe('lower');
-    expect(outcome.workspace_feedback.handoffs[0]?.payload.prune_candidate).toBe(true);
-    const ideaTask = outcome.workspace_feedback.tasks.find(task => task.kind === 'idea')!;
-    expect(ideaTask.metadata?.team_execution).toMatchObject({
-      owner_role: 'lead',
-      delegate_role: 'delegate',
-      delegate_id: 'delegate-1',
-      coordination_policy: 'supervised_delegate',
-      handoff_kind: 'feedback',
-      workspace_id: outcome.workspace_feedback.workspace.workspace_id,
-      research_task_ref: {
-        task_id: ideaTask.task_id,
-        task_kind: 'idea',
-        source_task_id: outcome.workspace_feedback.tasks.find(task => task.kind === 'compute')?.task_id,
-      },
-    });
+    expect(outcome.feedback_lowering).toBeNull();
+    expect(outcome.workspace_feedback.workspace.nodes.map(node => node.kind).sort()).toEqual(['compute_attempt', 'question']);
+    expect(outcome.workspace_feedback.workspace.edges.map(edge => edge.kind)).toEqual(['depends_on']);
+    expect(outcome.workspace_feedback.tasks).toHaveLength(1);
+    expect(outcome.workspace_feedback.tasks[0]).toMatchObject({ kind: 'compute', status: 'blocked' });
+    expect(outcome.workspace_feedback.tasks[0]?.metadata).not.toHaveProperty('priority_change');
+    expect(outcome.workspace_feedback.handoffs).toEqual([]);
     expect(outcome.verification_refs?.subject_refs).toHaveLength(1);
     expect(outcome.verification_refs?.subject_verdict_refs).toHaveLength(1);
     expect(outcome.verification_refs?.coverage_refs).toHaveLength(1);
@@ -238,17 +221,17 @@ describe('compute-loop failure lowering', () => {
     });
   });
 
-  it('queues idea-engine pending feedback for an idea-originated failed run without changing the canonical result contract', async () => {
+  it.each(['completed', 'failed', 'declared_negative'] as const)('queues idea-engine feedback only for an explicit completed declaration: %s', async (mode) => {
     const projectRoot = makeTmpDir();
-    const runId = 'run-loop-failure-idea-origin';
+    const runId = `run-loop-idea-origin-${mode}`;
     registerCleanup(projectRoot);
 
     const { campaignId, manifestPath, runDir } = createIdeaOriginBridgeRun(runId, projectRoot);
-    fs.writeFileSync(
-      path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'),
-      "raise SystemExit(1)\n",
-      'utf-8',
-    );
+    if (mode === 'failed') {
+      fs.writeFileSync(path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'), 'raise SystemExit(1)\n', 'utf-8');
+    } else if (mode === 'declared_negative') {
+      writeFeedbackSignalRunner(runDir, 'failure');
+    }
     const manager = initRunState(projectRoot, runId);
     markA3Satisfied(manager, 'A3-0001');
 
@@ -259,8 +242,9 @@ describe('compute-loop failure lowering', () => {
       runId,
     });
 
-    expect(result.status).toBe('failed');
+    expect(result.status).toBe(mode === 'failed' ? 'failed' : 'completed');
     expect(fs.existsSync(result.artifact_paths.computation_result)).toBe(true);
+    const outcome = assertComputationResultValid(JSON.parse(fs.readFileSync(result.artifact_paths.computation_result, 'utf-8')));
 
     const pendingPath = path.join(
       projectRoot,
@@ -271,7 +255,34 @@ describe('compute-loop failure lowering', () => {
       'computation_feedback_pending',
       `${runId}.json`,
     );
-    expect(fs.existsSync(pendingPath)).toBe(true);
+    expect(fs.existsSync(pendingPath)).toBe(mode === 'declared_negative');
+    if (mode !== 'declared_negative') {
+      expect(outcome.feedback_lowering).toBeNull();
+      expect(result.next_actions).toEqual([]);
+      expect(outcome.workspace_feedback.handoffs).toEqual([]);
+      return;
+    }
+
+    expect(outcome.feedback_lowering).toMatchObject({ signal: 'failure', decision_kind: 'downgrade_idea', priority_change: 'lower', prune_candidate: true });
+    expect(outcome.workspace_feedback.tasks.find(task => task.kind === 'compute')?.status).toBe('completed');
+    expect(outcome.workspace_feedback.workspace.nodes.some(node => node.kind === 'finding')).toBe(false);
+    expect(outcome.workspace_feedback.workspace.edges.some(edge => edge.kind === 'supports')).toBe(false);
+    const ideaTask = outcome.workspace_feedback.tasks.find(task => task.kind === 'idea')!;
+    expect(ideaTask.metadata).toMatchObject({ feedback_basis: 'producer_declaration' });
+    expect(ideaTask.metadata?.team_execution).toMatchObject({
+      owner_role: 'lead',
+      delegate_role: 'delegate',
+      delegate_id: 'delegate-1',
+      coordination_policy: 'supervised_delegate',
+      handoff_kind: 'feedback',
+      workspace_id: outcome.workspace_feedback.workspace.workspace_id,
+      research_task_ref: {
+        task_id: ideaTask.task_id,
+        task_kind: 'idea',
+        source_task_id: outcome.workspace_feedback.tasks.find(task => task.kind === 'compute')?.task_id,
+      },
+    });
+    expect(outcome.workspace_feedback.handoffs[0]?.payload).toMatchObject({ disposition: 'downgrade_idea', feedback_signal: 'failure', priority_change: 'lower', prune_candidate: true });
 
     const pending = JSON.parse(fs.readFileSync(pendingPath, 'utf-8')) as Record<string, unknown>;
     expect(pending.schema_version).toBe(1);
@@ -306,10 +317,7 @@ describe('compute-loop failure lowering', () => {
     const stored = assertComputationResultValid(
       JSON.parse(fs.readFileSync(result.artifact_paths.computation_result, 'utf-8')) as unknown,
     );
-    expect(stored.feedback_lowering.signal).toBe('weak_signal');
-    expect(stored.feedback_lowering.decision_kind).toBe('branch_idea');
-    expect(stored.feedback_lowering.priority_change).toBe('keep');
-    expect(stored.feedback_lowering.prune_candidate).toBe(false);
+    expect(stored.feedback_lowering).toMatchObject({ signal: 'weak_signal', decision_kind: 'branch_idea', priority_change: 'keep', prune_candidate: false });
     expect(stored.workspace_feedback.tasks.some(task => task.kind === 'compute' && task.status === 'completed')).toBe(true);
     expect(stored.workspace_feedback.tasks.some(task => task.kind === 'idea' && task.status === 'pending')).toBe(true);
     expect(stored.workspace_feedback.tasks.some(task => task.kind === 'finding')).toBe(false);
@@ -373,18 +381,17 @@ describe('compute-loop failure lowering', () => {
     const base = assertComputationResultValid({
       schema_version: 1,
       run_id: runId,
-      objective_title: 'Backtrack literature after failed execution',
+      objective_title: 'Declared negative result',
       manifest_ref: {
         uri: `rep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent('computation/manifest.json')}`,
         sha256: 'a'.repeat(64),
         size_bytes: 1,
       },
-      execution_status: 'failed',
+      execution_status: 'completed',
       produced_artifact_refs: [],
       started_at: '2026-04-14T00:00:00.000Z',
       finished_at: '2026-04-14T00:01:00.000Z',
-      summary: 'Execution failed and should trigger a literature backtrack.',
-      failure_reason: 'step failed',
+      summary: 'The producer explicitly requested a literature backtrack after a completed operation.',
       feedback_lowering: {
         signal: 'failure',
         decision_kind: 'literature_followup',
@@ -398,9 +405,9 @@ describe('compute-loop failure lowering', () => {
       next_actions: [{
         action_kind: 'literature_followup',
         task_kind: 'literature',
-        title: 'Backtrack literature after failed execution',
+        title: 'Backtrack literature after Declared negative result',
         target_node_id: literatureNodeId,
-        reason: 'Execution failed and should trigger a literature backtrack.',
+        reason: 'The producer explicitly requested a literature backtrack after a completed operation.',
         handoff_kind: 'feedback',
       }],
       followup_bridge_refs: [],
@@ -418,12 +425,8 @@ describe('compute-loop failure lowering', () => {
           workspace_id: `workspace:${runId}`,
           primary_question_id: `question:${runId}`,
           nodes: [
-            { node_id: `question:${runId}`, kind: 'question', title: 'Backtrack literature after failed execution' },
-            { node_id: `idea:${runId}`, kind: 'idea', title: 'Staged idea for Backtrack literature after failed execution' },
-            { node_id: literatureNodeId, kind: 'evidence_set', title: 'Evidence follow-up for Backtrack literature after failed execution' },
-            { node_id: `compute:${runId}`, kind: 'compute_attempt', title: 'Approved computation for Backtrack literature after failed execution' },
-            { node_id: `finding:${runId}`, kind: 'finding', title: 'Finding from Backtrack literature after failed execution' },
-            { node_id: `decision:${runId}`, kind: 'decision', title: 'Feedback decision for Backtrack literature after failed execution' },
+            { node_id: `question:${runId}`, kind: 'question', title: 'Declared negative result' },
+            { node_id: `compute:${runId}`, kind: 'compute_attempt', title: 'Completed operation' },
           ],
           edges: [],
           created_at: '2026-04-14T00:00:00.000Z',
@@ -440,12 +443,15 @@ describe('compute-loop failure lowering', () => {
     expect(derived.nextActions).toEqual([{
       action_kind: 'literature_followup',
       task_kind: 'literature',
-      title: 'Backtrack literature after Backtrack literature after failed execution',
+      title: 'Backtrack literature after Declared negative result',
       target_node_id: literatureNodeId,
-      reason: 'step failed',
+      reason: base.summary,
       handoff_kind: 'feedback',
     }]);
     const literatureTask = derived.workspaceFeedback.tasks.find(task => task.kind === 'literature')!;
+    expect(derived.workspaceFeedback.workspace.nodes.find(node => node.node_id === literatureNodeId)).toMatchObject({ kind: 'evidence_set', metadata: { role: 'requested_work', accepted_evidence: false } });
+    expect(derived.workspaceFeedback.workspace.nodes.some(node => node.kind === 'finding')).toBe(false);
+    expect(derived.workspaceFeedback.workspace.edges.some(edge => edge.kind === 'supports')).toBe(false);
     expect(literatureTask.status).toBe('pending');
     expect(literatureTask.metadata?.team_execution).toMatchObject({
       handoff_kind: 'feedback',

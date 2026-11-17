@@ -1046,50 +1046,6 @@ describe('round-5 argument, name and response checks', () => {
     expect(api.getPaper).not.toHaveBeenCalled();
   });
 
-  it.each([
-    [{ recids: [' '] }],
-    [{ recids: ['12a'] }],
-    [{ recids: ['1'], inputs: [] }],
-    [{ recids: ['1'], subject_entity: '   ' }],
-    [{ recids: ['1'], max_claim_candidates_per_paper: 500 }],
-    [{ recids: ['1'], max_candidates_total: 6000 }],
-  ])('inspire_theoretical_conflicts refuses %j before any provider call', async args => {
-    const error = errorOf(await handleToolCall('inspire_theoretical_conflicts', { project_root: alias, output_dir: 'tc', ...args }));
-    expect(error.code).toBe('INVALID_PARAMS');
-    expect(api.getPaper).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    [{ title: 'T', year: '2020' }, /year is not an integer/],
-    [{ title: 42 }, /title is not a string/],
-    [{ title: 'T', abstract: ['a'] }, /abstract is not a string/],
-    [null, /not an object/],
-  ])('inspire_theoretical_conflicts aborts on the malformed record %j and publishes nothing', async (paper, detail) => {
-    vi.mocked(api.getPaper).mockResolvedValue(paper as any);
-    const error = errorOf(await handleToolCall('inspire_theoretical_conflicts', { project_root: alias, output_dir: 'tc', recids: ['1'] }));
-    expect(error.code).toBe('INVALID_PARAMS');
-    expect(error.message).toMatch(detail);
-    expect(fs.readdirSync(path.join(tmpDir, 'project', 'tc'))).toEqual([]);
-  });
-
-  it('inspire_theoretical_conflicts writes its whole set once and refuses to replace it', async () => {
-    vi.mocked(api.getPaper).mockResolvedValue({ title: 'A study of X', year: 2020, abstract: 'We find X.' } as any);
-    const createMessage = vi.fn().mockResolvedValue({
-      model: 'mock-sampling-model',
-      role: 'assistant',
-      content: [{ type: 'text', text: JSON.stringify({ relation: 'compatible', confidence: 0.5, reasoning: 'r' }) }],
-    });
-    const first = await handleToolCall('inspire_theoretical_conflicts', { project_root: alias, output_dir: 'tc', recids: ['1'] }, 'standard', { createMessage });
-    expect(first.isError, first.content[0]!.text).toBeFalsy();
-    const names = fs.readdirSync(path.join(tmpDir, 'project', 'tc')).sort();
-    expect(names).toHaveLength(9);
-    vi.mocked(api.getPaper).mockClear();
-    const second = errorOf(await handleToolCall('inspire_theoretical_conflicts', { project_root: alias, output_dir: 'tc', recids: ['1'] }, 'standard', { createMessage }));
-    expect(second.message).toMatch(/already exists/);
-    expect(api.getPaper).not.toHaveBeenCalled();
-    expect(fs.readdirSync(path.join(tmpDir, 'project', 'tc')).sort()).toEqual(names);
-  });
-
   async function exportResult(args: Record<string, unknown>) {
     const result = await handleToolCall('hep_inspire_search_export', { project_root: alias, query: 't:x', ...args });
     expect(result.isError, result.content[0]!.text).toBeFalsy();

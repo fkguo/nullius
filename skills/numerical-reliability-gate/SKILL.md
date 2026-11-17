@@ -92,7 +92,7 @@ Apply the checks that fit the quantity; a result is **reliable** only when every
 Each check names its own minimum disconfirming test — never accept a number because it "looks reasonable".
 G0 comes first because it sets how far every later check is run.
 
-- **G0 — Required accuracy first; refine only the dominant error; stop when the total meets it.** Before any
+- **G0 — Required accuracy first; refine where it reduces the relevant error; stop when the total meets it.** Before any
   refinement, write down the **required accuracy** of the quantity and where it comes from. List every
   use the quantity serves — the digits it will be displayed with (about half the last displayed digit,
   tighter when the value sits near a rounding boundary), how far a downstream conclusion moves when the
@@ -102,10 +102,15 @@ G0 comes first because it sets how far every later check is run.
   **Budget the error by source.** List the error sources with their estimated sizes — discretization or
   integration, representation or basis truncation, model or scheme choice, statistical — name the
   dominant one, and combine them into a **total error** by a stated rule: a linear sum by default, a sum
-  in quadrature only with a one-line reason the sources are independent. Refine **only the dominant
-  source**: tightening a subdominant one (more quadrature digits while a truncated representation
-  leaves a residual orders of magnitude larger, say) changes nothing the result depends on and is not
-  progress.
+  in quadrature only with a one-line reason the sources are independent. Choose refinements by their
+  expected reduction of the total error or uncertainty in the conclusion, relative to their cost.
+  Prioritize a reducible dominant source, but its label does not determine the next action. Reducing a
+  subdominant source is useful when it materially improves the required quantity or makes the total
+  meet the target: for a linear budget of 0.8 (irreducible model error) + 0.4 (numerical error) and a
+  target of 1.0, reducing the numerical part to 0.1 makes the total 0.9 without changing the dominant
+  source. Conversely, adding quadrature digits far below a larger representation error is not useful
+  when it cannot affect the target or conclusion. Explain the expected benefit in the existing
+  research notes; do not invent a new approval or bookkeeping gate for that choice.
   **Stop when the total error is at or below the required accuracy.** Refinement past that point needs
   explicit authorization from the project owner. A tolerance placed on the quantity itself — a ladder
   plateau, a cross-check agreement — is set from the required accuracy and no tighter; a stricter one
@@ -125,13 +130,15 @@ G0 comes first because it sets how far every later check is run.
   re-evaluation at the converged setting is a MIRAGE** — re-evaluate every coarse-grid optimum at the
   converged grid before trusting it. Convergence is a *measured* plateau (e.g. stable to a stated
   tolerance across a 2–3× range of the knob), never assumed from a single setting.
-  **A ladder is evidence only if the knob demonstrably changed what was computed.** Bit-identical values
-  across nominally different settings mean the knob is **not threading** — read once at load time, frozen in
-  a cached configuration, or silently overridden by a default in the stage that consumes it — so treat
-  identical values across a ladder step as a **threading failure to diagnose, not as convergence**: a
-  plateau is values that *stop moving*, never values that never moved. The cheap positive control is to
-  confirm that the intermediate quantity most sensitive to the knob actually differs between ladder steps,
-  before the ladder is read at all.
+  **A ladder is evidence only if its settings demonstrably reached the computation.** Bit-identical
+  values alone establish neither convergence nor a threading failure. Inspect the actual configuration
+  consumed at each step and rule out a value read only at load time, a frozen cache, or a default that
+  overrides the requested setting. Use a knob-sensitive control when it can distinguish those failures.
+  If the settings really changed, explain whether exactness, a symmetry or zero, or output rounding
+  accounts for the identical values; inspect sufficient internal precision when displayed rounding
+  could hide a relevant change. Do not force a correct exact result to move. Conversely, a knob that
+  never reached the calculation supplies no convergence evidence and must be repaired. The ladder
+  still owes the applicable error, precondition and independent-confirmation checks.
   For **sensitive**
   quantities also escalate floating-point precision and check the residual / backward error / condition
   number (or use interval / arbitrary-precision arithmetic) — a grid-refined value can still be wrong from
@@ -140,8 +147,9 @@ G0 comes first because it sets how far every later check is run.
   autocorrelation check, sensitivity to rare events, and report a confidence/credible interval — not a
   single point that "stopped moving".
   **The ladder runs to the G0 required accuracy, not to the last digit.** A plateau measured to the
-  required accuracy is convergence; escalating precision or refining a knob beyond it is owed only when
-  that knob is the dominant error source and the total error is still above the required accuracy.
+  required accuracy is convergence; further refinement for the quantity is warranted when the total
+  error is still above the required accuracy and reducing that contribution can materially help meet
+  it. Scientific diagnostics retain their separate rationale and requirements from G0.
 - **G2 — Independent-confirmation cross-check.** Recompute with `>=2` independently constructed and executed checks. Method diversity is a separate risk dimension; same/similar methods can qualify after substantive applicability and diagnostic checks. They must **agree** within a stated tolerance, set from the G0 required accuracy and no tighter than it. **Declare each
   check's resolution** — the smallest discrepancy it could detect — and *what it cannot resolve*; an
   agreement within a tolerance **coarser** than the property/effect you are certifying is **non-diagnostic**
@@ -464,7 +472,7 @@ G0 comes first because it sets how far every later check is run.
 
 | Task | Fragile (false ±) | Reliable |
 |---|---|---|
-| "Is it accurate enough?" | refine until nothing moves; one strict tolerance for every quantity | required accuracy from the strictest use of the quantity + error budget by source; refine the dominant source; stop when the total error meets it |
+| "Is it accurate enough?" | refine until nothing moves; one strict tolerance for every quantity | required accuracy from the strictest use + error budget; choose useful reductions by their effect on the total and the conclusion; stop when the total error meets the target |
 | Presence/absence, counting | fixed-seed search; `|F| < ε` threshold | topological invariant (argument-principle winding) |
 | Analytic continuation | a continuation unstable past `~N` nodes | a continuation well conditioned as nodes grow + cross-check |
 | "It converged" | a single setting that "looks flat" | a measured plateau across a 2–3× knob range + independently constructed check |

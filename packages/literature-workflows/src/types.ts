@@ -20,7 +20,6 @@ const AnalysisWorkflowCapabilityIdSchema = z.enum([
   'analysis.citation_network',
   'analysis.paper_set_connections',
   'analysis.provenance_trace',
-  'analysis.paper_set_critical_review',
 ]);
 
 export const WorkflowCapabilityIdSchema = z.union([
@@ -34,7 +33,6 @@ export const WorkflowActionIdSchema = z.enum([
   'analyze.citation_network',
   'analyze.paper_connections',
   'analyze.provenance_trace',
-  'analyze.paper_set_critical_review',
 ]);
 
 export const WorkflowDegradeModeSchema = z.enum([

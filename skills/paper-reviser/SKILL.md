@@ -13,9 +13,13 @@ Use this skill when you want an “advisor-like” pass over a LaTeX draft:
 - output both a **clean draft** and **auditable revision artifacts** (diff plus tracked-delivery contract),
 - and generate **verification requests** for simple, high-impact statements.
 
-This skill is intentionally **not** part of `research-writer`:
-- `research-writer` is for producing an arXiv-ready RevTeX paper scaffold and provenance wiring.
-- `paper-reviser` is for content-first revision of a paper draft (any class/template), usually earlier in the writing loop.
+Use `research-writer` for host-led scientific reading, selection, writing and
+delivery; its scaffold is a blank format template. Use `paper-reviser` for
+content-first revision of an existing draft in any class/template, with tracked
+changes and an actual auditor invocation. For a separate manuscript assessment,
+follow [referee-review](../referee-review/SKILL.md) through an independent host
+agent or [review-swarm](../review-swarm/SKILL.md). Document-shape checks and
+`--stub-models` smoke outputs are not scientific review evidence.
 
 ## What It Produces
 

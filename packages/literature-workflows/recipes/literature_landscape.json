@@ -90,7 +90,7 @@
       "id": "topic_scan",
       "task_kind": "literature",
       "action": "analyze.topic_evolution",
-      "purpose": "Summarize topic trends and emerging subtopics",
+      "purpose": "Collect publication counts and sampled paper metadata by year",
       "depends_on": [
         "seed_search"
       ],
@@ -109,8 +109,7 @@
       },
       "params": {
         "mode": "timeline",
-        "topic": "<topic>",
-        "limit": 20
+        "topic": "<topic>"
       }
     },
     {
@@ -172,7 +171,7 @@
       "id": "source_trace",
       "task_kind": "evidence_search",
       "action": "analyze.provenance_trace",
-      "purpose": "Trace likely original sources for a representative anchor paper",
+      "purpose": "Collect reference source candidates for reading from a representative anchor paper",
       "depends_on": [
         "citation_network"
       ],
@@ -192,7 +191,8 @@
       "params": {
         "recid": "<seed_recid>",
         "max_depth": 2,
-        "max_refs_per_level": 20
+        "max_refs_per_level": 20,
+        "cross_validate": false
       }
     }
   ]

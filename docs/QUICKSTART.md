@@ -13,6 +13,17 @@
 
 运行时复制或移动到其它位置后，原开发仓及其它 Nullius 开发仓副本仍不能作为真实研究项目根。
 
+Provider 工具提供原文、数据和有界元数据。主题摘要不评定研究质量或预测新兴方向；
+`inspire_trace_original_source` 返回 `source_candidates` 和引用查询状态，科学优先权保持
+`not_assessed`。科学结论须由宿主阅读原文并完成适用核验，详见
+[source-access 契约](../packages/hep-mcp/README.md#research-judgment-and-source-access)。
+
+计算成功完成也不自动产生科学发现或后续任务。需要后续工作时，声明并产出恰好一个
+`research_feedback.json`，其顶层 `feedback_signal` 为 `success`、`weak_signal` 或 `failure`。
+其他 JSON 输出不授予反馈权限。当前结果以 `basis: producer_declaration` 和绑定实际产物的
+`declaration_ref` 记录声明来源；后续执行必须核对该绑定及当前文件字节。声明只是工作请求，
+不是科学验收。历史结果仍可读取，旧推断反馈不能授权新的执行。
+
 ## Updating existing project guidance
 
 更新运行时不会自动更新课题里的定制指导文件。`nullius init --refresh` 会生成缺失的
@@ -237,7 +248,9 @@ via: nullius decision list) until resolved.
 nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"
 ```
 
-它会持久化 `.nullius/state.json#/plan` 并派生 `.nullius/plan.md` read model，输出的 `next_contract` 可建议后续 `literature_landscape` 或 `literature_gap_analysis`，但不会自动升级到这些 recipe。这个 harness 是 planning-only：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。host-native thinking process 不属于这个 recipe 的 contract；它也不是 idea-engine、不是 full research-team、不是新的 root front door。
+它会持久化 `.nullius/state.json#/plan` 并派生 `.nullius/plan.md` read model，记录五个 planning-only 步骤及 `next_contract` 等 artifact hints。解析命令不会撰写候选方向、筛选结论或 handoff 正文；这些内容由宿主完成，`research_brainstorm.*` 没有内置执行工具。宿主形成的 `next_contract` 可建议后续 `literature_landscape` 或 `literature_gap_analysis`，但不会自动启动这些 recipe。
+
+`literature-workflows` 当前只有上述三个固定 recipe。另两个文献 recipe 把步骤映射到 provider 工具，解析时只替换调用方提供的参数，不会把检索结果自动填入后续 `seed_recid` / `recids`，也不会生成原文笔记或 saturation 材料。通过 CLI 执行还须配置 `NULLIUS_RUN_MCP_COMMAND`；先根据当前问题决定是否采用 recipe，详见[实际能力与限制](../packages/literature-workflows/README.md)。
 
 研究记录约定：`research_plan.md#Current Status` 是简洁状态入口，`research_notebook.md` 是持续更新的问题逻辑主线；二者都不能冒充主研究报告。主报告从 `reports/main_research_report_template.md` 创建为不可变新文件，经 `project_index.md#Main research report` 登记并指向唯一当前版本，再以 `nullius report-validate` 检查结构、hash、链接、supersession 与 validation 分类。该检查通过不等于科学充分性通过。机器 JSON、hash、receipt 只绑定 provenance，不能替代解释性叙事与可点击的人类可读证据。重要文献 note 必须全文/source-first 阅读，记录 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；带日期的 run log、原始检索摘要、下载尝试和控制面观察写入 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把稳定理解折回 notebook。
 
@@ -253,13 +266,13 @@ nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-
 
 1) 把检索结果导出成项目文件：`hep_inspire_search_export`（或带 `output_dir` 的 `inspire_search`）、`hep_inspire_resolve_identifiers`
 - 关键参数：`project_root` + `output_dir`。`output_dir` 相对 `project_root` 或写成绝对路径，不存在时创建；不得经过 project root 以下的符号链接，不得位于 `.nullius/`、`team/runs/`、`artifacts/hep-mcp/` 之下，也不能是 project root 本身。通常取当前 orchestrator run 目录下的子目录，例如 `artifacts/runs/<run_id>/literature/`。
-- 返回项目相对路径（`export_path`、`meta_path`、`mapping_path` 等）；导出所用的每次 INSPIRE 请求/响应记录在 `<output_dir>/external_api/`。`inspire_parse_latex`、`inspire_theoretical_conflicts` 与 `hep_import_from_zotero` 同样写入 `output_dir`。
+- 返回项目相对路径（`export_path`、`meta_path`、`mapping_path` 等）；导出所用的每次 INSPIRE 请求/响应记录在 `<output_dir>/external_api/`。`inspire_parse_latex` 与 `hep_import_from_zotero` 同样写入 `output_dir`。
 
 2) 读论文原文：`arxiv_paper_source` / `inspire_paper_source`（`mode=content`）取得 LaTeX 源码或 PDF
 - 论断是否得到支持须对照原文核对；把核对所用的位置（章节、公式号、页码）记入项目笔记。
 
 3) 需要领域文献综述时：`nullius workflow-plan --recipe literature_landscape`
-- 先在目标外部 project root 执行 `nullius init`，然后在该 root 内或通过 `--project-root` 调用；这是一个公开的 stateful front door，会直接通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。对受限论文集分析使用 `inspire_critical_analysis`、`inspire_classify_reviews`、`inspire_theoretical_conflicts` 等 bounded operators。
+- 先在目标外部 project root 执行 `nullius init`，然后在该 root 内或通过 `--project-root` 调用；这是一个公开的 stateful front door，会直接通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。科学分析由宿主使用实际原文和适用的独立核验完成。
 
 > 说明：较底层的 checked-in Python `workflow-plan` consumer 与 internal regression/parser-residue 路径见 `docs/TESTING_GUIDE.md`；不要把它们当成新的 quickstart 默认入口。
 

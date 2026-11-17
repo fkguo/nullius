@@ -12,19 +12,19 @@ import {
 
 function makeStep(overrides?: Partial<PersistedWorkflowPlanStep>): PersistedWorkflowPlanStep {
   return {
-    step_id: 'critical_review',
-    description: 'Critical review',
+    step_id: 'citation_network',
+    description: 'Citation network',
     status: 'pending',
     execution: {
-      action: 'analyze.paper_set_critical_review',
-      tool: 'inspire_critical_analysis',
+      action: 'analyze.citation_network',
+      tool: 'inspire_network_analysis',
       provider: 'inspire',
       depends_on: ['seed_search'],
-      params: { recid: '1234' },
-      required_capabilities: ['analysis.paper_set_critical_review'],
+      params: { mode: 'citation', seed: '1234' },
+      required_capabilities: ['analysis.citation_network'],
       degrade_mode: 'fail_closed',
       consumer_hints: {
-        artifact: 'critical_analysis',
+        artifact: 'network_analysis',
         project_required: true,
         run_required: true,
       },
@@ -38,16 +38,16 @@ function makeRequest(overrides?: Partial<WorkflowRuntimeRequest>): WorkflowRunti
     project_root: '/tmp/project',
     workflow_id: 'review_cycle',
     run_id: 'RUN-1',
-    step_id: 'critical_review',
-    description: 'Critical review',
-    tool: 'inspire_critical_analysis',
+    step_id: 'citation_network',
+    description: 'Citation network',
+    tool: 'inspire_network_analysis',
     provider: 'inspire',
-    action: 'analyze.paper_set_critical_review',
-    params: { recid: '1234' },
+    action: 'analyze.citation_network',
+    params: { mode: 'citation', seed: '1234' },
     depends_on: ['seed_search'],
-    required_capabilities: ['analysis.paper_set_critical_review'],
+    required_capabilities: ['analysis.citation_network'],
     degrade_mode: 'fail_closed',
-    artifact_key: 'critical_analysis',
+    artifact_key: 'network_analysis',
     project_required: true,
     run_required: true,
     ...overrides,
@@ -95,16 +95,16 @@ describe('workflow runtime compile', () => {
       project_root: '/tmp/project',
       workflow_id: 'review_cycle',
       run_id: 'RUN-1',
-      step_id: 'critical_review',
-      description: 'Critical review',
-      tool: 'inspire_critical_analysis',
+      step_id: 'citation_network',
+      description: 'Citation network',
+      tool: 'inspire_network_analysis',
       provider: 'inspire',
-      action: 'analyze.paper_set_critical_review',
-      params: { recid: '1234' },
+      action: 'analyze.citation_network',
+      params: { mode: 'citation', seed: '1234' },
       depends_on: ['seed_search'],
-      required_capabilities: ['analysis.paper_set_critical_review'],
+      required_capabilities: ['analysis.citation_network'],
       degrade_mode: 'fail_closed',
-      artifact_key: 'critical_analysis',
+      artifact_key: 'network_analysis',
       project_required: true,
       run_required: true,
     });
@@ -118,7 +118,7 @@ describe('workflow runtime compile', () => {
       step: makeStep(),
     }) as Record<string, unknown>;
 
-    expect(request.required_capabilities).toEqual(['analysis.paper_set_critical_review']);
+    expect(request.required_capabilities).toEqual(['analysis.citation_network']);
     expect('consumer_hints' in request).toBe(false);
   });
 
@@ -128,7 +128,7 @@ describe('workflow runtime compile', () => {
       workflowId: 'review_cycle',
       runId: null,
       step: makeStep(),
-    })).toThrow('workflow step critical_review requires run_id');
+    })).toThrow('workflow step citation_network requires run_id');
   });
 });
 
@@ -137,14 +137,14 @@ describe('workflow runtime normalize', () => {
     const result = normalizeWorkflowRuntimeResult(makeRequest(), {
       ok: true,
       isError: false,
-      rawText: '{"uri":"provider://records/RUN-1/artifact/critical_analysis.json"}',
-      json: { uri: 'provider://records/RUN-1/artifact/critical_analysis.json' },
+      rawText: '{"uri":"provider://records/RUN-1/artifact/network_analysis.json"}',
+      json: { uri: 'provider://records/RUN-1/artifact/network_analysis.json' },
       errorCode: null,
     });
 
     expect(result).toMatchObject({
       status: 'completed',
-      canonical_artifact_uri: 'provider://records/RUN-1/artifact/critical_analysis.json',
+      canonical_artifact_uri: 'provider://records/RUN-1/artifact/network_analysis.json',
       additional_artifact_uris: [],
     });
   });
@@ -285,8 +285,8 @@ describe('workflow runtime diagnostics', () => {
           return {
             ok: true,
             isError: false,
-            rawText: '{"uri":"provider://records/RUN-1/artifact/critical_analysis.json"}',
-            json: { uri: 'provider://records/RUN-1/artifact/critical_analysis.json' },
+            rawText: '{"uri":"provider://records/RUN-1/artifact/network_analysis.json"}',
+            json: { uri: 'provider://records/RUN-1/artifact/network_analysis.json' },
             errorCode: null,
           };
         },
@@ -295,7 +295,7 @@ describe('workflow runtime diagnostics', () => {
         expect(observed).toEqual(request);
         expect(observed).not.toBe(request);
         const response = await dispatch();
-        expect(response.json).toEqual({ uri: 'provider://records/RUN-1/artifact/critical_analysis.json' });
+        expect(response.json).toEqual({ uri: 'provider://records/RUN-1/artifact/network_analysis.json' });
         await expect(dispatch()).rejects.toThrow(/already dispatched once/);
       },
     });
@@ -303,7 +303,7 @@ describe('workflow runtime diagnostics', () => {
     expect(calls).toEqual([{ name: request.tool, args: request.params }]);
     expect(result).toMatchObject({
       status: 'completed',
-      canonical_artifact_uri: 'provider://records/RUN-1/artifact/critical_analysis.json',
+      canonical_artifact_uri: 'provider://records/RUN-1/artifact/network_analysis.json',
     });
   });
 
@@ -318,8 +318,8 @@ describe('workflow runtime diagnostics', () => {
           return {
             ok: true,
             isError: false,
-            rawText: '{"uri":"provider://records/RUN-1/artifact/critical_analysis.json"}',
-            json: { uri: 'provider://records/RUN-1/artifact/critical_analysis.json' },
+            rawText: '{"uri":"provider://records/RUN-1/artifact/network_analysis.json"}',
+            json: { uri: 'provider://records/RUN-1/artifact/network_analysis.json' },
             errorCode: null,
           };
         },
@@ -340,7 +340,7 @@ describe('workflow runtime diagnostics', () => {
     expect(calls).toEqual([{ name: compiled.tool, args: compiled.params }]);
     expect(result).toMatchObject({
       status: 'completed',
-      canonical_artifact_uri: 'provider://records/RUN-1/artifact/critical_analysis.json',
+      canonical_artifact_uri: 'provider://records/RUN-1/artifact/network_analysis.json',
     });
   });
 
@@ -482,7 +482,7 @@ describe('workflow runtime diagnostics', () => {
       {
         workflowToolCaller: {
           callTool: async () => {
-            throw new Error('MCP process timed out while calling inspire_critical_analysis');
+            throw new Error('MCP process timed out while calling inspire_network_analysis');
           },
         },
       },
@@ -492,7 +492,7 @@ describe('workflow runtime diagnostics', () => {
     expect(result.diagnostics).toEqual([
       expect.objectContaining({
         code: 'mcp_server_unavailable',
-        message: 'MCP process timed out while calling inspire_critical_analysis',
+        message: 'MCP process timed out while calling inspire_network_analysis',
       }),
     ]);
   });

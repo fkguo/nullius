@@ -20,10 +20,12 @@ import type { WritingFollowupWorkspaceSeed } from './followup-bridges.js';
 
 type WorkspaceFeedback = ComputationResultV1['workspace_feedback'];
 type NextAction = ComputationResultV1['next_actions'][number];
-type FeedbackAuthorityInput = Pick<
+type ExecutionFeedbackInput = Pick<
   ComputationResultV1,
-  'run_id' | 'objective_title' | 'manifest_ref' | 'produced_artifact_refs' | 'summary' | 'feedback_lowering' | 'executor_provenance'
+  'run_id' | 'objective_title' | 'manifest_ref' | 'produced_artifact_refs' | 'summary' | 'feedback_lowering' | 'executor_provenance' | 'execution_status'
 > & Partial<Pick<ComputationResultV1, 'failure_reason'>>;
+
+type FeedbackAuthorityInput = ExecutionFeedbackInput & { feedback_lowering: NonNullable<ComputationResultV1['feedback_lowering']> };
 
 function feedbackReason(input: FeedbackAuthorityInput): string {
   return input.feedback_lowering.signal === 'failure'
@@ -38,7 +40,7 @@ function taskTitle(input: FeedbackAuthorityInput): string {
     case 'branch_idea':
       return `Branch idea after weak signal from ${input.objective_title}`;
     case 'downgrade_idea':
-      return `Downgrade idea after failed execution of ${input.objective_title}`;
+      return `Review declared negative result for ${input.objective_title}`;
     case 'literature_followup':
       return `Backtrack literature after ${input.objective_title}`;
     default:
@@ -51,10 +53,8 @@ function buildWorkspace(input: FeedbackAuthorityInput, writingSeed?: WritingFoll
   const resultRef = makeRunArtifactUri(input.run_id, 'artifacts/computation_result_v1.json');
   const nodes: ResearchNode[] = [
     { node_id: ids.question, kind: 'question' as const, title: input.objective_title },
-    { node_id: ids.idea, kind: 'idea' as const, title: `Staged idea for ${input.objective_title}` },
-    { node_id: ids.evidence, kind: 'evidence_set' as const, title: `Evidence follow-up for ${input.objective_title}` },
+    { node_id: ids.idea, kind: 'idea' as const, title: `Declared feedback context for ${input.objective_title}` },
     { node_id: ids.compute, kind: 'compute_attempt' as const, title: `Approved computation for ${input.objective_title}` },
-    { node_id: ids.finding, kind: 'finding' as const, title: `Finding from ${input.objective_title}` },
     {
       node_id: ids.decision,
       kind: 'decision' as const,
@@ -62,6 +62,9 @@ function buildWorkspace(input: FeedbackAuthorityInput, writingSeed?: WritingFoll
       metadata: { result_ref: resultRef, manifest_ref: input.manifest_ref.uri, feedback_lowering: input.feedback_lowering },
     },
   ];
+  if (input.feedback_lowering.decision_kind === 'capture_finding') {
+    nodes.push({ node_id: ids.finding, kind: 'finding', title: `Declared finding to review from ${input.objective_title}`, metadata: { basis: 'producer_declaration', independently_verified: false } });
+  }
   if (writingSeed) nodes.push(...writingSeed.nodes);
   if (input.feedback_lowering.target_task_kind === 'idea' && input.feedback_lowering.target_node_id !== ids.idea) {
     nodes.push({
@@ -71,14 +74,18 @@ function buildWorkspace(input: FeedbackAuthorityInput, writingSeed?: WritingFoll
       metadata: { branch_from_node_id: ids.idea },
     });
   }
+  // A pending evidence target is requested work, never an accepted support assertion.
+  if (writingSeed || input.feedback_lowering.target_task_kind === 'literature') {
+    const evidenceTarget = input.feedback_lowering.target_task_kind === 'literature'
+      ? input.feedback_lowering.target_node_id : ids.evidence;
+    nodes.push({ node_id: evidenceTarget, kind: 'evidence_set', title: `Requested literature investigation for ${input.objective_title}`, metadata: { role: 'requested_work', accepted_evidence: false } });
+  }
   const decisionKind = input.feedback_lowering.decision_kind === 'capture_finding'
     ? 'produces'
     : input.feedback_lowering.decision_kind === 'branch_idea'
       ? 'branches_to'
       : 'backtracks_to';
   const edges: ResearchEdge[] = [
-    { edge_id: `edge:${input.run_id}:idea-supports-question`, kind: 'supports' as const, from_node_id: ids.idea, to_node_id: ids.question },
-    { edge_id: `edge:${input.run_id}:evidence-supports-idea`, kind: 'supports' as const, from_node_id: ids.evidence, to_node_id: ids.idea },
     { edge_id: `edge:${input.run_id}:compute-depends-on-idea`, kind: 'depends_on' as const, from_node_id: ids.compute, to_node_id: ids.idea },
     { edge_id: `edge:${input.run_id}:compute-produces-decision`, kind: 'produces' as const, from_node_id: ids.compute, to_node_id: ids.decision },
     { edge_id: `edge:${input.run_id}:decision-target`, kind: decisionKind, from_node_id: ids.decision, to_node_id: input.feedback_lowering.target_node_id },
@@ -103,6 +110,7 @@ function taskMetadata(input: FeedbackAuthorityInput): Record<string, unknown> {
     result_ref: makeRunArtifactUri(input.run_id, 'artifacts/computation_result_v1.json'),
     manifest_ref: input.manifest_ref.uri,
     feedback_signal: input.feedback_lowering.signal,
+    feedback_basis: 'producer_declaration',
     priority_change: input.feedback_lowering.priority_change,
     prune_candidate: input.feedback_lowering.prune_candidate,
   };
@@ -149,7 +157,7 @@ function feedbackHandoff(input: FeedbackAuthorityInput, sourceTaskId: string): F
   };
 }
 
-export function deriveNextIdeaLoopState(
+function deriveDeclaredFeedbackState(
   input: FeedbackAuthorityInput,
   writingSeed?: WritingFollowupWorkspaceSeed,
 ): { workspaceFeedback: WorkspaceFeedback; nextActions: NextAction[] } {
@@ -164,7 +172,7 @@ export function deriveNextIdeaLoopState(
     metadata: { ...taskMetadata(input), step_ids: [...input.executor_provenance.step_ids] },
   });
   runtime.transitionTask(computeTask.task_id, 'active', { source: 'system', actor_id: null });
-  runtime.transitionTask(computeTask.task_id, input.feedback_lowering.signal === 'failure' ? 'blocked' : 'completed', { source: 'system', actor_id: null });
+  runtime.transitionTask(computeTask.task_id, input.execution_status === 'failed' ? 'blocked' : 'completed', { source: 'system', actor_id: null });
   const taskInput = feedbackTaskInput(input);
   if (input.feedback_lowering.target_task_kind === 'idea' || input.feedback_lowering.target_task_kind === 'literature') {
     const handoff = feedbackHandoff(input, computeTask.task_id);
@@ -194,4 +202,38 @@ export function deriveNextIdeaLoopState(
       reason: feedbackReason(input),
     }],
   };
+}
+
+/** Preserve execution history without inventing an idea, finding or research decision. */
+export function deriveNextIdeaLoopState(
+  input: ExecutionFeedbackInput,
+  writingSeed?: WritingFollowupWorkspaceSeed,
+): { workspaceFeedback: WorkspaceFeedback; nextActions: NextAction[] } {
+  if (input.feedback_lowering) {
+    return deriveDeclaredFeedbackState({ ...input, feedback_lowering: input.feedback_lowering }, writingSeed);
+  }
+  const ids = loopNodeIdsFor(input.run_id);
+  const workspace = createResearchWorkspace({
+    workspace_id: `workspace:${input.run_id}`,
+    primary_question_id: ids.question,
+    nodes: [
+      { node_id: ids.question, kind: 'question', title: input.objective_title },
+      { node_id: ids.compute, kind: 'compute_attempt', title: `Computation for ${input.objective_title}` },
+    ],
+    edges: [{ edge_id: `edge:${input.run_id}:compute-question`, kind: 'depends_on', from_node_id: ids.compute, to_node_id: ids.question }],
+  });
+  const runtime = new ResearchLoopRuntime({ workspace, policy: interactiveResearchLoopPolicy() });
+  const task = runtime.injectTask({
+    kind: 'compute', title: `Execute computation for ${input.objective_title}`,
+    target_node_id: ids.compute, source: 'system', actor_id: null,
+    metadata: {
+      result_ref: makeRunArtifactUri(input.run_id, 'artifacts/computation_result_v1.json'),
+      manifest_ref: input.manifest_ref.uri,
+      step_ids: [...input.executor_provenance.step_ids],
+      execution_status: input.execution_status,
+    },
+  });
+  runtime.transitionTask(task.task_id, 'active', { source: 'system', actor_id: null });
+  runtime.transitionTask(task.task_id, input.execution_status === 'completed' ? 'completed' : 'blocked', { source: 'system', actor_id: null });
+  return { workspaceFeedback: snapshot(runtime), nextActions: [] };
 }

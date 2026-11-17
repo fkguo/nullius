@@ -9,23 +9,108 @@
   "$defs": {
     "PaperSummaryRef": {
       "type": "object",
-      "description": "Lightweight paper reference used in analysis results. Subset of the full PaperSummary type.",
-      "required": ["title", "authors"],
       "properties": {
-        "recid": { "type": "string" },
-        "inspire_id": { "type": "string" },
-        "arxiv_id": { "type": "string" },
-        "doi": { "type": "string" },
-        "title": { "type": "string" },
-        "authors": { "type": "array", "items": { "type": "string" } },
-        "author_count": { "type": "integer" },
-        "year": { "type": "integer" },
-        "citation_count": { "type": "integer" },
-        "citation_count_without_self_citations": { "type": "integer" },
-        "collaborations": { "type": "array", "items": { "type": "string" } },
-        "arxiv_categories": { "type": "array", "items": { "type": "string" } }
+        "recid": {
+          "type": "string"
+        },
+        "arxiv_id": {
+          "type": "string"
+        },
+        "doi": {
+          "type": "string"
+        },
+        "openalex_id": {
+          "type": "string"
+        },
+        "zotero_key": {
+          "type": "string"
+        },
+        "texkey": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "author_count": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "collaborations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "year": {
+          "type": "number"
+        },
+        "earliest_date": {
+          "type": "string"
+        },
+        "citation_count": {
+          "type": "number"
+        },
+        "citation_count_without_self_citations": {
+          "type": "number"
+        },
+        "publication_summary": {
+          "type": "string"
+        },
+        "inspire_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "arxiv_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "doi_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "pdf_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "source_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "publication_type": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "document_type": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "arxiv_primary_category": {
+          "type": "string"
+        },
+        "arxiv_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       },
-      "additionalProperties": false
+      "required": [
+        "title",
+        "authors"
+      ],
+      "additionalProperties": false,
+      "description": "Paper metadata returned in analysis results, with the same fields as the shared PaperSummary schema."
     },
     "AnalysisType": {
       "type": "string",
@@ -149,17 +234,30 @@
     },
     "TopicEvolutionParams": {
       "type": "object",
-      "required": ["topic"],
+      "required": [
+        "topic"
+      ],
       "properties": {
-        "topic": { "type": "string", "minLength": 1 },
-        "start_year": { "type": "integer", "minimum": 1900 },
-        "end_year": { "type": "integer" },
+        "topic": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_year": {
+          "type": "integer",
+          "minimum": 1900
+        },
+        "end_year": {
+          "type": "integer"
+        },
         "granularity": {
           "type": "string",
-          "enum": ["year", "5year", "decade"],
-          "default": "year"
-        },
-        "include_subtopics": { "type": "boolean", "default": false }
+          "enum": [
+            "year",
+            "5year",
+            "decade"
+          ],
+          "default": "5year"
+        }
       },
       "additionalProperties": false
     },
@@ -393,57 +491,267 @@
       },
       "additionalProperties": false
     },
+    "TopicMetadataQuery": {
+      "type": "object",
+      "required": [
+        "status",
+        "query",
+        "requested_page_size",
+        "returned_count",
+        "sample_complete",
+        "has_more"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "available",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "requested_page_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sort": {
+          "type": "string"
+        },
+        "returned_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "sample_complete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "has_more": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "next_url": {
+          "type": "string"
+        },
+        "warning": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "TopicEvolution": {
       "type": "object",
-      "required": ["topic", "time_range", "phases", "current_status"],
+      "required": [
+        "topic",
+        "time_range",
+        "time_range_basis",
+        "phases",
+        "current_status",
+        "sample_basis",
+        "coverage"
+      ],
       "properties": {
-        "topic": { "type": "string" },
+        "topic": {
+          "type": "string"
+        },
         "time_range": {
           "type": "object",
-          "required": ["start", "end"],
+          "required": [
+            "start",
+            "end"
+          ],
           "properties": {
-            "start": { "type": "number" },
-            "end": { "type": "number" }
+            "start": {
+              "type": "integer"
+            },
+            "end": {
+              "type": "integer"
+            }
           },
           "additionalProperties": false
+        },
+        "time_range_basis": {
+          "type": "string",
+          "enum": [
+            "requested_start",
+            "default_20_year_lookback"
+          ]
         },
         "phases": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["period", "paper_count", "citation_momentum", "key_papers", "key_authors"],
+            "required": [
+              "period",
+              "time_range",
+              "paper_count",
+              "publication_count_change",
+              "key_papers",
+              "key_authors",
+              "search"
+            ],
             "properties": {
-              "period": { "type": "string" },
-              "paper_count": { "type": "number" },
-              "citation_momentum": { "type": "number" },
-              "key_papers": { "type": "array", "items": { "$ref": "#/$defs/PaperSummaryRef" } },
-              "key_authors": { "type": "array", "items": { "type": "string" } },
-              "description": { "type": "string" }
-            },
-            "additionalProperties": false
-          }
-        },
-        "subtopics": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["name", "emerged_year", "paper_count", "key_papers"],
-            "properties": {
-              "name": { "type": "string" },
-              "emerged_year": { "type": "number" },
-              "paper_count": { "type": "number" },
-              "key_papers": { "type": "array", "items": { "type": "string" } }
+              "period": {
+                "type": "string"
+              },
+              "time_range": {
+                "type": "object",
+                "required": [
+                  "start",
+                  "end"
+                ],
+                "properties": {
+                  "start": {
+                    "type": "integer"
+                  },
+                  "end": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "paper_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "publication_count_change": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "previous_period",
+                  "previous_paper_count",
+                  "fraction"
+                ],
+                "properties": {
+                  "previous_period": {
+                    "type": "string"
+                  },
+                  "previous_paper_count": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "fraction": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "key_papers": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/PaperSummaryRef"
+                }
+              },
+              "key_authors": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "search": {
+                "$ref": "#/$defs/TopicMetadataQuery"
+              }
             },
             "additionalProperties": false
           }
         },
         "current_status": {
           "type": "object",
-          "required": ["recent_papers", "growth_rate", "trend"],
+          "required": [
+            "recent_papers",
+            "time_range",
+            "search"
+          ],
           "properties": {
-            "recent_papers": { "type": "number" },
-            "growth_rate": { "type": "number" },
-            "trend": { "$ref": "#/$defs/TopicTrend" }
+            "recent_papers": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "time_range": {
+              "type": "object",
+              "required": [
+                "start",
+                "end"
+              ],
+              "properties": {
+                "start": {
+                  "type": "integer"
+                },
+                "end": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            },
+            "search": {
+              "$ref": "#/$defs/TopicMetadataQuery"
+            }
+          },
+          "additionalProperties": false
+        },
+        "sample_basis": {
+          "type": "object",
+          "required": [
+            "papers",
+            "key_papers_limit",
+            "key_authors"
+          ],
+          "properties": {
+            "papers": {
+              "const": "single_mostcited_page_per_period",
+              "type": "string"
+            },
+            "key_papers_limit": {
+              "const": 5,
+              "type": "integer"
+            },
+            "key_authors": {
+              "const": "occurrences_among_first_three_authors_of_sampled_papers",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "coverage": {
+          "type": "object",
+          "required": [
+            "period_queries",
+            "paper_samples"
+          ],
+          "properties": {
+            "period_queries": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "partial"
+              ]
+            },
+            "paper_samples": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "partial"
+              ]
+            }
           },
           "additionalProperties": false
         }

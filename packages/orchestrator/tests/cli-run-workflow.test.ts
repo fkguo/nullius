@@ -87,24 +87,24 @@ function persistWorkflowPlan(projectRoot: string, options?: {
     plan_id: `M-WF-1:${workflowId}`,
     run_id: 'M-WF-1',
     workflow_id: workflowId,
-    current_step_id: 'critical_review',
+    current_step_id: 'citation_network',
     steps: [
       {
-        step_id: 'critical_review',
-        description: 'Critical review',
+        step_id: 'citation_network',
+        description: 'Citation network',
         status: 'pending',
         expected_approvals: [],
-        expected_outputs: ['critical_analysis'],
+        expected_outputs: ['network_analysis'],
         recovery_notes: '',
         execution: {
-          action: 'analyze.paper_set_critical_review',
-          tool: 'inspire_critical_analysis',
+          action: 'analyze.citation_network',
+          tool: 'inspire_network_analysis',
           provider: 'inspire',
           depends_on: [],
-          params: { recid: '1234' },
-          required_capabilities: ['analysis.paper_set_critical_review'],
+          params: { mode: 'citation', seed: '1234' },
+          required_capabilities: ['analysis.citation_network'],
           degrade_mode: 'fail_closed',
-          consumer_hints: { artifact: 'critical_analysis' },
+          consumer_hints: { artifact: 'network_analysis' },
         },
       },
       {
@@ -118,7 +118,7 @@ function persistWorkflowPlan(projectRoot: string, options?: {
           action: 'export.project',
           tool: 'hep_export_project',
           provider: 'hep',
-          depends_on: options?.secondStepDependsOn ?? ['critical_review'],
+          depends_on: options?.secondStepDependsOn ?? ['citation_network'],
           params: { run_id: 'M-WF-1' },
           required_capabilities: [],
           degrade_mode: options?.secondStepDegradeMode ?? 'fail_closed',
@@ -139,8 +139,8 @@ describe('workflow run consumer', () => {
     const callTool = vi.fn(async () => ({
       ok: true,
       isError: false,
-      rawText: JSON.stringify({ uri: 'provider://records/M-WF-1/artifact/critical_analysis.json' }),
-      json: { uri: 'provider://records/M-WF-1/artifact/critical_analysis.json' },
+      rawText: JSON.stringify({ uri: 'provider://records/M-WF-1/artifact/network_analysis.json' }),
+      json: { uri: 'provider://records/M-WF-1/artifact/network_analysis.json' },
       errorCode: null,
     }));
     const { io, stdout } = makeIo(projectRoot);
@@ -152,14 +152,14 @@ describe('workflow run consumer', () => {
     );
 
     expect(code).toBe(0);
-    expect(callTool).toHaveBeenNthCalledWith(1, 'inspire_critical_analysis', { recid: '1234' });
+    expect(callTool).toHaveBeenNthCalledWith(1, 'inspire_network_analysis', { mode: 'citation', seed: '1234' });
     expect(callTool).toHaveBeenNthCalledWith(2, 'hep_export_project', { run_id: 'M-WF-1' });
     expect(JSON.parse(stdout.join(''))).toMatchObject({
       status: 'completed',
       ok: true,
       workflow_id: 'review_cycle',
       step_id: 'export_project',
-      executed_step_ids: ['critical_review', 'export_project'],
+      executed_step_ids: ['citation_network', 'export_project'],
       next_step_id: null,
       run_status: 'completed',
     });
@@ -169,13 +169,13 @@ describe('workflow run consumer', () => {
       run_status: 'completed',
       current_step: null,
       artifacts: {
-        critical_analysis: 'provider://records/M-WF-1/artifact/critical_analysis.json',
-        research_pack: 'provider://records/M-WF-1/artifact/critical_analysis.json',
+        network_analysis: 'provider://records/M-WF-1/artifact/network_analysis.json',
+        research_pack: 'provider://records/M-WF-1/artifact/network_analysis.json',
       },
     });
     expect((manager.readState().plan as Record<string, unknown>).current_step_id).toBeUndefined();
     const steps = ((manager.readState().plan as Record<string, unknown>).steps ?? []) as Array<Record<string, unknown>>;
-    expect(steps[0]).toMatchObject({ step_id: 'critical_review', status: 'completed' });
+    expect(steps[0]).toMatchObject({ step_id: 'citation_network', status: 'completed' });
     expect(steps[1]).toMatchObject({ step_id: 'export_project', status: 'completed' });
   });
 
@@ -186,11 +186,10 @@ describe('workflow run consumer', () => {
       .mockResolvedValueOnce({
         ok: true,
         isError: false,
-        rawText: '{"paper_recid":"1234","success":true}',
+        rawText: '{"mode":"citation","citation":{"nodes":[{"recid":"1234"}],"edges":[]}}',
         json: {
-          paper_recid: '1234',
-          success: true,
-          integrated_assessment: { verdict: 'RELIABLE' },
+          mode: 'citation',
+          citation: { nodes: [{ recid: '1234' }], edges: [] },
         },
         errorCode: null,
       })
@@ -210,40 +209,38 @@ describe('workflow run consumer', () => {
     );
 
     expect(code).toBe(0);
-    const fallbackUri = 'orch://runs/M-WF-1/artifact/workflow_steps/critical_review.json';
-    const fallbackPath = path.join(projectRoot, 'artifacts', 'runs', 'M-WF-1', 'workflow_steps', 'critical_review.json');
+    const fallbackUri = 'orch://runs/M-WF-1/artifact/workflow_steps/citation_network.json';
+    const fallbackPath = path.join(projectRoot, 'artifacts', 'runs', 'M-WF-1', 'workflow_steps', 'citation_network.json');
     expect(JSON.parse(fs.readFileSync(fallbackPath, 'utf-8'))).toMatchObject({
       workflow_id: 'review_cycle',
       run_id: 'M-WF-1',
-      step_id: 'critical_review',
-      artifact_key: 'critical_analysis',
+      step_id: 'citation_network',
+      artifact_key: 'network_analysis',
       status: 'completed',
-      tool: 'inspire_critical_analysis',
+      tool: 'inspire_network_analysis',
       payload: {
-        paper_recid: '1234',
-        success: true,
-        integrated_assessment: { verdict: 'RELIABLE' },
+        mode: 'citation',
+        citation: { nodes: [{ recid: '1234' }], edges: [] },
       },
     });
     const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
     expect(statusView).toMatchObject({
       artifacts: {
-        critical_analysis: fallbackUri,
+        network_analysis: fallbackUri,
         research_pack: 'provider://records/M-WF-1/artifact/research_pack.zip',
       },
       workflow_outputs: {
-        critical_analysis: {
-          step_id: 'critical_review',
-          tool: 'inspire_critical_analysis',
+        network_analysis: {
+          step_id: 'citation_network',
+          tool: 'inspire_network_analysis',
           runtime_status: 'completed',
           artifact_uri: fallbackUri,
           reason_code: null,
           recoverable: false,
           payload_truncated: false,
           payload: {
-            paper_recid: '1234',
-            success: true,
-            integrated_assessment: { verdict: 'RELIABLE' },
+            mode: 'citation',
+            citation: { nodes: [{ recid: '1234' }], edges: [] },
           },
         },
         research_pack: {
@@ -254,10 +251,10 @@ describe('workflow run consumer', () => {
         },
       },
       current_run_workflow_outputs: {
-        critical_analysis: {
+        network_analysis: {
           status: 'completed',
           artifact_uri: fallbackUri,
-          summary: expect.stringContaining('RELIABLE'),
+          summary: expect.stringContaining('citation'),
           reason_code: null,
           recoverable: false,
         },
@@ -271,8 +268,8 @@ describe('workflow run consumer', () => {
         status_command: 'nullius status --json',
         current_run_id: 'M-WF-1',
         run_status: 'completed',
-        curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
-        workflow_output_keys: ['critical_analysis', 'research_pack'],
+        curated_workflow_output_keys: ['topic_analysis', 'network_analysis', 'connection_scan'],
+        workflow_output_keys: ['network_analysis', 'research_pack'],
       },
     });
 
@@ -284,7 +281,7 @@ describe('workflow run consumer', () => {
     }) as Record<string, unknown>;
     expect(exportView).toMatchObject({
       current_run_workflow_outputs: {
-        critical_analysis: {
+        network_analysis: {
           status: 'completed',
         },
         research_pack: {
@@ -412,8 +409,8 @@ describe('workflow run consumer', () => {
     const callTool = vi.fn(async () => ({
       ok: true,
       isError: false,
-      rawText: JSON.stringify({ uri: 'provider://records/M-WF-1/artifact/critical_analysis.json' }),
-      json: { uri: 'provider://records/M-WF-1/artifact/critical_analysis.json' },
+      rawText: JSON.stringify({ uri: 'provider://records/M-WF-1/artifact/network_analysis.json' }),
+      json: { uri: 'provider://records/M-WF-1/artifact/network_analysis.json' },
       errorCode: null,
     }));
     const { io, stdout } = makeIo(projectRoot);
@@ -428,8 +425,8 @@ describe('workflow run consumer', () => {
     expect(JSON.parse(stdout.join(''))).toMatchObject({
       status: 'failed',
       ok: false,
-      step_id: 'critical_review',
-      executed_step_ids: ['critical_review'],
+      step_id: 'citation_network',
+      executed_step_ids: ['citation_network'],
       error: 'no dependency-satisfied workflow step is ready; next pending step is export_project',
     });
     expect(manager.readState()).toMatchObject({
@@ -438,7 +435,7 @@ describe('workflow run consumer', () => {
       notes: 'no dependency-satisfied workflow step is ready; next pending step is export_project',
     });
     const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
-    expect(persistedSteps[0]).toMatchObject({ step_id: 'critical_review', status: 'completed' });
+    expect(persistedSteps[0]).toMatchObject({ step_id: 'citation_network', status: 'completed' });
     expect(persistedSteps[1]).toMatchObject({ step_id: 'export_project', status: 'pending' });
   });
 
@@ -621,17 +618,17 @@ describe('workflow run consumer', () => {
     expect(JSON.parse(stdout.join(''))).toMatchObject({
       status: 'failed',
       ok: false,
-      step_id: 'critical_review',
+      step_id: 'citation_network',
     });
-    expect(manager.readState().workflow_outputs.critical_analysis).toMatchObject({
-      step_id: 'critical_review',
-      tool: 'inspire_critical_analysis',
+    expect(manager.readState().workflow_outputs.network_analysis).toMatchObject({
+      step_id: 'citation_network',
+      tool: 'inspire_network_analysis',
       runtime_status: 'failed',
       artifact_uri: null,
       reason_code: null,
       recoverable: false,
     });
-    expect(manager.readState().artifacts.critical_analysis).toBeUndefined();
+    expect(manager.readState().artifacts.network_analysis).toBeUndefined();
   });
 
   it('projects durable failed workflow outputs when request compilation throws before runtime execution', async () => {
@@ -660,20 +657,20 @@ describe('workflow run consumer', () => {
       expect(JSON.parse(stdout.join(''))).toMatchObject({
         status: 'failed',
         ok: false,
-        step_id: 'critical_review',
+        step_id: 'citation_network',
         error: 'synthetic compile failure',
       });
 
       const manager = new StateManager(projectRoot);
-      expect(manager.readState().workflow_outputs.critical_analysis).toMatchObject({
-        step_id: 'critical_review',
-        tool: 'inspire_critical_analysis',
+      expect(manager.readState().workflow_outputs.network_analysis).toMatchObject({
+        step_id: 'citation_network',
+        tool: 'inspire_network_analysis',
         runtime_status: 'failed',
         artifact_uri: null,
         reason_code: null,
         recoverable: false,
       });
-      expect(manager.readState().artifacts.critical_analysis).toBeUndefined();
+      expect(manager.readState().artifacts.network_analysis).toBeUndefined();
     } finally {
       vi.doUnmock('../src/workflow-runtime.js');
       vi.resetModules();
@@ -731,11 +728,11 @@ describe('workflow run consumer', () => {
     manager.saveState(state);
     const { io, stdout } = makeIo(projectRoot);
     const callTool = vi.fn(async (tool: string) => {
-      if (tool === 'inspire_critical_analysis') {
+      if (tool === 'inspire_network_analysis') {
         return {
           ok: false,
           isError: true,
-          rawText: 'critical analysis partially timed out',
+          rawText: 'citation network partially timed out',
           json: null,
           errorCode: 'TIMEOUT',
         };
@@ -761,13 +758,13 @@ describe('workflow run consumer', () => {
       ok: true,
       partial: true,
       step_id: 'export_project',
-      executed_step_ids: ['critical_review', 'export_project'],
+      executed_step_ids: ['citation_network', 'export_project'],
     });
     expect(JSON.parse(stdout.join('')).diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'partial_result',
-          message: 'critical analysis partially timed out',
+          message: 'citation network partially timed out',
         }),
       ]),
     );
@@ -782,9 +779,9 @@ describe('workflow run consumer', () => {
     manager.saveState(state);
     const { io, stdout } = makeIo(projectRoot);
     const callTool = vi.fn(async (tool: string) => {
-      if (tool === 'inspire_critical_analysis') {
+      if (tool === 'inspire_network_analysis') {
         return {
-          ok: false, isError: true, rawText: 'critical analysis unavailable',
+          ok: false, isError: true, rawText: 'citation network unavailable',
           json: null, errorCode: 'unsupported_tool',
         };
       }
@@ -809,14 +806,14 @@ describe('workflow run consumer', () => {
       ok: true,
       skipped: true,
       step_id: 'export_project',
-      executed_step_ids: ['critical_review', 'export_project'],
-      reason: 'critical analysis unavailable',
+      executed_step_ids: ['citation_network', 'export_project'],
+      reason: 'citation network unavailable',
     });
     expect(JSON.parse(stdout.join('')).diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'skip_with_reason',
-          message: 'critical analysis unavailable',
+          message: 'citation network unavailable',
         }),
       ]),
     );
@@ -835,7 +832,7 @@ describe('workflow run consumer', () => {
     const callTool = vi.fn(async () => ({
       ok: false,
       isError: true,
-      rawText: 'critical analysis partially timed out',
+      rawText: 'citation network partially timed out',
       json: null,
       errorCode: 'TIMEOUT',
     }));
@@ -850,15 +847,15 @@ describe('workflow run consumer', () => {
     expect(JSON.parse(stdout.join(''))).toMatchObject({
       status: 'failed',
       ok: false,
-      step_id: 'critical_review',
-      executed_step_ids: ['critical_review'],
+      step_id: 'citation_network',
+      executed_step_ids: ['citation_network'],
       error: 'no dependency-satisfied workflow step is ready; next pending step is export_project',
     });
     expect(JSON.parse(stdout.join('')).diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'partial_result',
-          message: 'critical analysis partially timed out',
+          message: 'citation network partially timed out',
         }),
       ]),
     );
@@ -878,7 +875,7 @@ describe('workflow run consumer', () => {
       expect(JSON.parse(stdout.join(''))).toMatchObject({
         status: 'failed',
         ok: false,
-        step_id: 'critical_review',
+        step_id: 'citation_network',
         error:
         'workflow step execution requires a configured MCP tool server; set NULLIUS_RUN_MCP_COMMAND and optional NULLIUS_RUN_MCP_ARGS_JSON/NULLIUS_RUN_MCP_ENV_JSON',
       });
@@ -938,7 +935,7 @@ describe('workflow run consumer', () => {
       expect(JSON.parse(stdout.join(''))).toMatchObject({
         status: 'failed',
         ok: false,
-        step_id: 'critical_review',
+        step_id: 'citation_network',
         error: 'NULLIUS_RUN_MCP_ARGS_JSON must decode to a JSON string array',
       });
     });
@@ -995,16 +992,16 @@ describe('workflow run consumer', () => {
     expect(JSON.parse(stdout.join(''))).toMatchObject({
       status: 'failed',
       ok: false,
-      step_id: 'critical_review',
-      error: 'workflow plan contains failed step critical_review; recover or replace the plan before rerunning',
+      step_id: 'citation_network',
+      error: 'workflow plan contains failed step citation_network; recover or replace the plan before rerunning',
     });
     expect(manager.readState()).toMatchObject({
       run_status: 'failed',
       current_step: null,
-      notes: 'workflow plan contains failed step critical_review; recover or replace the plan before rerunning',
+      notes: 'workflow plan contains failed step citation_network; recover or replace the plan before rerunning',
     });
     const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Array<Record<string, unknown>>;
-    expect(persistedSteps).toMatchObject([{ step_id: 'critical_review', status: 'failed' }]);
+    expect(persistedSteps).toMatchObject([{ step_id: 'citation_network', status: 'failed' }]);
   });
 
   it('replays the same pending approval when rerunning the active workflow request', async () => {
@@ -1015,7 +1012,7 @@ describe('workflow run consumer', () => {
     state.pending_approval = {
       approval_id: 'A1-0001',
       category: 'A1',
-      plan_step_ids: ['critical_review'],
+      plan_step_ids: ['citation_network'],
       requested_at: '2026-01-01T00:00:00Z',
       timeout_at: null,
       on_timeout: 'block',

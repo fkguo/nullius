@@ -4,7 +4,7 @@
   "repo": "nullius/skills-market",
   "channel": "beta",
   "version": "0.1.0",
-  "summary": "Offline clean-room referee review workflow skill.",
+  "summary": "Independent scientific manuscript assessment through host reviewers or review-swarm, grounded in the actual manuscript and original evidence; no automatic verdict generator.",
   "platforms": [
     "claude_code",
     "codex",
@@ -12,6 +12,10 @@
     "opencode"
   ],
   "source_path": "skills/referee-review/SKILL.md",
+  "depends_on": {
+    "review-swarm": ">=0.1.2 <0.2.0",
+    "codex-cli-runner": ">=0.1.0 <0.2.0"
+  },
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",

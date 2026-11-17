@@ -119,9 +119,8 @@ export const TopicEvolutionParamsSchema = z.object({
   topic: z.string().min(1),
   start_year: z.number().int().min(1900).optional(),
   end_year: z.number().int().optional(),
-  granularity: z.enum(['year', '5year', 'decade']).optional().default('year'),
-  include_subtopics: z.boolean().optional().default(false),
-});
+  granularity: z.enum(['year', '5year', 'decade']).optional().default('5year'),
+}).strict();
 export type TopicEvolutionParams = z.infer<typeof TopicEvolutionParamsSchema>;
 
 export const BatchImportParamsSchema = z.object({
@@ -272,38 +271,53 @@ export const SurveyResultSchema = z.object({
 });
 export type SurveyResult = z.infer<typeof SurveyResultSchema>;
 
+export const TopicMetadataQuerySchema = z.object({
+  status: z.enum(['available', 'unavailable']),
+  query: z.string(),
+  requested_page_size: z.number().int().positive(),
+  sort: z.string().optional(),
+  returned_count: z.number().int().nonnegative().nullable(),
+  sample_complete: z.boolean().nullable(),
+  has_more: z.boolean().nullable(),
+  next_url: z.string().optional(),
+  warning: z.string().optional(),
+  error: z.string().optional(),
+}).strict();
+export type TopicMetadataQuery = z.infer<typeof TopicMetadataQuerySchema>;
+
+const TopicTimeRangeSchema = z.object({ start: z.number().int(), end: z.number().int() }).strict();
 export const TopicEvolutionSchema = z.object({
   topic: z.string(),
-  time_range: z.object({
-    start: z.number(),
-    end: z.number(),
-  }),
-  phases: z.array(
-    z.object({
-      period: z.string(),
-      paper_count: z.number(),
-      citation_momentum: z.number(),
-      key_papers: z.array(PaperSummarySchema),
-      key_authors: z.array(z.string()),
-      description: z.string().optional(),
-    })
-  ),
-  subtopics: z
-    .array(
-      z.object({
-        name: z.string(),
-        emerged_year: z.number(),
-        paper_count: z.number(),
-        key_papers: z.array(z.string()),
-      })
-    )
-    .optional(),
+  time_range: TopicTimeRangeSchema,
+  time_range_basis: z.enum(['requested_start', 'default_20_year_lookback']),
+  phases: z.array(z.object({
+    period: z.string(),
+    time_range: TopicTimeRangeSchema,
+    paper_count: z.number().int().nonnegative().nullable(),
+    publication_count_change: z.object({
+      previous_period: z.string(),
+      previous_paper_count: z.number().int().positive(),
+      fraction: z.number(),
+    }).strict().nullable(),
+    key_papers: z.array(PaperSummarySchema),
+    key_authors: z.array(z.string()),
+    search: TopicMetadataQuerySchema,
+  }).strict()),
   current_status: z.object({
-    recent_papers: z.number(),
-    growth_rate: z.number(),
-    trend: z.enum(['growing', 'stable', 'declining']),
-  }),
-});
+    recent_papers: z.number().int().nonnegative().nullable(),
+    time_range: TopicTimeRangeSchema,
+    search: TopicMetadataQuerySchema,
+  }).strict(),
+  sample_basis: z.object({
+    papers: z.literal('single_mostcited_page_per_period'),
+    key_papers_limit: z.literal(5),
+    key_authors: z.literal('occurrences_among_first_three_authors_of_sampled_papers'),
+  }).strict(),
+  coverage: z.object({
+    period_queries: z.enum(['complete', 'partial']),
+    paper_samples: z.enum(['complete', 'partial']),
+  }).strict(),
+}).strict();
 export type TopicEvolution = z.infer<typeof TopicEvolutionSchema>;
 
 export const BatchImportResultSchema = z.object({

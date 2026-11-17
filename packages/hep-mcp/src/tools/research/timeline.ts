@@ -1,15 +1,7 @@
-/**
- * Research Timeline
- * Reference: legacy plan - inspire_research_timeline
- */
-
-import * as api from '../../api/client.js';
+/** Bounded yearly publication counts and explicitly sampled paper metadata. */
 import type { PaperSummary } from '@nullius/shared';
 import { getCurrentYear } from './config.js';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+import { queryTopicMetadata, topicPeriodQuery, topicTimeRange, type TopicMetadataQuery } from './topicMetadataQuery.js';
 
 export interface TimelineParams {
   topic: string;
@@ -19,96 +11,64 @@ export interface TimelineParams {
 
 export interface TimelinePhase {
   year: number;
-  paper_count: number;
-  citation_sum: number;
+  paper_count: number | null;
+  /** Sum over the returned page only; null if any sampled citation count is missing. */
+  sample_citation_sum: number | null;
+  missing_citation_count: number | null;
   key_papers: PaperSummary[];
+  search: TopicMetadataQuery;
 }
 
 export interface TimelineResult {
   topic: string;
   time_range: { start: number; end: number };
+  time_range_basis: 'requested_start' | 'default_20_year_lookback';
   phases: TimelinePhase[];
-  total_papers: number;
+  total_papers: number | null;
+  total_search: TopicMetadataQuery;
+  coverage: {
+    period_queries: 'complete' | 'partial';
+    paper_samples: 'complete' | 'partial';
+  };
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
 
 const BATCH_SIZE = 3;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Function
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function buildResearchTimeline(
-  params: TimelineParams
-): Promise<TimelineResult> {
-  const currentYear = getCurrentYear();
-  const { topic, end_year = currentYear } = params;
-
-  // First search to find earliest paper
-  const initialSearch = await api.search(`${topic} topcite:10+`, {
-    sort: 'mostrecent',
-    size: 1,
-  });
-
-  // Determine start year
-  let start_year = params.start_year;
-  if (!start_year) {
-    const oldestSearch = await api.search(topic, { size: 1 });
-    start_year = oldestSearch.papers[0]?.year || end_year - 20;
-  }
-  const effectiveStartYear = start_year ?? end_year - 20;
-
-  // Build timeline by year (parallel batches)
+export async function buildResearchTimeline(params: TimelineParams): Promise<TimelineResult> {
+  const { topic } = params;
+  const timeRange = topicTimeRange(params.start_year, params.end_year ?? getCurrentYear());
+  // Count exactly the requested topic population and interval, without a citation threshold.
+  const totalSearch = await queryTopicMetadata(topicPeriodQuery(topic, timeRange.start, timeRange.end), { size: 1 });
   const phases: TimelinePhase[] = [];
-  const years: number[] = [];
-  for (let year = effectiveStartYear; year <= end_year; year++) {
-    years.push(year);
-  }
+  const years = Array.from({ length: timeRange.end - timeRange.start + 1 }, (_, i) => timeRange.start + i);
 
   for (let i = 0; i < years.length; i += BATCH_SIZE) {
-    const batch = years.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map(async (year) => {
-        try {
-          const result = await api.search(
-            `${topic} date:${year}`,
-            { sort: 'mostcited', size: 5 }
-          );
-          return { year, result };
-        } catch (error) {
-          // Log at debug level for troubleshooting
-          console.debug(`[hep-mcp] timeline search (year=${year}): Skipped - ${error instanceof Error ? error.message : String(error)}`);
-          return { year, result: { total: 0, papers: [], has_more: false } };
-        }
-      })
-    );
-
-    for (const { year, result } of batchResults) {
-      if (result.total > 0) {
-        const citationSum = result.papers.reduce(
-          (sum, p) => sum + (p.citation_count || 0), 0
-        );
-
-        phases.push({
-          year,
-          paper_count: result.total,
-          citation_sum: citationSum,
-          key_papers: result.papers.slice(0, 3),
-        });
-      }
-    }
+    const batch = await Promise.all(years.slice(i, i + BATCH_SIZE).map(async year => {
+      const { result, observation } = await queryTopicMetadata(topicPeriodQuery(topic, year, year), { sort: 'mostcited', size: 5 });
+      const missing = result?.papers.filter(paper => paper.citation_count === undefined).length ?? null;
+      return {
+        year,
+        paper_count: result?.total ?? null,
+        sample_citation_sum: result && missing === 0
+          ? result.papers.reduce((sum, paper) => sum + paper.citation_count!, 0) : null,
+        missing_citation_count: missing,
+        key_papers: result?.papers.slice(0, 3) ?? [],
+        search: observation,
+      };
+    }));
+    phases.push(...batch);
   }
-
-  // Sort phases by year
-  phases.sort((a, b) => a.year - b.year);
 
   return {
     topic,
-    time_range: { start: effectiveStartYear, end: end_year },
+    time_range: timeRange,
+    time_range_basis: params.start_year === undefined ? 'default_20_year_lookback' : 'requested_start',
     phases,
-    total_papers: initialSearch.total,
+    total_papers: totalSearch.result?.total ?? null,
+    total_search: totalSearch.observation,
+    coverage: {
+      period_queries: phases.every(phase => phase.search.status === 'available') ? 'complete' : 'partial',
+      paper_samples: phases.every(phase => phase.search.sample_complete === true) ? 'complete' : 'partial',
+    },
   };
 }

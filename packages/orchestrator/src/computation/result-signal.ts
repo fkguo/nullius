@@ -1,40 +1,28 @@
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { ComputationResultV1 } from '@nullius/shared';
 
-type FeedbackSignal = ComputationResultV1['feedback_lowering']['signal'];
-type CompletedFeedbackSignal = Exclude<FeedbackSignal, 'failure'>;
+type FeedbackSignal = NonNullable<ComputationResultV1['feedback_lowering']>['signal'];
+export const RESEARCH_FEEDBACK_FILENAME = 'research_feedback.json';
 
-function readCompletedFeedbackSignal(filePath: string): CompletedFeedbackSignal | null {
-  if (!filePath.endsWith('.json') || !fs.existsSync(filePath)) return null;
+/** Only the explicitly named, declared output can authorize research follow-up. */
+export function readFeedbackDeclaration(params: {
+  executionStatus: 'completed' | 'failed';
+  producedOutputs: string[];
+}): { signal: FeedbackSignal; filePath: string } | null {
+  if (params.executionStatus !== 'completed') return null;
+  const files = [...new Set(params.producedOutputs.map(file => path.resolve(file)))]
+    .filter(file => path.basename(file) === RESEARCH_FEEDBACK_FILENAME);
+  if (files.length !== 1) return null;
+  const filePath = files[0]!;
   try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown;
-    if (!parsed || typeof parsed !== 'object') return null;
-    const signal = (parsed as Record<string, unknown>).feedback_signal;
-    if (signal === 'success' || signal === 'weak_signal') {
-      return signal;
-    }
-    return null;
+    if (!fs.statSync(filePath).isFile()) return null;
+    const value: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const signal = (value as Record<string, unknown>).feedback_signal;
+    return signal === 'success' || signal === 'weak_signal' || signal === 'failure'
+      ? { signal, filePath } : null;
   } catch {
     return null;
   }
-}
-
-export function deriveFeedbackSignal(params: {
-  executionStatus: 'completed' | 'failed';
-  producedOutputs: string[];
-}): FeedbackSignal {
-  if (params.executionStatus === 'failed') {
-    return 'failure';
-  }
-  let sawWeakSignal = false;
-  for (const filePath of [...params.producedOutputs].sort()) {
-    const signal = readCompletedFeedbackSignal(filePath);
-    if (signal === 'success') {
-      return 'success';
-    }
-    if (signal === 'weak_signal') {
-      sawWeakSignal = true;
-    }
-  }
-  return sawWeakSignal ? 'weak_signal' : 'success';
 }

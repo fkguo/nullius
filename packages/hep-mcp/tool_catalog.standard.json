@@ -1,6 +1,6 @@
 {
   "mode": "standard",
-  "count": 51,
+  "count": 47,
   "tools": [
     "arxiv_get_metadata",
     "arxiv_paper_source",
@@ -13,10 +13,7 @@
     "hepdata_get_record",
     "hepdata_get_table",
     "hepdata_search",
-    "inspire_classify_reviews",
-    "inspire_critical_analysis",
     "inspire_find_connections",
-    "inspire_grade_evidence",
     "inspire_literature",
     "inspire_network_analysis",
     "inspire_paper_source",
@@ -24,7 +21,6 @@
     "inspire_resolve_citekey",
     "inspire_search",
     "inspire_search_next",
-    "inspire_theoretical_conflicts",
     "inspire_topic_analysis",
     "inspire_trace_original_source",
     "openalex_autocomplete",

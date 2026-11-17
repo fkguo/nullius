@@ -182,13 +182,13 @@ class SkillproposalV2(BaseModel):
         ),
     ]
     generalization_confidence: Annotated[
-        float,
+        float | None,
         Field(
-            description="Confidence in the generalization from specific instances to reusable skill (0-1)",
+            description="Optional externally supplied assessment retained for historical readability. The runtime must not infer this value from execution counts.",
             ge=0.0,
             le=1.0,
         ),
-    ]
+    ] = None
     gate_level: Annotated[
         GateLevel,
         Field(

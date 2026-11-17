@@ -15,7 +15,7 @@ import { planComputationFollowupBridges, writeComputationFollowupBridgeArtifacts
 import { writeJsonAtomic } from './io.js';
 import { deriveFeedbackLowering, deriveNextIdeaLoopState } from './loop-feedback.js';
 import { assertComputationResultValid } from './result-schema.js';
-import { deriveFeedbackSignal } from './result-signal.js';
+import { readFeedbackDeclaration } from './result-signal.js';
 import type { ExecutionStatusFile, PreparedManifest } from './types.js';
 
 function listFilesRecursive(dirPath: string): string[] {
@@ -217,13 +217,15 @@ export function writeComputationResultArtifact(params: {
   const objectiveTitle = loadExecutionPlanTitle(params.prepared);
   const summary = buildSummary(params.status, params.producedOutputs.length);
   const computationResultPath = path.join(params.prepared.runDir, 'artifacts', 'computation_result_v1.json');
+  const declaration = readFeedbackDeclaration({
+    executionStatus: params.status.status,
+    producedOutputs: params.producedOutputs,
+  });
   const feedbackLowering = deriveFeedbackLowering({
     runId: params.prepared.runId,
     executionStatus: params.status.status,
-    signal: deriveFeedbackSignal({
-      executionStatus: params.status.status,
-      producedOutputs: params.producedOutputs,
-    }),
+    signal: declaration?.signal ?? null,
+    ...(declaration ? { declarationRef: fileRef(declaration.filePath, 'research_feedback') } : {}),
   });
   const baseResult = {
     schema_version: 1 as const,

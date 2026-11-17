@@ -9,13 +9,22 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 
+class TaskKind(StrEnum):
+    literature = "literature"
+    idea = "idea"
+    compute = "compute"
+    evidence_search = "evidence_search"
+    finding = "finding"
+    draft_update = "draft_update"
+    review = "review"
+
+
 class Action(StrEnum):
     discover_seed_search = "discover.seed_search"
     analyze_topic_evolution = "analyze.topic_evolution"
     analyze_citation_network = "analyze.citation_network"
     analyze_paper_connections = "analyze.paper_connections"
     analyze_provenance_trace = "analyze.provenance_trace"
-    analyze_paper_set_critical_review = "analyze.paper_set_critical_review"
 
 
 class DependsOnItem(RootModel[str]):
@@ -33,7 +42,6 @@ class RequiredCapability(StrEnum):
     analysis_citation_network = "analysis.citation_network"
     analysis_paper_set_connections = "analysis.paper_set_connections"
     analysis_provenance_trace = "analysis.provenance_trace"
-    analysis_paper_set_critical_review = "analysis.paper_set_critical_review"
 
 
 class PreferredProvider(StrEnum):
@@ -152,6 +160,7 @@ class Steps(BaseModel):
         extra="forbid",
     )
     id: Annotated[str, Field(min_length=1)]
+    task_kind: TaskKind
     tool: Annotated[str, Field(min_length=1)]
     action: Action | None = None
     purpose: Annotated[str, Field(min_length=1)]
@@ -220,6 +229,7 @@ class Steps1(BaseModel):
         extra="forbid",
     )
     id: Annotated[str, Field(min_length=1)]
+    task_kind: TaskKind
     tool: Annotated[str | None, Field(min_length=1)] = None
     action: Action
     purpose: Annotated[str, Field(min_length=1)]

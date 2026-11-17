@@ -207,16 +207,41 @@ def test_real_plugin_composition_and_copied_skill_execution(tmp_path):
         all_names.extend(inventory["tools"])
     assert len(all_names) == len(set(all_names)), "Composed tools must not collide"
     assert 20 <= report["servers"]["project-mcp"]["count"] <= 30
-    assert report["servers"]["hep-mcp"]["count"] == 51
+    assert report["servers"]["hep-mcp"]["count"] == 47
     assert report["servers"]["idea-mcp"]["count"] == 6
+    harness_scripts = plugin / "skills/research-harness/scripts"
+    expected_helpers = {script.name for script in (ROOT / "skills/research-harness/scripts").glob("*.py")}
+    copied_helpers = {script.name for script in harness_scripts.glob("*.py")}
+    assert copied_helpers == expected_helpers, "Every current harness helper must survive plugin copying"
+    # This module is imported by run_storage.py closeout; it is not a standalone CLI.
+    library_modules = {"storage_closeout.py"}
+    assert library_modules <= expected_helpers
     helped = []
-    for script in sorted((plugin / "skills/research-harness/scripts").glob("*.py")):
+    for script in sorted(harness_scripts.glob("*.py")):
+        if script.name in library_modules:
+            continue
         result = run([sys.executable, "-B", str(script), "--help"], cwd=project, env=environment)
         assert "usage:" in result.stdout.lower()
         helped.append(script.name)
-    expected_helpers = {script.name for script in (ROOT / "skills/research-harness/scripts").glob("*.py")}
-    assert set(helped) == expected_helpers, "Every current harness helper must survive plugin copying and expose its help"
+    assert set(helped) == expected_helpers - library_modules, "Every standalone harness CLI must expose its help"
     report["copied_harness_help"] = helped
+    closeout_cli = [sys.executable, "-B", str(harness_scripts / "run_storage.py"), "closeout"]
+    closeout_help = run([*closeout_cli, "--help"], cwd=project, env=environment)
+    assert "usage:" in closeout_help.stdout.lower() and "--verdict" in closeout_help.stdout
+    # Execute the real importing entry point on a disposable tree, without --apply.
+    scratch = tmp_path / "copied-closeout-scratch"
+    scratch.mkdir()
+    verdict = scratch / "verdict.txt"
+    verdict.write_text("smoke fixture reviewed\n")
+    before = verdict.read_bytes()
+    result = run([*closeout_cli, str(scratch), "--verdict", str(verdict), "--json"],
+                 cwd=project, env=environment)
+    preview = json.loads(result.stdout)
+    assert preview["applied"] is False
+    assert not Path(preview["manifest"]).exists()
+    assert verdict.read_bytes() == before
+    assert {path.name for path in scratch.iterdir()} == {verdict.name}
+    report["copied_harness_closeout_preview"] = preview
     for label, tree in (("plugin", plugin / "skills"), ("ordinary", skills)):
         scaffold = tmp_path / (label + "-skill-project")
         result = run(["bash", str(tree / "research-team/scripts/bin/scaffold_research_workflow.sh"),
