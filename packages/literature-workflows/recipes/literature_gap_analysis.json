@@ -1,7 +1,7 @@
 {
   "recipe_id": "literature_gap_analysis",
   "name": "Literature Gap Analysis",
-  "description": "Probe a paper set for tensions, omissions, and open seams using bounded atomic analysis operators.",
+  "description": "Collect bounded topic and citation metadata for host-led literature gap analysis.",
   "entry_tool": "literature_workflows.resolve",
   "steps": [
     {
@@ -90,7 +90,7 @@
       "id": "topic_scan",
       "task_kind": "literature",
       "action": "analyze.topic_evolution",
-      "purpose": "Summarize trends and identify underexplored subtopics",
+      "purpose": "Collect topic chronology and records for the host to interpret",
       "depends_on": [
         "seed_search"
       ],
@@ -109,33 +109,7 @@
       },
       "params": {
         "mode": "timeline",
-        "topic": "<topic>",
-        "limit": 20
-      }
-    },
-    {
-      "id": "critical_analysis",
-      "task_kind": "review",
-      "action": "analyze.paper_set_critical_review",
-      "purpose": "Run bounded critical analysis over representative papers",
-      "depends_on": [
-        "topic_scan"
-      ],
-      "required_capabilities": [
-        "analysis.paper_set_critical_review"
-      ],
-      "preferred_providers": [
-        "inspire"
-      ],
-      "degrade_mode": "fail_closed",
-      "consumer_hints": {
-        "phases": [
-          "analyze"
-        ],
-        "artifact": "critical_analysis"
-      },
-      "params": {
-        "recid": "<analysis_seed>"
+        "topic": "<topic>"
       }
     },
     {
@@ -144,7 +118,7 @@
       "action": "analyze.citation_network",
       "purpose": "Map citation structure around the current anchor paper",
       "depends_on": [
-        "critical_analysis"
+        "topic_scan"
       ],
       "required_capabilities": [
         "analysis.citation_network"

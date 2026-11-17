@@ -34,13 +34,6 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   [T.INSPIRE_PAPER_SOURCE]: 'write',
   [T.INSPIRE_PARSE_LATEX]: 'write',
   [T.INSPIRE_RESOLVE_CITEKEY]: 'read',
-  [T.INSPIRE_GRADE_EVIDENCE]: 'read',
-  [T.INSPIRE_CRITICAL_ANALYSIS]: 'read',
-  [T.INSPIRE_CLASSIFY_REVIEWS]: 'read',
-  // Writes its records and map into the caller's output_dir.
-  [T.INSPIRE_THEORETICAL_CONFLICTS]: 'write',
-  [T.INSPIRE_FIND_CROSSOVER_TOPICS]: 'read',
-  [T.INSPIRE_ANALYZE_CITATION_STANCE]: 'read',
   [T.INSPIRE_CLEANUP_DOWNLOADS]: 'destructive',
   // Downloads the paper source and returns its path (source_file).
   [T.INSPIRE_VALIDATE_BIBLIOGRAPHY]: 'write',

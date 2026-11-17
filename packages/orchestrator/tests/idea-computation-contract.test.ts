@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handleToolCall } from '../src/tooling.js';
 import { ORCH_TOOL_SPECS } from '../src/orch-tools/index.js';
 import { OrchRunPlanComputationSchema } from '../src/orch-tools/schemas.js';
@@ -14,7 +14,7 @@ type ExecutionPayload = Payload & {
 };
 type Outcome = {
   failure_reason?: string;
-  feedback_lowering: { signal: string; decision_kind: string; prune_candidate: boolean };
+  feedback_lowering: { signal: string; decision_kind: string; prune_candidate: boolean } | null;
   executor_provenance: { execution_surface: string };
   followup_bridge_refs: Array<{ uri: string }>;
   workspace_feedback: { tasks: Array<{ kind: string; status: string }>; handoffs: Array<{ handoff_kind: string }> };
@@ -30,7 +30,7 @@ async function call<T = Payload>(name: string, args: Payload, ctx?: Parameters<t
   const result = await handleToolCall(name, args, 'full', ctx);
   return JSON.parse(result.content[0]!.text) as T;
 }
-function fixture(fail: boolean | 'missing-output' = false) {
+function fixture(fail: boolean | 'missing-output' = false, declaredFeedbackSignal?: 'success') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'idea-computation-'));
   roots.push(root);
   const projectRoot = path.join(root, 'project');
@@ -40,6 +40,16 @@ function fixture(fail: boolean | 'missing-output' = false) {
   fs.mkdirSync(projectRoot);
   const handoffPath = path.join(root, 'handoff.json');
   const handoffUri = pathToFileURL(handoffPath).href;
+  const program = fail === 'missing-output' ? 'pass\n' : fail ? 'raise SystemExit(1)\n' : [
+    'from pathlib import Path',
+    'import json',
+    "Path('outputs').mkdir(exist_ok=True)",
+    "Path('outputs/value.txt').write_text(str(sum([2, 3])) + '\\n')",
+    ...(declaredFeedbackSignal ? [
+      `Path('outputs/research_feedback.json').write_text(json.dumps({'feedback_signal': '${declaredFeedbackSignal}'}) + '\\n')`,
+    ] : []),
+    '',
+  ].join('\n');
   const handoff = {
     campaign_id: 'cccccc01', node_id: 'nnnnnn02', idea_id: 'dddddd03', promoted_at: '2026-03-13T00:00:00Z',
     grounding_audit: { status: 'pass', folklore_risk_score: 0.1, failures: [], timestamp: '2026-03-13T00:00:00Z' },
@@ -49,10 +59,10 @@ function fixture(fail: boolean | 'missing-output' = false) {
       testable_hypotheses: ['The declared sum equals five.', 'The declared output file is produced.'], required_observables: ['sum'],
       minimal_compute_plan: [{ step: 'Evaluate the sum', method: 'Python', estimated_difficulty: 'low' }],
       method_spec: {
-        files: [{ path: 'scripts/evaluate.py', content: fail === 'missing-output' ? 'pass\n' : fail ? 'raise SystemExit(1)\n' : "from pathlib import Path\nPath('outputs').mkdir(exist_ok=True)\nPath('outputs/value.txt').write_text(str(sum([2, 3])) + '\\n')\n" }],
+        files: [{ path: 'scripts/evaluate.py', content: program }],
         run_card: {
           schema_version: 2, workflow_id: 'computation', title: 'Evaluate a supplied operation',
-          phases: [{ phase_id: 'task_001', backend: { kind: 'shell', argv: ['python3', 'scripts/evaluate.py'], cwd: '.', timeout_seconds: 10 }, outputs: ['outputs/value.txt'] }],
+          phases: [{ phase_id: 'task_001', backend: { kind: 'shell', argv: ['python3', 'scripts/evaluate.py'], cwd: '.', timeout_seconds: 10 }, outputs: ['outputs/value.txt', ...(declaredFeedbackSignal ? ['outputs/research_feedback.json'] : [])] }],
         },
       },
     },
@@ -146,7 +156,7 @@ describe('idea computation at the generic owner', () => {
     }
   });
 
-  it('requires bound A3 approval, executes the real operation and exposes a finding follow-up', async () => {
+  it('requires bound A3 approval and records real execution without an undeclared finding', async () => {
     const f = fixture(); await stage(f); await create(f);
     const p = await plan(f);
     expect(p.status).toBe('requires_approval');
@@ -163,37 +173,39 @@ describe('idea computation at the generic owner', () => {
     const result = await approveAndExecute(f, p);
     expect(result.status).toBe('completed');
     expect(fs.readFileSync(path.join(f.runDir, 'computation/outputs/value.txt'), 'utf8')).toBe('5\n');
-    expect(result.next_actions[0]).toMatchObject({ action_kind: 'capture_finding', task_kind: 'finding' });
-    expect(result.followup_bridge_refs).toHaveLength(1);
+    expect(result.next_actions).toEqual([]);
+    expect(result.followup_bridge_refs).toEqual([]);
     const outcome = readJson<Outcome>(path.join(f.runDir, 'artifacts/computation_result_v1.json'));
-    expect(outcome.feedback_lowering).toMatchObject({ signal: 'success', decision_kind: 'capture_finding' });
+    expect(outcome.feedback_lowering).toBeNull();
     expect(outcome.executor_provenance.execution_surface).toBe('computation_manifest_executor');
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'finding' && task.status === 'pending')).toBe(true);
-    expect(outcome.followup_bridge_refs).toHaveLength(1);
+    expect(outcome.workspace_feedback.tasks).toHaveLength(1);
+    expect(outcome.workspace_feedback.tasks[0]).toMatchObject({ kind: 'compute', status: 'completed' });
+    expect(outcome.followup_bridge_refs).toEqual([]);
     const bridge = path.join(f.runDir, 'artifacts/writing_followup_bridge_v1.json');
-    expect(fs.existsSync(bridge)).toBe(true);
-    expect(result.followup_bridge_refs[0]?.uri).toContain('writing_followup_bridge_v1.json');
-    expect(outcome.followup_bridge_refs[0]?.uri).toContain('writing_followup_bridge_v1.json');
+    expect(fs.existsSync(bridge)).toBe(false);
   });
 
-  it('reports the actual supplied program failure and carries feedback to generic follow-up progression', async () => {
+  it('reports a supplied program failure without treating it as negative scientific feedback', async () => {
     const f = fixture(true); await stage(f); await create(f);
     const p = await plan(f);
     expect(p.status).toBe('requires_approval');
     const result = await approveAndExecute(f, p);
     expect(result.status).toBe('failed');
-    expect(result.next_actions[0]).toMatchObject({ action_kind: 'downgrade_idea', task_kind: 'idea', handoff_kind: 'feedback' });
+    expect(result.next_actions).toEqual([]);
     expect(fs.existsSync(path.join(f.runDir, 'computation/outputs/value.txt'))).toBe(false);
     const outcome = readJson<Outcome>(path.join(f.runDir, 'artifacts/computation_result_v1.json'));
     expect(outcome.failure_reason).toContain("step 'task_001' exited with code 1");
-    expect(outcome.feedback_lowering).toMatchObject({ signal: 'failure', decision_kind: 'downgrade_idea', prune_candidate: true });
-    expect(outcome.workspace_feedback.handoffs[0]?.handoff_kind).toBe('feedback');
+    expect(outcome.feedback_lowering).toBeNull();
+    expect(outcome.workspace_feedback.handoffs).toEqual([]);
+    expect(outcome.workspace_feedback.tasks).toHaveLength(1);
+    expect(outcome.workspace_feedback.tasks[0]).toMatchObject({ kind: 'compute', status: 'blocked' });
     const ctx = {
-      createMessage: async () => ({ model: 'claude-test', content: { type: 'text' as const, text: 'feedback acknowledged' }, stopReason: 'endTurn' }),
+      createMessage: vi.fn(async () => ({ model: 'claude-test', content: { type: 'text' as const, text: 'feedback acknowledged' }, stopReason: 'endTurn' })),
       callTool: async () => ({ content: [{ type: 'text' as const, text: '{}' }], isError: false }),
     };
     const followup = await call('orch_run_progress_followups', { _confirm: true, project_root: f.projectRoot, run_id: f.runId, run_dir: f.runDir }, ctx);
-    expect(followup).toMatchObject({ status: 'launched', branch: 'feedback', task_kind: 'idea' });
+    expect(followup).toMatchObject({ status: 'skipped_no_pending_task', branch: 'none' });
+    expect(ctx.createMessage).not.toHaveBeenCalled();
   });
 
   it('fails when a successful process omits its declared output', async () => {
@@ -202,12 +214,13 @@ describe('idea computation at the generic owner', () => {
     expect(result.status).toBe('failed');
     expect(fs.existsSync(path.join(f.runDir, 'computation/outputs/value.txt'))).toBe(false);
     const outcome = readJson<Outcome>(path.join(f.runDir, 'artifacts/computation_result_v1.json'));
-    expect(outcome.feedback_lowering.signal).toBe('failure');
+    expect(outcome.feedback_lowering).toBeNull();
+    expect(result.next_actions).toEqual([]);
     expect(outcome.failure_reason).toContain("step 'task_001' did not produce expected outputs:");
   });
 
-  it('keeps writing/review bridge refs without attaching provider delegated-launch policy', async () => {
-    const f = fixture(); await stage(f); await create(f);
+  it('keeps declared feedback writing/review bridge refs without attaching provider delegated-launch policy', async () => {
+    const f = fixture(false, 'success'); await stage(f); await create(f);
     for (const [content_type, content] of [['section_output', 'existing draft seed'], ['reviewer_report', 'existing review seed']]) {
       await call('orch_run_stage_content', { project_root: f.projectRoot, run_id: f.runId, run_dir: f.runDir, content_type, content });
     }

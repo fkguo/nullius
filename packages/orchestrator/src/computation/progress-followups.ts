@@ -128,6 +128,7 @@ export async function progressRunFollowups(params: {
     computationResult: params.computationResult,
     projectRoot: params.projectRoot,
     runId: params.runId,
+    runDir: params.runDir,
     launchTask: async launchParams => params.launchFeedbackTask({
       computationResult: launchParams.computationResult,
       projectRoot: launchParams.projectRoot,

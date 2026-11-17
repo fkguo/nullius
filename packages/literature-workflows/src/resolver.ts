@@ -15,7 +15,6 @@ const ACTION_CAPABILITIES: Record<WorkflowActionId, WorkflowCapabilityId[]> = {
   'analyze.citation_network': ['analysis.citation_network'],
   'analyze.paper_connections': ['analysis.paper_set_connections'],
   'analyze.provenance_trace': ['analysis.provenance_trace'],
-  'analyze.paper_set_critical_review': ['analysis.paper_set_critical_review'],
 };
 
 function resolveTemplate(value: unknown, inputs: Record<string, unknown>): unknown {
@@ -57,7 +56,7 @@ function chooseProvider(
   step: WorkflowRecipeStep,
   request: ResolveWorkflowRequest,
   availableTools?: Set<string>,
-): { provider?: WorkflowProviderId; tool: string; requiredCapabilities: WorkflowCapabilityId[] } {
+): { provider?: WorkflowProviderId; tool: string; requiredCapabilities: WorkflowCapabilityId[]; parameterNames?: Record<string, string> } {
   if (!step.action) {
     if (!step.tool) throw new Error(`Workflow step ${step.id} is missing action/tool authority`);
     return { tool: step.tool, requiredCapabilities: [...step.required_capabilities] };
@@ -99,6 +98,7 @@ function chooseProvider(
     provider: selected.provider,
     tool: selected.toolByAction[step.action]!,
     requiredCapabilities,
+    parameterNames: selected.parameterNamesByAction?.[step.action],
   };
 }
 
@@ -109,7 +109,7 @@ export function resolveWorkflowRecipe(request: ResolveWorkflowRequest): Resolved
   const resolvedSteps = recipe.steps
     .filter(step => stepMatchesPhase(step, parsed.phase))
     .map(step => {
-      const { provider, tool, requiredCapabilities } = chooseProvider(step, parsed, availableTools);
+      const { provider, tool, requiredCapabilities, parameterNames = {} } = chooseProvider(step, parsed, availableTools);
       if (availableTools && !availableTools.has(tool)) {
         throw new Error(`Workflow step ${step.id} resolved to unavailable tool ${tool}`);
       }
@@ -121,7 +121,9 @@ export function resolveWorkflowRecipe(request: ResolveWorkflowRequest): Resolved
         provider,
         purpose: step.purpose,
         depends_on: [...step.depends_on],
-        params: resolveTemplate(step.params, parsed.inputs) as Record<string, unknown>,
+        params: Object.fromEntries(Object.entries(
+          resolveTemplate(step.params, parsed.inputs) as Record<string, unknown>,
+        ).map(([name, value]) => [parameterNames[name] ?? name, value])),
         required_capabilities: requiredCapabilities,
         degrade_mode: step.degrade_mode,
         consumer_hints: step.consumer_hints,

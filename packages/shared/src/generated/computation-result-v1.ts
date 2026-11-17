@@ -1,6 +1,6 @@
 /* AUTO-GENERATED — DO NOT EDIT. Source: meta/schemas/ */
 /**
- * Canonical provider-neutral outcome artifact for an approved computation execution. Records execution status, produced artifacts, and deterministic lowering into the single-user research-loop substrate.
+ * Canonical provider-neutral outcome artifact for an approved computation execution. Records execution status and produced artifacts. Explicit research feedback may request follow-up tasks; execution completion alone does not establish a research finding or scientific validation.
  */
 export interface ComputationResultV1 {
   schema_version: 1;
@@ -12,7 +12,15 @@ export interface ComputationResultV1 {
   started_at: string;
   finished_at: string;
   summary: string;
+  /**
+   * Follow-up requested by explicit research feedback, or null when no unambiguous feedback was supplied. This is not a scientific validation verdict.
+   */
   feedback_lowering: {
+    /**
+     * Explicit feedback read from the declared research_feedback.json output. Absence preserves historical readability, not execution authority.
+     */
+    basis?: "producer_declaration";
+    declaration_ref?: ArtifactRefV12;
     signal: "success" | "weak_signal" | "failure";
     decision_kind:
       | "capture_finding"
@@ -27,39 +35,24 @@ export interface ComputationResultV1 {
     handoff_kind?: "feedback";
     backtrack_to_task_kind?: "idea" | "literature";
     backtrack_to_node_id?: string;
-  };
+  } | null;
   /**
-   * @minItems 1
+   * Follow-up actions requested by explicit research feedback. Empty when the execution supplies no unambiguous research feedback.
    */
-  next_actions: [
-    {
-      action_kind:
-        | "capture_finding"
-        | "refine_idea"
-        | "branch_idea"
-        | "downgrade_idea"
-        | "literature_followup";
-      task_kind: "finding" | "idea" | "literature";
-      title: string;
-      target_node_id: string;
-      reason: string;
-      handoff_kind?: "feedback";
-    },
-    ...{
-      action_kind:
-        | "capture_finding"
-        | "refine_idea"
-        | "branch_idea"
-        | "downgrade_idea"
-        | "literature_followup";
-      task_kind: "finding" | "idea" | "literature";
-      title: string;
-      target_node_id: string;
-      reason: string;
-      handoff_kind?: "feedback";
-    }[],
-  ];
-  followup_bridge_refs: ArtifactRefV12[];
+  next_actions: {
+    action_kind:
+      | "capture_finding"
+      | "refine_idea"
+      | "branch_idea"
+      | "downgrade_idea"
+      | "literature_followup";
+    task_kind: "finding" | "idea" | "literature";
+    title: string;
+    target_node_id: string;
+    reason: string;
+    handoff_kind?: "feedback";
+  }[];
+  followup_bridge_refs: ArtifactRefV13[];
   /**
    * Optional refs to provider-neutral verification kernel artifacts generated from this computation result. Batch 1 adds the typed contract surface only; later batches may populate it.
    */
@@ -67,19 +60,19 @@ export interface ComputationResultV1 {
     /**
      * @minItems 1
      */
-    subject_refs?: [ArtifactRefV13, ...ArtifactRefV13[]];
+    subject_refs?: [ArtifactRefV14, ...ArtifactRefV14[]];
     /**
      * @minItems 1
      */
-    check_run_refs?: [ArtifactRefV14, ...ArtifactRefV14[]];
+    check_run_refs?: [ArtifactRefV15, ...ArtifactRefV15[]];
     /**
      * @minItems 1
      */
-    subject_verdict_refs?: [ArtifactRefV15, ...ArtifactRefV15[]];
+    subject_verdict_refs?: [ArtifactRefV16, ...ArtifactRefV16[]];
     /**
      * @minItems 1
      */
-    coverage_refs?: [ArtifactRefV16, ...ArtifactRefV16[]];
+    coverage_refs?: [ArtifactRefV17, ...ArtifactRefV17[]];
   };
   executor_provenance: {
     orchestrator_component: string;
@@ -394,6 +387,39 @@ export interface ArtifactRefV15 {
  * Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.
  */
 export interface ArtifactRefV16 {
+  /**
+   * URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote.
+   */
+  uri: string;
+  /**
+   * Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility.
+   */
+  kind?: string;
+  /**
+   * Schema version of the referenced artifact.
+   */
+  schema_version?: number;
+  /**
+   * SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.
+   */
+  sha256: string;
+  /**
+   * Size of the artifact in bytes.
+   */
+  size_bytes?: number;
+  /**
+   * Agent or component that produced this artifact.
+   */
+  produced_by?: string;
+  /**
+   * ISO 8601 UTC Z timestamp of artifact creation.
+   */
+  created_at?: string;
+}
+/**
+ * Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.
+ */
+export interface ArtifactRefV17 {
   /**
    * URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote.
    */

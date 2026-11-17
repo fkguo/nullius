@@ -12,7 +12,7 @@ describe('SemanticAssessmentProvenanceSchema', () => {
       backend: 'mcp_sampling',
       status: 'applied',
       reason_code: 'semantic_assessment',
-      prompt_version: 'sem05_review_authority_v2',
+      prompt_version: 'fixture_assessment_v1',
       input_hash: 'abc123',
       model: 'test-model',
       signals: ['document_type'],

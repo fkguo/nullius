@@ -11,6 +11,38 @@ the version to cite.
 ## [Unreleased]
 
 ### Changed
+- Literature workflow documentation now describes the three fixed recipes,
+  caller-supplied inputs and planning-only brainstorm steps. Result registration
+  is distinguished from notebook integration and scientific closeout.
+- Citation tracing now returns metadata source candidates, observed citing-record
+  counts and reference-lookup status. Its `cross_validate` filter means multiple
+  citing records, without asserting independent confirmation or priority.
+  Unknown-year references remain eligible.
+- Topic views preserve every requested period, with explicit query failures,
+  sample sizes and continuation status. Timeline citation sums are labeled as
+  sample sums; total counts use the same topic and interval. Evolution reports
+  comparable publication-count changes and requested-interval recent counts,
+  without categorical trend or momentum judgments.
+- Computation completion no longer invents a scientific success/failure,
+  finding, priority change, support edge or writing follow-up. A completed
+  execution can request follow-up work through one declared output named
+  `research_feedback.json` with a top-level `feedback_signal` of `success`,
+  `weak_signal` or `failure`; arbitrary JSON files are not scanned for feedback.
+  New results bind `basis: producer_declaration` and `declaration_ref` to the
+  produced declaration; follow-up execution checks that binding and its current
+  bytes. Historical inferred feedback remains readable but cannot authorize new
+  execution. Producer declarations are not verification. Execution memory no longer writes
+  scientific quality or validation flags, and repeated executions no longer
+  manufacture a skill-generalization confidence score.
+- `referee-review` now guides actual independent host review or the existing
+  `review-swarm` runner, which its package declares as a dependency. Refresh
+  copied skill installations to remove the retired generator; saved historical
+  review artifacts remain readable and exportable without reinterpretation.
+- Numerical guidance selects useful, reducible error contributions by their
+  effect and cost, including subdominant contributions. A large accuracy margin
+  is informational, and identical refinement values do not by themselves prove
+  that a numerical setting was ignored. Independent confirmation wording is
+  aligned across the harness, numerical skill and team prompts.
 - The research notebook is a user-owned scientific document. New scaffolds
   contain scientific sections and prompts; agent protocols remain in reachable
   project guidance. Lifecycle operations preserve notebook bytes, including old
@@ -26,6 +58,9 @@ the version to cite.
   off by the host, using existing reports, writer manifests and bundle tooling.
 
 ### Fixed
+- Workflow recipe JSON Schema and generated TS/Python contracts now require
+  `task_kind`, matching the runtime contract and all three checked-in recipes.
+  Tests use the existing Ajv Draft 2020-12 validator to check the full schema.
 - MCP-only hosts can author the user notebook with the existing hash-checked
   file writer and invoke canonical full-text review/check through typed
   `project_cli` actions. Reviewer and durable-delivery budgets remain distinct;
@@ -50,6 +85,20 @@ the version to cite.
   aligned/matrix line breaks.
 
 ### Removed
+- The packet-only referee verdict generator, its private schema and sample
+  packet. No replacement deterministic scientific-verdict generator is added.
+- PDG's optional lifetime-to-width derivation and `allow_derived` parameter.
+  Queries return database records; a missing width remains missing. Research
+  calculations belong in the project with explicit physical assumptions and
+  source locators. Raw records and historical derived artifacts remain readable.
+- HEP evidence grading, critical analysis, review classification, theoretical
+  conflict mapping, citation-stance scoring and crossover-topic prediction
+  tools, along with their private scoring and sampling pipelines. Raw search,
+  sources, citation contexts and source-identity tools remain available.
+- Emerging-paper ranking, its momentum/disruption/new-entrant modules and their
+  private options/configuration. Topic metadata retains timeline/evolution/all.
+- The retired critical-review step from the optional gap recipe and its action
+  mapping; citation-network work now follows the topic metadata step directly.
 - `nullius notebook sync` and its automatic lifecycle writers; paragraph-order
   and English-word heuristics for judging notebook prose; mandatory hidden
   section version stamps. Full scientific review, original-source identity and

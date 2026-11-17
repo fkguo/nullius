@@ -73,14 +73,13 @@ Key outputs:
 
 ### 3) `pdg_get_property`
 
-Purpose: fetch a high-frequency property (`mass/width/lifetime`) with uncertainties (small result).
+Purpose: fetch a stored property summary (`mass/width/lifetime`) with uncertainties (small result).
 
 Input:
 
 - `particle`: `{ name | mcid | pdgid, case_sensitive?: boolean = false }` (exactly one)
 - `property: 'mass' | 'width' | 'lifetime'`
 - `edition?: string`
-- `allow_derived?: boolean = false`
 
 Key outputs:
 
@@ -90,10 +89,13 @@ Key outputs:
 - `pdg_locator`: points to `pdgdata.pdgdata_id`
 - `value_type_meaning/limit_type_meaning`: decoded via `pdgdoc` when available
 
-Derived width:
+Source-value boundary:
 
-- if `width` is requested and PDG has no width but provides lifetime, set `allow_derived=true`
-- returns `property.derived` (`kind: "width_from_lifetime"`) with the source locator (`from.pdg_locator`) and constants (`Γ = ħ / τ`)
+- This tool returns stored PDG values only. A missing property returns `NOT_FOUND`; a missing width does not trigger a lifetime-to-width calculation. Its error provides an explicit lifetime-query suggestion, without asserting that a lifetime is available.
+- `allow_derived` has been retired and is rejected as an unknown parameter. If a research question requires a derived quantity, the host reads the relevant source records and performs the calculation in the research project, recording its assumptions, formula, units, uncertainties and source locators.
+- The quick result is a database-ordered preview: properties with a `D` flag prefix come first, then `sort` and identifier; value rows put Summary Table records first, then `sort` and row identifier. This ordering does not establish a unique physical interpretation. `alternatives` reports other candidate properties (within the quick lookup's first 10) and the row count.
+- Use `pdg_get` on the returned property identifier to inspect every stored value row for the selected edition, including limits, confidence levels, comments and asymmetric or missing uncertainties. `pdg_get` on the particle identifier lists its property children (up to 50 in the preview, with the total count).
+- Existing saved derived results remain historical files with their original bytes and provenance; they are not regenerated or reclassified. Artifact-cache retention is unchanged, so retain research evidence in the research project rather than relying on the cache TTL.
 
 ### 4) `pdg_get`
 
@@ -122,6 +124,8 @@ Input:
 - `start?: int = 0`
 - `limit?: int = 200` (max 500)
 - `artifact_name?: string`
+
+The branching value is a preview of the first database-ordered row for each decay (Summary Table first, then `sort` and row identifier). Inspect the decay identifier with `pdg_get` for all stored values before choosing the physically relevant record.
 
 Key outputs:
 

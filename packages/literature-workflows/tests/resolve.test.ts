@@ -3,8 +3,39 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { resolveWorkflowRecipe, WorkflowActionIdSchema } from '../src/index.js';
 import { getRecipeDir } from '../src/recipeLoader.js';
+import { getToolSpec as getArxivToolSpec } from '@nullius/arxiv-mcp/tooling';
+import { getToolSpecs as getOpenAlexToolSpecs } from '@nullius/openalex-mcp/tooling';
+import { getWorkflowProviderProfiles } from '../src/providerProfiles.js';
 
 describe('literature workflow resolver', () => {
+  it.each([
+    ['literature_gap_analysis', 'openalex', 'openalex_search', 'per_page'],
+    ['literature_gap_analysis', 'arxiv', 'arxiv_search', 'max_results'],
+    ['literature_landscape', 'openalex', 'openalex_search', 'per_page'],
+    ['literature_landscape', 'arxiv', 'arxiv_search', 'max_results'],
+  ] as const)('preserves the declared page size for %s through %s tool inputs', (recipe, provider, tool, pageSizeParam) => {
+    const plan = resolveWorkflowRecipe({
+      recipe_id: recipe,
+      inputs: { query: 'topic', topic: 'topic', seed_recid: '1234', analysis_seed: '1234', recids: ['1234'] },
+      preferred_providers: [provider],
+      available_tools: [tool, 'inspire_topic_analysis', 'inspire_network_analysis', 'inspire_find_connections', 'inspire_trace_original_source'],
+    });
+    const step = plan.resolved_steps.find(item => item.id === 'seed_search')!;
+    expect(step.params).toEqual({ query: 'topic', [pageSizeParam]: 50 });
+    const spec = provider === 'arxiv' ? getArxivToolSpec(tool) : getOpenAlexToolSpecs().find(item => item.name === tool);
+    const parsed = spec!.zodSchema.parse(step.params) as Record<string, unknown>;
+    expect(parsed[pageSizeParam]).toBe(step.consumer_hints?.search_depth_contract?.default_page_size);
+    expect(parsed).not.toHaveProperty('size');
+  });
+
+  it('returns detached provider parameter contracts and no retired review promise', () => {
+    const profiles = getWorkflowProviderProfiles();
+    const openalex = profiles.find(profile => profile.provider === 'openalex')!;
+    openalex.parameterNamesByAction!['discover.seed_search']!.size = 'incorrect';
+    expect(getWorkflowProviderProfiles().find(profile => profile.provider === 'openalex')?.parameterNamesByAction?.['discover.seed_search']).toEqual({ size: 'per_page' });
+    expect(profiles.find(profile => profile.provider === 'inspire')?.notes).not.toMatch(/critical.review|priority|emerging/);
+  });
+
   it('keeps checked-in recipe authority package-local', () => {
     const recipeDir = getRecipeDir();
 
@@ -130,14 +161,13 @@ describe('literature workflow resolver', () => {
       inputs: { topic: 'nonlinear sigma model', recids: ['1001', '2001'], analysis_seed: '1001' },
       available_tools: [
         'inspire_topic_analysis',
-        'inspire_critical_analysis',
         'inspire_network_analysis',
         'inspire_find_connections',
       ],
     });
 
     expect(plan.entry_tool).toBe('literature_workflows.resolve');
-    expect(plan.resolved_steps).toHaveLength(4);
+    expect(plan.resolved_steps).toHaveLength(3);
     expect(plan.resolved_steps).toMatchObject([
       {
         id: 'topic_scan',
@@ -145,15 +175,7 @@ describe('literature workflow resolver', () => {
         action: 'analyze.topic_evolution',
         provider: 'inspire',
         tool: 'inspire_topic_analysis',
-        params: { mode: 'timeline', topic: 'nonlinear sigma model', limit: 20 },
-      },
-      {
-        id: 'critical_analysis',
-        task_kind: 'review',
-        action: 'analyze.paper_set_critical_review',
-        provider: 'inspire',
-        tool: 'inspire_critical_analysis',
-        params: { recid: '1001' },
+        params: { mode: 'timeline', topic: 'nonlinear sigma model' },
       },
       {
         id: 'citation_network',
@@ -161,6 +183,7 @@ describe('literature workflow resolver', () => {
         action: 'analyze.citation_network',
         provider: 'inspire',
         tool: 'inspire_network_analysis',
+        depends_on: ['topic_scan'],
         params: { mode: 'citation', seed: '1001', limit: 50 },
       },
       {
@@ -181,7 +204,6 @@ describe('literature workflow resolver', () => {
       inputs: { topic: 'nonlinear sigma model', recids: [], analysis_seed: '1001' },
       available_tools: [
         'inspire_topic_analysis',
-        'inspire_critical_analysis',
         'inspire_network_analysis',
         'inspire_find_connections',
       ],
@@ -208,7 +230,6 @@ describe('literature workflow resolver', () => {
       preferred_providers: ['openalex', 'arxiv'],
       available_tools: [
         'inspire_topic_analysis',
-        'inspire_critical_analysis',
         'inspire_network_analysis',
         'inspire_find_connections',
         'openalex_search',
@@ -220,15 +241,8 @@ describe('literature workflow resolver', () => {
       'inspire',
       'inspire',
       'inspire',
-      'inspire',
     ]);
     expect(plan.resolved_steps[1]).toMatchObject({
-      id: 'critical_analysis',
-      task_kind: 'review',
-      provider: 'inspire',
-      tool: 'inspire_critical_analysis',
-    });
-    expect(plan.resolved_steps[2]).toMatchObject({
       id: 'citation_network',
       task_kind: 'finding',
       provider: 'inspire',

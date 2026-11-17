@@ -62,7 +62,7 @@ function createFeedbackBridgeRun(runId: string, projectRoot: string) {
   return { runDir, manifestPath };
 }
 
-function writeFeedbackSignalRunner(runDir: string, feedbackSignal: 'success' | 'weak_signal'): void {
+function writeFeedbackSignalRunner(runDir: string, feedbackSignal: 'success' | 'weak_signal' | 'failure'): void {
   fs.writeFileSync(
     path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'),
     [
@@ -79,23 +79,48 @@ function writeFeedbackSignalRunner(runDir: string, feedbackSignal: 'success' | '
       "output_path = Path('outputs') / f\"{args.task_id}.json\"",
       'output_path.parent.mkdir(parents=True, exist_ok=True)',
       "output_path.write_text(json.dumps(payload) + '\\n', encoding='utf-8')",
+      "Path('outputs/research_feedback.json').write_text(json.dumps(payload) + '\\n', encoding='utf-8')",
     ].join('\n'),
     'utf-8',
   );
+  const manifestPath = path.join(runDir, 'computation', 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  manifest.steps.at(-1).expected_outputs = [...new Set([...manifest.steps.at(-1).expected_outputs, 'outputs/research_feedback.json'])];
+  manifest.outputs = [...new Set([...manifest.outputs, 'outputs/research_feedback.json'])];
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+}
+
+function withExplicitLiteratureFeedback(outcome: ReturnType<typeof assertComputationResultValid>) {
+  expect(outcome.feedback_lowering?.signal).toBe('failure');
+  const feedbackLowering = {
+    ...outcome.feedback_lowering!,
+    decision_kind: 'literature_followup' as const,
+    target_task_kind: 'literature' as const,
+    target_node_id: `evidence:${outcome.run_id}`,
+    backtrack_to_task_kind: 'literature' as const,
+    backtrack_to_node_id: `evidence:${outcome.run_id}`,
+  };
+  const derived = deriveNextIdeaLoopState({ ...outcome, feedback_lowering: feedbackLowering });
+  return assertComputationResultValid({
+    ...outcome,
+    feedback_lowering: feedbackLowering,
+    next_actions: derived.nextActions,
+    workspace_feedback: derived.workspaceFeedback,
+  });
 }
 
 describe('orch_run_progress_followups', () => {
-  it('launches a delegated idea feedback follow-up for a failed computation result and does not relaunch it on the next tick', async () => {
+  it.each(['execution_failed', 'declared_negative'] as const)('launches idea feedback only for a completed producer declaration and never relaunches: %s', async (mode) => {
     const projectRoot = makeTmpDir();
-    const runId = 'run-progress-feedback-failure';
+    const runId = `run-progress-feedback-${mode}`;
     registerCleanup(projectRoot);
 
     const { runDir, manifestPath } = createFeedbackBridgeRun(runId, projectRoot);
-    fs.writeFileSync(
-      path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'),
-      "raise SystemExit(1)\n",
-      'utf-8',
-    );
+    if (mode === 'execution_failed') {
+      fs.writeFileSync(path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'), 'raise SystemExit(1)\n', 'utf-8');
+    } else {
+      writeFeedbackSignalRunner(runDir, 'failure');
+    }
     const manager = initRunState(projectRoot, runId);
     markA3Satisfied(manager, 'A3-0001');
 
@@ -105,10 +130,14 @@ describe('orch_run_progress_followups', () => {
       runDir,
       runId,
     });
-    expect(result.status).toBe('failed');
+    expect(result.status).toBe(mode === 'execution_failed' ? 'failed' : 'completed');
 
+    let samplingCalls = 0;
     const ctx = {
-      createMessage: async () => textResponse('feedback acknowledged'),
+      createMessage: async () => {
+        samplingCalls += 1;
+        return textResponse('feedback acknowledged');
+      },
       callTool: async () => ({ content: [{ type: 'text', text: '{}' }], isError: false }),
     };
 
@@ -124,11 +153,9 @@ describe('orch_run_progress_followups', () => {
       ctx,
     ));
 
-    expect(first).toMatchObject({
-      status: 'launched',
-      branch: 'feedback',
-      task_kind: 'idea',
-    });
+    expect(first).toMatchObject(mode === 'declared_negative'
+      ? { status: 'launched', branch: 'feedback', task_kind: 'idea' }
+      : { status: 'skipped_no_pending_task', branch: 'none' });
     const second = extractPayload(await handleToolCall(
       'orch_run_progress_followups',
       {
@@ -144,6 +171,7 @@ describe('orch_run_progress_followups', () => {
       status: 'skipped_no_pending_task',
       branch: 'none',
     });
+    expect(samplingCalls).toBe(mode === 'declared_negative' ? 1 : 0);
   });
 
   it('launches a delegated branched-idea feedback follow-up for a weak-signal computation result', async () => {
@@ -193,6 +221,7 @@ describe('orch_run_progress_followups', () => {
 
     // The progress tool works only in the run's own directory.
     const { runDir, manifestPath } = createWritingBridgeRun(runId, projectRoot, path.join(projectRoot, 'artifacts', 'runs', runId));
+    writeFeedbackSignalRunner(runDir, 'success');
     stageContextArtifact(runDir, 'section_output', 'draft-seed');
     stageContextArtifact(runDir, 'reviewer_report', 'review-seed');
     const manager = initRunState(projectRoot, runId);
@@ -212,6 +241,7 @@ describe('orch_run_progress_followups', () => {
     expect(computationResult.verification_refs?.subject_refs).toHaveLength(1);
     expect(computationResult.verification_refs?.subject_verdict_refs).toHaveLength(1);
     expect(computationResult.verification_refs?.coverage_refs).toHaveLength(1);
+    expect(computationResult.workspace_feedback.workspace.nodes.find(node => node.kind === 'finding')?.metadata).toMatchObject({ basis: 'producer_declaration', independently_verified: false });
     const draftTask = computationResult.workspace_feedback.tasks.find(task => task.kind === 'draft_update')!;
     const reviewTask = computationResult.workspace_feedback.tasks.find(task => task.kind === 'review')!;
     const responseQueue = [
@@ -316,11 +346,7 @@ describe('orch_run_progress_followups', () => {
     registerCleanup(projectRoot);
 
     const { runDir, manifestPath } = createFeedbackBridgeRun(runId, projectRoot);
-    fs.writeFileSync(
-      path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'),
-      "raise SystemExit(1)\n",
-      'utf-8',
-    );
+    writeFeedbackSignalRunner(runDir, 'failure');
     const manager = initRunState(projectRoot, runId);
     markA3Satisfied(manager, 'A3-0001');
 
@@ -330,37 +356,14 @@ describe('orch_run_progress_followups', () => {
       runDir,
       runId,
     });
-    expect(executed.status).toBe('failed');
+    expect(executed.status).toBe('completed');
 
     const outcomePath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
     const outcome = assertComputationResultValid(
       JSON.parse(fs.readFileSync(outcomePath, 'utf-8')) as unknown,
     );
-    const literatureNode = outcome.workspace_feedback.workspace.nodes.find(node => node.kind === 'evidence_set')!;
-    const rewrittenSeed = deriveNextIdeaLoopState({
-      ...outcome,
-      feedback_lowering: {
-        ...outcome.feedback_lowering,
-        decision_kind: 'literature_followup',
-        target_task_kind: 'literature',
-        target_node_id: literatureNode.node_id,
-        backtrack_to_task_kind: 'literature',
-        backtrack_to_node_id: literatureNode.node_id,
-      },
-    });
-    const rewritten = assertComputationResultValid({
-      ...outcome,
-      feedback_lowering: {
-        ...outcome.feedback_lowering,
-        decision_kind: 'literature_followup',
-        target_task_kind: 'literature',
-        target_node_id: literatureNode.node_id,
-        backtrack_to_task_kind: 'literature',
-        backtrack_to_node_id: literatureNode.node_id,
-      },
-      next_actions: rewrittenSeed.nextActions,
-      workspace_feedback: rewrittenSeed.workspaceFeedback,
-    });
+    const rewritten = withExplicitLiteratureFeedback(outcome);
+    expect(rewritten.workspace_feedback.workspace.nodes.find(node => node.node_id === `evidence:${runId}`)).toMatchObject({ metadata: { role: 'requested_work', accepted_evidence: false } });
     fs.writeFileSync(outcomePath, JSON.stringify(rewritten, null, 2) + '\n', 'utf-8');
 
     const launched = extractPayload(await handleToolCall(
@@ -410,11 +413,7 @@ describe('orch_run_progress_followups', () => {
     registerCleanup(projectRoot);
 
     const { runDir, manifestPath } = createFeedbackBridgeRun(runId, projectRoot);
-    fs.writeFileSync(
-      path.join(runDir, 'computation', 'scripts', 'execution_plan_runner.py'),
-      "raise SystemExit(1)\n",
-      'utf-8',
-    );
+    writeFeedbackSignalRunner(runDir, 'failure');
     const manager = initRunState(projectRoot, runId);
     markA3Satisfied(manager, 'A3-0001');
 
@@ -424,40 +423,18 @@ describe('orch_run_progress_followups', () => {
       runDir,
       runId,
     });
-    expect(executed.status).toBe('failed');
+    expect(executed.status).toBe('completed');
 
     const outcomePath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
     const outcome = assertComputationResultValid(
       JSON.parse(fs.readFileSync(outcomePath, 'utf-8')) as unknown,
     );
-    const literatureNode = outcome.workspace_feedback.workspace.nodes.find(node => node.kind === 'evidence_set')!;
-    const baseTask = outcome.workspace_feedback.tasks.find(task => task.kind === 'idea')!;
+    const delegated = withExplicitLiteratureFeedback(outcome);
     const rewritten = assertComputationResultValid({
-      ...outcome,
-      feedback_lowering: {
-        ...outcome.feedback_lowering,
-        decision_kind: 'literature_followup',
-        target_task_kind: 'literature',
-        target_node_id: literatureNode.node_id,
-        backtrack_to_task_kind: 'literature',
-        backtrack_to_node_id: literatureNode.node_id,
-      },
-      next_actions: [{
-        ...outcome.next_actions[0]!,
-        action_kind: 'literature_followup',
-        task_kind: 'literature',
-        target_node_id: literatureNode.node_id,
-        title: 'Backtrack literature after failure',
-      }],
+      ...delegated,
       workspace_feedback: {
-        ...outcome.workspace_feedback,
-        tasks: [{
-          ...baseTask,
-          kind: 'literature',
-          title: 'Backtrack literature after failure',
-          target_node_id: literatureNode.node_id,
-          metadata: undefined,
-        }],
+        ...delegated.workspace_feedback,
+        tasks: delegated.workspace_feedback.tasks.map(task => task.kind === 'literature' ? { ...task, metadata: undefined } : task),
         handoffs: [],
       },
     });

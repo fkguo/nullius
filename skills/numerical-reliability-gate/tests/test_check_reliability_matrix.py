@@ -236,6 +236,31 @@ def test_total_within_or_at_target_passes():
     assert _codes(_matrix(_row())) == []
 
 
+def test_subdominant_refinement_can_meet_target_with_fixed_dominant_error(tmp_path):
+    # The largest contribution is irreducible at this stage. Reducing the smaller
+    # numerical contribution still changes the total from above to below the target.
+    before = _row(
+        required_accuracy=_acc(1.0),
+        error_budget=[
+            {"source": "irreducible model error", "estimate": 0.8, "dominant": True},
+            {"source": "numerical integration", "estimate": 0.4, "dominant": False},
+        ],
+        total_error={"rule": "linear_sum", "value": 1.2},
+    )
+    rejected = _run(tmp_path, _matrix(before))
+    assert rejected.returncode == 1
+    assert "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY" in rejected.stdout
+    assert "next refinement goes to the dominant" not in rejected.stdout
+
+    after = copy.deepcopy(before)
+    after["error_budget"][1]["estimate"] = 0.1
+    after["total_error"]["value"] = 0.9
+    assert after["error_budget"][0] == before["error_budget"][0]
+    accepted = _run(tmp_path, _matrix(after))
+    assert accepted.returncode == 0
+    assert _codes(_matrix(after)) == []
+
+
 @pytest.mark.parametrize(
     "total",
     [
@@ -272,17 +297,20 @@ def test_candidate_row_may_carry_a_total_above_the_target():
     assert _codes(_matrix(row)) == []
 
 
-def test_refinement_far_past_the_target_warns_without_failing(tmp_path):
-    tiny = dict(error_budget=[{"source": "grid", "estimate": 1e-9, "dominant": True}],
+def test_large_accuracy_margin_warns_without_claiming_wasted_refinement(tmp_path):
+    # A direct formula can have a large accuracy margin without a refinement loop.
+    tiny = dict(error_budget=[{"source": "direct formula rounding", "estimate": 1e-9, "dominant": True}],
                 total_error={"rule": "linear_sum", "value": 1e-9})
     findings, warnings = crm.check(_matrix(_row(**tiny)))
     assert findings == []
-    assert [w["code"] for w in warnings] == ["REFINED_PAST_REQUIRED_ACCURACY"]
+    assert [w["code"] for w in warnings] == ["ACCURACY_MARGIN_LARGE"]
+    assert "does not establish wasted refinement" in warnings[0]["message"]
     proc = _run(tmp_path, _matrix(_row(**tiny)))
     assert proc.returncode == 0
-    assert "WARNING REFINED_PAST_REQUIRED_ACCURACY" in proc.stdout
-    # A non-reliable row that documents wasted refinement is flagged too.
-    assert [w["code"] for w in crm.check(_matrix(_candidate(**tiny)))[1]] == ["REFINED_PAST_REQUIRED_ACCURACY"]
+    assert "WARNING ACCURACY_MARGIN_LARGE" in proc.stdout
+    assert "Keep naturally accurate results" in proc.stdout
+    # The same measured margin is reported on a non-reliable candidate.
+    assert [w["code"] for w in crm.check(_matrix(_candidate(**tiny)))[1]] == ["ACCURACY_MARGIN_LARGE"]
     # Within three orders of the target, or an exactly zero error, is not flagged.
     close = _row(error_budget=[{"source": "grid", "estimate": 1e-4, "dominant": True}],
                  total_error={"rule": "linear_sum", "value": 1e-4})

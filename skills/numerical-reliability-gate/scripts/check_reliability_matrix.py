@@ -17,8 +17,9 @@ value). It does not re-judge G1-G10 evidence; that judgement stays with the gate
 and its reviewers.
 
 A total error far below the required accuracy (more than three orders of
-magnitude) is reported as a warning on any row: the refinement went past what the result
-needed. Warnings never change the exit status.
+magnitude) is reported as a non-blocking accuracy-margin warning. The margin
+does not establish that refinement occurred or wasted work; naturally accurate
+results need not be made less accurate. Warnings never change the exit status.
 
 Exit status: 0 no findings; 1 findings; 2 the file is unreadable, is not one
 unambiguous JSON object, or is not a version-1 matrix.
@@ -59,8 +60,8 @@ ACCURACY_SOURCES = frozenset({"display", "downstream_sensitivity", "comparison_u
 TOTAL_ERROR_RULES = frozenset({"linear_sum", "quadrature"})
 
 # A total error this many times smaller than the required accuracy is reported
-# as refinement carried past what the result needed.
-OVER_REFINEMENT_FACTOR = 1000
+# as a large accuracy margin, without inferring how much work produced it.
+ACCURACY_MARGIN_FACTOR = 1000
 
 
 class InputError(Exception):
@@ -271,7 +272,7 @@ def _check_error_budget(row_id: str, row: dict[str, Any], findings: list[dict[st
                   if not entry["dominant"] and entry["estimate"] is not None and _dec(entry["estimate"]) > top]
         if larger:
             findings.append(_finding(row_id, "DOMINANT_NOT_LARGEST",
-                                     f"the source marked dominant is smaller than {larger}; refinement must go to the largest error source"))
+                                     f"the source marked dominant is smaller than {larger}; label the largest contribution accurately"))
             return None
     return budget
 
@@ -381,14 +382,14 @@ def check(data: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, st
         if accuracy is None or total is None:
             continue
         if reliable and total > _q(accuracy["value"]):
-            dominant = next(entry for entry in budget if entry["dominant"])
             findings.append(_finding(row_id, "TOTAL_ERROR_ABOVE_REQUIRED_ACCURACY",
                                      f"total error {_show(total)} exceeds the required accuracy {accuracy['value']}; the row is `unconverged`, "
-                                     f"and the next refinement goes to the dominant source ({dominant['source']})"))
-        elif 0 < total * OVER_REFINEMENT_FACTOR < _q(accuracy["value"]):
-            warnings.append(_finding(row_id, "REFINED_PAST_REQUIRED_ACCURACY",
-                                     f"total error {_show(total)} is more than {OVER_REFINEMENT_FACTOR:g} times below the "
-                                     f"required accuracy {accuracy['value']}: refinement went past what the result needed"))
+                                     "choose a useful reduction by its effect on the total error or conclusion and its cost"))
+        elif 0 < total * ACCURACY_MARGIN_FACTOR < _q(accuracy["value"]):
+            warnings.append(_finding(row_id, "ACCURACY_MARGIN_LARGE",
+                                     f"total error {_show(total)} is more than {ACCURACY_MARGIN_FACTOR:g} times below the "
+                                     f"required accuracy {accuracy['value']}; this margin does not establish wasted refinement. "
+                                     "Keep naturally accurate results; further refinement needs a task-based reason"))
 
     rows = len(data["matrix"])
     for field, expected in (("total", rows), ("reliable", len(reliable_ids))):

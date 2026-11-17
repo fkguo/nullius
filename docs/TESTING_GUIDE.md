@@ -37,6 +37,26 @@ python3 -m pytest -q packages/project-contracts/tests/test_root_policy.py packag
 
 这些检查覆盖审批内容绑定、暂停后的字节保持、最后一步竞争、总截止时间、锁内状态比较与根目录准入；它们不构成科学结果的独立验证。
 
+科学判断边界的定向检查：
+
+```bash
+pnpm --filter @nullius/hep-mcp exec vitest run tests/research/sourceEvidenceBoundaries.test.ts tests/research/topicBoundary.test.ts tests/docs/docToolDrift.test.ts
+pnpm --filter @nullius/orchestrator exec vitest run tests/computation-feedback-boundary.test.ts
+```
+
+核对已移除的科学判词工具在两种 exposure mode 中均不可调用；主题视图只接受
+`timeline`、`evolution`、`all`；引用追踪区分返回、不可用和深度限制未请求的引用查询。
+`cross_validate` 只表示多个被追踪记录引用了同一候选，不表示独立科学核验或优先权。
+元数据统计须保留查询范围、样本与失败状态，不能把未获取的记录当作零。
+
+计算完成且产出恰好一个已声明的 `research_feedback.json` 时，只有顶层有效的
+`feedback_signal`（`success`、`weak_signal` 或 `failure`）可请求后续工作。
+其他 JSON 中同名字段、缺失或无效声明、多个声明文件、失败执行均不得推断反馈。
+当前结果必须记录 `basis: producer_declaration` 与绑定实际产物的 `declaration_ref`；
+后续执行须验证声明在 produced artifacts 内且当前字节仍匹配。
+没有该权限的历史记录仍可读取，但旧推断反馈不能授权新的执行。
+这些测试检查工具契约与执行权限，不验证声明的科学内容。
+
 外部项目边界的验收还应覆盖：从另一处运行时拒绝开发仓、尚未创建的仓内后代与仓目录别名，并确认拒绝发生在任何项目文件写入之前；同父目录的正常外部研究项目仍应可初始化。
 
 ## 0. 一次性准备
@@ -126,7 +146,7 @@ Kimi/OpenCode/Qwen 需要 Python 3.10 或更新版本；不满足时在调用模
 
 #### 本地个人插件与项目 MCP
 
-[`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。默认个人插件组合 project 24、HEP standard 51、idea 6，共 81 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。
+[`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。默认个人插件组合 project 24、HEP standard 47、idea 6，共 77 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。
 
 构建完成后运行以下针对性检查：
 
@@ -241,8 +261,8 @@ EOF
 
 **预期**
 
-- `standard` 模式工具数为 `51`
-- `full` 模式工具数为 `57`
+- `standard` 模式工具数为 `47`
+- `full` 模式工具数为 `51`
 - `bad` 为空数组
 
 ### 0.5 可选依赖：Zotero / PDG
@@ -350,12 +370,13 @@ EOF
 **调用**
 
 ```json
-{ "mode": "timeline", "topic": "pentaquark", "limit": 10 }
+{ "mode": "timeline", "topic": "<topic>", "time_range": { "start": 2020, "end": 2025 } }
 ```
 
 **预期**
 
-- 返回 timeline / evolution 相关摘要
+- 只接受 `timeline`、`evolution`、`all`；`emerging` 和其评分参数已移除。
+- 返回有界元数据摘要，样本及查询状态应按 [source-access 契约](../packages/hep-mcp/README.md#research-judgment-and-source-access) 核对。论文数量、样本引用数和按引用排序的记录不构成科学质量、新颖性或优先权判断。
 
 ### 3.4 stateful literature workflow consumers
 
@@ -380,7 +401,7 @@ nullius workflow-plan \
   --topic "bootstrap amplitudes"
 ```
 
-`research_brainstorm` durable harness 持久化 brainstorm context、candidate angles、screening matrix、single recommendation 与 `next_contract` artifact hints。`.nullius/state.json#/plan` 是机器 SSOT，`.nullius/plan.md` 只是派生 read model；`next_contract` 可以建议后续 recipe，但不会自动启动重流程，也不依赖 host-native thinking process。它是 planning-only harness：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。它不是 idea-engine、不是 full research-team、不是新的 root front door。
+`research_brainstorm` durable harness 持久化上述内容的步骤和 artifact hints；brainstorm context、candidate angles、screening matrix、single recommendation 与 `next_contract` 正文由宿主撰写。`.nullius/state.json#/plan` 是机器 SSOT，`.nullius/plan.md` 只是派生 read model；`next_contract` 可以建议后续 recipe，但不会自动启动重流程，也不依赖 host-native thinking process。它是 planning-only harness：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。它不是 idea-engine、不是 full research-team、不是新的 root front door。
 
 > Maintainer / eval / regression only:
 >
@@ -393,9 +414,11 @@ nullius workflow-plan \
 **预期**
 
 - `nullius workflow-plan` 仍是唯一 installable public high-level literature entrypoint
+- 三个 checked-in recipe 必须同时通过 runtime Zod 与完整 Draft 2020-12 JSON Schema 校验；`task_kind` 为真实 step 契约的一部分。`workflowRecipes.test.ts` 使用 Ajv 校验完整对象，不能只通过 `anyOf` 分支后跳过父级约束。
+- 解析只证明固定步骤、参数替换和 capability/tool 映射。`research_brainstorm` 的五步均为 planning-only；plan/artifact hints 的存在不证明研究内容已生成，也不证明 provider 已配置、来源已阅读或后续 record IDs 已从搜索结果接入。
 - lower-level checked-in runner / resolver / front-door coverage 仍能证明 `literature_gap_analysis` recipe、seed-search 解析、analyze-step wiring 与 live CLI truth
 - literature saturation contract 还应保留覆盖每个 declared query 的有界 provider request/page-or-cursor/continuation 账本（known total 完整、末次 continuation exhausted）、逐候选 discovery/disposition、逐 core source bibliography reconciliation、exact-SHA archived canonical-identity provenance 与 coverage-debt 语义、每个 reconciliation candidate 的 source-text method-screening disposition，以及 source-grounded method-family audit/citation-graph coverage；展示 URL 只有在同时是已归档 canonical id/alias 时才参与 identity join；两个 summary receipt 必须绑定同一个 project-root-bounded exact-SHA ledger，并由 writeback 从详细内容重算，缺少任一项时不得把 bounded traversal 的停止状态提升为 `saturated`
-- `research_brainstorm` durable harness 通过同一个 entrypoint 验证 harness-step 解析、artifact hints、state plan 与 read-model 恢复；它输出后续 handoff contract，但不自动启动重流程
+- `research_brainstorm` durable harness 通过同一个 entrypoint 验证 harness-step 解析、artifact hints、state plan 与 read-model 恢复；它记录后续 handoff 的步骤和产物提示，contract 正文由宿主撰写，但不自动启动重流程
 
 ---
 

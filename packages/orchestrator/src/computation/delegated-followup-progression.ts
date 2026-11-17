@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ComputationResultV1 } from '@nullius/shared';
+import { feedbackAuthorityError } from './feedback-authority.js';
 import { createTeamExecutionState } from '../team-execution-state.js';
 import type { TeamExecutionState } from '../team-execution-types.js';
 import { TeamExecutionStateManager } from '../team-execution-storage.js';
@@ -81,6 +82,7 @@ async function launchDelegatedTask(params: {
   computationResult: ComputationResultV1;
   projectRoot: string;
   runId: string;
+  runDir: string;
   task: DelegatedComputationFollowupTask;
   launchTask: (params: {
     computationResult: ComputationResultV1;
@@ -90,6 +92,8 @@ async function launchDelegatedTask(params: {
     team: DelegatedFollowupTeamConfig;
   }) => Promise<DelegatedComputationFollowupLaunchOutcome>;
 }): Promise<DelegatedComputationFollowupLaunchOutcome> {
+  const authorityError = feedbackAuthorityError(params.computationResult, params.runDir);
+  if (authorityError) return { launchResult: { status: 'skipped_invalid_team_execution', task_id: params.task.task_id, task_kind: params.task.kind, error: authorityError }, teamState: null };
   let team: DelegatedFollowupTeamConfig;
   try {
     team = buildTeamConfigForDelegatedFollowupTask(params.task);
@@ -152,6 +156,7 @@ export async function progressDelegatedComputationFollowups(params: {
     computationResult: params.computationResult,
     projectRoot: params.projectRoot,
     runId: params.runId,
+    runDir: params.runDir,
     task: initialTask,
     launchTask: params.launchTask,
   });
@@ -228,6 +233,7 @@ export async function progressDelegatedComputationFollowups(params: {
     computationResult: params.computationResult,
     projectRoot: params.projectRoot,
     runId: params.runId,
+    runDir: params.runDir,
     task: nextTask,
     launchTask: params.launchTask,
   });

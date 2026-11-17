@@ -961,7 +961,6 @@ describe('nullius CLI', () => {
       '--recid', '5678',
       '--available-tool', 'inspire_search',
       '--available-tool', 'inspire_topic_analysis',
-      '--available-tool', 'inspire_critical_analysis',
       '--available-tool', 'inspire_network_analysis',
       '--available-tool', 'inspire_find_connections',
     ], io);
@@ -978,13 +977,13 @@ describe('nullius CLI', () => {
       phase: 'analyze',
       entry_tool: 'literature_workflows.resolve',
     });
-    expect(payload.resolved_steps).toHaveLength(4);
+    expect(payload.resolved_steps).toHaveLength(3);
     expect(payload.resolved_steps[0]).toMatchObject({
       id: 'topic_scan',
       provider: 'inspire',
       tool: 'inspire_topic_analysis',
     });
-    expect(payload.resolved_steps[3]).toMatchObject({
+    expect(payload.resolved_steps[2]).toMatchObject({
       id: 'connection_scan',
       provider: 'inspire',
       tool: 'inspire_find_connections',
@@ -1007,7 +1006,7 @@ describe('nullius CLI', () => {
         task_kind: 'literature',
         task_intent: 'analyze.topic_evolution',
         title: 'Topic Scan',
-        description: 'Summarize trends and identify underexplored subtopics',
+        description: 'Collect topic chronology and records for the host to interpret',
         depends_on_task_ids: ['seed_search'],
         required_capabilities: ['analysis.topic_evolution'],
         expected_artifacts: ['topic_analysis'],
@@ -1020,22 +1019,18 @@ describe('nullius CLI', () => {
       },
     });
     expect(persistedSteps[1]).toMatchObject({
-      step_id: 'critical_analysis',
-      task: {
-        task_kind: 'review',
-      },
-      execution: {
-        provider: 'inspire',
-        tool: 'inspire_critical_analysis',
-      },
-    });
-    expect(persistedSteps[2]).toMatchObject({
       step_id: 'citation_network',
       task: {
         task_kind: 'finding',
+        depends_on_task_ids: ['topic_scan'],
+      },
+      execution: {
+        provider: 'inspire',
+        tool: 'inspire_network_analysis',
+        depends_on: ['topic_scan'],
       },
     });
-    expect(persistedSteps[3]).toMatchObject({
+    expect(persistedSteps[2]).toMatchObject({
       step_id: 'connection_scan',
       task: {
         task_kind: 'finding',
@@ -1061,7 +1056,6 @@ describe('nullius CLI', () => {
       '--topic', 'bootstrap amplitudes',
       '--analysis-seed', '1234',
       '--available-tool', 'inspire_topic_analysis',
-      '--available-tool', 'inspire_critical_analysis',
       '--available-tool', 'inspire_network_analysis',
       '--available-tool', 'inspire_find_connections',
     ], io);
@@ -1076,7 +1070,7 @@ describe('nullius CLI', () => {
       recipe_id: 'literature_gap_analysis',
       phase: 'analyze',
     });
-    expect(payload.resolved_steps[3]).toMatchObject({
+    expect(payload.resolved_steps[2]).toMatchObject({
       id: 'connection_scan',
       params: {
         recids: [],
@@ -1084,7 +1078,7 @@ describe('nullius CLI', () => {
     });
 
     const persistedSteps = (((manager.readState().plan as Record<string, unknown>).steps) ?? []) as Record<string, unknown>[];
-    expect(persistedSteps[3]).toMatchObject({
+    expect(persistedSteps[2]).toMatchObject({
       step_id: 'connection_scan',
       execution: {
         tool: 'inspire_find_connections',
@@ -1294,11 +1288,11 @@ describe('nullius CLI', () => {
       current_step_id: 'export_project',
       steps: [
         {
-          step_id: 'critical_review',
-          description: 'Critical review',
+          step_id: 'citation_network',
+          description: 'Citation network',
           status: 'completed',
           expected_approvals: [],
-          expected_outputs: ['critical_analysis'],
+          expected_outputs: ['network_analysis'],
           recovery_notes: '',
         },
         {
@@ -1519,7 +1513,7 @@ describe('nullius CLI', () => {
         status_command: 'nullius status --json',
         current_run_id: 'M-OUT-1',
         run_status: 'completed',
-        curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
+        curated_workflow_output_keys: ['topic_analysis', 'network_analysis', 'connection_scan'],
         workflow_output_keys: expect.arrayContaining(['topic_analysis', 'connection_scan']),
       },
       recovery_context: {
@@ -2144,7 +2138,7 @@ describe('nullius CLI', () => {
       current_run_workflow_outputs: null,
       current_run_workflow_outputs_error: {
         code: 'CURRENT_RUN_WORKFLOW_OUTPUTS_PARTIAL',
-        curated_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
+        curated_output_keys: ['topic_analysis', 'network_analysis', 'connection_scan'],
         output_errors: [
           {
             code: 'WORKFLOW_OUTPUT_INVALID',
@@ -2464,7 +2458,6 @@ describe('nullius CLI', () => {
       '--recid', '5678',
       '--available-tool', 'inspire_search',
       '--available-tool', 'inspire_topic_analysis',
-      '--available-tool', 'inspire_critical_analysis',
       '--available-tool', 'inspire_network_analysis',
       '--available-tool', 'inspire_find_connections',
     ], makeIo(projectRoot).io);

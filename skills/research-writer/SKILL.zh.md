@@ -12,7 +12,7 @@ description: 由当前宿主 agent 基于研究笔记、文献和结果撰写并
 1. 阅读任务目标、`research_notebook.md`、`research_contract.md`、相关知识库、原始文献段落和运行产物；根据研究问题选择结构和材料。标题、摘要和自动摘录只用于定位材料。
 2. 直接写入真实 `main.tex` 或被它包含的章节文件，核实修改进入构建。已有论文先比较版本；没有合适模板时才初始化空白 scaffold。
 3. 文献性主张执行现有 `claim-grounding`：核对文献身份、阅读具体支持段落、记录并读取判定，对不支持或冲突的说法改写或限定。计算性结果读取推导和运行证据并执行适用验证，区分假设、引文陈述与独立检查结果。
-4. 实质性论文使用现有 `referee-review` 或宿主 subagents 审查真实稿件及证据。给审阅者能访问的材料，要求检查反例、逻辑缺口、遗漏验证；读取意见后修改实际文件，再按变化复核。无需固定 provider 对、章节数量或审查轮数。无法独立审阅时明确保留该限制。
+4. 实质性论文按 [referee-review](../referee-review/SKILL.md) 的程序，委派独立宿主 agent 或现有 [review-swarm](../review-swarm/SKILL.md) launcher 审查真实稿件及原始证据。给审阅者能访问的材料，要求检查反例、逻辑缺口、遗漏验证；读取意见后修改实际文件，再按变化复核。packet 标题、报告 schema 或机械检查不能作出科学审稿结论。无需固定 provider 对、章节数量或审查轮数；无法独立审阅时明确保留该限制。
 5. 对当前稿件执行适用的交叉引用、结果溯源、图表 display acceptance 与构建检查，并读取报告。机械通过不能证明科学正确；审阅者仍需核对覆盖范围、结果数值与论证。需要 PDF 时编译实际文件并检查最终页面；工具缺失或构建失败就是尚未完成。
 6. 读取当前 `export_manifest.json`，使用已有 research-team export 的 `--writer-export` / `--include` 收集文件及必要依赖，检查导出后的可阅读成品，向用户提供链接、材料与未决问题。交付状态记入 `research_plan.md` / `project_index.md`；笔记保留科学结论和必要成果链接，不承载工具送达日志。只创建 manifest 不算交付。
 

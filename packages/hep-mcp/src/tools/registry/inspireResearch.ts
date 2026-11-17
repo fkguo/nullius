@@ -3,14 +3,8 @@ import {
   INSPIRE_NETWORK_ANALYSIS,
   INSPIRE_FIND_CONNECTIONS,
   INSPIRE_TRACE_ORIGINAL_SOURCE,
-  INSPIRE_GRADE_EVIDENCE,
-  INSPIRE_CRITICAL_ANALYSIS,
-  INSPIRE_CLASSIFY_REVIEWS,
-  INSPIRE_THEORETICAL_CONFLICTS,
   INSPIRE_PARSE_LATEX,
   INSPIRE_PAPER_SOURCE,
-  INSPIRE_FIND_CROSSOVER_TOPICS,
-  INSPIRE_ANALYZE_CITATION_STANCE,
   INSPIRE_CLEANUP_DOWNLOADS,
   INSPIRE_VALIDATE_BIBLIOGRAPHY,
 } from '@nullius/shared';
@@ -19,17 +13,11 @@ import { OutputBatch, resolveOutputDir } from '../../core/outputDir.js';
 import type { ToolSpec } from './types.js';
 import {
   FindConnectionsToolSchema,
-  InspireGradeEvidenceToolSchema,
-  InspireCriticalAnalysisToolSchema,
-  InspireClassifyReviewsToolSchema,
-  InspireTheoreticalConflictsToolSchema,
   TopicAnalysisToolSchema,
   NetworkAnalysisToolSchema,
   TraceOriginalSourceToolSchema,
   PaperSourceToolSchema,
   InspireParseLatexToolSchema,
-  FindCrossoverTopicsToolSchema,
-  AnalyzeCitationStanceToolSchema,
   CleanupDownloadsToolSchema,
   ValidateBibliographyToolSchema,
   hashParseLatexRequest,
@@ -112,58 +100,10 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       }
     },
   },
-  {
-    name: INSPIRE_GRADE_EVIDENCE,
-    title: 'Grade claim evidence',
-    tier: 'consolidated',
-    exposure: 'standard',
-    maturity: 'stable',
-    description: 'Grade evidence quality for a single paper\'s claims (network).',
-    zodSchema: InspireGradeEvidenceToolSchema,
-    handler: async (params, ctx) => {
-      const { gradeEvidence } = await import('../research/evidenceGrading.js');
-      return gradeEvidence(params, { createMessage: ctx.createMessage });
-    },
-  },
-  {
-    name: INSPIRE_CRITICAL_ANALYSIS,
-    title: 'Critical paper analysis',
-    tier: 'consolidated',
-    exposure: 'standard',
-    maturity: 'stable',
-    description: 'Run bounded critical-analysis checks for a single paper (network).',
-    zodSchema: InspireCriticalAnalysisToolSchema,
-    handler: async (params, ctx) => {
-      const { performCriticalAnalysis } = await import('../research/criticalAnalysis.js');
-      return performCriticalAnalysis(params, { createMessage: ctx.createMessage });
-    },
-  },
-  {
-    name: INSPIRE_CLASSIFY_REVIEWS,
-    title: 'Classify review papers',
-    tier: 'consolidated',
-    exposure: 'standard',
-    maturity: 'stable',
-    description: 'Classify review papers by scope and review type using semantic assessment (network).',
-    zodSchema: InspireClassifyReviewsToolSchema,
-    handler: async (params, ctx) => {
-      const { classifyReviews } = await import('../research/reviewClassifier.js');
-      return classifyReviews(params, { createMessage: ctx.createMessage });
-    },
-  },
-  {
-    name: INSPIRE_THEORETICAL_CONFLICTS,
-    title: 'Theoretical conflicts map',
-    tier: 'consolidated',
-    exposure: 'standard',
-    maturity: 'stable',
-    description: 'Build a theoretical conflict map for a bounded paper set, writing every intermediate record and the map into output_dir inside project_root (network; MCP client sampling).',
-    zodSchema: InspireTheoreticalConflictsToolSchema,
-    handler: async (params, ctx) => {
-      const { performTheoreticalConflicts } = await import('../research/theoreticalConflicts.js');
-      return performTheoreticalConflicts(params, { createMessage: ctx.createMessage });
-    },
-  },
+
+
+
+
   {
     name: INSPIRE_TOPIC_ANALYSIS,
     title: 'INSPIRE topic analysis',
@@ -171,7 +111,7 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     exposure: 'standard',
     maturity: 'stable',
     description:
-      'Unified topic analysis tool (network). Modes: timeline/evolution/emerging/all.',
+      'Bounded publication timeline and topic metadata views (network). Modes: timeline/evolution/all. No emerging-paper or scientific-promise ranking.',
     zodSchema: TopicAnalysisToolSchema,
     handler: async params => {
       const { analyzeTopicUnified } = await import('../research/topicAnalysis.js');
@@ -208,12 +148,12 @@ export const RAW_INSPIRE_RESEARCH_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
   },
   {
     name: INSPIRE_TRACE_ORIGINAL_SOURCE,
-    title: 'Trace original source',
+    title: 'Trace source candidates',
     tier: 'consolidated',
     exposure: 'standard',
     maturity: 'stable',
     description:
-      'Trace citation chains to identify likely original sources behind a paper (network).',
+      'Trace bounded citation metadata to identify source candidates for reading (network). Reports observed citing records and reference-query status; does not determine scientific priority or originality.',
     zodSchema: TraceOriginalSourceToolSchema,
     handler: async params => {
       const { traceOriginalSource } = await import('../research/traceSource.js');
@@ -324,37 +264,8 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
       return result;
     },
   },
-  {
-    name: INSPIRE_FIND_CROSSOVER_TOPICS,
-    title: 'Find crossover topics',
-    tier: 'advanced',
-    exposure: 'full',
-    description:
-      'Discover emerging interdisciplinary research areas by analyzing papers spanning multiple arXiv categories (network).',
-    zodSchema: FindCrossoverTopicsToolSchema,
-    handler: async params => {
-      const { findCrossoverTopics } = await import('../research/crossoverTopics.js');
-      return findCrossoverTopics(params);
-    },
-  },
-  {
-    name: INSPIRE_ANALYZE_CITATION_STANCE,
-    title: 'Citation stance analysis',
-    tier: 'advanced',
-    exposure: 'full',
-    description:
-      'Analyze how a paper cites another paper (stance detection; resolves citekeys via INSPIRE as needed; network).',
-    zodSchema: AnalyzeCitationStanceToolSchema,
-    handler: async params => {
-      const { analyzeStanceFromLatex } = await import('../research/stance/index.js');
-      return analyzeStanceFromLatex({
-        latexContent: params.latex_content,
-        targetRecid: params.target_recid,
-        bibContent: params.bib_content,
-        options: { maxContexts: params.max_contexts },
-      });
-    },
-  },
+
+
   {
     name: INSPIRE_CLEANUP_DOWNLOADS,
     title: 'Clean up downloads',

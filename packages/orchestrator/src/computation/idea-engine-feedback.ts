@@ -43,7 +43,7 @@ export function maybeQueueIdeaEngineComputationFeedback(params: {
   prepared: PreparedManifest;
   computationResult: ComputationResultV1;
 }): { campaignDir: string; pendingPath: string } | null {
-  if (!stagedIdeaSurfaceExists(params.prepared.runDir)) {
+  if (!params.computationResult.feedback_lowering || !stagedIdeaSurfaceExists(params.prepared.runDir)) {
     return null;
   }
 

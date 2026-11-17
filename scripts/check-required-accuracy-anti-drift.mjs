@@ -14,8 +14,9 @@
  *
  * The countermeasure is the gate's G0: the strictest accuracy among the
  * quantity's uses is written down first and bounds every tolerance placed on
- * the quantity itself; the error is budgeted by source and only the dominant
- * source is refined; refinement stops when the total error (combined by a
+ * the quantity itself; the error is budgeted by source and refinements are chosen
+ * for their useful effect on total error or the conclusion relative to cost;
+ * refinement stops when the total error (combined by a
  * stated rule) is at or below the required accuracy; an over-tight tolerance
  * on the quantity is a defect, not rigor, while diagnostic thresholds keep
  * blocking where they are needed to bound the error or validate the method.
@@ -98,7 +99,7 @@ if (skill !== null) {
   }
 }
 requireAll(`${SKILL_FILE} (G0)`, gateItem(SKILL_FILE, skill, 'G0'), [
-  ['G0 heading', 'Required accuracy first; refine only the dominant error; stop when the total meets it.**'],
+  ['G0 heading', 'Required accuracy first; refine where it reduces the relevant error; stop when the total meets it.**'],
   ['required accuracy written down first', 'write down the **required accuracy** of the quantity and where it comes from'],
   ['every use, strictest governs', 'List every use the quantity serves'],
   ['strictest use', 'and take the **strictest** of them'],
@@ -106,8 +107,9 @@ requireAll(`${SKILL_FILE} (G0)`, gateItem(SKILL_FILE, skill, 'G0'), [
   ['method capability is not a source', 'What the method could achieve is never a source.'],
   ['observable, not raw parameters', 'not on raw internal parameters in mixed units'],
   ['error budget by source', '**Budget the error by source.**'],
-  ['refine only the dominant source', 'Refine **only the dominant source**'],
-  ['subdominant refinement is not progress', 'changes nothing the result depends on and is not progress'],
+  ['refinement uses benefit and cost', 'expected reduction of the total error or uncertainty in the conclusion, relative to their cost'],
+  ['dominant source is a priority, not an exclusive target', 'Prioritize a reducible dominant source, but its label does not determine the next action.'],
+  ['useful subdominant refinement is allowed', 'subdominant source is useful when it materially improves the required quantity or makes the total meet the target'],
   ['total error by a stated rule', 'combine them into a **total error** by a stated rule: a linear sum by default, a sum in quadrature only with a one-line reason the sources are independent'],
   ['stop rule on the total error', '**Stop when the total error is at or below the required accuracy.**'],
   ['further refinement needs authorization', 'Refinement past that point needs explicit authorization from the project owner.'],
@@ -123,7 +125,10 @@ requireAll(`${SKILL_FILE} (G0)`, gateItem(SKILL_FILE, skill, 'G0'), [
 // 2. G1 and G2 are bounded by G0.
 requireAll(`${SKILL_FILE} (G1)`, gateItem(SKILL_FILE, skill, 'G1'), [
   ['ladder bounded by G0', '**The ladder runs to the G0 required accuracy, not to the last digit.**'],
-  ['refinement only for the dominant source above target', 'owed only when that knob is the dominant error source and the total error is still above the required accuracy'],
+  ['further refinement contributes toward the total target', 'error is still above the required accuracy and reducing that contribution can materially help meet it'],
+  ['identical values are not a threading diagnosis', 'Bit-identical values alone establish neither convergence nor a threading failure.'],
+  ['ladder settings reach the computation', 'Inspect the actual configuration consumed at each step'],
+  ['exact values need not change', 'Do not force a correct exact result to move.'],
 ]);
 requireAll(`${SKILL_FILE} (G2)`, gateItem(SKILL_FILE, skill, 'G2'), [
   ['cross-check tolerance bounded by G0', 'set from the G0 required accuracy and no tighter than it'],
@@ -181,12 +186,14 @@ requireAll(CHECKER_FILE, read(CHECKER_FILE), [
   ['quadrature compared through squares', 'understated = reported * reported < combined_sq'],
   ['declared magnitude range', '_MIN_MAGNITUDE = Decimal("1e-300")'],
   ['dominant must be largest finding', 'DOMINANT_NOT_LARGEST'],
-  ['over-refinement warning', 'REFINED_PAST_REQUIRED_ACCURACY'],
+  ['factual accuracy-margin warning', 'ACCURACY_MARGIN_LARGE'],
   ['allowed accuracy sources', 'ACCURACY_SOURCES = frozenset({"display", "downstream_sensitivity", "comparison_uncertainty"})'],
 ]);
 requireAll(CHECKER_TESTS, read(CHECKER_TESTS), [
   ['contract example is checked', 'def test_contract_example_matrix_satisfies_the_checker'],
   ['aggregate-error counterexample test', 'def test_stop_rule_uses_the_total_error_not_only_the_dominant_source'],
+  ['useful subdominant-refinement test', 'def test_subdominant_refinement_can_meet_target_with_fixed_dominant_error'],
+  ['nonblocking accuracy-margin test', 'def test_large_accuracy_margin_warns_without_claiming_wasted_refinement'],
   ['strictest-use test', 'def test_required_accuracy_is_the_strictest_use'],
   ['understated-total test', 'def test_understated_total_cannot_reverse_the_verdict'],
   ['extreme-literal test', 'def test_extreme_numeric_literals_are_refused_not_crashed'],
@@ -199,14 +206,18 @@ requireAll(CHECKER_TESTS, read(CHECKER_TESTS), [
 
 // 6. The research-team prompts carry the stop-at-required-accuracy instruction.
 requireAll(MEMBER_A, read(MEMBER_A), [
-  ['member A stop sentence', 'Do not request precision beyond what the result\'s use requires (numerical-reliability-gate G0)'],
+  ['member A stop sentence', 'Do not request quantity-level precision beyond what the result\'s use requires (numerical-reliability-gate G0)'],
+  ['member A preserves scientific diagnostics', 'Scientific diagnostic thresholds keep their detection/propagation rationale and blocking force.'],
 ]);
 requireAll(MEMBER_B, read(MEMBER_B), [
-  ['member B stop sentence', 'Precision stops at the required accuracy (numerical-reliability-gate G0)'],
-  ['member B over-tight finding', 'report any gate stricter than that accuracy as a finding (an over-tight gate), never as a reason to refine further'],
+  ['member B stop sentence', 'Precision stops when the total error meets the required accuracy (numerical-reliability-gate G0)'],
+  ['member B useful refinement priority', 'A reducible dominant source is a priority, not the only useful target.'],
+  ['member B over-tight quantity tolerance', 'A stricter quantity-level tolerance without a use-based reason is an over-tight gate'],
+  ['member B preserves scientific diagnostics', 'scientific diagnostic thresholds retain their detection/propagation rationale and blocking force'],
 ]);
 requireAll(VERIFIER, read(VERIFIER), [
-  ['verifier judges against required accuracy', 'Judge "appropriate" against the accuracy the result\'s use requires (numerical-reliability-gate G0)'],
+  ['verifier judges precision against required accuracy', 'Judge quantity-level precision against the accuracy the result\'s use requires (numerical-reliability-gate G0)'],
+  ['required accuracy does not establish applicability', 'does not establish method applicability or discharge scientific diagnostics'],
   ['older challenge rule yields to required accuracy', 'this is a CHALLENGED verdict, unless the method already meets the required accuracy below'],
 ]);
 requireAll(TEAM_SKILL, read(TEAM_SKILL), [

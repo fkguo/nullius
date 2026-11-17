@@ -3,14 +3,22 @@
 [English](../README.md) | 中文
 
 > **Nullius in verba**——"勿轻信任何人的断言"。
-> 这句皇家学会会训既是本仓库得名的由来，也是它的运行规则：任何结果都不因权威而成立——结论只有经过独立重推导、干净环境复现与对抗性评审，才允许写入长期记录。
+> 这句皇家学会会训是本仓库得名的由来，也是它的研究原则：正式采纳结论需要证据，以及适合该类论断的独立核验。未决问题与失败工作可以按真实状态长期保存。
 
-Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI 编码 agent（Codex、Claude Code、OpenCode 等）提供外部研究项目的生命周期与 control plane，并以 checked-in skills 规定：长期结果只有经过独立重推导、数值收敛检查、有出处的引文核验与跨模型对抗评审才被接纳；整体设计 domain-neutral。仓库本身是一个 pnpm workspace，包含 `nullius` CLI 与 control-plane 包、`skills/` 下的研究 skills、本地 MCP provider 包，以及可通过 `nullius workflow-plan` 或 agent client 消费的 workflow recipes。root 就是这个 domain-neutral 基座与 control plane；HEP 是在其上构建的、目前最成熟的 provider family 与最强的端到端 workflow 示例。
+Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI 编码 agent（Codex、Claude Code、OpenCode 等）提供外部研究项目的生命周期与 control plane，并以 checked-in skills 指导按结果类型完成适用的核验，包括独立推导、数值收敛与重算、原文引文核对和独立对抗评审；整体设计 domain-neutral。仓库本身是一个 pnpm workspace，包含 `nullius` CLI 与 control-plane 包、`skills/` 下的研究 skills、本地 MCP provider 包，以及可通过 `nullius workflow-plan` 或 agent client 消费的 workflow recipes。root 就是这个 domain-neutral 基座与 control plane；HEP 是在其上构建的、目前最成熟的 provider family 与最强的端到端 workflow 示例。
 
 
 原生计算将启用的 A3 审批绑定到当前 manifest、脚本、声明的输入与依赖文件、解析后的可执行文件字节、生产环境和审批策略。packet 缺失、历史审批没有内容绑定或输入发生变化时，必须在派发前申请新的根审批；仅有步骤级 A3 而绑定失效时直接拒绝，不创建根审批请求。暂停请求允许当前直接子进程返回，保留该步骤证据，并将整体运行保持为 paused；最后一步也适用。原生计算不支持原地续行：同一运行重入和 `resume --force` 均在修改暂停产物前拒绝；另行审批的新运行是独立执行。`execution_status.json` 持久化一个覆盖 preflight、后续直接子进程与本地结果发布的绝对截止时间，重试不重置，每个子进程使用剩余总预算与步骤上限的较小值。硬 CPU、内存和磁盘约束在 preparation 阶段拒绝；这些限制不负责任意后代进程或远程作业。规范状态写入在短独占锁内比较调用者的读取快照，比较通过后才追加组合事件；过期快照拒绝，过期锁须在写入者停止后人工修复。CLI 与项目传输共用外部根目录准入，并解析未创建路径的已存在软链接祖先。
 
+
+计算完成只记录执行状态。请求后续工作须由成功完成的执行产出恰好一个已声明的 `research_feedback.json` 文件，其顶层 `feedback_signal` 为 `success`、`weak_signal` 或 `failure`；其他 JSON 输出不授予后续执行权限。没有该声明时，`feedback_lowering` 为 `null`，不会据此生成发现、证据支持关系、优先级变更或写作任务。当前结果将 `feedback_lowering.basis` 记为 `producer_declaration`，并用 `declaration_ref` 绑定实际产物；后续执行须核对绑定及当前文件字节。产出方的明确声明只是工作请求，不是独立核验的证据。历史结果仍可读取，但历史推断出的反馈不能授权新的后续执行。计算记忆不把进程完成写成科学质量分数或验证通过；根据重复完成运行提出的技能复用建议仍待审查，不赋予推算出的泛化置信度。
+
 ## 持续推进研究
+
+Provider 工具提供原文、数据和有界引用元数据，不评定科学证据等级、不生成批判性评审结论、
+不裁定理论冲突，也不预测新兴研究优先级。主题视图是元数据摘要；引用追踪返回来源候选及
+查询与覆盖状态，科学优先权保持 `not_assessed`。宿主须根据原始材料与适用核验形成科学结论。
+具体输出见 [source-access 契约](../packages/hep-mcp/README.md#research-judgment-and-source-access)。
 
 科学写作由宿主 agent 负责。`research-writer` 提供空白稿件骨架，以及确定性的构建、
 溯源和打包辅助；正文来自主 agent 对原始材料的理解与实际编辑。Notebook 是给用户看的
@@ -60,7 +68,7 @@ Nullius 是一个面向 agent 辅助科研的 evidence-first harness。它为 AI
 | Stateful CLI front door | `nullius` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`、stateful `workflow-plan` 持久化、主报告结构校验，以及 `graph` 依赖图渲染（claims / progress / literature / roadmap） |
 | Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |
 | 绑定项目的 MCP adapter | [`@nullius/project-mcp`](../packages/project-mcp/README.md) | 通过 `NULLIUS_PROJECT_ROOT` 绑定外部项目的本地 stdio 叶层，复用 canonical control-plane 操作并提供受限项目文件传输 |
-| Stateful 文献规划入口 | `nullius workflow-plan` | 通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md` |
+| 显式文献 recipe 入口 | `nullius workflow-plan` | 通过 `@nullius/literature-workflows` 解析三个固定 recipe，写入 `.nullius/state.json#/plan` / `.nullius/plan.md`；brainstorm 步骤仅供规划交接 |
 | Agent research project harness skill | `research-harness` | 宿主 agent 的研究流程：恢复问题、调查、有用的有限委派、核验、回答与接续；正式项目验收仍走既有门禁 |
 | 实验性 idea runtime bridge | `node /absolute/path/to/nullius/packages/idea-mcp/dist/server.js` | 面向显式外部数据根的 TS hosted campaign lifecycle bridge，覆盖 `idea_campaign_*`；posterior 排序的 rank/promote、节点 posterior/lifecycle/grounding-audit/card-revision 更新、溯源修正与 generation-pack 导入（`node.import_generated`）属于 `idea-engine` runtime-contract truth，不是 root front door |
 | 当前最成熟的领域 MCP front door | `node /absolute/path/to/nullius/packages/hep-mcp/dist/index.js` | 面向文献研究与 provider-local 组合的 HEP 领域 MCP server；其研究输出工具把文件写入调用方指定的项目内 `output_dir` |
@@ -72,7 +80,7 @@ HEP 工具清单由代码拥有，并由 `HEP_TOOL_MODE` 做模式过滤；精�
 
 | 层 | 当前 authority | 为什么留在这里 |
 | --- | --- | --- |
-| Workflow authority | 由 `nullius workflow-plan` 消费的 checked-in recipes | 高层 workflow 语义继续位于 provider packs 之上 |
+| 文献 recipe 合同 | 由 `nullius workflow-plan` 消费的 checked-in recipes | 固定步骤模板、capability 到工具的映射、文献材料的机械检查；具体研究计划由宿主决定 |
 | Stateful control plane | `nullius` 加 `orch_*` | 持久 project/run state、审批、bounded execution、verification 与 read models 继续归于同一个 control plane |
 | Agent project harness | `research-harness` skill | 宿主 agent 的研究与接续指导，调用既有 control-plane、科学核验与领域能力 |
 | Experimental runtime bridge | `idea-mcp` | runtime bridge 继续显式存在，并保持比完整 engine contract 更窄 |
@@ -104,7 +112,7 @@ Skill 源码面与分发面是分离的：
   pdg/
 ```
 
-- `hep-mcp` 没有自己的 run：run、审批与生命周期属于 orchestrator，位于 `<project_root>/artifacts/runs/<run_id>/`。HEP 研究输出工具（检索导出、标识符映射、Zotero 映射、LaTeX 解析、冲突图）把文件写入调用方指定的项目内 `output_dir`（通常是当前 run 目录下的子目录），并返回项目相对路径。`output_dir` 需要 `project_root`，不能是 project root 本身，不得经过 project root 以下的符号链接，也不得位于 `.nullius/`、`team/runs/` 或 `artifacts/hep-mcp/` 之下（比较时不区分大小写）；调用从不覆盖已有文件。`inspire_paper_source` 的下载、缓存与 PDG 数据仍位于 hep-mcp 的数据根（`<project_root>/artifacts/hep-mcp` 或 `HEP_DATA_DIR`）。
+- `hep-mcp` 没有自己的 run：run、审批与生命周期属于 orchestrator，位于 `<project_root>/artifacts/runs/<run_id>/`。HEP 研究输出工具（检索导出、标识符映射、Zotero 映射、LaTeX 解析）把文件写入调用方指定的项目内 `output_dir`（通常是当前 run 目录下的子目录），并返回项目相对路径。`output_dir` 需要 `project_root`，不能是 project root 本身，不得经过 project root 以下的符号链接，也不得位于 `.nullius/`、`team/runs/` 或 `artifacts/hep-mcp/` 之下（比较时不区分大小写）；调用从不覆盖已有文件。`inspire_paper_source` 的下载、缓存与 PDG 数据仍位于 hep-mcp 的数据根（`<project_root>/artifacts/hep-mcp` 或 `HEP_DATA_DIR`）。
 - 旧版本留下的 HEP run 目录（HEP 数据根下的 `runs/<run_id>/`）与论文/evidence 项目目录（`projects/<project_id>/`，含 evidence catalog）是历史证据：原位读取，不再被任何工具创建或改写。历史 `hep://runs/...` 与 `hep://projects/...` 引用的解析规则见 [`docs/URI_REGISTRY.md`](./URI_REGISTRY.md)。
 - `PDG_DATA_DIR` 是 PDG 的本地 companion root；未单独设置时跟随 resolved HEP data root，即 `<resolved HEP data root>/pdg`。
 - 文本与二进制 artifacts 都保留在 package-owned artifact root 下；tool result 保持紧凑，只指回 project artifacts，避免把大 payload 内联进上下文。
@@ -266,12 +274,16 @@ via: nullius decision list) until resolved.
 
 新 decision 条目先使用 6 字符的 branch-local handle，其原始抽样为 30 个无偏随机 bit（$32^6 = 2^{30}$）。与 durable `D<n>` 同形的候选、本地已有 id 与既有映射都会重抽，因此精确的逐对碰撞概率依上下文而变；无本地占位时为 $1/(2^{30}-90{,}000)\approx 9.314\times 10^{-10}$，略高于 $2^{-30}$。这是概率保证而非结构保证，碰撞时 fail closed。`--resolves` 是关闭关系，只接受仍然 open 的 `pending` 目标；`--relates` 是非关闭关系，可以指向更早且可读的 `decided` 或 `pending` 条目。回放时若持久化关系格式错误或语义不成立，工具会在 `unrecognized_relations` 中报告并忽略该链接，但不会让整条记录失效。旧版或未知的、含非空白字符的字符串 `kind` 会继续按当前 `decided` 语义读取，并通过 `source_kind` 与 `normalized_kinds` 保留原始拼写；只有精确的持久化 `pending` 才会创建 open item，而归一化条目上其余合法的 `resolves` 仍会关闭对应 pending。分支内容进入权威主干后，`decision land` 原子分配后续 durable `D<n>`、改写指向 handle 的关系，并以 `provisional_id` 保留映射。既有 `D<n>` ledger 无需迁移，仍可读取和 resolve。若同一 provisional id 映射到多条记录或又被用作当前 id，list/status 会具名冲突行，land 在零改写下拒绝。初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`project_index.md`、`research_plan.md`、`research_contract.md`、已登记报告和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
 
-- 对 stateful 文献工作流，先用 `nullius init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `nullius workflow-plan`。它会直接通过 `@nullius/literature-workflows` 解析 recipe，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。有意义的外部研究运行应显式传 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。`research_brainstorm` 是 planning-only 的轻量 durable harness：`nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 会记录 brainstorm context、candidate angles、screening、单一 recommendation 与 `next_contract` handoff。`.nullius/plan.md` 是给人读的派生 read model，不是机器编排 SSOT。这个 contract 可以建议后续进入 `literature_landscape` 或 `literature_gap_analysis` 等更重 recipe，但不会自动启动它们，也不依赖 host-native thinking process。持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runtime tools，除非未来有外部 tool caller 明确实现它们。
+- 对 stateful 文献工作流，先用 `nullius init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `nullius workflow-plan`。它会直接通过 `@nullius/literature-workflows` 解析 recipe，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。有意义的外部研究运行应显式传 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。`research_brainstorm` 是 planning-only 的轻量 durable harness：`nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 会记录这些工作的步骤和产物提示；brainstorm context、candidate angles、screening、单一 recommendation 与 `next_contract` 正文由宿主撰写。`.nullius/plan.md` 是给人读的派生 read model，不是机器编排 SSOT。这个 contract 可以建议后续进入 `literature_landscape` 或 `literature_gap_analysis` 等更重 recipe，但不会自动启动它们，也不依赖 host-native thinking process。持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runtime tools，除非未来有外部 tool caller 明确实现它们。
 - delegated agent 执行现在在 tool 边界持久化：attempt 明确区分 `not_started`、`outcome_unknown` 与 `committed`；副作用结果未知时停机交 operator 核对，已提交的 MCP result 原样 replay 而不再次派发。direct 与 team journal 分别位于 `artifacts/delegated-runs/direct/<run_id>/` 和 `artifacts/delegated-runs/team/<runtime_run_id>/`，caller 自选的 root/direct run id 无法冒充 team checkpoint；approval resolver 只允许 host/operator 调用。`nullius run` 启动配置的 stdio MCP server 时，非敏感配置写入 `NULLIUS_RUN_MCP_ENV_JSON`，凭据写入 `NULLIUS_RUN_MCP_CREDENTIALS_JSON`，必需凭据名可用 `NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON` 声明；缺值会在 spawn 前失败。
 
 持久化 workflow-plan 的每次派发也使用 `artifacts/runs/<run_id>/manifest.json`：未知副作用停止等待核对，已提交响应原样回放而不重调工具；每个派发边界检查暂停，审批请求在真实批准前不会完成步骤。溢出恢复逐字保留原始用户约束，且不拆开工具调用与其结果（较早的交换整段丢弃，过长的结果截为带标记的不完整摘录）；指令自身超出窗口时停止，不能静默截断。
 
 流程执行与证据验收分别记录。文献流程完成后，`nullius run` 执行 `@nullius/literature-workflows` 选择的检查，在执行 `status` 之外返回 `workflow_acceptance`。必需证据缺失、不完整、失败、不可用或过期时，不能返回 `ok: true`；`not_required` 不授予研究认可。不可变验收记录绑定运行、计划语义、已提交工具响应、检查器代码与实际读取的项目文件。`status` 只读核对有效性；对已完成计划再次执行 `run`，只重新验收，不重复调用 provider。这些检查确认机械证据覆盖，内容独立复核与科学验收仍需另行完成。详见[文献证据契约](../packages/literature-workflows/README.md#workflow-evidence-acceptance)。
+
+当前只有三个固定 recipe：`literature_landscape` 四步、`literature_gap_analysis` 四步、`research_brainstorm` 五步。解析只替换调用方参数并映射 capability/tool，不生成科学计划，也不把检索输出自动接入后续 `seed_recid` / `recids`；原文阅读、笔记与 saturation 材料仍须实际完成。brainstorm 的步骤和 artifact hints 只规定交接内容，没有内置执行工具。CLI 执行另须配置 `NULLIUS_RUN_MCP_COMMAND`，详见 [literature-workflows 的能力与限制](../packages/literature-workflows/README.md)。
+
+结果登记与科学收束是分开的操作。`nullius result set-current` 核对 run、artifact 与来源绑定，不执行 notebook 全文审查。宿主随后把结果融入 notebook，完成适用的独立复核，并运行 `nullius notebook check --json` 后收束；登记行本身不是科学验收回执。
 
 ## 6. 更深的架构 / 治理文档在哪里
 

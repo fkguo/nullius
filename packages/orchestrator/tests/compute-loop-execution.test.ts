@@ -35,7 +35,7 @@ function createBridgeRun(runId: string, projectRoot: string) {
   const executionPlan = compileExecutionPlan(runId, {
     outline_seed_path: 'artifacts/outline_seed_v1.json',
     outline: {
-      thesis: 'Deterministic minimal approved execution should produce a follow-up finding.',
+      thesis: 'Deterministic minimal approved execution records the supplied operation.',
       claims: [{ claim_text: 'Claim A' }],
       hypotheses: ['Hypothesis A'],
       source_handoff_uri: '/tmp/idea-handoff.json',
@@ -104,7 +104,7 @@ function createProviderBackedRun(runId: string, projectRoot: string) {
 }
 
 describe('compute-loop approved execution', () => {
-  it('writes a canonical computation_result_v1 artifact and deterministic finding follow-up for bridge-generated manifests', async () => {
+  it('records successful execution without inventing scientific feedback or a finding', async () => {
     const projectRoot = makeTmpDir();
     const runId = 'run-loop-success';
     registerCleanup(projectRoot);
@@ -123,7 +123,7 @@ describe('compute-loop approved execution', () => {
     expect(result.status).toBe('completed');
     expect(fs.existsSync(path.join(runDir, 'computation', 'outputs', 'task_001.json'))).toBe(true);
     expect(fs.existsSync(result.artifact_paths.computation_result)).toBe(true);
-    expect(result.next_actions[0]?.task_kind).toBe('finding');
+    expect(result.next_actions).toEqual([]);
     expect(result.outcome_ref.uri).toBe(`rep://runs/${encodeURIComponent(runId)}/artifact/artifacts%2Fcomputation_result_v1.json`);
 
     const outcome = JSON.parse(fs.readFileSync(result.artifact_paths.computation_result, 'utf-8')) as {
@@ -133,7 +133,7 @@ describe('compute-loop approved execution', () => {
         decision_kind: string;
         priority_change: string;
         prune_candidate: boolean;
-      };
+      } | null;
       execution_status: string;
       summary: string;
       produced_artifact_refs: Array<{ uri: string }>;
@@ -146,19 +146,16 @@ describe('compute-loop approved execution', () => {
     };
 
     expect(outcome.objective_title).toContain('Deterministic minimal approved execution');
-    expect(outcome.feedback_lowering.signal).toBe('success');
-    expect(outcome.feedback_lowering.decision_kind).toBe('capture_finding');
-    expect(outcome.feedback_lowering.priority_change).toBe('raise');
-    expect(outcome.feedback_lowering.prune_candidate).toBe(false);
+    expect(outcome.feedback_lowering).toBeNull();
     expect(outcome.execution_status).toBe('completed');
     expect(outcome.summary).toContain('Approved execution completed');
     expect(outcome.produced_artifact_refs.some(ref => ref.uri.includes('execution_status.json'))).toBe(true);
-    expect(outcome.workspace_feedback.workspace.nodes.some(node => node.kind === 'decision')).toBe(true);
-    expect(outcome.workspace_feedback.workspace.edges.some(edge => edge.kind === 'produces' && edge.to_node_id === `finding:${runId}`)).toBe(true);
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'compute' && task.status === 'completed')).toBe(true);
-    expect(outcome.workspace_feedback.tasks.some(task => task.kind === 'finding' && task.status === 'pending')).toBe(true);
+    expect(outcome.workspace_feedback.workspace.nodes.map(node => node.kind).sort()).toEqual(['compute_attempt', 'question']);
+    expect(outcome.workspace_feedback.workspace.edges.map(edge => edge.kind)).toEqual(['depends_on']);
+    expect(outcome.workspace_feedback.tasks).toHaveLength(1);
+    expect(outcome.workspace_feedback.tasks[0]).toMatchObject({ kind: 'compute', status: 'completed' });
     expect(outcome.workspace_feedback.handoffs).toHaveLength(0);
-    expect(outcome.workspace_feedback.events.some(event => event.event_type === 'task_followup_created')).toBe(true);
+    expect(outcome.workspace_feedback.events.some(event => event.event_type === 'task_followup_created')).toBe(false);
   });
 
   it('treats a staged provider-backed execution bundle as the canonical public execution path', async () => {
@@ -185,11 +182,14 @@ describe('compute-loop approved execution', () => {
       objective_title: string;
       summary: string;
       execution_status: string;
+      feedback_lowering: unknown;
       produced_artifact_refs: Array<{ uri: string }>;
     };
     expect(outcome.objective_title).toContain('Provider-backed approved execution');
     expect(outcome.summary).toContain('Approved execution completed');
     expect(outcome.execution_status).toBe('completed');
+    expect(outcome.feedback_lowering).toBeNull();
+    expect(result.next_actions).toEqual([]);
     expect(outcome.produced_artifact_refs.some(ref => ref.uri.includes('provider_result.json'))).toBe(true);
   });
 });

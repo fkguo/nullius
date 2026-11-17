@@ -295,6 +295,56 @@ def test_research_team_package_payload_includes_template_assets() -> None:
     assert "assets/knowledge_base_readme_template.md" in relative_files
 
 
+def test_numerical_gate_copy_ships_and_executes_documented_checker(tmp_path):
+    repo_root = ROOT.parents[1]
+    target_root = tmp_path / "installed-skills"
+    assert install_main(
+        ["--platform", "codex", "--market-root", str(ROOT),
+         "--source-root", str(repo_root), "--target-root", str(target_root),
+         "--package", "numerical-reliability-gate"]
+    ) == 0
+    skill = target_root / "numerical-reliability-gate"
+    checker = skill / "scripts/check_reliability_matrix.py"
+    assert not checker.is_symlink()
+    assert checker.read_bytes() == (repo_root / "skills/numerical-reliability-gate/scripts/check_reliability_matrix.py").read_bytes()
+    assert "python3 $SKILL_DIR/scripts/check_reliability_matrix.py" in (skill / "references/contract.md").read_text()
+    assert not (skill / "tests").exists()
+    help_proc = subprocess.run(
+        [sys.executable, str(checker), "--help"], cwd=tmp_path,
+        capture_output=True, text=True, timeout=10,
+    )
+    assert help_proc.returncode == 0, help_proc.stdout + help_proc.stderr
+    # Synthetic bookkeeping only; no physical reliability claim is made by
+    # these exact software-contract acceptance and refusal fixtures.
+    row = {
+        "id": "fixture", "verdict": "reliable",
+        "recorded_value": "1.0", "recorded_setting": "fixture setting",
+        "required_accuracy": {
+            "kind": "absolute", "value": 0.1,
+            "uses": [{"source": "display", "value": 0.1, "basis": "fixture display precision"}],
+        },
+        "error_budget": [{"source": "fixture error", "estimate": 0.01, "dominant": True}],
+        "total_error": {"rule": "linear_sum", "value": 0.01},
+    }
+    matrix = {"schema_version": 1, "total": 1, "reliable": 1, "not_reliable": [], "matrix": [row]}
+    matrix_path = tmp_path / "numerical_reliability_matrix_v1.json"
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+    passed = subprocess.run(
+        [sys.executable, str(checker), str(matrix_path), "--json"], cwd=tmp_path,
+        capture_output=True, text=True, timeout=10,
+    )
+    assert passed.returncode == 0, passed.stdout + passed.stderr
+    assert json.loads(passed.stdout)["result"] == "pass"
+    row["total_error"]["value"] = 0.001
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+    refused = subprocess.run(
+        [sys.executable, str(checker), str(matrix_path), "--json"], cwd=tmp_path,
+        capture_output=True, text=True, timeout=10,
+    )
+    assert refused.returncode == 1, refused.stdout + refused.stderr
+    assert "TOTAL_ERROR_BELOW_ITS_RULE" in {item["code"] for item in json.loads(refused.stdout)["findings"]}
+
+
 @pytest.mark.parametrize("relative,payload,category", [
     ("scripts/.env", "DUMMY=redacted", "sensitive filename"),
     ("scripts/oauth_creds.json", '{}', "sensitive filename"),

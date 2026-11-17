@@ -1,17 +1,14 @@
 # Session Protocol v1 — Research Session Entry Convention
 
-> UX-06: Agent behavior protocol for guiding users through a research-session pipeline.
-> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the package-local workflow recipes in `@nullius/literature-workflows`, with `nullius workflow-plan` as the installable public stateful front door. Other checked-in consumers remain internal-only validation seams of the same authority, not competing entrypoints.
+> UX-06: Optional HEP session guidance. The host primary agent chooses the work from the scientific question and available evidence. A fixed-paper question or a simple search can use provider tools directly; it does not require a recipe or a full literature survey.
 
-> Within that checked-in workflow authority, current recipes remain mixed by provider maturity beneath the workflow layer; the pack should not be read as implying provider-parity across every bounded step.
+> When the project explicitly adopts one of the fixed `@nullius/literature-workflows` recipes, `nullius workflow-plan` resolves and persists its steps. Resolution does not author research content or feed search results into later record-ID inputs. Provider mappings differ by action; no provider parity is implied.
 
-> The old provider-local literature-gap shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `nullius workflow-plan`.
-
-> High-level literature workflow sequencing for Stage 1-2 lives in the checked-in package-local workflow recipes under `packages/literature-workflows/recipes/`. The pack remains mixed by current provider maturity beneath that workflow layer. Provider-specific MCP tools remain the bounded atomic building blocks underneath those recipes; they are not the public front door.
+> The old provider-local literature-gap shell is deleted. `nullius workflow-plan` is the public entry for these optional recipes, with execution through a separately configured `nullius run` tool caller. Recipe definitions live under `packages/literature-workflows/recipes/`; the host owns scientific planning and synthesis.
 
 ## Stage Enumeration
 
-A research session progresses through these stages:
+A research session may draw on these stages as the task requires:
 
 | # | Stage | Key Intent | Entry Signal |
 |---|-------|-----------|--------------|
@@ -27,10 +24,10 @@ A research session progresses through these stages:
 
 **Preconditions**: None (session entry point).
 
-**Recommended workflow authority**:
-- `literature_landscape` recipe — topic-to-reading-list / landscape mapping
-- `literature_gap_analysis` recipe — gap/tension-oriented discovery framing
-- `research-team` skill — consume the checked-in literature workflow recipes during prework / KB building
+**Optional recipes when explicitly adopted**:
+- `literature_landscape` — fixed search, topic, network and reference steps
+- `literature_gap_analysis` — fixed search and analysis steps; the host must establish any claimed gap
+- `research-team` — formal independent-member workflow when the project adopts it
 
 **Recommended atomic tools**:
 - `inspire_search` — broad keyword survey
@@ -41,12 +38,11 @@ A research session progresses through these stages:
 - `inspire_find_connections` — paper-set relationship mining
 - `inspire_trace_original_source` — provenance tracing
 - `hep_import_from_zotero` — import from user's local seed corpus
-- `inspire_critical_analysis` — bounded single-paper analysis step inside a recipe, not a high-level workflow surface
 
 **Typical flow**:
-1. User describes interest → agent selects the appropriate literature workflow recipe
+1. Recover the question, current knowledge and scope; choose the necessary work, adopting a fixed recipe only when its steps fit
 2. Run broad search and citation traversal to gauge activity level, recency, and landmarks
-3. Use topic/network/provenance operators to identify gaps, tensions, or emerging directions
+3. Use topic/network/provenance operators to find candidate relationships, then read original sources before claiming gaps or tensions
 4. Propose 2-3 specific research questions with justification and seed papers
 
 **Exit criterion**: A concrete research question or hypothesis is formulated.
@@ -55,9 +51,9 @@ A research session progresses through these stages:
 
 **Preconditions**: A research topic/question from Stage 1.
 
-**Recommended workflow authority**:
-- `literature_landscape` recipe — build a curated reading list and anchor-map
-- `literature_gap_analysis` recipe — inspect tensions, omissions, and open seams
+**Optional recipes when explicitly adopted**:
+- `literature_landscape` — bounded discovery and citation metadata for the host's reading-list work
+- `literature_gap_analysis` — bounded analysis material for the host's source-based investigation
 
 **Recommended atomic tools**:
 - `inspire_search` / `inspire_search_next` — targeted queries
@@ -66,21 +62,20 @@ A research session progresses through these stages:
 - `inspire_network_analysis` — citation networks
 - `inspire_find_connections` — paper-set relationship mining
 - `inspire_trace_original_source` — provenance tracing
-- `inspire_critical_analysis` / `inspire_grade_evidence` / `inspire_classify_reviews` / `inspire_theoretical_conflicts` — bounded analysis operators underneath the recipe layer
 - `hep_import_from_zotero` — import from user's Zotero library
 
 **Typical flow**:
 1. Seed search from Stage 1 findings or a local Zotero corpus
 2. Explore reference/citation chains for key papers
 3. Run topic/network/provenance operators over the emerging paper set
-4. Apply bounded critical-analysis operators to assess evidence, conflicts, and review posture
+4. Use bounded analysis outputs as leads, inspect original sources and record the actual evidence and remaining uncertainty
 5. Build a curated paper set and, when needed, materialize evidence-ready exports
 
 **Exit criterion**: A curated paper set with evidence assessment.
 
 ### Stage 3: Derivation & Computation
 
-**Preconditions**: Literature survey with identified computations to reproduce/extend.
+**Preconditions**: A defined calculation or derivation and the source material it actually depends on.
 
 **Recommended tools**:
 - `inspire_paper_source(mode=content)` — download LaTeX sources
@@ -120,11 +115,11 @@ A research session progresses through these stages:
 **Preconditions**: A draft from Stage 4.
 
 **Recommended tools**:
-- `referee-review` skill — generate mock referee report
+- `referee-review` skill — independent scientific review against the manuscript and original sources
 - `paper-reviser` skill — content-first revision
 
 **Typical flow**:
-1. Generate or submit a referee report
+1. Obtain an independent review with manuscript/source locations, or import an actual referee report
 2. Create revision plan addressing each issue
 3. Execute revisions with evidence grounding
 4. Re-compile and verify
@@ -138,8 +133,8 @@ When a user's first message matches these patterns, the agent should identify th
 
 | User Intent Pattern | Detected Stage | Agent Response |
 |-------------------|---------------|----------------|
-| "I want to study/research/investigate X" | Stage 1 (Idea) | Start `literature_landscape` or `literature_gap_analysis` |
-| "Find/search papers on X" | Stage 2 (Literature) | Start a literature recipe, then descend into atomic search/provenance tools |
+| "I want to study/research/investigate X" | Stage 1 (Idea) | Recover the question and choose useful investigation; adopt a recipe only when it fits |
+| "Find/search papers on X" | Stage 2 (Literature) | Use the necessary provider search/retrieval; adopt a broader recipe only when requested or appropriate to the scope |
 | "Compute/derive/calculate X" | Stage 3 (Derivation) | Identify relevant papers first |
 | "Write a paper about X" | Stage 4 (Writing) | Check prerequisites, start writing/evidence workflow |
 | "Review/revise the draft" | Stage 5 (Review) | Locate existing draft artifacts |

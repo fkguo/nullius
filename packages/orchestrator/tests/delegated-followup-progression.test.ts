@@ -8,7 +8,7 @@ import {
   type DelegatedComputationFollowupTask,
   stageContentInRunDir,
 } from '../src/computation/index.js';
-import { makeRunArtifactUri } from '../src/computation/artifact-refs.js';
+import { createRunArtifactRef, makeRunArtifactUri } from '../src/computation/artifact-refs.js';
 import { cleanupRegisteredDirs, makeTmpDir, registerCleanup } from './executeManifestTestUtils.js';
 
 afterEach(() => {
@@ -58,10 +58,15 @@ function delegatedFollowupTask(params: {
 }
 
 function delegatedComputationResult(
+  projectRoot: string,
   runId: string,
   tasks: Record<string, unknown>[],
   followupBridgeRefs: Array<{ uri: string; sha256: string; kind?: string }> = [],
 ): ComputationResultV1 {
+  const runDir = path.join(projectRoot, runId);
+  const declarationPath = path.join(runDir, 'outputs', 'research_feedback.json');
+  writeJson(declarationPath, { feedback_signal: 'success' });
+  const declarationRef = createRunArtifactRef(runId, runDir, declarationPath, 'research_feedback');
   return {
     schema_version: 'computation_result_v1',
     manifest_sha256: 'sha256-test',
@@ -72,6 +77,13 @@ function delegatedComputationResult(
     completed_at: '2026-03-13T00:00:01Z',
     steps: [],
     outputs: [],
+    execution_status: 'completed',
+    produced_artifact_refs: [declarationRef],
+    feedback_lowering: {
+      basis: 'producer_declaration', declaration_ref: declarationRef,
+      signal: 'success', decision_kind: 'capture_finding', priority_change: 'raise',
+      prune_candidate: false, target_task_kind: 'finding', target_node_id: 'finding:test',
+    },
     followup_bridge_refs: followupBridgeRefs,
     workspace_feedback: {
       notes: [],
@@ -95,7 +107,7 @@ describe('delegated followup progression', () => {
 
     const launchTask = vi.fn();
     const launched = await progressDelegatedComputationFollowups({
-      computationResult: delegatedComputationResult(runId, [
+      computationResult: delegatedComputationResult(projectRoot, runId, [
         delegatedFollowupTask({ taskId: 'draft-1', kind: 'draft_update' }),
         delegatedFollowupTask({ taskId: 'review-1', kind: 'review', sourceTaskId: 'draft-1' }),
       ]),
@@ -115,7 +127,7 @@ describe('delegated followup progression', () => {
 
     const launchTask = vi.fn();
     const launched = await progressDelegatedComputationFollowups({
-      computationResult: delegatedComputationResult('run-review-missing-link', [
+      computationResult: delegatedComputationResult(projectRoot, 'run-review-missing-link', [
         delegatedFollowupTask({ taskId: 'review-1', kind: 'review', sourceTaskId: null }),
       ]),
       projectRoot,
@@ -128,7 +140,7 @@ describe('delegated followup progression', () => {
     expect(launchTask).not.toHaveBeenCalled();
   });
 
-  it('performs one bounded reselection and launches review after a just-completed draft_update', async () => {
+  it.each([false, true])('rechecks declaration before bounded review reselection (changed=%s)', async changed => {
     const projectRoot = makeTmpDir('orch-followup-progression-');
     registerCleanup(projectRoot);
     const runId = 'run-review-reselection';
@@ -197,6 +209,7 @@ describe('delegated followup progression', () => {
             task_kind: 'draft_update',
           },
         });
+        if (changed) fs.writeFileSync(path.join(runDir, 'outputs', 'research_feedback.json'), JSON.stringify({ feedback_signal: 'failure' }));
         return {
           launchResult: {
             status: 'launched',
@@ -229,7 +242,7 @@ describe('delegated followup progression', () => {
     });
 
     const launched = await progressDelegatedComputationFollowups({
-      computationResult: delegatedComputationResult(runId, [
+      computationResult: delegatedComputationResult(projectRoot, runId, [
         delegatedFollowupTask({ taskId: 'draft-1', kind: 'draft_update' }),
         delegatedFollowupTask({ taskId: 'review-1', kind: 'review', sourceTaskId: 'draft-1' }),
       ], [
@@ -241,6 +254,12 @@ describe('delegated followup progression', () => {
       launchTask,
     });
 
+    if (changed) {
+      expect(callCount).toBe(1);
+      expect(launched).toMatchObject({ status: 'skipped_invalid_team_execution', task_id: 'review-1' });
+      expect(launched.error).toMatch(/bytes changed/);
+      return;
+    }
     expect(callCount).toBe(2);
     expect(launched).toMatchObject({
       status: 'launched',
@@ -318,7 +337,7 @@ describe('delegated followup progression', () => {
       },
     });
 
-    const computationResult = delegatedComputationResult(runId, [
+    const computationResult = delegatedComputationResult(projectRoot, runId, [
       {
         ...delegatedFollowupTask({ taskId: 'draft-1', kind: 'draft_update' }),
         target_node_id: 'draft-node',
@@ -466,7 +485,7 @@ describe('delegated followup progression', () => {
     });
 
     const launched = await progressDelegatedComputationFollowups({
-      computationResult: delegatedComputationResult(runId, [
+      computationResult: delegatedComputationResult(projectRoot, runId, [
         delegatedFollowupTask({ taskId: 'draft-1', kind: 'draft_update' }),
         delegatedFollowupTask({ taskId: 'review-1', kind: 'review', sourceTaskId: 'draft-1' }),
       ]),
@@ -611,7 +630,7 @@ describe('delegated followup progression', () => {
     });
 
     const launched = await progressDelegatedComputationFollowups({
-      computationResult: delegatedComputationResult(runId, [
+      computationResult: delegatedComputationResult(projectRoot, runId, [
         delegatedFollowupTask({ taskId: 'draft-1', kind: 'draft_update' }),
         delegatedFollowupTask({ taskId: 'review-1', kind: 'review', sourceTaskId: 'draft-1' }),
       ], [

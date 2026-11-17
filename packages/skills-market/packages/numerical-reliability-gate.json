@@ -4,7 +4,7 @@
   "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Convergence/reliability gate for numerical results (fits, integrals, eigenvalues, roots/poles): fold only values that are stable under refinement (G1, with coarse-grid mirage detection), agreed across >=2 orthogonal methods (G2), validated by a method-agnostic invariant where available (G3, e.g. argument-principle winding over fixed-seed/threshold heuristics), regression-anchored to a known reference before any variation (G4), and degeneracy-honest (G5). Emits an auditable reliability matrix.",
+  "summary": "Numerical reliability workflow with use-based accuracy, total-error budgets, convergence, independently constructed and executed confirmation, and applicable scientific diagnostics. The matrix checker validates G0 arithmetic and bookkeeping; the host and reviewers assess the scientific evidence.",
   "platforms": [
     "claude_code",
     "codex",
@@ -24,6 +24,7 @@
     "subpath": "skills/numerical-reliability-gate",
     "include": [
       "SKILL.md",
+      "scripts/check_reliability_matrix.py",
       "references/**"
     ],
     "exclude": [

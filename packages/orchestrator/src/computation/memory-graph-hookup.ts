@@ -34,7 +34,7 @@ async function recordBoundary(params: {
   success: boolean;
   reason?: string;
   detailsArtifactUri?: string | null;
-  qualityScore?: number;
+  validationPassed?: boolean;
 }): Promise<void> {
   const graph = createMemoryGraph({ dbPath: memoryGraphDbPath(params.projectRoot) });
   const signalKey = computeSignalKey(params.signals);
@@ -44,8 +44,7 @@ async function recordBoundary(params: {
     success: params.success,
     ...(params.reason ? { reason: params.reason } : {}),
     ...(params.detailsArtifactUri ? { details_artifact_uri: params.detailsArtifactUri } : {}),
-    ...(params.qualityScore !== undefined ? { quality_score: params.qualityScore } : {}),
-    validation_passed: params.success,
+    ...(params.validationPassed !== undefined ? { validation_passed: params.validationPassed } : {}),
   });
   await graph.aggregateEdges();
 }
@@ -65,8 +64,10 @@ export async function recordComputationResultToMemoryGraph(params: {
   const signals = [
     'boundary:compute_result',
     `execution_status:${result.execution_status}`,
-    `feedback_signal:${result.feedback_lowering.signal}`,
-    `decision_kind:${result.feedback_lowering.decision_kind}`,
+    ...(result.feedback_lowering ? [
+      `declared_feedback_signal:${result.feedback_lowering.signal}`,
+      `requested_decision_kind:${result.feedback_lowering.decision_kind}`,
+    ] : []),
     ...dependencySignals(params.manifest),
   ];
   if (result.failure_reason) {
@@ -80,7 +81,6 @@ export async function recordComputationResultToMemoryGraph(params: {
     success: result.execution_status === 'completed',
     reason: result.failure_reason ?? result.summary,
     detailsArtifactUri: makeRunArtifactUri(result.run_id, 'artifacts/computation_result_v1.json'),
-    qualityScore: result.execution_status === 'completed' ? 1 : 0,
   });
   const signalKey = computeSignalKey(signals);
   const proposal = await maybeGenerateRepairProposal({
@@ -120,7 +120,7 @@ export async function recordVerificationToMemoryGraph(params: {
     success: params.status === 'passed',
     reason: params.summary,
     detailsArtifactUri: params.checkRunUri,
-    qualityScore: params.status === 'passed' ? 1 : 0,
+    validationPassed: params.status === 'passed',
   });
 }
 
@@ -145,6 +145,6 @@ export async function recordFinalConclusionsToMemoryGraph(params: {
     success: true,
     reason: params.summary,
     detailsArtifactUri: params.finalConclusionsUri,
-    qualityScore: 1,
+    validationPassed: true,
   });
 }

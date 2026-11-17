@@ -1,297 +1,179 @@
 /**
- * Trace Original Source Tool
- * Traces citation chains to find original sources with cross-validation
+ * Bounded citation tracing for source discovery.
+ * Citation metadata identifies papers to read; it cannot establish priority for
+ * a scientific claim, which is not an input to this tool.
  */
 
 import * as api from '../../api/client.js';
 import type { PaperSummary } from '@nullius/shared';
-import { isReviewPaper, type ReviewPaperAssessment } from './paperClassifier.js';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface TraceOriginalSourceParams {
-  /** Starting paper recid */
   recid: string;
-  /** Maximum trace depth (default: 3) */
   max_depth?: number;
-  /** Maximum references per level (default: 3) */
   max_refs_per_level?: number;
-  /** Enable cross-validation (default: true) */
+  /** Filter candidates to records cited by >=2 distinct traced papers, not scientific verification. */
   cross_validate?: boolean;
 }
 
-export type SourceConfidence = 'original' | 'likely_original' | 'secondary' | 'unknown';
+export type ReferenceLookup =
+  | { status: 'not_requested'; reason: 'depth_limit' }
+  | { status: 'unavailable'; error: string }
+  | {
+      status: 'returned';
+      returned_count: number;
+      unresolved_count: number;
+      selected_count: number;
+      truncated_by_limit: boolean;
+    };
 
 export interface TracedSource extends PaperSummary {
-  /** Confidence level */
-  confidence: SourceConfidence;
-  /** Confidence score (0-1) */
-  confidence_score: number;
-  /** Number of citation chains pointing to this source */
-  chain_count: number;
-  /** Number of independent (non-self-citation) chains */
-  independent_chains: number;
-  /** Number of self-citation chains */
-  self_citation_chains: number;
-  /** Depth in citation chain (0 = starting paper) */
+  /** Minimum observed citation depth, with the starting paper at zero. */
   depth: number;
-  /** Whether this is a review paper */
-  is_review: boolean;
-  /** Review classification provenance for fail-closed downstream consumers */
-  review_classification: ReviewPaperAssessment;
+  /** Distinct citing records observed in this bounded traversal. */
+  citing_recids: string[];
+  incoming_reference_count: number;
+  reference_lookup: ReferenceLookup;
 }
 
 export interface TraceOriginalSourceResult {
-  /** Starting paper */
   starting_paper: PaperSummary;
-  /** Identified original sources */
-  original_sources: TracedSource[];
-  /** All traced papers in the chain */
+  /** Citation-trace candidates for source reading, excluding the starting paper. */
+  source_candidates: TracedSource[];
   trace_chain: TracedSource[];
-  /** Trace statistics */
+  analysis_scope: {
+    source_basis: 'citation_metadata';
+    scientific_priority: 'not_assessed';
+    candidate_filter: 'multiple_citing_records' | 'all_traced_references';
+    ordering: 'incoming_reference_count_then_known_year_then_record_id';
+  };
   stats: {
     total_traced: number;
     max_depth_reached: number;
-    chains_analyzed: number;
+    references_queried: number;
+    reference_queries_failed: number;
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
+type VisitedSource = {
+  paper: PaperSummary;
+  depth: number;
+  citingRecids: Set<string>;
+  lookup: ReferenceLookup;
+};
 
-/**
- * Extract normalized author surnames for comparison
- * Handles formats like "Guo, Feng-Kun" or "F.K. Guo"
- */
-function extractSurnames(authors: string[]): Set<string> {
-  const surnames = new Set<string>();
-  for (const author of authors) {
-    // Handle "Surname, FirstName" format
-    const commaMatch = author.match(/^([^,]+),/);
-    if (commaMatch) {
-      surnames.add(commaMatch[1].trim().toLowerCase());
-      continue;
-    }
-    // Handle "F.K. Surname" or "FirstName Surname" format
-    const parts = author.trim().split(/\s+/);
-    if (parts.length > 0) {
-      surnames.add(parts[parts.length - 1].toLowerCase());
-    }
-  }
-  return surnames;
+function knownYear(paper: PaperSummary): number {
+  return typeof paper.year === 'number' && Number.isFinite(paper.year)
+    ? paper.year
+    : Number.POSITIVE_INFINITY;
 }
 
-/**
- * Check if two papers share any authors (potential self-citation)
- */
-function hasAuthorOverlap(paper1: PaperSummary, paper2: PaperSummary): boolean {
-  if (!paper1.authors?.length || !paper2.authors?.length) return false;
-  const surnames1 = extractSurnames(paper1.authors);
-  const surnames2 = extractSurnames(paper2.authors);
-  for (const surname of surnames1) {
-    if (surnames2.has(surname)) return true;
+/** Keep unknown-year references; their missing metadata is not absence of a source. */
+function selectReferences(references: PaperSummary[], limit: number): PaperSummary[] {
+  const byRecid = new Map<string, PaperSummary>();
+  for (const reference of references) {
+    if (reference.recid && !byRecid.has(reference.recid)) byRecid.set(reference.recid, reference);
   }
-  return false;
-}
-
-/**
- * Get references for a paper, sorted by year (oldest first)
- */
-async function getOldestReferences(recid: string, limit = 10): Promise<PaperSummary[]> {
-  const refs = await api.getReferences(recid);
-  return refs
-    .filter(r => r.year)
-    .sort((a, b) => (a.year || 9999) - (b.year || 9999))
+  return [...byRecid.values()]
+    .sort((left, right) => {
+      const leftYear = knownYear(left);
+      const rightYear = knownYear(right);
+      return (leftYear === rightYear ? 0 : leftYear < rightYear ? -1 : 1)
+        || left.recid!.localeCompare(right.recid!, 'en', { numeric: true });
+    })
     .slice(0, limit);
 }
 
-/**
- * Calculate self-citation adjustment score
- */
-function calculateSelfCitationAdjustment(
-  selfCitationChains: number,
-  independentChains: number
-): number {
-  // Reward independent citations
-  if (independentChains >= 2) {
-    return 0.1;  // Multiple independent chains → high credibility
-  } else if (independentChains === 1) {
-    return 0.05;  // One independent chain
-  }
-
-  // Penalize pure self-citations (but not too much)
-  if (selfCitationChains >= 2 && independentChains === 0) {
-    return -0.1;  // Pure self-citation with multiple chains
-  } else if (selfCitationChains === 1 && independentChains === 0) {
-    return -0.15;  // Single self-citation chain → lowest credibility
-  }
-
-  return 0;
-}
-
-/**
- * Calculate source confidence based on multiple factors
- */
-function calculateConfidence(
-  chainCount: number,
-  depth: number,
-  reviewDecision: ReviewPaperAssessment['decision'],
-  hasOlderRefs: boolean,
-  selfCitationChains: number,
-  independentChains: number
-): { confidence: SourceConfidence; score: number } {
-  let score = 0;
-
-  // Chain convergence: more chains = higher confidence
-  score += Math.min(chainCount * 0.2, 0.4);
-
-  // Depth: shallower = more likely secondary
-  if (depth >= 2) score += 0.2;
-
-  // Only grant the non-review bonus when a caller has a stronger-than-metadata signal.
-  if (reviewDecision === 'not_review') score += 0.2;
-
-  // No older references = likely original
-  if (!hasOlderRefs) score += 0.2;
-
-  // Self-citation adjustment
-  score += calculateSelfCitationAdjustment(selfCitationChains, independentChains);
-
-  // Clamp score to [0, 1]
-  score = Math.max(0, Math.min(1, score));
-
-  // Determine confidence level
-  let confidence: SourceConfidence;
-  if (score >= 0.8) {
-    confidence = 'original';
-  } else if (score >= 0.5) {
-    confidence = 'likely_original';
-  } else if (score >= 0.3) {
-    confidence = 'secondary';
-  } else {
-    confidence = 'unknown';
-  }
-
-  return { confidence, score };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Function
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function traceOriginalSource(
-  params: TraceOriginalSourceParams
-): Promise<TraceOriginalSourceResult> {
+export async function traceOriginalSource(params: TraceOriginalSourceParams): Promise<TraceOriginalSourceResult> {
   const { recid, max_depth = 3, max_refs_per_level = 3, cross_validate = true } = params;
-
-  // Get starting paper
   const startingPaper = await api.getPaper(recid);
+  const startingRecid = startingPaper.recid || recid;
+  const visited = new Map<string, VisitedSource>([[startingRecid, {
+    paper: startingPaper,
+    depth: 0,
+    citingRecids: new Set(),
+    lookup: { status: 'not_requested', reason: 'depth_limit' },
+  }]]);
+  let currentLevel = [startingRecid];
+  let queries = 0;
+  let failures = 0;
 
-  // Track visited papers with chain counts and self-citation info
-  const visited = new Map<string, {
-    paper: PaperSummary;
-    depth: number;
-    chainCount: number;
-    selfCitationChains: number;
-    independentChains: number;
-  }>();
-  const traceChain: TracedSource[] = [];
-
-  // BFS to trace citation chains, tracking citing paper for self-citation detection
-  let currentLevel = [{ paper: startingPaper, depth: 0, citingPaper: startingPaper }];
-  let chainsAnalyzed = 0;
-  let maxDepthReached = 0;
-
-  for (let depth = 0; depth < max_depth && currentLevel.length > 0; depth++) {
-    const nextLevel: { paper: PaperSummary; depth: number; citingPaper: PaperSummary }[] = [];
-
-    for (const { paper, citingPaper } of currentLevel) {
-      // Skip papers without recid
-      if (!paper.recid) continue;
-
-      // Check if this is a self-citation (citing paper shares authors with cited paper)
-      const isSelfCitation = depth > 0 && hasAuthorOverlap(citingPaper, paper);
-
-      if (visited.has(paper.recid)) {
-        // Increment chain count for convergence
-        const existing = visited.get(paper.recid)!;
-        existing.chainCount++;
-        if (isSelfCitation) {
-          existing.selfCitationChains++;
-        } else {
-          existing.independentChains++;
-        }
+  for (let depth = 0; depth < max_depth - 1 && currentLevel.length > 0; depth++) {
+    const nextLevel = new Set<string>();
+    for (const currentRecid of currentLevel) {
+      const current = visited.get(currentRecid)!;
+      queries++;
+      let references: PaperSummary[];
+      try {
+        references = await api.getReferences(currentRecid);
+      } catch (error) {
+        failures++;
+        current.lookup = {
+          status: 'unavailable',
+          error: error instanceof Error ? error.message : String(error),
+        };
         continue;
       }
-
-      visited.set(paper.recid, {
-        paper,
-        depth,
-        chainCount: 1,
-        selfCitationChains: isSelfCitation ? 1 : 0,
-        independentChains: isSelfCitation ? 0 : 1,
-      });
-      chainsAnalyzed++;
-      maxDepthReached = Math.max(maxDepthReached, depth);
-
-      // Get oldest references
-      if (depth < max_depth - 1) {
-        const refs = await getOldestReferences(paper.recid, max_refs_per_level);
-        for (const ref of refs) {
-          nextLevel.push({ paper: ref, depth: depth + 1, citingPaper: paper });
+      const selected = selectReferences(references, max_refs_per_level);
+      const resolvableCount = new Set(references.filter(ref => ref.recid).map(ref => ref.recid)).size;
+      current.lookup = {
+        status: 'returned',
+        returned_count: references.length,
+        unresolved_count: references.filter(ref => !ref.recid).length,
+        selected_count: selected.length,
+        truncated_by_limit: selected.length < resolvableCount,
+      };
+      for (const reference of selected) {
+        const referenceRecid = reference.recid!;
+        const existing = visited.get(referenceRecid);
+        if (existing) {
+          existing.citingRecids.add(currentRecid);
+        } else {
+          visited.set(referenceRecid, {
+            paper: reference,
+            depth: depth + 1,
+            citingRecids: new Set([currentRecid]),
+            lookup: { status: 'not_requested', reason: 'depth_limit' },
+          });
+          nextLevel.add(referenceRecid);
         }
       }
     }
-
-    currentLevel = nextLevel;
+    currentLevel = [...nextLevel];
   }
 
-  // Build trace chain with confidence scores
-  for (const [, { paper, depth, chainCount, selfCitationChains, independentChains }] of visited) {
-    // Skip papers without recid (shouldn't happen, but for type safety)
-    if (!paper.recid) continue;
-
-    const reviewCheck = isReviewPaper(paper);
-    const refs = depth < max_depth - 1 ? await getOldestReferences(paper.recid, 1) : [];
-    const hasOlderRefs = refs.length > 0;
-
-    const { confidence, score } = calculateConfidence(
-      chainCount, depth, reviewCheck.decision, hasOlderRefs,
-      selfCitationChains, independentChains
-    );
-
-    traceChain.push({
-      ...paper,
-      confidence,
-      confidence_score: score,
-      chain_count: chainCount,
-      independent_chains: independentChains,
-      self_citation_chains: selfCitationChains,
-      depth,
-      is_review: reviewCheck.decision === 'review',
-      review_classification: reviewCheck,
+  const traceChain: TracedSource[] = [...visited.values()].map(item => ({
+    ...item.paper,
+    depth: item.depth,
+    citing_recids: [...item.citingRecids].sort(),
+    incoming_reference_count: item.citingRecids.size,
+    reference_lookup: item.lookup,
+  }));
+  const sourceCandidates = traceChain
+    .filter(item => item.recid !== startingRecid && item.depth > 0
+      && (!cross_validate || item.incoming_reference_count >= 2))
+    .sort((left, right) => {
+      const leftYear = knownYear(left);
+      const rightYear = knownYear(right);
+      return right.incoming_reference_count - left.incoming_reference_count
+        || (leftYear === rightYear ? 0 : leftYear < rightYear ? -1 : 1)
+        || left.recid!.localeCompare(right.recid!, 'en', { numeric: true });
     });
-  }
-
-  // Sort by confidence score and filter original sources
-  traceChain.sort((a, b) => b.confidence_score - a.confidence_score);
-
-  const originalSources = traceChain.filter(
-    p => (p.confidence === 'original' || p.confidence === 'likely_original') &&
-         (!cross_validate || p.chain_count >= 2)
-  );
 
   return {
     starting_paper: startingPaper,
-    original_sources: originalSources,
+    source_candidates: sourceCandidates,
     trace_chain: traceChain,
+    analysis_scope: {
+      source_basis: 'citation_metadata',
+      scientific_priority: 'not_assessed',
+      candidate_filter: cross_validate ? 'multiple_citing_records' : 'all_traced_references',
+      ordering: 'incoming_reference_count_then_known_year_then_record_id',
+    },
     stats: {
       total_traced: visited.size,
-      max_depth_reached: maxDepthReached,
-      chains_analyzed: chainsAnalyzed,
+      max_depth_reached: traceChain.reduce((maximum, item) => Math.max(maximum, item.depth), 0),
+      references_queried: queries,
+      reference_queries_failed: failures,
     },
   };
 }

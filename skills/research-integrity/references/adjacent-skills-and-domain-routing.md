@@ -16,11 +16,13 @@ Command, script and asset paths in this reference are relative to the `research-
 - `markdown-hygiene` should run before any check that relies on
   Markdown math being rendered correctly, otherwise numeric
   quotations may be misread during the M3 check.
-- `referee-review` runs the integrity check from the *reviewer* side
-  with a strict verdict contract. If a draft is heading to
-  `referee-review`, run M1–M7 first and confirm any applicable M8
-  pre-computation checks so the reviewer's BLOCKING findings are not
-  symptoms the author could have caught.
+- `referee-review` guides an independent host reviewer or `review-swarm`
+  through the actual manuscript and original evidence; it does not generate a
+  scientific verdict from a packet's structure. The author runs the applicable
+  M1–M7 checks before submitting a draft and confirms any applicable M8
+  pre-computation checks. Author pre-flight does not replace the review, and
+  reviewers still report any defects they find. `review-swarm` supplies its
+  execution, material-binding and output-contract checks when that launcher is used.
 - `paper-reviser` is the right surface for acting on M2/M3/M4/M7
   findings that surface during late-stage drafting.
 - `claim-grounding` is the active execution of the M2/M3 obligations.

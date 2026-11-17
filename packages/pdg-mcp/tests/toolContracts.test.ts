@@ -100,6 +100,16 @@ describe('Tool registry contracts (M0)', () => {
     expect(spec).toBeDefined();
     expect(spec!.zodSchema.safeParse({ id: -1 }).success).toBe(false);
   });
+
+  it('pdg_get_property exposes stored-value inputs only and refuses unknown parameters', () => {
+    const spec = getToolSpecs('standard').find(s => s.name === 'pdg_get_property')!;
+    const schema = getTools('standard').find(t => t.name === 'pdg_get_property')!.inputSchema;
+    expect(schema.properties).not.toHaveProperty('allow_derived');
+    expect(schema.additionalProperties).toBe(false);
+    expect(spec.zodSchema.safeParse({
+      particle: { name: 'W' }, property: 'width', allow_derived: true,
+    }).success).toBe(false);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

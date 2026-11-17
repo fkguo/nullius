@@ -157,6 +157,51 @@ describe('pdg_get + pdg_get_decays (M4)', () => {
     expect(txt).toContain('S043M');
   });
 
+  it('pdg_get preserves every stored row, including limits and asymmetric uncertainties', async () => {
+    const dbPath = makeM4FixtureDb();
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdg-raw-data-'));
+    process.env.PDG_DB_PATH = dbPath;
+    process.env.PDG_DATA_DIR = dataDir;
+    runSqlite(dbPath, [
+      "UPDATE pdgdata SET error_positive=0.012, error_negative=0.021, display_value_text='80.377+0.012-0.021' WHERE id=314013;",
+      "INSERT INTO pdgdata(id,pdgid_id,pdgid,edition,value_type,in_summary_table,limit_type,confidence_level,value,error_positive,error_negative,unit_text,display_value_text,display_power_of_ten,display_in_percent) VALUES (314014,56,'S043M','2025','OM',1,'U',95,81,NULL,NULL,'GeV','<81',0,0);",
+    ].join(' '));
+    const before = fs.readFileSync(dbPath);
+
+    const res = await handleToolCall('pdg_get', { pdgid: 'S043M', artifact_name: 'raw_rows.json' }, 'standard');
+    expect(res.isError).not.toBe(true);
+    const payload = JSON.parse(res.content[0]?.text ?? '{}');
+    expect(payload.summary.pdgdata_rows).toBe(2);
+    const detail = JSON.parse(fs.readFileSync(path.join(dataDir, 'artifacts', 'raw_rows.json'), 'utf-8'));
+    expect(detail.pdgdata_rows).toHaveLength(2);
+    expect(detail.pdgdata_rows[0]).toMatchObject({
+      id: 314013, value: 80.377, error_positive: 0.012, error_negative: 0.021,
+      unit_text: 'GeV', value_type: 'V', limit_type: null, in_summary_table: 1,
+    });
+    expect(detail.pdgdata_rows[1]).toMatchObject({
+      id: 314014, value: 81, error_positive: null, error_negative: null,
+      unit_text: 'GeV', value_type: 'OM', limit_type: 'U', confidence_level: 95, in_summary_table: 1,
+    });
+    expect(fs.readFileSync(dbPath)).toEqual(before);
+  });
+
+  it('keeps saved derived-value artifacts readable without a derivation runtime', async () => {
+    const dbPath = makeM4FixtureDb();
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdg-historical-data-'));
+    process.env.PDG_DB_PATH = dbPath;
+    process.env.PDG_DATA_DIR = dataDir;
+    const artifactsDir = path.join(dataDir, 'artifacts');
+    fs.mkdirSync(artifactsDir);
+    const historicalPath = path.join(artifactsDir, 'saved-derived-value.json');
+    const historical = Buffer.from('{"property":{"derived":{"kind":"width_from_lifetime"}},"value":{"value_type":"DERIVED","value":2.528,"unit_text":"eV"},"pdg_locator":{"table":"derived","derived_from":{"table":"pdgdata","pdgdata_id":600001}}}\r\n');
+    fs.writeFileSync(historicalPath, historical);
+
+    const res = await handleToolCall('pdg_get', { pdgid: 'S043M', artifact_name: 'current_raw.json' }, 'standard');
+    expect(res.isError).not.toBe(true);
+    expect(fs.readFileSync(historicalPath)).toEqual(historical);
+    expect(JSON.parse(fs.readFileSync(historicalPath, 'utf-8')).value.value_type).toBe('DERIVED');
+  });
+
   it('pdg_get_decays writes a JSONL artifact and returns uri + preview', async () => {
     const dbPath = makeM4FixtureDb();
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdg-m4-data-'));

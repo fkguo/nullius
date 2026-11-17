@@ -11,14 +11,21 @@ export interface WorkflowRecipeV1 {
     (
       | {
           id: string;
+          task_kind:
+            | "literature"
+            | "idea"
+            | "compute"
+            | "evidence_search"
+            | "finding"
+            | "draft_update"
+            | "review";
           tool: string;
           action?:
             | "discover.seed_search"
             | "analyze.topic_evolution"
             | "analyze.citation_network"
             | "analyze.paper_connections"
-            | "analyze.provenance_trace"
-            | "analyze.paper_set_critical_review";
+            | "analyze.provenance_trace";
           purpose: string;
           depends_on?: string[];
           required_capabilities?: (
@@ -32,7 +39,6 @@ export interface WorkflowRecipeV1 {
             | "analysis.citation_network"
             | "analysis.paper_set_connections"
             | "analysis.provenance_trace"
-            | "analysis.paper_set_critical_review"
           )[];
           preferred_providers?: (
             | "inspire"
@@ -151,14 +157,21 @@ export interface WorkflowRecipeV1 {
         }
       | {
           id: string;
+          task_kind:
+            | "literature"
+            | "idea"
+            | "compute"
+            | "evidence_search"
+            | "finding"
+            | "draft_update"
+            | "review";
           tool?: string;
           action:
             | "discover.seed_search"
             | "analyze.topic_evolution"
             | "analyze.citation_network"
             | "analyze.paper_connections"
-            | "analyze.provenance_trace"
-            | "analyze.paper_set_critical_review";
+            | "analyze.provenance_trace";
           purpose: string;
           depends_on?: string[];
           required_capabilities?: (
@@ -172,7 +185,6 @@ export interface WorkflowRecipeV1 {
             | "analysis.citation_network"
             | "analysis.paper_set_connections"
             | "analysis.provenance_trace"
-            | "analysis.paper_set_critical_review"
           )[];
           preferred_providers?: (
             | "inspire"
@@ -293,14 +305,21 @@ export interface WorkflowRecipeV1 {
     ...(
       | {
           id: string;
+          task_kind:
+            | "literature"
+            | "idea"
+            | "compute"
+            | "evidence_search"
+            | "finding"
+            | "draft_update"
+            | "review";
           tool: string;
           action?:
             | "discover.seed_search"
             | "analyze.topic_evolution"
             | "analyze.citation_network"
             | "analyze.paper_connections"
-            | "analyze.provenance_trace"
-            | "analyze.paper_set_critical_review";
+            | "analyze.provenance_trace";
           purpose: string;
           depends_on?: string[];
           required_capabilities?: (
@@ -314,7 +333,6 @@ export interface WorkflowRecipeV1 {
             | "analysis.citation_network"
             | "analysis.paper_set_connections"
             | "analysis.provenance_trace"
-            | "analysis.paper_set_critical_review"
           )[];
           preferred_providers?: (
             | "inspire"
@@ -433,14 +451,21 @@ export interface WorkflowRecipeV1 {
         }
       | {
           id: string;
+          task_kind:
+            | "literature"
+            | "idea"
+            | "compute"
+            | "evidence_search"
+            | "finding"
+            | "draft_update"
+            | "review";
           tool?: string;
           action:
             | "discover.seed_search"
             | "analyze.topic_evolution"
             | "analyze.citation_network"
             | "analyze.paper_connections"
-            | "analyze.provenance_trace"
-            | "analyze.paper_set_critical_review";
+            | "analyze.provenance_trace";
           purpose: string;
           depends_on?: string[];
           required_capabilities?: (
@@ -454,7 +479,6 @@ export interface WorkflowRecipeV1 {
             | "analysis.citation_network"
             | "analysis.paper_set_connections"
             | "analysis.provenance_trace"
-            | "analysis.paper_set_critical_review"
           )[];
           preferred_providers?: (
             | "inspire"

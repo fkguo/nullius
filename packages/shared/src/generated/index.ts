@@ -21,6 +21,7 @@ export type {
   ArtifactRefV14,
   ArtifactRefV15,
   ArtifactRefV16,
+  ArtifactRefV17,
 } from "./computation-result-v1.js";
 export * from "./convergence-gate-result-v1.js";
 export * from "./delegation-budget-gate-result-v1.js";
@@ -68,7 +69,6 @@ export * from "./paper-manifest-v2.js";
 export type {
   ProductionStepBindingV1,
   ProductionEnvironment,
-  ArtifactRefV17,
 } from "./production-step-binding-v1.js";
 export * from "./quantity-verdict-v1.js";
 export * from "./rep-envelope-v1.js";

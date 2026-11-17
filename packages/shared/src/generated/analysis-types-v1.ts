@@ -59,23 +59,35 @@ export type ImportStatus = "imported" | "skipped" | "failed";
  */
 export interface AnalysisTypesV1 {}
 /**
- * Lightweight paper reference used in analysis results. Subset of the full PaperSummary type.
+ * Paper metadata returned in analysis results, with the same fields as the shared PaperSummary schema.
  *
  * This interface was referenced by `AnalysisTypesV1`'s JSON-Schema
  * via the `definition` "PaperSummaryRef".
  */
 export interface PaperSummaryRef {
   recid?: string;
-  inspire_id?: string;
   arxiv_id?: string;
   doi?: string;
+  openalex_id?: string;
+  zotero_key?: string;
+  texkey?: string;
   title: string;
   authors: string[];
   author_count?: number;
+  collaborations?: string[];
   year?: number;
+  earliest_date?: string;
   citation_count?: number;
   citation_count_without_self_citations?: number;
-  collaborations?: string[];
+  publication_summary?: string;
+  inspire_url?: string;
+  arxiv_url?: string;
+  doi_url?: string;
+  pdf_url?: string;
+  source_url?: string;
+  publication_type?: string[];
+  document_type?: string[];
+  arxiv_primary_category?: string;
   arxiv_categories?: string[];
 }
 /**
@@ -168,7 +180,6 @@ export interface TopicEvolutionParams {
   start_year?: number;
   end_year?: number;
   granularity?: "year" | "5year" | "decade";
-  include_subtopics?: boolean;
 }
 /**
  * This interface was referenced by `AnalysisTypesV1`'s JSON-Schema
@@ -301,6 +312,22 @@ export interface SurveyResult {
 }
 /**
  * This interface was referenced by `AnalysisTypesV1`'s JSON-Schema
+ * via the `definition` "TopicMetadataQuery".
+ */
+export interface TopicMetadataQuery {
+  status: "available" | "unavailable";
+  query: string;
+  requested_page_size: number;
+  sort?: string;
+  returned_count: number | null;
+  sample_complete: boolean | null;
+  has_more: boolean | null;
+  next_url?: string;
+  warning?: string;
+  error?: string;
+}
+/**
+ * This interface was referenced by `AnalysisTypesV1`'s JSON-Schema
  * via the `definition` "TopicEvolution".
  */
 export interface TopicEvolution {
@@ -309,24 +336,39 @@ export interface TopicEvolution {
     start: number;
     end: number;
   };
+  time_range_basis: "requested_start" | "default_20_year_lookback";
   phases: {
     period: string;
-    paper_count: number;
-    citation_momentum: number;
+    time_range: {
+      start: number;
+      end: number;
+    };
+    paper_count: number | null;
+    publication_count_change: {
+      previous_period: string;
+      previous_paper_count: number;
+      fraction: number;
+    } | null;
     key_papers: PaperSummaryRef[];
     key_authors: string[];
-    description?: string;
-  }[];
-  subtopics?: {
-    name: string;
-    emerged_year: number;
-    paper_count: number;
-    key_papers: string[];
+    search: TopicMetadataQuery;
   }[];
   current_status: {
-    recent_papers: number;
-    growth_rate: number;
-    trend: TopicTrend;
+    recent_papers: number | null;
+    time_range: {
+      start: number;
+      end: number;
+    };
+    search: TopicMetadataQuery;
+  };
+  sample_basis: {
+    papers: "single_mostcited_page_per_period";
+    key_papers_limit: 5;
+    key_authors: "occurrences_among_first_three_authors_of_sampled_papers";
+  };
+  coverage: {
+    period_queries: "complete" | "partial";
+    paper_samples: "complete" | "partial";
   };
 }
 /**

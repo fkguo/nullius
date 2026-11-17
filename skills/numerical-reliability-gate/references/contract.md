@@ -26,7 +26,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
       // G0 — required accuracy, error budget and total error. REQUIRED on every row. The required
       // accuracy is the strictest over every use the quantity serves (never what the method can
-      // achieve); the budget names exactly one dominant source (where the next refinement goes); the
+      // achieve); the budget names exactly one largest source (not a prescribed refinement target); the
       // total error combines the sources by a stated rule, and a `reliable` row's total error is at or
       // below the required accuracy (stop there — further refinement needs the owner's authorization).
       "required_accuracy": {
@@ -295,7 +295,10 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   `{ "source", "estimate", "dominant" }` with a finite non-negative `estimate` in the same `kind` as the
   required accuracy (or `null` — not yet estimated — which only a non-`reliable` row may carry), and
   **exactly one** entry marked `dominant: true`, whose estimate is not smaller than any other numeric
-  estimate; the dominant source is where the next refinement goes. `total_error` is
+  estimate. This label identifies the largest contribution, not the only useful refinement target.
+  Choose a reducible contribution by its expected effect on the total error or the conclusion and
+  its cost; a subdominant reduction may be decisive when the dominant source cannot be reduced.
+  `total_error` is
   `{ "rule", "value" }` (plus `"basis"` for quadrature): `rule` is `linear_sum` (the default) or
   `quadrature` (a one-line `basis` stating why the sources are independent is then required), and
   `value` is not smaller than that rule applied to the estimates — checked exactly, so a total rounded
@@ -304,7 +307,9 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   non-`reliable` row. A `reliable` row requires every estimate to be numeric and the total error to be
   at or below the required accuracy; a row claiming `reliable` whose total error is above it is
   `unconverged` instead. A total error more than three orders of magnitude below the required accuracy
-  is reported as a warning on any row: refinement was carried past the point the result needed. A
+  produces the non-blocking `ACCURACY_MARGIN_LARGE` warning. The margin does not establish that
+  refinement occurred or wasted work; retain naturally accurate results, and justify further work by
+  the task. A
   `tolerance` placed on the quantity itself is derived from the required accuracy, and a stricter one is
   recorded in `notes` as informational and does not block the verdict; a diagnostic threshold (a
   residual, an invariant's integer residual, a precondition) is set by what it must detect or by how
@@ -319,13 +324,14 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   exact (exact rationals; a quadrature total is compared through squares). It also
   checks the matrix bookkeeping: `total`, `reliable` and `not_reliable` are required and must match the
   rows, and `recorded_value`/`recorded_setting` are present exactly on `reliable` rows.
-- `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob (resolution
+- `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the applicable numerical knob (resolution
   **or** size/extent/parity, whichever the value or its precondition could depend on) for any
-  `converged: true`. A single setting can never establish convergence. Two `refinement` entries whose
-  `value`s are **bit-identical** do not establish a plateau either: that is the signature of a knob that
-  never reached the computation (read once at load time, frozen in a cached configuration, or overridden by
-  a default in the consuming stage). Diagnose the threading failure — and record the knob-sensitive
-  intermediate that actually differs between the settings — before `converged` may be `true`.
+  `converged: true`. A single setting can never establish convergence. **Bit-identical** values alone
+  establish neither a plateau nor a threading failure. Record that the actual consumed configuration
+  changed, rule out caching/default overrides, and explain any exactness, symmetry or rounding that
+  keeps the values identical. A sensitive control can distinguish an ignored knob when applicable;
+  different result values are not mandatory for an exact calculation. These checks do not replace the
+  applicable error budget, method-precondition or independent-confirmation evidence.
 - **G6 configuration provenance (when applicable)**: any connected line/trajectory, interpolation, fit,
   pooled statistic, or downstream summary assembled from more than one checkpoint/run MUST carry a
   `configuration_provenance` object. Every point must have a fingerprint computed from canonical

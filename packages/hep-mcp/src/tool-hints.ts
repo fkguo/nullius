@@ -7,7 +7,6 @@ import { ZOTERO_TOOL_HINTS } from '@nullius/zotero-mcp/tooling';
 import * as T from './tool-names.js';
 
 const INSPIRE_READ = 'Queries the INSPIRE API; writes nothing.';
-const INSPIRE_READ_WITH_SAMPLING = 'Queries the INSPIRE API and may ask the client model via sampling; writes nothing.';
 const OUTPUT_DIR_WRITE =
   'writes new files into the caller\'s output_dir and refuses names that already exist, so an identical repeat is refused before any work.';
 
@@ -64,16 +63,6 @@ export const HEP_TOOL_HINTS: ToolBehaviourHintTable = {
     reason: `Fetches the LaTeX source from arxiv.org into the arXiv source dir (replacing an earlier archive there, path returned as source_file), may use sampling, and ${OUTPUT_DIR_WRITE}`,
   },
   [T.INSPIRE_RESOLVE_CITEKEY]: { openWorld: true, reason: INSPIRE_READ },
-  [T.INSPIRE_GRADE_EVIDENCE]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
-  [T.INSPIRE_CRITICAL_ANALYSIS]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
-  [T.INSPIRE_CLASSIFY_REVIEWS]: { openWorld: true, reason: INSPIRE_READ_WITH_SAMPLING },
-  [T.INSPIRE_THEORETICAL_CONFLICTS]: {
-    idempotent: true,
-    openWorld: true,
-    reason: `Queries INSPIRE, asks the client model via sampling, and ${OUTPUT_DIR_WRITE}`,
-  },
-  [T.INSPIRE_FIND_CROSSOVER_TOPICS]: { openWorld: true, reason: INSPIRE_READ },
-  [T.INSPIRE_ANALYZE_CITATION_STANCE]: { openWorld: true, reason: INSPIRE_READ },
   [T.INSPIRE_CLEANUP_DOWNLOADS]: {
     openWorld: false,
     reason: 'Deletes marked arxiv-* download dirs in the local downloads area; with older_than_hours a later repeat can delete dirs that have aged since.',

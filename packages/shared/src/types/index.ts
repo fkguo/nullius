@@ -147,6 +147,7 @@ export {
   ExpansionResultSchema,
   SurveyResultSchema,
   TopicEvolutionSchema,
+  TopicMetadataQuerySchema,
   BatchImportResultSchema,
   type AnalysisType,
   type RelatedStrategy,
@@ -167,6 +168,7 @@ export {
   type ExpansionResult,
   type SurveyResult,
   type TopicEvolution,
+  type TopicMetadataQuery,
   type BatchImportResult,
 } from './analysis-types.js';
 

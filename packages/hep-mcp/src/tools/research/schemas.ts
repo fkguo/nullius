@@ -11,40 +11,13 @@ export const TimeRangeSchema = z
 
 export const TopicAnalysisToolSchema = z.object({
   topic: z.string().min(1),
-  mode: z.enum(['timeline', 'evolution', 'emerging', 'all']),
+  mode: z.enum(['timeline', 'evolution', 'all']),
   time_range: TimeRangeSchema,
-  limit: optionalBudgetInt({ min: 1 }),
-  options: z
-    .object({
-      start_year: z.number().int().optional(),
-      end_year: z.number().int().optional(),
-      granularity: z.enum(['year', '5year', 'decade']).optional(),
-      include_subtopics: z.boolean().optional(),
-      min_citations: z.number().int().optional(),
-      min_momentum: z.number().int().optional(),
-      include_sociology: z.boolean().optional(),
-      sample_mode: z.enum(['full', 'fast']).optional(),
-      sociology_options: z
-        .object({
-          disruption: z
-            .object({
-              max_refs_to_check: optionalBudgetInt({ min: 1 }),
-              max_refs_for_nj_query: optionalBudgetInt({ min: 1 }),
-              max_refs_for_nk_estimate: optionalBudgetInt({ min: 1 }),
-              nk_search_limit_fast: optionalBudgetInt({ min: 1, max: 1000 }),
-              nk_search_limit_full: optionalBudgetInt({ min: 1, max: 1000 }),
-            })
-            .optional(),
-          new_entrant: z
-            .object({
-              lookback_years: z.number().int().min(1).optional(),
-              fast_mode_sample_size: optionalBudgetInt({ min: 1 }),
-            })
-            .optional(),
-        })
-        .optional(),
-    })
-    .optional(),
+  options: z.object({
+    start_year: z.number().int().optional(),
+    end_year: z.number().int().optional(),
+    granularity: z.enum(['year', '5year', 'decade']).optional(),
+  }).strict().optional(),
 }).strict();
 
 export const NetworkAnalysisToolSchema = z.object({
@@ -70,5 +43,5 @@ export const TraceOriginalSourceToolSchema = z.object({
   recid: InspireRecidSchema,
   max_depth: optionalBudgetInt({ min: 1 }),
   max_refs_per_level: optionalBudgetInt({ min: 1 }),
-  cross_validate: z.boolean().optional(),
+  cross_validate: z.boolean().optional().describe('Filter source candidates to records cited by at least two distinct traced papers; this is a metadata filter, not independent verification or proof of scientific priority.'),
 }).strict();

@@ -139,11 +139,11 @@ describe('StateManager', () => {
         current_step_id: 'export_project',
         steps: [
           {
-            step_id: 'critical_review',
-            description: 'Critical review',
+            step_id: 'citation_network',
+            description: 'Citation network',
             status: 'completed',
             expected_approvals: [],
-            expected_outputs: ['critical_analysis'],
+            expected_outputs: ['network_analysis'],
             recovery_notes: '',
           },
           {
@@ -3186,7 +3186,7 @@ describe('orch approval/query read models', () => {
         event_type: 'workflow_step_started',
         run_id: 'run-workflow-running',
         workflow_id: 'review_cycle',
-        step_id: 'critical_review',
+        step_id: 'citation_network',
         details: {},
       }),
       JSON.stringify({
@@ -3194,8 +3194,8 @@ describe('orch approval/query read models', () => {
         event_type: 'workflow_step_completed',
         run_id: 'run-workflow-running',
         workflow_id: 'review_cycle',
-        step_id: 'critical_review',
-        details: { next_step_id: 'export_project', artifact_key: 'critical_analysis' },
+        step_id: 'citation_network',
+        details: { next_step_id: 'export_project', artifact_key: 'network_analysis' },
       }),
       JSON.stringify({
         ts: '2026-04-14T00:00:02Z',

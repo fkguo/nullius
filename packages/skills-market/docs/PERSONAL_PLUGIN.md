@@ -5,8 +5,8 @@ execution surfaces: `project-mcp`, `hep-mcp`, and `idea-mcp`. Codex and Claude C
 manifests share the same skill payload and MCP configuration. The composed HEP
 server already includes its atomic providers, so those are not registered again.
 
-The default composition exposes 81 distinct tool names: project 24 (16 selected
-`orch_*` operations and eight project tools), HEP standard 51, and idea 6. Other
+The default composition exposes 77 distinct tool names: project 24 (16 selected
+`orch_*` operations and eight project tools), HEP standard 47, and idea 6. Other
 HEP modes or disabled providers change its count; the live composition check
 compares the actual server inventories.
 

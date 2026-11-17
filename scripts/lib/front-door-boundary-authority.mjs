@@ -5,6 +5,10 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/QUICKSTART.md',
     snippets: [
+      'research_feedback.json',
+      'producer_declaration',
+      'declaration_ref',
+      'not_assessed',
       '本页面向当前最成熟的 domain pack 上手路径，而不是重新定义 root 产品身份。generic lifecycle + workflow-plan front door 仍是 `nullius`；这里的 `hep_*` 路径只是在此基础上进入 HEP 文献与证据工具。',
       '## Generic First-Touch（先走 generic front door）',
 	      '1) `nullius init --project-root /absolute/path/to/external-project`',
@@ -40,6 +44,10 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'README.md',
     snippets: [
+      'research_feedback.json',
+      'producer_declaration',
+      'declaration_ref',
+      'not_assessed',
       'Nullius is an evidence-first harness for agent-assisted research.',
       '- `nullius` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, main-report structural validation, proposal decisions, and the conversational decision ledger.',
       '- `orch_*` remains the MCP/operator counterpart of that same control plane. It is a host-facing bridge for the control plane, not a competing product identity and not a replacement for the CLI.',
@@ -51,7 +59,7 @@ export const FRONT_DOOR_SNIPPETS = [
       'Local stdio leaf adapter for canonical control-plane operations and bounded project-file transport, bound by `NULLIUS_PROJECT_ROOT`',
       'it delegates to the canonical orchestrator tool dispatcher and CLI.',
       'No app connection or marketplace publication is created by the builder.',
-      '| Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md` |',
+      '| Explicit literature recipe planning | `nullius workflow-plan` | Three checked-in recipes resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md`; brainstorm steps are planning-only |',
       '| Provider atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded, schema-driven MCP operators are easier to compose than provider-local CLI mirrors |',
       '`research_plan.md#Current Status` is the human status entry',
       'Literature notes for important sources must be full-text/source-first with auditable section/page/equation/figure coverage and LaTeX math notation.',
@@ -79,13 +87,16 @@ export const FRONT_DOOR_SNIPPETS = [
       '## 2. Current Public Surfaces',
       '| Stateful CLI front door | `nullius` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, stateful `workflow-plan` persistence, main-report structural validation, and `graph` dependency-map rendering (claims / progress / literature / roadmap) |',
       '| Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |',
-      '| Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md` |',
+      '| Explicit literature recipe planning | `nullius workflow-plan` | Three checked-in recipes resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md`; brainstorm steps are planning-only |',
       '| Current most mature domain MCP front door | `node /absolute/path/to/nullius/packages/hep-mcp/dist/index.js` | HEP domain MCP server for literature research and provider-local composition; its research-output tools write their files into a caller-chosen `output_dir` inside the project |',
       '## 3. Layer Model',
       'If you want the generic lifecycle/control-plane smoke path first:',
       'If you want the current strongest domain-pack smoke path next, connect your MCP client to `packages/hep-mcp/dist/index.js` and run:',
     ],
     forbiddenSnippets: [
+      'LaTeX parses, conflict maps',
+      'LaTeX parses and conflict maps',
+      'explicit `feedback_signal` in produced JSON',
       '`literature-gap` is still live only as a legacy shell',
       '`literature-gap` still exists in the legacy Pipeline A CLI surface',
       '`literature-gap` remains only as a legacy wrapper',
@@ -94,6 +105,10 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/README_zh.md',
     snippets: [
+      'research_feedback.json',
+      'producer_declaration',
+      'declaration_ref',
+      'not_assessed',
       'Nullius 是一个面向 agent 辅助科研的 evidence-first harness。',
       '- `nullius` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate、主报告结构校验、proposal decisions 与 conversational decision ledger 都从这里进入。',
       '- `orch_*` 继续作为同一 control plane 的 MCP/operator counterpart。它是 control plane 的 host-facing bridge，不是另一个产品身份，也不是对 CLI 的替代。',
@@ -102,7 +117,7 @@ export const FRONT_DOOR_SNIPPETS = [
       'posterior 排序的 rank/promote、节点 posterior/lifecycle/grounding-audit/card-revision 更新、溯源修正与 generation-pack 导入（`node.import_generated`）属于 `idea-engine` runtime-contract truth，不是 root front door',
       '| Stateful CLI front door | `nullius` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`、stateful `workflow-plan` 持久化、主报告结构校验，以及 `graph` 依赖图渲染（claims / progress / literature / roadmap） |',
       '| Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |',
-      '| Stateful 文献规划入口 | `nullius workflow-plan` | 通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md` |',
+      '| 显式文献 recipe 入口 | `nullius workflow-plan` | 通过 `@nullius/literature-workflows` 解析三个固定 recipe，写入 `.nullius/state.json#/plan` / `.nullius/plan.md`；brainstorm 步骤仅供规划交接 |',
       '| Provider atoms | `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` | bounded、schema-driven MCP operators 比 provider-local CLI mirrors 更易组合 |',
 	      '`research_plan.md#Current Status` 是给人看的状态入口',
       '重要文献 note 必须全文/source-first 阅读，记录可审查的 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号。',
@@ -131,13 +146,15 @@ export const FRONT_DOOR_SNIPPETS = [
       '## 2. 当前公开 Surface',
       '| Stateful CLI front door | `nullius` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`、stateful `workflow-plan` 持久化、主报告结构校验，以及 `graph` 依赖图渲染（claims / progress / literature / roadmap） |',
       '| Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |',
-      '| Stateful 文献规划入口 | `nullius workflow-plan` | 通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md` |',
+      '| 显式文献 recipe 入口 | `nullius workflow-plan` | 通过 `@nullius/literature-workflows` 解析三个固定 recipe，写入 `.nullius/state.json#/plan` / `.nullius/plan.md`；brainstorm 步骤仅供规划交接 |',
       '| 当前最成熟的领域 MCP front door | `node /absolute/path/to/nullius/packages/hep-mcp/dist/index.js` | 面向文献研究与 provider-local 组合的 HEP 领域 MCP server；其研究输出工具把文件写入调用方指定的项目内 `output_dir` |',
       '## 3. Layer Model',
       '如果你想先走 generic lifecycle/control-plane 烟测路径：',
       '如果你接着想走当前最强的 domain-pack 烟测路径，再把 MCP client 接到 `packages/hep-mcp/dist/index.js` 并执行：',
     ],
     forbiddenSnippets: [
+      'LaTeX 解析、冲突图',
+      '产出 JSON 中没有一致、明确的 `feedback_signal`',
       '`literature-gap` 仍然存在，但只作为 legacy shell',
       '`literature-gap` 仍在旧的 Pipeline A CLI 面上存活',
       '`literature-gap` 仅剩 legacy wrapper',
@@ -146,6 +163,10 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/PROJECT_STATUS.md',
     snippets: [
+      'research_feedback.json',
+      'producer_declaration',
+      'declaration_ref',
+      'not_assessed',
       '**Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity',
 	      '**Main generic lifecycle + native TS computation + workflow-plan entrypoint**: `nullius` CLI for external project roots and `.nullius/` state',
 	      '**Runtime project handshake**: `nullius init` writes `.nullius/HARNESS`',
@@ -154,10 +175,10 @@ export const FRONT_DOOR_SNIPPETS = [
       '- **Native TS run slice**: `nullius run` (requires an initialized external project root; runs prepared `computation/manifest.json` natively for `--workflow-id computation`, and also advances dependency-satisfied persisted workflow-plan steps through the same front door)',
       'the idea-engine search/eval runtime is archived; `@nullius/idea-mcp` remains campaign-lifecycle oriented on explicit external data roots',
       'posterior-based ranking and promotion inside the runtime contract, not as a root front door or a new default capability lane',
-      '- **Public stateful literature planning workflow**: `nullius workflow-plan` resolves literature recipes directly via `@nullius/literature-workflows` into bounded executable steps for an initialized external project root, persists the plan substrate into `.nullius/state.json#/plan`, and derives `.nullius/plan.md`',
+      '- **Explicit literature recipe planning**: `nullius workflow-plan` resolves three fixed recipes via `@nullius/literature-workflows`, persists `.nullius/state.json#/plan`, and derives `.nullius/plan.md`. The two literature recipes map steps to provider calls; the five `research_brainstorm` steps are planning-only. Resolution substitutes caller inputs and does not generate a scientific plan or supply later record IDs from search output. Execution requires a configured tool caller.',
       '**Native TS run workflow**: `nullius run` remains the only execution front door; `--workflow-id computation` executes a prepared `computation/manifest.json`, while persisted workflow-plan steps advance in a bounded loop until completion or a blocking failure is reached',
       '**Generic lifecycle workflow**: `nullius init/status/approve/pause/resume/export`',
-      '**HEP research-output workflow**: HEP research-output tools (search exports, identifier and Zotero mappings, LaTeX parses, conflict maps) take a caller-chosen `output_dir` inside the project',
+      '**HEP research-output workflow**: HEP research-output tools (search exports, identifier and Zotero mappings, LaTeX parses) take a caller-chosen `output_dir` inside the project',
       '- `workflow-plan` 现在是公开的 stateful literature front door，且已把稳定的 typed `plan.execution` metadata 写入 `.nullius/state.json#/plan`。',
       '- `nullius run` 现在是该 seam 的 canonical bounded consumer：它会推进 dependency-satisfied persisted workflow steps，直到完成或遇到 blocking failure，并继续保持唯一 execution front door。',
       '- 当前 slice 仍未提供 canonical closed-loop literature execution runtime；这里还没有 full scheduler、多步自主编排或 end-to-end closed loop。',
@@ -171,13 +192,16 @@ export const FRONT_DOOR_SNIPPETS = [
       '- **Native TS run slice**: `nullius run` (requires an initialized external project root; runs prepared `computation/manifest.json` natively for `--workflow-id computation`, and also advances dependency-satisfied persisted workflow-plan steps through the same front door)',
       '- **Current most mature domain MCP front door**: `@nullius/hep-mcp` exposed through `packages/hep-mcp/dist/index.js`',
       '- **Generic lifecycle workflow**: `nullius init/status/approve/pause/resume/export`',
-      '- **Public stateful literature planning workflow**: `nullius workflow-plan` resolves literature recipes directly via `@nullius/literature-workflows` into bounded executable steps for an initialized external project root, persists the plan substrate into `.nullius/state.json#/plan`, and derives `.nullius/plan.md`',
+      '- **Explicit literature recipe planning**: `nullius workflow-plan` resolves three fixed recipes via `@nullius/literature-workflows`, persists `.nullius/state.json#/plan`, and derives `.nullius/plan.md`. The two literature recipes map steps to provider calls; the five `research_brainstorm` steps are planning-only. Resolution substitutes caller inputs and does not generate a scientific plan or supply later record IDs from search output. Execution requires a configured tool caller.',
       '- **Native TS run workflow**: `nullius run` remains the only execution front door; `--workflow-id computation` executes a prepared `computation/manifest.json`, while persisted workflow-plan steps advance in a bounded loop until completion or a blocking failure is reached',
-      '- **HEP research-output workflow**: HEP research-output tools (search exports, identifier and Zotero mappings, LaTeX parses, conflict maps) take a caller-chosen `output_dir` inside the project',
+      '- **HEP research-output workflow**: HEP research-output tools (search exports, identifier and Zotero mappings, LaTeX parses) take a caller-chosen `output_dir` inside the project',
       '## Workflow-plan boundary',
       '- `workflow-plan` 现在是公开的 stateful literature front door，且已把稳定的 typed `plan.execution` metadata 写入 `.nullius/state.json#/plan`。',
     ],
     forbiddenSnippets: [
+      'LaTeX parses, conflict maps',
+      'LaTeX parses and conflict maps',
+      'explicit `feedback_signal` in produced JSON',
       '`literature-gap` remains legacy-only',
       '`literature-gap` is still live on the legacy Pipeline A CLI surface',
     ],
@@ -185,8 +209,12 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/ARCHITECTURE.md',
     snippets: [
+      'research_feedback.json',
+      'producer_declaration',
+      'declaration_ref',
+      'not_assessed',
       '## 1. Stable Layer Model',
-      '| Workflow authority | checked-in recipes consumed by `nullius workflow-plan` | High-level workflow meaning stays above provider packs |',
+      '| Literature recipe contracts | checked-in recipes consumed by `nullius workflow-plan` | Fixed templates, capability-to-tool mapping and mechanical evidence checks; scientific planning remains with the host |',
       '| Stateful control plane | `nullius` plus `orch_*` | One shared authority for lifecycle state, approvals, bounded execution, verification, proposal and conversational decisions, and read models |',
       '## 2. Design Invariants',
 	      '- `nullius` remains the stateful CLI front door. `orch_*` remains the MCP/operator counterpart of that same control plane.',
@@ -210,14 +238,17 @@ export const FRONT_DOOR_SNIPPETS = [
       'absent support returns `unavailable`',
     ],
     forbiddenSnippets: [
+      'LaTeX parses, conflict maps',
+      'LaTeX parses and conflict maps',
+      'explicit `feedback_signal` in produced JSON',
       '`literature-gap` still exists on the legacy Pipeline A CLI surface as a wrapper',
     ],
   },
   {
     relPath: 'docs/TOOL_CATEGORIES.md',
     snippets: [
-      '由公开的 stateful front door 解析后，再下沉到 `inspire_search` / provenance / network operators',
-      '不再通过 provider-specific high-level MCP facade',
+      '可直接使用 `inspire_search` / provenance / network operators；需要固定步骤图时再显式采用 recipe，奠基性须回到原文判断',
+      '可选固定分析步骤；具体调研问题、全文核查和空白判断由宿主负责',
       '高层 literature workflow 现由公开的 stateful `nullius workflow-plan` 前门承载，需先 `nullius init` 并且会直接通过 `@nullius/literature-workflows` 解析后写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。',
     ],
     forbiddenSnippets: [
@@ -229,6 +260,9 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/TESTING_GUIDE.md',
     snippets: [
+      'research_feedback.json',
+      'producer_declaration',
+      'declaration_ref',
       '本指南面向手工验收当前 front-door truth。`nullius` 是 generic lifecycle + workflow-plan front door；`@nullius/hep-mcp` 是当前最成熟的 domain MCP front door，提供 literature/data、项目内研究输出、Zotero、PDG 能力。本页重点覆盖两者的衔接，而不是把 `hep-mcp` 重新写成 root 产品身份。',
       '下文 HEP 配置以 `packages/hep-mcp/dist/index.js` 为 domain MCP front door；个人插件另组合绑定项目的 `project-mcp` 叶层 adapter。',
       '目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。',
@@ -256,8 +290,8 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'meta/protocols/session_protocol_v1.md',
     snippets: [
-      '> This protocol is a checked-in workflow authority artifact for Stage 1-2 entry guidance and is executed through the package-local workflow recipes in `@nullius/literature-workflows`, with `nullius workflow-plan` as the installable public stateful front door. Other checked-in consumers remain internal-only validation seams of the same authority, not competing entrypoints.',
-      '> The old provider-local literature-gap shell path is deleted. High-level literature entry stays on checked-in workflow recipes plus `nullius workflow-plan`.',
+      '> UX-06: Optional HEP session guidance. The host primary agent chooses the work from the scientific question and available evidence. A fixed-paper question or a simple search can use provider tools directly; it does not require a recipe or a full literature survey.',
+      '> The old provider-local literature-gap shell is deleted. `nullius workflow-plan` is the public entry for these optional recipes, with execution through a separately configured `nullius run` tool caller. Recipe definitions live under `packages/literature-workflows/recipes/`; the host owns scientific planning and synthesis.',
     ],
     forbiddenSnippets: [
       '`research-team` and provider-local literature-gap.',
@@ -275,6 +309,10 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/URI_REGISTRY.md',
     snippets: [
+      'an older inferred follow-up does not gain execution authority from a resolvable URI.',
+      'research_feedback.json',
+      'producer_declaration',
+      'declaration_ref',
       'add no URI scheme or MCP resource surface.',
       'Provider caches outside the bound project are not exposed through that file API.',
       'The current emitted/resolved URI schemes covered by this registry are `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, `file://`, and `project://`. `hep://` identifiers are historical only: no current tool emits or resolves them',
@@ -296,6 +334,46 @@ export const FRONT_DOOR_SNIPPETS = [
       '| `orch://runs/{run_id}/state` | Live',
       '| `orch://runs/{run_id}/ledger` | Live',
     ],
+  },
+  {
+    relPath: 'packages/hep-mcp/README.md',
+    snippets: [
+      '## Research judgment and source access',
+      'Calls to those names return an unknown-tool error.',
+      '`inspire_topic_analysis` retains `timeline`, `evolution` and `all` metadata',
+      '`source_candidates` and a `trace_chain`',
+      '`coverage.period_queries` and `coverage.paper_samples`',
+      '`sample_citation_sum` sums only the returned',
+      '`total_search` status.',
+      '`publication_count_change` compares adjacent, available, equally long',
+      '`default_20_year_lookback`',
+      '`reference_lookup` includes `returned_count`, `unresolved_count`, `selected_count`',
+      'not proof that the original paper has no bibliography.',
+      'Scientific priority remains `not_assessed`',
+    ],
+    forbiddenSnippets: [
+      'LaTeX parses, conflict maps',
+      'LaTeX parses and conflict maps',
+    ],
+  },
+  {
+    relPath: 'packages/literature-workflows/README.md',
+    snippets: [
+      'Neither literature recipe includes a critical-review operator or an emerging-topic',
+      'source candidates are reading inputs.',
+      'scientific priority, theoretical conflict or a research gap.',
+    ],
+  },
+  {
+    relPath: 'packages/orchestrator/README.md',
+    snippets: [
+      'research_feedback.json',
+      'producer_declaration',
+      'declaration_ref',
+      'Other JSON outputs do not authorize follow-ups.',
+      'Historical results remain readable, but inferred historical feedback cannot authorize new follow-up execution.',
+    ],
+    forbiddenSnippets: ['explicit `feedback_signal` in produced JSON'],
   },
 ];
 

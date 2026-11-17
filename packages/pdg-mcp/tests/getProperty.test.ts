@@ -197,7 +197,7 @@ describe('pdg_get_property (M3)', () => {
     expect(payload.value?.display_text).toContain('E-8');
   });
 
-  it('does not derive width by default when missing', async () => {
+  it('returns NOT_FOUND for a missing width even when a lifetime is recorded', async () => {
     const dbPath = makePropertyFixtureDb();
     process.env.PDG_DB_PATH = dbPath;
 
@@ -206,26 +206,82 @@ describe('pdg_get_property (M3)', () => {
 
     const payload = JSON.parse(res.content[0]?.text ?? '{}') as any;
     expect(payload.error?.code).toBe('NOT_FOUND');
+    expect(payload.error?.data?.next_actions).toEqual([{
+      tool: 'pdg_get_property',
+      args: { particle: { pdgid: 'S008' }, property: 'lifetime' },
+    }]);
+    expect(payload.value).toBeUndefined();
+    expect(payload.property?.derived).toBeUndefined();
+
+    const lifetime = await handleToolCall('pdg_get_property', payload.error.data.next_actions[0].args, 'standard');
+    const source = JSON.parse(lifetime.content[0]?.text ?? '{}');
+    expect(lifetime.isError).not.toBe(true);
+    expect(source.value.value).toBe(2.6033e-8);
+    expect(source.value.unit_text).toBe('s');
+    expect(source.pdg_locator.pdgdata_id).toBe(600001);
   });
 
-  it('can derive width from lifetime when allow_derived=true', async () => {
+  it.each([true, false])('rejects the retired allow_derived parameter (%s) instead of ignoring it', async allow_derived => {
+    const dbPath = makePropertyFixtureDb();
+    process.env.PDG_DB_PATH = dbPath;
+    const before = fs.readFileSync(dbPath);
+
+    const res = await handleToolCall('pdg_get_property', {
+      particle: { name: 'W' }, property: 'width', allow_derived,
+    }, 'standard');
+    const payload = JSON.parse(res.content[0]?.text ?? '{}');
+    expect(res.isError).toBe(true);
+    expect(payload.error.code).toBe('INVALID_PARAMS');
+    expect(payload.error.data.issues).toContainEqual(expect.objectContaining({
+      code: 'unrecognized_keys', keys: ['allow_derived'],
+    }));
+    expect(fs.readFileSync(dbPath)).toEqual(before);
+  });
+
+  it('returns a stored width with its original unit and source locator', async () => {
     const dbPath = makePropertyFixtureDb();
     process.env.PDG_DB_PATH = dbPath;
 
-    const res = await handleToolCall(
-      'pdg_get_property',
-      { particle: { name: 'pi+-' }, property: 'width', allow_derived: true },
-      'standard'
-    );
+    const res = await handleToolCall('pdg_get_property', { particle: { name: 'W' }, property: 'width' }, 'standard');
+    const payload = JSON.parse(res.content[0]?.text ?? '{}');
     expect(res.isError).not.toBe(true);
+    expect(payload.value).toMatchObject({ value: 2.085, error_positive: 0.042, error_negative: 0.042, unit_text: 'GeV', value_type: 'V' });
+    expect(payload.property.derived).toBeUndefined();
+    expect(payload.pdg_locator).toMatchObject({ table: 'pdgdata', pdgdata_id: 500001 });
+  });
 
-    const payload = JSON.parse(res.content[0]?.text ?? '{}') as any;
-    expect(payload.property?.key).toBe('width');
-    expect(payload.edition).toBe('2025');
-    expect(payload.property?.derived?.kind).toBe('width_from_lifetime');
-    expect(payload.value?.unit_text).toBe('eV');
-    expect(typeof payload.value?.value).toBe('number');
-    expect(payload.value?.display_text).toContain('eV');
-    expect(payload.pdg_locator?.table).toContain('derived');
+  it('preserves asymmetric source errors and an unknown side without imposing derivation constraints', async () => {
+    const dbPath = makePropertyFixtureDb();
+    process.env.PDG_DB_PATH = dbPath;
+    runSqlite(dbPath, "UPDATE pdgdata SET value=1, error_positive=NULL, error_negative=1.1, display_value_text='1 +? -1.1', display_power_of_ten=0 WHERE id=600001;");
+    const before = fs.readFileSync(dbPath);
+
+    const res = await handleToolCall('pdg_get_property', { particle: { name: 'pi+-' }, property: 'lifetime' }, 'standard');
+    const payload = JSON.parse(res.content[0]?.text ?? '{}');
+    expect(res.isError).not.toBe(true);
+    expect(payload.value).toMatchObject({
+      value: 1, error_positive: null, error_negative: 1.1, unit_text: 's',
+      display_value_text: '1 +? -1.1', value_type: 'V', limit_type: null,
+    });
+    expect(payload.pdg_locator).toMatchObject({ table: 'pdgdata', pdgdata_id: 600001, edition: '2025' });
+    expect(fs.readFileSync(dbPath)).toEqual(before);
+  });
+
+  it.each(['L', 'U', 'R', 'X'])('preserves a raw %s limit and its confidence level', async limitType => {
+    const dbPath = makePropertyFixtureDb();
+    process.env.PDG_DB_PATH = dbPath;
+    runSqlite(dbPath, `UPDATE pdgdata SET limit_type='${limitType}', confidence_level=90, error_positive=NULL, error_negative=NULL WHERE id=600001;`);
+    const before = fs.readFileSync(dbPath);
+
+    const res = await handleToolCall('pdg_get_property', { particle: { name: 'pi+-' }, property: 'lifetime' }, 'standard');
+    const payload = JSON.parse(res.content[0]?.text ?? '{}');
+    expect(res.isError).not.toBe(true);
+    expect(payload.value).toMatchObject({
+      value: 2.6033e-8, error_positive: null, error_negative: null,
+      value_type: 'V', limit_type: limitType, confidence_level: 90, unit_text: 's',
+    });
+    expect(payload.pdg_locator.table).toBe('pdgdata');
+    expect(payload.property.derived).toBeUndefined();
+    expect(fs.readFileSync(dbPath)).toEqual(before);
   });
 });

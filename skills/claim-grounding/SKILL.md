@@ -8,10 +8,10 @@ description: Active statement-support grounding for cited claims. For each claim
 This skill answers the one citation question that existing tooling does **not**:
 **does the cited source's content actually substantiate this specific claim?**
 
-The provider tools already cover adjacent levels:
+Separate these adjacent checks:
 
 - **(E) existence** — does the cited paper resolve? (`inspire_validate_bibliography`, resolvers, `arxiv_paper_source`, `openalex_content`)
-- **(S) stance** — does the citing context support/refute the cited work? (`inspire_grade_evidence`, citation graphs)
+- **(S) stance** — does the citing context support/refute the cited work? Read the original citing passage and the relevant cited result; a citation graph locates the relation but does not decide its meaning.
 - **(I) identity** — whether the displayed title/authors and identifier/URL
   denote the same canonical work. This skill now consumes provider metadata or
   a `citation-triangulation` record and binds that identity before judging

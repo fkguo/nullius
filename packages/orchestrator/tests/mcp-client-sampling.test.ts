@@ -17,7 +17,7 @@ function buildRoutingConfig() {
     version: 1,
     default_route: 'balanced',
     routes: { balanced: { backend: 'anthropic', model: 'claude-sonnet-4-6', max_tokens: 700 } },
-    selectors: { modules: { sem02_claim_extraction: 'balanced' } },
+    selectors: { modules: { fixture_extract: 'balanced' } },
   }, 'balanced');
 }
 
@@ -222,9 +222,9 @@ describe('McpClient sampling support', () => {
           messages: [{ role: 'user', content: { type: 'text', text: 'hello from stub' } }],
           maxTokens: 400,
           metadata: {
-            module: 'sem02_claim_extraction',
-            tool: 'inspire_grade_evidence',
-            prompt_version: 'sem02_claim_extraction_v1',
+            module: 'fixture_extract',
+            tool: 'fixture_extract_records',
+            prompt_version: 'fixture_extract_v1',
             risk_level: 'read',
             cost_class: 'high',
           },
@@ -293,9 +293,9 @@ describe('McpClient sampling support', () => {
         params: {
           messages: [{ role: 'user', content: { type: 'text', text: 'trigger failure' } }],
           metadata: {
-            module: 'sem02_claim_extraction',
-            tool: 'inspire_grade_evidence',
-            prompt_version: 'sem02_claim_extraction_v1',
+            module: 'fixture_extract',
+            tool: 'fixture_extract_records',
+            prompt_version: 'fixture_extract_v1',
             risk_level: 'read',
             cost_class: 'high',
           },

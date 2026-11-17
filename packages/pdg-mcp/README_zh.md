@@ -80,7 +80,6 @@
 - `particle`: `{ name | mcid | pdgid, case_sensitive?: boolean = false }`（三选一）
 - `property: 'mass' | 'width' | 'lifetime'`
 - `edition?: string`
-- `allow_derived?: boolean = false`
 
 输出要点：
 
@@ -90,10 +89,13 @@
 - `pdg_locator`：可定位到 `pdgdata` 表中的 `pdgdata_id`
 - `value_type_meaning/limit_type_meaning`：会查询 `pdgdoc` 给出代码释义（若存在）
 
-派生宽度：
+原始数值边界：
 
-- 当请求 `width` 且 PDG 未给出宽度，但存在寿命 `lifetime` 时，可设置 `allow_derived=true`
-- 返回 `property.derived`（`kind: "width_from_lifetime"`），并提供来源 locator（`from.pdg_locator`）与常数信息（`Γ = ħ / τ`）
+- 本工具只返回 PDG 已存储的数值。性质缺失时返回 `NOT_FOUND`；宽度缺失不会触发寿命换宽度计算。错误会给出显式查询寿命的建议，但不声称数据库一定有寿命记录。
+- `allow_derived` 已退役，作为未知参数拒绝。研究问题需要派生量时，由宿主读取相关原始记录，在研究项目中计算，并记录假设、公式、单位、不确定度与来源 locator。
+- 快速结果是按数据库元数据排序的预览：性质先按 `D` 前缀标记，再按 `sort` 与标识符排序；数值行先列 Summary Table 记录，再按 `sort` 与行标识符排序。这不证明物理解释唯一。`alternatives` 提供其他候选性质（快速查询的前 10 条内）及该性质的数值行数。
+- 对返回的性质标识符调用 `pdg_get`，可检查所选版次的全部原始数值行，包括限值、置信水平、备注和非对称或缺失误差。对粒子标识符调用 `pdg_get` 可查看其子性质（预览最多 50 条，同时报告总数）。
+- 既有派生结果仍是历史文件，保留原始字节与来源，不重新生成或改判。artifact 缓存的保留策略不变，研究证据应保存在研究项目中，不能依赖缓存 TTL。
 
 ### 4) `pdg_get`
 
@@ -131,6 +133,8 @@
   - `decay`：形如 `W+ -> e+ + nu`
   - `incoming/outgoing[]`：粒子列表（含 `multiplier`、`subdecay_id`）
   - `branching`：分支比的 `pdgdata_id/edition/display_text` 等
+
+每个衰变的 branching 数值是按数据库排序取得的首行预览（Summary Table 优先，再按 `sort` 与行标识符）。选择物理上适用的记录前，应对该衰变标识符调用 `pdg_get` 查看全部原始数值。
 
 ### 6) `pdg_find_reference`
 

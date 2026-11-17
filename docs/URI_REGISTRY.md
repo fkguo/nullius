@@ -64,6 +64,8 @@ The current emitted/resolved URI schemes covered by this registry are `pdg://`, 
    New live patterns must be added in the owner package first and only then registered here.
 4. Tool-return URI identifiers are not automatically MCP resources.
    Registered identifiers are local pointers or owner-package resolver inputs. They do not imply a package-level MCP resources surface.
+5. An artifact identifier does not authorize scientific feedback or execution.
+   Current computation follow-ups require `feedback_lowering.basis` to be `producer_declaration` and a `declaration_ref` bound to the produced `research_feedback.json` and its current bytes. Historical result records and artifact references remain readable; an older inferred follow-up does not gain execution authority from a resolvable URI.
 
 ## Non-Live Or Removed References
 

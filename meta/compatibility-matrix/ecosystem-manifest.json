@@ -254,7 +254,11 @@
       "repo": "nullius/skills-market",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "skills/referee-review/SKILL.md"
+      "source_path": "skills/referee-review/SKILL.md",
+      "depends_on": {
+        "review-swarm": ">=0.1.2 <0.2.0",
+        "codex-cli-runner": ">=0.1.0 <0.2.0"
+      }
     },
     "research-harness": {
       "type": "skill-pack",
