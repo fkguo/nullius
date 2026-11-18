@@ -83,6 +83,10 @@ Use these in every Julia numerical coding task:
 - For symbolic/sparse/generated kernels, device execution or scheduled tasks,
   read [structured-and-device-work.md](references/structured-and-device-work.md).
   Measure completed work and preserve the transformation/ownership contract.
+- For expensive construction of tensor, sampled or low-rank operators, read
+  [compressed-operator-construction.md](references/compressed-operator-construction.md).
+  Preserve factors through fitting, budget private scratch and check the original
+  physical norm; a sketch residual alone is not a global error bound.
 
 ### Level 2: Evidence gate mode (when claims matter)
 
@@ -213,6 +217,9 @@ Parallel writers:
 
 ## Reference files
 
+- `references/compressed-operator-construction.md`:
+  Factor-preserving construction, physical-norm fitting, falsification and
+  memory-aware scaling for sampled and compressed numerical operators.
 - `references/performance-tips-map.md`:
   Julia manual tip-to-check mapping schema and required starter entries.
 - [`julia-package/references/ecosystem-patterns.md`](../julia-package/references/ecosystem-patterns.md):
