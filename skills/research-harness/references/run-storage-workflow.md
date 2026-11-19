@@ -21,3 +21,34 @@ git add artifacts/runs/<run_id>/bulk_manifest.json artifacts/runs/<run_id>/.giti
 Read [`references/run-storage.md`](run-storage.md) when running `verify`, `materialize`, `check`, `worktree-check` or `report`, taking backups, working with pinned refs and linked worktrees, or applying the operating assumptions for `stow` (the verify, materialize, operating-assumptions, commit-time check, backup, pinned-ref, linked-worktree and measuring paragraphs, moved there verbatim).
 
 **Existing projects** (nothing migrates by itself): run `check` to see where the bytes are, `worktree-check --all` to see which worktrees can go, and stow new runs from now on; bulk already tracked in history stays as it is. Project-template changes (the dispatch-table row, the `.gitignore` comment) reach existing projects only when copied by hand.
+
+## Review historical output before cleanup
+
+1. **Identify what the project needs to keep.** Start from the project's adopted
+   results, deliverables and evidence records. Follow their references to
+   required code revisions, frozen inputs and settings, selected outputs, and
+   evidence used to verify a result or explain a consequential failure. Include
+   dependencies resolved by scripts and configuration. Keep pinned or cited
+   evidence recoverable at its recorded identity. Treat unresolved dependencies
+   as reasons to keep the affected files. Supersession, age and size can prompt
+   inspection. The project owner decides what can be retired.
+2. **Preview without changing bytes.** Stop writers in the affected scope and
+   use `inventory`, `report` and, where relevant, `worktree-check` to locate
+   copies and estimate savings. Record the exact candidate paths, their reason
+   for removal, the identity of evidence to preserve, and the recovery source
+   where available. Show which candidates would lose their last copy. Report
+   checkout, shared-store and Git object usage separately. Shared blocks,
+   filesystem snapshots and reachable Git objects can remain allocated after
+   checkout files are removed.
+3. **Apply the reviewed scope.** Recheck the plan if paths, hashes or references
+   changed. Verify the recovery source before removing a copy needed later. For
+   shared-store objects, account for references in retained manifests, including
+   those in other worktrees and preserved history. Keep objects when that
+   coverage is uncertain. Ordinary cleanup leaves Git history and run pins in
+   place. Keep the retirement record with the project so readers can locate
+   retained bytes or understand deliberate removals.
+4. **Check the outcome.** Compare retained paths and hashes with the plan and
+   re-verify affected storage manifests. Exercise the replay or build entry
+   points the cleanup could affect, using only the retained files and declared
+   recovery sources. Report exactly what was exercised and measure both the
+   affected directories and filesystem free space again.

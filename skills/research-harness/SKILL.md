@@ -89,7 +89,7 @@ tool ran. Assess model, method and input independence separately.
 | New/rebuilt environment, first real launch or a kill-prone job | [Readiness and checkpointed computation](references/compute-readiness.md "nullius-guidance") |
 | Freeze inputs, append outputs, or set resource ceilings | [Run-record boundaries](references/run-records.md "nullius-guidance") |
 | Adopt, replace, void or locate a result | [Current-result traceability](references/result-traceability.md "nullius-guidance") |
-| Finished outputs need storage classification or a commit check | [Run storage](references/run-storage-workflow.md "nullius-guidance") |
+| Classify finished outputs, check a commit, or review historical output for cleanup | [Run storage](references/run-storage-workflow.md "nullius-guidance") |
 | The project opts into a fresh-state reproduction | [Independent reproduction](references/reproduction-workflow.md "nullius-guidance") |
 | Authorize a production computation under the adopted A3 preflight | [Production launch authorization](references/production-launch-workflow.md "nullius-guidance") |
 | Scientific literature discovery and source admission | [Literature workflow](references/literature-workflow.md "nullius-guidance") |

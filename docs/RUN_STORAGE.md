@@ -40,5 +40,7 @@ Use one run per immutable experiment or coherent research task; group execution,
 
 Existing projects are not migrated by a template or skill update. Merge the storage guidance and policy explicitly, configure the project hook if wanted, and inspect the current inventory before deciding how to handle old outputs.
 
+Use the [historical output cleanup procedure](../skills/research-harness/references/run-storage-workflow.md#review-historical-output-before-cleanup) to declare what must stay available, preview candidate removals and recovery sources, and verify the retained evidence after applying the reviewed plan.
+
 
 For tracked bulk outputs in linked worktrees, preview `sparse-exclude-bulk --dry-run` before applying it. Restore the full checkout with `git sparse-checkout disable`. To archive standalone files or compare directory inventories, use `store-put` and `tree-digest`. For a finished scratch directory outside a repository, `closeout` previews cache removal and compression; `--apply` performs the selected work. See the [storage command reference](../skills/research-harness/references/run-storage.md).
