@@ -218,8 +218,8 @@ Parallel writers:
 ## Reference files
 
 - `references/compressed-operator-construction.md`:
-  Factor-preserving construction, physical-norm fitting, falsification and
-  memory-aware scaling for sampled and compressed numerical operators.
+  Factor-preserving construction, symmetry before weighting, matched dense and
+  compressed actions, original-norm checks and memory-aware scaling.
 - `references/performance-tips-map.md`:
   Julia manual tip-to-check mapping schema and required starter entries.
 - [`julia-package/references/ecosystem-patterns.md`](../julia-package/references/ecosystem-patterns.md):

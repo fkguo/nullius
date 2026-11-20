@@ -39,6 +39,22 @@ corrections without double counting. Consume borrowed inputs synchronously.
 Handle partial final groups rather than hard-coding a pilot's block alignment.
 Keep an uncompressed reference available for falsification.
 
+Where a transpose symmetry is available, check the unsymmetrized input in the
+consumer's basis and distinguish ordinary from conjugate transpose. State
+whether it holds for each sample or only for their sum. In the latter case
+accumulate independent blocks and complete the symmetry after all partial
+sums. Apply exterior weights in their original order.
+
+For a coarse-grid interpolant, compare dense and compressed actions on the
+same coarse samples, interpolation map, corrections and right-hand sides.
+Check the final fine-grid action independently of the holdouts used to choose
+corrections. Count distinct evaluations on both accepted and rejected panels.
+If all pairs were requested, sampling saved no evaluations on that input.
+Benchmark the prepared action with reused buffers and the full setup-plus-solve
+before choosing a default. Retire a duplicated execution path once the
+replacement covers its layouts, precision, failure behavior and downstream
+outputs; keep a recoverable reference for independent comparisons.
+
 ## Fit in the norm required by the consumer
 
 Nonorthonormal range coordinates change the physical norm. Use an orthonormal
