@@ -37,6 +37,13 @@ saving may reduce memory/time without removing internally needed interpolation
 or event work. A changed consumer requirement is a workload change, not by
 itself an equivalent-computation speedup.
 
+To attribute a speedup to a representation, apply every compatible optimization
+to the competing implementations too. Trace the actual code paths through
+preparation, reuse, evaluation and output. Run a paired comparison that changes
+only the representation, including the cost of constructing it. Rotate execution
+order across repeated rounds and compare with the fastest verified equivalent
+implementation. Report preparation or kernel gains separately from whole-workload gains.
+
 For reusable state, distinguish a fresh construction from a documented restart.
 Reset history, schedules, callback state and diagnostics as well as visible
 arrays; verify the reused case against a fresh case after relevant prior exit
