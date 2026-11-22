@@ -370,15 +370,15 @@ For front-door drift, start with:
 
 ## Citation
 
-If Nullius contributed to your work, please cite the version you used. Every GitHub release is archived on Zenodo and receives its own DOI; the version and DOI in [`CITATION.cff`](./CITATION.cff) identify the archived release listed there (GitHub renders it under "Cite this repository"). Version 0.6.0 is [doi:10.5281/zenodo.23436003](https://doi.org/10.5281/zenodo.23436003); the concept DOI [10.5281/zenodo.23436002](https://doi.org/10.5281/zenodo.23436002) always resolves to the latest version.
+If Nullius contributed to your work, please cite the version you used. Every GitHub release is archived on Zenodo and receives its own DOI; the version and DOI in [`CITATION.cff`](./CITATION.cff) identify the archived release listed there (GitHub renders it under "Cite this repository"). Version 0.6.1 is [doi:10.5281/zenodo.24443165](https://doi.org/10.5281/zenodo.24443165), and version 0.6.0 is [doi:10.5281/zenodo.23436003](https://doi.org/10.5281/zenodo.23436003). The concept DOI [10.5281/zenodo.23436002](https://doi.org/10.5281/zenodo.23436002) always resolves to the latest version.
 
 ```bibtex
 @software{nullius,
   author  = {Guo, Feng-Kun},
   title   = {Nullius: an evidence-first harness for agent-assisted research},
   year    = {2026},
-  version = {0.6.0},
-  doi     = {10.5281/zenodo.23436003},
+  version = {0.6.1},
+  doi     = {10.5281/zenodo.24443165},
   url     = {https://github.com/fkguo/nullius}
 }
 ```
