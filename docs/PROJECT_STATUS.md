@@ -11,7 +11,7 @@ Native computation binds an enabled A3 approval to the current manifest, scripts
 
 ## QA snapshot
 
-Current development version: **0.6.1** (not a tagged release). Research continuity
+Current version: **0.6.1**. Research continuity
 uses the existing task brief and status front door; the main host agent advances
 the current question with native tools, useful bounded delegation and the
 applicable scientific checks, then answers within scope and records the next step.

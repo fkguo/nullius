@@ -343,7 +343,7 @@ run、通用生命周期与审批仍归 orchestrator。`hep-mcp` 不提供项目
 
 ## 引用
 
-如果 Nullius 对你的工作有所帮助，请引用你实际使用的版本。每个 GitHub Release 都会自动归档到 Zenodo 并获得独立 DOI；当前 Release 的 DOI 记录在 [`CITATION.cff`](../CITATION.cff) 中（GitHub 会在仓库页 "Cite this repository" 处渲染）。0.6.0 版的 DOI 是 [10.5281/zenodo.23436003](https://doi.org/10.5281/zenodo.23436003)；概念 DOI [10.5281/zenodo.23436002](https://doi.org/10.5281/zenodo.23436002) 始终指向最新版本。
+如果 Nullius 对你的工作有所帮助，请引用你实际使用的版本。每个 GitHub Release 都会自动归档到 Zenodo 并获得独立 DOI；[`CITATION.cff`](../CITATION.cff) 中的版本号和 DOI 对应同一个已归档版本（GitHub 会在仓库页 "Cite this repository" 处渲染）。0.6.0 版的 DOI 是 [10.5281/zenodo.23436003](https://doi.org/10.5281/zenodo.23436003)；概念 DOI [10.5281/zenodo.23436002](https://doi.org/10.5281/zenodo.23436002) 始终指向最新版本。
 
 ```bibtex
 @software{nullius,

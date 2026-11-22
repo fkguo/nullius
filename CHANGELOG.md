@@ -10,6 +10,24 @@ the version to cite.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-22
+
+The host agent leads research, writing and review. Nullius retains run provenance,
+applicable approvals, explicit result adoption and verification records.
+
+### Added
+- Project MCP can search project files, read source lines and inspect PDF pages
+  with bounded results and source identities. PDF page images require Poppler.
+- Research output policies classify literal paths for Git, the content store or
+  local storage. Origin capture checks newly changed outputs before writing a
+  snapshot. Storage tools provide read-only inventory, dry-run exclusions for
+  tracked bulk outputs and previewable cleanup of finished scratch directories.
+- The skill catalog includes Qwen Code headless dispatch, nuclear-data lookup
+  and offline scientific data app guidance. Julia performance guidance covers
+  factor-preserving operator construction and matched benchmarks. Research
+  storage guidance describes how to inventory and verify retained evidence
+  before removing historical outputs.
+
 ### Changed
 - Literature workflow documentation now describes the three fixed recipes,
   caller-supplied inputs and planning-only brainstorm steps. Result registration
@@ -58,6 +76,10 @@ the version to cite.
   off by the host, using existing reports, writer manifests and bundle tooling.
 
 ### Fixed
+- INSPIRE tools accept numeric record IDs and report missing records as
+  non-retryable. HEP health checks and download cleanup handle missing directories.
+- Headless runner adapters check supported CLI interfaces and correctly handle
+  changed output protocols, session resume and single-attempt output capture.
 - Workflow recipe JSON Schema and generated TS/Python contracts now require
   `task_kind`, matching the runtime contract and all three checked-in recipes.
   Tests use the existing Ajv Draft 2020-12 validator to check the full schema.
