@@ -73,9 +73,12 @@ the compiler output again under the normal runtime configuration.
 - If diverse callables or types drive compilation cost, consider keeping cold
   orchestration shared and the expensive numerical kernel specialized. Avoid
   specializing on unbounded runtime values. On a cold boundary, `@nospecialize`
-  limits specialized native code generation. `Base.@nospecializeinfer` also
-  limits inference on supported Julia versions, which can cost the caller
-  return-type information. Recheck inference at that caller. Record compilation
+  limits specialized native code generation. Used with `@nospecialize`,
+  `Base.@nospecializeinfer` (Julia 1.10 and later) also limits inference for
+  the marked arguments. That can cost the caller return-type information.
+  Recheck inference at that caller. [Julia specialization annotations](https://docs.julialang.org/en/v1/base/base/#Base.@nospecializeinfer)
+
+  Record compilation
   with `--trace-compile=trace.jl` and, where available, `--trace-compile-timing`
   in a diagnostic run. Measure package load, representative first calls and
   warm throughput separately. Use observed common signatures to choose
@@ -114,6 +117,10 @@ the compiler output again under the normal runtime configuration.
 
 The following functions keep the same per-element arithmetic. The early
 return preserves the empty-input behavior for a scale whose logarithm throws.
+If the interface exposes NaN payloads, compare their bit patterns explicitly.
+Generated floating-point instructions can choose different NaN payloads even
+when the source arithmetic is preserved.
+[LLVM NaN behavior](https://llvm.org/docs/LangRef.html#nan-behavior)
 
 ```julia
 using InteractiveUtils
