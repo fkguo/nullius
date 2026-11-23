@@ -10,6 +10,7 @@ execute JET, inspect these patterns, or verify numerical equivalence automatical
 | Algorithm and output size | Profile the operation; identify the outputs actually consumed. | Do not compute all eigenvectors, sort all inputs or refactor for each RHS when only a subset/reused factor is needed. |
 | Global state | Inspect mutable globals used by the hot call chain. | A constant binding and a harmless setup variable are not the same as an untyped changing global. |
 | Dispatch and storage | Analyze representative concrete calls with JET/`@inferred`; inspect function barriers. | Abstract public arguments specialize; `struct Box{T}; x::T; end` can preserve storage type. Do not force `Float64` for a generic API. |
+| Compiled hot loop | Inspect optimized typed IR and LLVM for the measured specialization. Locate loop-invariant math, dispatch and conversions relative to the loop back edge. See [compiler-hotpaths.md](compiler-hotpaths.md). | A type-stable or allocation-free call can still execute redundant scalar work. |
 | Allocation | Measure actual Trial allocation count and bytes after compilation. | Zero allocation is a task budget when required, not a universal correctness criterion. |
 | Layout | Inspect strides/storage and benchmark representative traversal. | Column-major order is a dense Array default, not a rule for every AbstractArray. |
 | Broadcast | Compare fused and selectively materialized forms. | Recomputing an expensive axis-invariant intermediate can make maximal fusion slower. |

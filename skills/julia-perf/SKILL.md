@@ -65,6 +65,9 @@ Use these in every Julia numerical coding task:
 - Avoid abstract containers in hotpaths.
 - Avoid global-state driven hot loops.
 - Prefer allocation-aware patterns (preallocation, fused broadcast when suitable).
+- When tuning a measured hot path, inspect the optimized code for the concrete
+  call. Type inference and allocation measurements cannot reveal all repeated
+  machine work. See [compiler-hotpaths.md](references/compiler-hotpaths.md).
 - Treat column-major access order as default in dense matrix kernels.
 - Establish index/alias validity before `@inbounds`; do not introduce `@fastmath`
   or reassociated reductions without checking their changed numerical semantics.
@@ -98,6 +101,12 @@ Use full gate workflow when publishing speedup/regression claims:
    - Prefer programmatic checks such as `JET.report_opt` or `Test.@inferred`.
    - Use `@code_warntype` as human-readable supplemental evidence.
    - Capture allocation and hotspot data.
+   - Inspect optimized code for the measured hot Julia specializations, even
+     when inference is clean and allocations are zero. Check the actual loop
+     and caller for redundant operations or missed hoisting and inlining.
+     When a comparable backend is faster, verify which operations each
+     compiled path actually executes. Follow
+     [compiler-hotpaths.md](references/compiler-hotpaths.md).
 3. Optimize:
    - Apply targeted edits linked to diagnosed bottlenecks.
 4. Verify:
@@ -217,6 +226,9 @@ Parallel writers:
 
 ## Reference files
 
+- `references/compiler-hotpaths.md`:
+  Concrete caller and optimized-code inspection, repeated loop work,
+  cross-compiler comparison and verification of the source change.
 - `references/compressed-operator-construction.md`:
   Factor-preserving construction, symmetry before weighting, matched dense and
   compressed actions, original-norm checks and memory-aware scaling.
