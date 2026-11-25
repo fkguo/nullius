@@ -2,6 +2,32 @@
 
 Read the section relevant to the current operation. Commands and script paths are relative to the installed `research-harness` skill directory unless an external project root is specified.
 
+## When to create a run
+
+Create one run for a coherent unit of scientific evidence, such as a production
+calculation with its own inputs and results or a formal verification execution.
+Group tests, retries and useful diagnostics for one unfinished candidate with
+that work. Keep evidence that explains a failure or supports a claim. Give a
+new production result that corrects or replaces a frozen result its own run.
+
+For revisions to legends, axes, captions, layout or export format using the
+same numerical evidence, reuse a local working output directory outside
+`artifacts/runs/`, such as the project's ignored `tmp/`. Render and inspect the
+revision there. Keep the selected figure or table in the project's figure or
+manuscript directory. Link to existing data, the producing run when applicable,
+and still-valid quantity verdicts by path and hash. Record the rendering code
+revision, settings and final display checks alongside the retained output.
+Keep the files required to reproduce or verify that display once. Leave
+redundant exports, intermediate renderings and temporary QA crops in scratch.
+
+Check the final display even when its numerical evidence is unchanged. A new
+view or series drawn from verified values can reuse the verdicts that cover
+those values. Changes to the underlying inputs, model or derived quantities
+require checks at the affected level. Keep already cited or hash-bound figures
+at their original paths and cite a separate figure revision when their bytes
+must change. Figure revisions using the same result need no new run ID, origin
+stamp or run supersession event.
+
 ## Run Records: Freeze Identity Once, Append Results, Never Hash Lifecycle State
 
 A run record keeps three artifact classes separate, and only the first two ever carry hashes:

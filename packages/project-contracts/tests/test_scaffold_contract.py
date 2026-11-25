@@ -462,6 +462,8 @@ class TestScaffoldContract(unittest.TestCase):
 
     def test_scaffold_agents_template_carries_verification_trigger_table(self) -> None:
         template = read_instruction_documents(scaffold_template_dir() / "AGENTS.md")
+        repo_root = Path(__file__).resolve().parents[3]
+        routing = (repo_root / "skills/research-harness/references/routing.md").read_text(encoding="utf-8")
 
         self.assertIn("## Verification triggers (event → workflow)", template)
         self.assertIn("Verification runs on events, not on reminders", template)
@@ -485,13 +487,17 @@ class TestScaffoldContract(unittest.TestCase):
             "A computed number that a conclusion or durable artifact will rest on",
             "Wrote citation-backed claims (introduction, related work, discussion)",
             "Freezing a bibliography",
-            "Finalized a data or results figure (once per generating script)",
             "schematic, process, or geometry diagram",
             "Claimed a speedup or performance regression",
             "needs independent review",
             "Before adopting project conclusions, a milestone closeout, or a handoff",
         ):
             self.assertIn(moment, template)
+        for instructions in (template, routing):
+            figure_row = next(line for line in instructions.splitlines() if "data or results figure revision" in line)
+            self.assertIn("including when reusing the same generating script", figure_row)
+            self.assertIn("figure-hygiene", figure_row)
+            self.assertIn("checks the retained rendering", figure_row)
         # The gates bind to result-bearing quantities; exercised-only numbers
         # and internal scaffolding diffs are explicitly out of gate scope.
         self.assertIn("is covered by ordinary tests", template)

@@ -149,6 +149,14 @@ State explicitly whether the current agent can actually read the crop images in 
 
 A durable or submission-bound figure must re-render from recorded inputs. Bind the data table, the generation script, the style configuration, and a checksum of the output in a small sidecar manifest next to the figure.
 
+For changes to the presentation of existing verified quantities, reuse a local
+scratch directory for candidate renders. Reference the existing data and
+applicable verdicts from the retained figure's sidecar. Keep the selected
+export and the evidence needed to check and reproduce it, including any
+required overview. Check the retained rendering even for a layout-only edit.
+Keep any previously cited or hash-bound figure available at its recorded path.
+These revisions use the same scientific run.
+
 For the source-to-cell sidecar and complete examples, read [references/display-semantics.md](references/display-semantics.md). Keep chart-specific `series_provenance` alongside the `display_acceptance` block; check connected rows before rendering.
 
 Anyone (including a later agent) must be able to re-run the command and diff the output against the checksum. Run the series-provenance command before rendering; it must fail if any connected series has a missing or mixed fingerprint. If the regenerated figure differs beyond recorded nondeterminism, or the provenance check fails, the figure and its numbers are out of sync: stop and reconcile before the figure is used anywhere. This bundle is what makes the checklist enforceable — a figure that cannot be regenerated cannot be re-verified. When the figure enters a manuscript gated by the research-writer skill, this bundle is the figure-side instantiation of that skill's traceability manifest: mirror the figure's checksum into the manifest entry so the manuscript-side result-traceability gate verifies the same bytes.

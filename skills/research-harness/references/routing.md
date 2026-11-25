@@ -42,7 +42,7 @@ the checkpoint cannot provide scientific acceptance or override an approval.
 | Citation-backed claim | wrote citation-backed claims (introduction, related work, discussion) | [`claim-grounding`](../../claim-grounding/SKILL.md) |
 | Bibliography | freezing a bibliography, or admitting papers into a core reading set | [`citation-triangulation`](../../citation-triangulation/SKILL.md) |
 | Literature survey | a survey feels thin, or before writing an introduction / related-work section | [`deep-literature-review`](../../deep-literature-review/SKILL.md) |
-| Data figure | finalized a data or results figure (once per generating script) | [`figure-hygiene`](../../figure-hygiene/SKILL.md) |
+| Data figure | finalized a data or results figure revision, including when reusing the same generating script | [`figure-hygiene`](../../figure-hygiene/SKILL.md) checks the retained rendering |
 | Schematic diagram | drew or revised a schematic, process, or geometry diagram | [`physics-diagrams`](../../physics-diagrams/SKILL.md) |
 | Performance claim | claimed a speedup or performance regression, or wrote performance-critical numerical code | [`julia-perf`](../../julia-perf/SKILL.md) (language-scoped; use an equivalent gate for other languages) |
 | Julia package change | created or changed a computational package's public API, dependency, supported representation, tests or documentation | [`julia-package`](../../julia-package/SKILL.md), with `julia-perf` for kernels; package checks do not replace numerical-result acceptance |

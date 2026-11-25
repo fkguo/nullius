@@ -8,6 +8,8 @@ description: Lead research in an external Nullius project through source reading
 Use the external project as authority. `nullius` owns lifecycle, approvals and
 state; the host owns its agent loop, tools and compaction.
 
+Reuse the source run for presentation-only revisions.
+
 ## Own the research
 
 The primary agent retains the scientific judgment and central analysis. Use the
@@ -87,7 +89,7 @@ tool ran. Assess model, method and input independence separately.
 | Current operation | Read before that operation |
 | --- | --- |
 | New/rebuilt environment, first real launch or a kill-prone job | [Readiness and checkpointed computation](references/compute-readiness.md "nullius-guidance") |
-| Freeze inputs, append outputs, or set resource ceilings | [Run-record boundaries](references/run-records.md "nullius-guidance") |
+| Decide whether to create a run, freeze inputs, append outputs, or set resource ceilings | [Run-record boundaries](references/run-records.md "nullius-guidance") |
 | Adopt, replace, void or locate a result | [Current-result traceability](references/result-traceability.md "nullius-guidance") |
 | Classify finished outputs, check a commit, or review historical output for cleanup | [Run storage](references/run-storage-workflow.md "nullius-guidance") |
 | The project opts into a fresh-state reproduction | [Independent reproduction](references/reproduction-workflow.md "nullius-guidance") |
