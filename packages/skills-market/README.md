@@ -56,6 +56,10 @@ directory with analyze-only approval, and shares the file-based runner interface
 Like `dsh-cli-runner`, it is independently usable and does not register a
 review-swarm backend or install the Qwen Code CLI.
 
+[`cursor-runner`](../../skills/cursor-runner/SKILL.md) sends one file-based
+prompt through the local Cursor Agent CLI. List models available to the account
+before selecting an exact Claude, Gemini, Grok or other model ID.
+
 ## Layout
 
 - `packages/`: package metadata (`*.json`)

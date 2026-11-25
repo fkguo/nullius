@@ -10,6 +10,10 @@ the version to cite.
 
 ## [Unreleased]
 
+### Added
+- `cursor-runner` sends a file-based prompt through the local Cursor Agent CLI
+  with an explicit model ID, a deadline and final-text capture.
+
 ## [0.6.1] - 2026-11-22
 
 The host agent leads research, writing and review. Nullius retains run provenance,

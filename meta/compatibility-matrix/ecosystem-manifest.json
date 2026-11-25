@@ -36,6 +36,13 @@
       "version": "0.1.0",
       "source_path": "skills/codex-cli-runner/SKILL.md"
     },
+    "cursor-runner": {
+      "type": "skill-pack",
+      "repo": "nullius/skills-market",
+      "channel": "beta",
+      "version": "0.1.0",
+      "source_path": "skills/cursor-runner/SKILL.md"
+    },
     "deep-literature-review": {
       "type": "skill-pack",
       "repo": "nullius/skills-market",

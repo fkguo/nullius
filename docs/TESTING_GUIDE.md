@@ -137,6 +137,7 @@ DSH runner 的回归覆盖当前桌面 launcher、完整运行时字节绑定、
 ```bash
 pnpm --filter @nullius/orchestrator exec vitest run tests/cli-run-workflow-recovery.test.ts tests/agent-runner-history-compaction.test.ts tests/cli-run-workflow.test.ts tests/agent-runner.test.ts tests/workflow-runtime.test.ts tests/nullius-cli.test.ts
 pnpm --filter @nullius/hep-mcp exec vitest run tests/contracts/inspireLiteratureProjectRoot.test.ts tests/toolContracts.test.ts tests/docs/docToolDrift.test.ts
+python3 -m pytest -q skills/cursor-runner/tests
 python3 -m pytest -q skills/kimi-cli-runner/tests skills/opencode-cli-runner/tests skills/qwen-cli-runner/tests skills/review-swarm/tests/test_seat_budget.py skills/dsh-cli-runner/tests
 ```
 

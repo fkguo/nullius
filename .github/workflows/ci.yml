@@ -271,6 +271,9 @@ jobs:
           python -m pip install sympy
           python -m pytest skills/derivation-verify/tests -q
 
+      - name: Python tests (Cursor runner model selection and output)
+        run: python -m pytest skills/cursor-runner/tests -q
+
       - name: Python tests (review-swarm skill suite)
         run: python -m pytest skills/review-swarm/tests -q
 

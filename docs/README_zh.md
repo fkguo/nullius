@@ -94,6 +94,7 @@ Skill 源码面与分发面是分离的：
 
 - `skills/` 存放 checked-in 的 skill 源码与手册。
 - Julia 计算程序包用 [`julia-package`](../skills/julia-package/SKILL.md) 检查接口、数值契约和包开发规范，用 [`julia-perf`](../skills/julia-perf/SKILL.md) 检查计算内核及可复现的性能证据。
+- [`cursor-runner`](../skills/cursor-runner/SKILL.md) 通过 Cursor CLI 将提示词文件发送给从账户模型列表中选定的模型。
 - `packages/skills-market` 是 installer / distribution control plane；它不意味着这些 skill 已经预装到某个 client runtime 中。
 - `research-harness` 是已进入 market 的 external research project 薄入口 skill。它的 market 条目在 `depends_on` 中声明了 `research-team`、`markdown-hygiene` 等 skill pack（安装时默认一并安装，传 `--no-deps` 可跳过），并把 `hep-mcp` 作为非 skill 依赖：安装器仅给出 preflight 警告（只有 `--strict-deps` 才硬失败）；`hep-mcp` 本身仍由 host client 独立提供或安装。
 

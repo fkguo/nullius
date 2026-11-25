@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cursor Runner"
+  short_description: "Run an explicit Cursor model from prompt files."
+  default_prompt: "Use $cursor-runner to send this prompt file to the specified Cursor model and save its final answer."

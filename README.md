@@ -108,6 +108,7 @@ Skill source and distribution are separate surfaces:
 
 - `skills/` holds checked-in skill source and manuals.
 - For Julia computational libraries, [`julia-package`](skills/julia-package/SKILL.md) covers APIs, numerical contracts and package lifecycle; [`julia-perf`](skills/julia-perf/SKILL.md) covers kernel discipline and reproducible performance evidence.
+- [`cursor-runner`](skills/cursor-runner/SKILL.md) runs a single file-based prompt through a model selected from the local Cursor account.
 - `packages/skills-market` is the installer/distribution control plane; it does not mean those skills are preinstalled in a client runtime.
 - `research-harness` is the market-listed thin entry skill for external research projects. Its market entry declares `research-team`, `markdown-hygiene` and other skill packs in `depends_on` (installed with it unless `--no-deps` is passed) and `hep-mcp` as a non-skill dependency that the installer only reports as a preflight warning (a hard failure only with `--strict-deps`); `hep-mcp` itself remains a separate capability that the host client provides or installs independently.
 
