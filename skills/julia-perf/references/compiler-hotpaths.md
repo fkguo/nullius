@@ -82,7 +82,7 @@ the compiler output again under the normal runtime configuration.
   with `--trace-compile=trace.jl` and, where available, `--trace-compile-timing`
   in a diagnostic run. Measure package load, representative first calls and
   warm throughput separately. Use observed common signatures to choose
-  [precompile workloads](../../julia-package/references/ecosystem-patterns.md#specialization-and-precompilation).
+  [precompile workloads](https://docs.julialang.org/en/v1/manual/performance-tips/#Execution-latency,-package-loading-and-package-precompiling-time).
 
 ## Layout, aliasing and vectorization
 
@@ -120,7 +120,7 @@ return preserves the empty-input behavior for a scale whose logarithm throws.
 If the interface exposes NaN payloads, compare their bit patterns explicitly.
 Generated floating-point instructions can choose different NaN payloads even
 when the source arithmetic is preserved.
-[LLVM NaN behavior](https://llvm.org/docs/LangRef.html#nan-behavior)
+[LLVM NaN behavior](https://llvm.org/docs/LangRef.html#behavior-of-floating-point-nan-values)
 
 ```julia
 using InteractiveUtils
