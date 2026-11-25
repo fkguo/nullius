@@ -65,7 +65,8 @@ it serves and the error budget naming the dominant source and the total error, t
 value), the independently constructed check values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
 unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact |
-heterogeneous_series | precondition_violated | reference_mismatch | circular_validation | overclaimed_heuristic`
+heterogeneous_series | precondition_violated | reference_mismatch | reference_unresolved |
+circular_validation | overclaimed_heuristic`
 (`reliable` requires every *applicable* G0–G10 check to pass — including the G0 total error at or below the required accuracy, the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, the G9 gate-discrimination audit when trust rests on a purpose-built validation chain, and the G10 fast-path scoping when the value comes from an accelerated/heuristic path,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
 candidate or is discarded. Gate evidence is keyed **per quantity** to the evaluator fingerprint that
@@ -347,12 +348,12 @@ G0 comes first because it sets how far every later check is run.
   published number numerically** — not to assert a qualitative "same order of magnitude / same sign"
   agreement, and not to cite the source as if citing it established the match. Reproduce on the same
   regime the reference used (or the nearest reachable one, recorded as such, with the gap to the
-  reference's regime stated); where the claim is term-by-term, compare term by term, since a net total
-  can agree while individual contributions are suppressed or sign-flipped. **An order-of-magnitude
-  same-direction discrepancy, or a sign reversal, between the computed value and the published one is a
-  finding (`reference_mismatch`), not a pass** — a magnitude or sign gap is exactly what a qualitative
-  "in scale" match conceals. Record the published value with its source locator, the computed value on
-  the comparable regime, and the ratio / signed difference. (Distinct from **G4**: G4 anchors your *own
+  reference's regime stated). Declare a tolerance or quantitative comparison rule before evaluating
+  agreement. Compare term by term for a term-by-term claim. A resolved difference outside the rule is
+  `reference_mismatch`, even if both values have the same sign and order of magnitude. Use
+  `reference_unresolved` when the cases are incomparable or the available precision cannot resolve the
+  decision. Record the reason, the published value and locator, the computed value when available,
+  and the signed difference or ratio where meaningful. (Distinct from **G4**: G4 anchors your *own
   pipeline* on a known result before you trust a variation; G8 tests whether a *headline external-match
   claim* actually holds when the observable is recomputed on the comparable state — a result can pass
   G1–G7 and still misstate how it relates to the literature.) A claim that the source's *own
@@ -365,6 +366,23 @@ G0 comes first because it sets how far every later check is run.
   project's declared reproduction entry in a fresh, isolated checkout of committed state and
   machine-compares each declared expected value under an explicit absolute/relative tolerance,
   default-deny. It is adopted per project and changes no default workflow.
+
+  **Diagnosing an external difference.** Preserve the first comparison with the documented inputs
+  fixed for that particular reference and case. Evaluate each reference with its own documented
+  inputs. Record substitutions for missing inputs and carry forward an exclusion only over the
+  conditions tested. Keep any subsequent fit separate. For each quantity, compare the signed residual
+  with the numerical uncertainty, the precision of the reference and the effect of uncertain inputs
+  where it can be bounded. Apply G0 to the difference the comparison must resolve. If the available
+  precision allows outcomes on both sides of the tolerance boundary, report the comparison as
+  unresolved. A measurement uncertainty sets the target only when the stated use requires it.
+
+  Trace both the agreeing and the discrepant quantities to the inputs or expressions on which they
+  depend. Select a case where rival explanations predict distinguishable changes. Vary the suspected
+  input while holding the other independent inputs fixed and propagating its dependent changes.
+  Compare the predicted direction and size of the change with the residual and check whether
+  previously agreeing quantities still agree. A resolved discrepancy in a quantity independent of
+  that input rules it out as the sole cause. Sensitivity alone shows only that the input can matter.
+  If several explanations still fit the comparisons, retain them as unresolved.
 
 - **G9 — Gate discrimination: a validation must be able to fail (independent reference, negative
   controls).** When a value's trust rests on a purpose-built consistency check — "it reduces to a

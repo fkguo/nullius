@@ -17,8 +17,8 @@ on a shared three-level scale:
 
 - **BLOCKING** — changes a result, claim, or contract; violates input identity, target-value
   isolation, or origin traceability; turns a silent failure into an apparent success; or is a
-  quantitative discrepancy of the reference-reproduction kind (the [reference-reproduction order-of-magnitude/sign-reversal
-  rule](result-and-artifact-roles.md) is the exemplar). BLOCKING findings must be fixed and re-reviewed.
+  resolved difference beyond the declared [reference-reproduction tolerance](result-and-artifact-roles.md).
+  BLOCKING findings must be fixed and re-reviewed.
 - **HIGH** — a correctness risk inside the declared scope that does not change current results
   (e.g. a declared failure mode with no regression test). Fix before the artifact's acceptance
   point; a batch of HIGH fixes takes one confirmation round together, and does not restart the

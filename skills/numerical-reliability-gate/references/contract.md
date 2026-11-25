@@ -120,8 +120,9 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       // else REQUIRED. When present:
       // { "published_value": "1.90", "source_locator": "<paper> Table 2",
       //   "computed_value": "1.92", "comparable_regime": "<the state/regime compared on>",
-      //   "tolerance_or_rule": "abs < 0.05", "ratio_or_signed_diff": "+0.02 (abs)", "matched": true }
-      // matched=false (verdict reference_mismatch) on an order-of-magnitude same-direction or sign gap.
+      //   "tolerance_or_rule": "abs <= 0.05", "ratio_or_signed_diff": "+0.02", "matched": true }
+      // A resolved +0.06 under the same tolerance gives matched=false and reference_mismatch.
+      // An incomparable case or insufficient precision gives matched=false and reference_unresolved.
       // Here it is null because chi2_ref makes no published-value match claim (the populated object above
       // is illustrative only); its G4 anchor reproduces an internal adopted value, which is NOT a G8 claim.
       "reference_match": null,
@@ -275,7 +276,8 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 | `stale_artifact` | the record's code/input version or timestamp does not match the current run (G6 provenance) — recompute before trusting | no |
 | `heterogeneous_series` | points were connected, pooled, interpolated, fitted, or summarized across missing/different complete evaluator fingerprints (G6); matching visible grid labels is insufficient — recompute under one fingerprint or split the configurations into separately identified series | no |
 | `precondition_violated` | a structural property the method's validity rests on (commutation with a projector/symmetrizer, Hermiticity, self-adjointness, idempotency, unitarity, variational/Galerkin-subspace invariance) fails — or was only tested at a smaller/cheaper setting than the value — at the production setting/config (G7); the value is **invalid**, not approximate, even if G1-converged | no |
-| `reference_mismatch` | the value claims to reproduce/match a **published reference number** but the claimed observable, recomputed on a comparable state/regime and compared numerically (G8), differs by an order of magnitude in the same direction or by a sign — a qualitative "same scale / same sign" assertion, or citing the source, does not discharge G8; the match claim is **overstated**, not established | no |
+| `reference_mismatch` | the recomputed value differs from a comparable published reference beyond the predeclared quantitative rule, with sufficient precision to resolve the decision (G8) | no |
+| `reference_unresolved` | the cases are incomparable, the comparable case could not be computed, or the available precision cannot resolve the comparison under the predeclared rule (G8) | no |
 | `circular_validation` | the validation chain invoked to trust the value fails the G9 audit: its reference was co-derived with (or reverse-engineered from) the assumption under test, its comparison mode projects out the disputed structure, it has never rejected a known-wrong variant (no negative control), or it certifies a different layer / code path than the recorded value's — the "validated" status is **void** (the gate carried no information about the disputed structure) and the value reverts to a labeled candidate | no |
 | `overclaimed_heuristic` | the value comes from an accelerated / heuristic fast path (a local certificate that does not entail the global answer, e.g. a fixed-start Krylov/subspace iteration for a dominant eigenvalue/quantity) that fails the G10 scoping audit: its docstring/comment states a guarantee the method does not deliver ("never wrong"), or its **fast-vs-exact agreement precondition** (start-overlap / basin membership) was **asserted rather than validated at the production setting**, or no unconditional escape hatch (a dense/direct solve) is retained — the fast path is trusted **beyond its validated precondition**; a false guarantee is a defect even when the wrong output never arises in the production use. **Precedence vs `precondition_violated`/G7:** a structural property that makes the *method itself* valid failing is `precondition_violated`; the *fast-vs-exact agreement* precondition failing, or a guarantee/escape-hatch defect, is `overclaimed_heuristic` (the exact method stays valid; only its acceleration is in doubt) | no |
 
@@ -377,11 +379,14 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   "<paper + table/eq/figure>", "computed_value": <on the comparable regime>, "comparable_regime":
   "<the regime compared on, and any gap to the reference's own regime>", "tolerance_or_rule": "<the
   acceptance criterion: an abs/rel tolerance or the rule for what counts as a match>", "ratio_or_signed_diff":
-  …, "matched": true|false }`. `tolerance_or_rule` is REQUIRED when present (the acceptance rule must be
-  stated, not implied — mirrors `claim-grounding`'s "within the stated tolerance"). `matched` is `false`
-  (verdict `reference_mismatch`) when the computed and published values differ by an order of magnitude in
-  the same direction or by a sign; a qualitative "same scale / same sign" assertion, or merely citing the
-  source, does NOT satisfy G8. The field is `null` only when the result makes no published-value match claim.
+  …, "matched": true|false }`. Declare `tolerance_or_rule` before evaluating agreement. Use `matched: true`
+  for a resolved match. Use `matched: false` and `reference_mismatch` for a resolved difference beyond the
+  declared rule. For example, a comparable value of 1.96 against 1.90 gives a signed difference of +0.06 and
+  fails an absolute tolerance of 0.05 when both values have sufficient precision. Use `matched: false`
+  and `reference_unresolved` if comparability or precision prevents a decision. In `notes`, identify the
+  input difference or missing input, the unavailable computation, or the precision limit that prevents a
+  decision. Record `computed_value` or `ratio_or_signed_diff` as `null` when unavailable or inapplicable.
+  The `reference_match` field itself is `null` only when the result makes no published-value match claim.
   When the match claim asserts the source's *own prescription* was solved (not an independent-model
   comparison), the row MUST also state in `notes`, alongside `reference_match`, whether the transcription
   axis was gated (the frame-map elementwise identity and the as-printed run of G2's shared-model-definition

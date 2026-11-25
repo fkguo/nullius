@@ -22,6 +22,23 @@ and `statement` carry the domain. Example claim types (illustrative, not a fixed
 Each is phrased as an **atomic claim**: a thing to **DERIVE BLIND** (the answer is NOT given to the
 deriver) and report in a fixed canonical format.
 
+### Comparing a derivation with a published expression
+
+Derive from the defining premises with the reference answer withheld. Once the derivation is
+fixed, express both results in the same conventions and state their common assumptions and
+domain. Agreement throughout that domain counts as an independent analytical check of the
+published expression. Record the particular expression and assumptions checked. A published
+expression supplies an external comparison target and does not add an execution to the blind
+derivation count.
+
+If the expressions differ, trace which inputs and intermediate identities enter each
+discrepant quantity, including indirect dependencies and cancellations. Use that map to
+select a discriminating case: state where the candidate explanations predict different
+results and which observation would exclude one. Agreement in a limit where the disputed
+term vanishes verifies that limit alone. A discrepancy in a quantity proved independent of
+a proposed cause excludes it as the sole explanation. If the available identities leave
+several explanations equivalent, record which additional relation could distinguish them.
+
 ## When NOT to use (use a sibling instead)
 
 - **Reviewing an existing artifact** (a diff, a draft, a manuscript) against a contract → use

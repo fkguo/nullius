@@ -26,9 +26,9 @@ that a correctness / methodology / honesty review routinely passes over:
 - **D1 — recompute and compare.** **Compute the claimed observable on a comparable state / regime /
   configuration and compare to the published number numerically** — do not accept a qualitative "same order
   of magnitude / same sign / right scale" assertion, and do not accept the citation as if citing the source
-  proved the match. Compare **term by term** where the claim is term-level (a net total can agree while
-  individual contributions are suppressed or sign-flipped). **An order-of-magnitude same-direction
-  discrepancy, or a sign reversal, is a BLOCKING finding, not a pass.** Give this reviewer real execution
+  proved the match. Compare **term by term** where the claim is term-level. A resolved difference outside
+  the predeclared rule is a **BLOCKING** finding for the match claim. Report cases that are incomparable
+  or have insufficient precision as unresolved. Give this reviewer real execution
   access (a host-native sub-agent with run/Bash, or an executing sandbox) when the comparison requires
   computation.
 - **D2 — the independent cross-check did not silently lapse.** Confirm that any cross-validation evaluates
@@ -52,7 +52,7 @@ Record in `meta.json` whether a reviewer **computed-and-compared vs. only read**
 swarm in which *no* reviewer recomputed the claimed observable on the comparable state is a **static-only**
 swarm for that claim and must be labeled as such — it does **not** count as a reference-match pass.
 Cross-model-family diversity strengthens this gate. Pair it with `numerical-reliability-gate` **G8** (the
-compute-and-compare gate, returning `reference_mismatch` on an order-of-magnitude or sign gap) and the
+compute-and-compare gate) and the
 `research-integrity` *Reference-reproduction fidelity* dimensions.
 
 ### Independent-recomputation reviewer (mandatory for load-bearing structural claims)

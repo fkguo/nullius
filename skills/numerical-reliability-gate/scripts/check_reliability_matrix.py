@@ -51,6 +51,7 @@ VERDICTS = frozenset(
         "heterogeneous_series",
         "precondition_violated",
         "reference_mismatch",
+        "reference_unresolved",
         "circular_validation",
         "overclaimed_heuristic",
     }

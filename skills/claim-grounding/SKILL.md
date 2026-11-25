@@ -179,18 +179,39 @@ text-entailment span. So:
   computed (claimed) value, the source value, their stated uncertainties, and an explicit
   tolerance policy go in the entry's `numeric_comparison` field (see the numeric_match section
   below), and the comparison verdict is **recomputed from that input by the contract**, never
-  taken on assertion. The coupling is mechanical: a computed `mismatch` — which includes any
-  order-of-magnitude same-direction discrepancy or sign reversal — forces the grounding verdict
-  to `conflicting` (the computed result actively contradicts the asserted match;
-  `substantiated`/`partial` are impossible), and an `incomparable` comparison cannot be
-  `substantiated`. If the claim itself asserts only loose agreement, encode that looseness in
-  the tolerance policy up front — do not label a beyond-tolerance result `partial`. The
-  comparable regime, and any gap to the reference's regime, still go in `notes`.
+  taken on assertion. A difference beyond the declared tolerance gives `mismatch`, including
+  differences between values of the same sign and order of magnitude. For a comparable case with
+  sufficient precision, a computed `mismatch` forces a `substantiated` or `partial` grounding
+  verdict to `conflicting`.
+  Set the tolerance policy up front and record the comparative regime in `notes`. If the cases
+  are incomparable or the published precision cannot resolve the decision, use `not_substantiated`
+  for the match claim and explain which limitation applies. The comparator evaluates the numbers
+  as supplied and depends on this assessment of comparability and resolution.
 
 This is the citation-side companion of the `Scope` rule above (a bare `calculation` claim is the
 `research-harness` / numerical path): a match claim wears citation clothing — it carries
 `evidence_uris` to the published source — yet its support is a **computation**, so quoting the
 source is necessary context but never sufficient grounding.
+
+### Grounding a discrepancy across sources
+
+For each disputed quantity, use the entry's `notes` to identify the source
+version and locator, the case being compared, and the definitions and inputs
+that can affect that quantity. For multiple references, list the relevant input
+values separately for each source and case, alongside the values actually used
+in the comparison. A shared model name or citation does not establish parameter
+identity. Mark inputs as documented to match, different, unknown, or inapplicable. Cite a formula or parameter table for what
+it specifies and the reported result for what was calculated. When a relevant
+input is missing, follow the source's references, supplements, or archived
+materials. Attribute a value from a related work to the target calculation
+only when a source connects the two. Otherwise record it as an assumption.
+
+State what the source can resolve. Agreement at printed precision, an estimate
+read from a figure, and membership in a range covering several cases each
+support a different claim. A range alone cannot identify a case-specific
+value. Report the direction and size of a comparable difference at the
+available resolution. Ground any proposed explanation separately from the
+observation that the values differ.
 
 ## Transcription fidelity (when the claim was transcribed into a note)
 
@@ -346,8 +367,10 @@ Procedure, on top of the per-claim procedure above:
   only: a difference beyond even an over-wide tolerance is still a `mismatch` (a weak test
   can falsify; it cannot corroborate).
 - A claim asserting only loose, order-of-magnitude agreement between precisely-known values
-  cannot be confirmed through a tolerance the uncertainties render non-diagnostic; ground it
-  as `text_entailment` with explicit reasoning in `notes`, or tighten the claim.
+  remains `not_substantiated` if the tolerance is non-diagnostic. Explain the limitation in
+  `notes` or revise the claim and run a diagnostic comparison under the revised rule.
+  Use `text_entailment` when the claim attributes a qualitative characterization explicitly
+  stated by the source.
 - With no uncertainty stated on either side the guard has no scale to judge against, so
   confirmation additionally requires the explicit `no_stated_uncertainty: true` attestation
   (see step 3); the result is then `within_tolerance` with decision path

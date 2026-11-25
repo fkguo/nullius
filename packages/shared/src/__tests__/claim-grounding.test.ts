@@ -734,6 +734,25 @@ describe('assembleClaimGroundingReport: numeric_match rule', () => {
     expect(report.summary.by_verdict.conflicting).toBe(1);
   });
 
+  it('rejects a published-value match when the same-sign difference exceeds the declared tolerance', () => {
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [numericEntryInput(
+        {
+          claim_text: 'The value 1.96 reproduces the published result within an absolute tolerance of 0.05.',
+          supporting_spans: [{ evidence_uri: EVIDENCE_URI, quote: 'The reference reports 1.90.', locator: 'Table 2' }],
+        },
+        { input: { claimed_value: 1.96, source_value: 1.90, tolerance: { kind: 'absolute', value: 0.05 } } },
+      )],
+    });
+    const entry = report.claims[0]!;
+    expect(entry.numeric_comparison?.verdict).toBe('mismatch');
+    expect(entry.numeric_comparison?.details.decision_path).toBe('beyond_tolerance');
+    expect(entry.numeric_comparison?.details.signed_difference).toBeCloseTo(0.06);
+    expect(entry.verdict).toBe('conflicting');
+    expect(safeParseClaimGroundingReportV1(report).ok).toBe(true);
+  });
+
   it('withdraws numeric falsification when the comparison used a misidentified citation', () => {
     const wrongTitle = citationIdentity({
       displayed: {

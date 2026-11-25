@@ -471,6 +471,12 @@ def test_verdict_vocabulary_and_unique_ids():
     assert "DUPLICATE_ID" in _codes(_matrix(_row(), _row()))
 
 
+@pytest.mark.parametrize("verdict", ["reference_mismatch", "reference_unresolved"])
+def test_unconfirmed_reference_verdict_stays_a_candidate(verdict):
+    assert _codes(_matrix(_candidate(verdict=verdict))) == []
+    assert "RECORDED_FIELD_MISMATCH" in _codes(_matrix(_row(verdict=verdict)))
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

@@ -16,11 +16,9 @@ checks whether the implementation matches the derived **form**, not whether the 
   regime / configuration and compared to the published value numerically**. *Minimum
   disconfirming check:* compute the claimed observable on the comparable regime the
   reference used (or the nearest reachable one, recorded as such) and compare numbers;
-  where the claim is term-level, compare **term by term**, since a net total can agree
-  while individual contributions are suppressed or sign-flipped. **An order-of-magnitude
-  same-direction discrepancy, or a sign reversal, is a finding — not a pass.** A "matches
-  in scale" claim with no computed comparison is ungrounded; treat it as an undisclosed
-  gap, not a confirmation.
+  where the claim is term-level, compare **term by term**. Declare the acceptance rule
+  before evaluating agreement. A resolved difference beyond the rule is a finding.
+  An incomparable case or insufficient precision leaves the match claim unverified.
 - **D2 — independent cross-check that did not silently lapse.** The failure mode is an
   established independent cross-validation pattern **silently lapsing**, or a
   structurally **different-model** engine / a degenerate-or-limit regime being **presented
@@ -59,8 +57,8 @@ narrative describes); record it under those modes so the machine receipt set sta
 `M1`–`M7`, with no new mode introduced.
 
 **Tools that help.** `numerical-reliability-gate` **G8** is the active gate — compute the
-claimed observable on the comparable regime and compare, with an order-of-magnitude or
-sign discrepancy returning `reference_mismatch`; its **G2** carries the D2
+claimed observable on the comparable regime and judge the difference against the
+declared rule. Its **G2** carries the D2
 structural-independence honesty (a different-model or limit-regime check is labeled as
 such or its absence recorded, never a cross-check pass) and the D3 transcription axis
 (the shared-model-definition clause: frame map, elementwise transcription identity,
