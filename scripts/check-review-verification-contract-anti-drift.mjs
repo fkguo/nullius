@@ -162,6 +162,12 @@ requireAll('skills/claude-cli-runner/SKILL.md', read('skills/claude-cli-runner/S
   ['ordered complete output', '`OUT` contains the complete assistant'],
   ['unidentified real increments', 'identical text deltas are retained as separate observed increments'],
 ]);
+requireAll('skills/derivation-verify/SKILL.md', read('skills/derivation-verify/SKILL.md'), [
+  ['published analytic agreement completes reproduction', 'accept the reproduction of this expression'],
+  ['sampled agreement has limited scope', 'Agreement at selected points or in a limit supports only those cases'],
+  ['source discrepancy preserves evidence', 'keep the discrepancy open and preserve both forms'],
+  ['source correction history', 'Search for errata'],
+]);
 requireAll('skills/derivation-verify/references/contract.md', read('skills/derivation-verify/references/contract.md'), [
   ['complete terminal capacity binding', 'capacity accounting uses only that terminal'],
   ['complete original comparator context', 'enters the comparator as `derivation_context`'],

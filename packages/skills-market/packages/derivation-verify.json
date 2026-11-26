@@ -4,7 +4,7 @@
   "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Convergence gate for derivation-heavy results: re-derive each atomic claim >=2 independent blind ways, reconcile by mathematical equivalence, iterate to convergence, emit a verification matrix.",
+  "summary": "Verify an analytical reproduction by comparing an independent derivation with the published expression on their common domain. Use blind re-derivations and a verification matrix for new or disputed results.",
   "platforms": [
     "claude_code",
     "codex",

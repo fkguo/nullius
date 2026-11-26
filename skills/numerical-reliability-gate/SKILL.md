@@ -11,12 +11,9 @@ It enforces the standing rule: **fold only converged, method-cross-checked numbe
 record; a value that moves when you refine the resolution, or that one method finds and another does
 not, is not a result yet — it is a candidate.**
 
-This is the numerical sibling of `derivation-verify`. That skill certifies a **symbolic** answer by
-re-deriving it `>=2` independent ways; this one certifies a **numerical** answer by proving it is stable
-under refinement, agreed across independent constructions, and anchored to a known reference. Different failure
-modes: a derivation is wrong because the algebra is wrong; a number is wrong because the grid was too
-coarse, the continuation was unstable, the search seeded the wrong basin, or the run was built on a
-superseded configuration.
+For a published expression, use [derivation-verify](../derivation-verify/SKILL.md) to establish
+analytic equivalence or investigate a discrepancy before assessing downstream numerical results. Agreement at selected inputs supports the values tested. Numerical reliability
+also requires control of discretization, method stability and the configuration used.
 
 ## When to use
 
@@ -35,8 +32,8 @@ Example quantities (illustrative, not a fixed list):
 ## When NOT to use (use a sibling instead)
 
 - **Certifying a symbolic DERIVATION** (a closed form, an identity, a sign/branch choice) →
-  [`derivation-verify`](../derivation-verify/SKILL.md). *Different verb:* it re-derives the answer `N`
-  ways and reconciles by mathematical equivalence; this gate proves a *number* is converged and real.
+  [`derivation-verify`](../derivation-verify/SKILL.md) covers independent derivation and comparison
+  with published expressions.
 - **Proving SPEED / detecting a performance regression** → [`julia-perf`](../julia-perf/SKILL.md)
   (benchmark evidence gate). Speed and reliability are orthogonal in BOTH directions: a fast wrong number
   still fails here, and — the easy trap — a CORRECT-but-wasteful number PASSES every check here (this gate
@@ -368,7 +365,9 @@ G0 comes first because it sets how far every later check is run.
   default-deny. It is adopted per project and changes no default workflow.
 
   **Diagnosing an external difference.** Preserve the first comparison with the documented inputs
-  fixed for that particular reference and case. Evaluate each reference with its own documented
+  fixed for that particular reference and case. A resolved numerical mismatch establishes the
+  discrepancy for that case. Assigning its cause to either expression requires independent
+  evidence. Evaluate each reference with its own documented
   inputs. Record substitutions for missing inputs and carry forward an exclusion only over the
   conditions tested. Keep any subsequent fit separate. For each quantity, compare the signed residual
   with the numerical uncertainty, the precision of the reference and the effect of uncertain inputs

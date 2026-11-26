@@ -1,13 +1,13 @@
 ---
 name: derivation-verify
-description: "Use the moment you have just derived a formula, closed form, identity, estimator, bound, or sign/branch choice that later work will rely on — before folding it into durable artifacts. Convergence-gate harness for DERIVATION-heavy results in ANY field (closed forms, integrals/sums, algebraic/operator/logical identities, probabilities/estimators, asymptotic/complexity bounds, sign/branch/boundary choices). For each atomic claim it runs >=2 INDEPENDENT blind re-derivations, an adversarial comparator that clusters them by MATHEMATICAL equivalence, and a tie-break loop that adds fresh independent derivations until >=2 agree — emitting an auditable verification matrix. Backend-agnostic contract with TWO executors: a Claude/Workflow-native one (same-model, fast) and a CLI multi-backend one (Claude/Codex/Gemini/OpenCode/Kimi) that assesses independent execution/input/construction and reports method/model diversity separately. Sibling to `review-swarm` (which REVIEWS an artifact); this one RE-DERIVES the answer."
+description: "Verify a formula, identity, bound, sign or branch choice before relying on it. For literature reproduction, compare an independent derivation with the published expression under shared assumptions. For new claims and unresolved discrepancies, run independent blind re-derivations, compare them by mathematical equivalence and record a verification matrix. Supports native Workflow and a multi-backend CLI."
 ---
 
 # Derivation Verify
 
-A reusable convergence gate for the question *"is this derived result actually correct, independently?"*
-It enforces the standing rule: **every derivation needs >=2 independent verifications; iterate every
-disagreement to convergence; the leader never self-declares convergence.**
+For reproduction of a published result, use the comparison below. For a new or disputed
+claim, the executor requires at least two independent blind derivations and adjudicates
+their mathematical equivalence.
 
 ## When to use
 
@@ -19,25 +19,35 @@ and `statement` carry the domain. Example claim types (illustrative, not a fixed
 - a probability or estimator (e.g. an MLE / variance), an asymptotic or complexity bound (e.g. `Θ(n log n)`),
 - a transform, a limiting value, or a numeric anchor.
 
-Each is phrased as an **atomic claim**: a thing to **DERIVE BLIND** (the answer is NOT given to the
+Each claim passed to the executor is phrased as an **atomic claim**: a thing to **DERIVE BLIND** (the answer is NOT given to the
 deriver) and report in a fixed canonical format.
 
 ### Comparing a derivation with a published expression
 
-Derive from the defining premises with the reference answer withheld. Once the derivation is
-fixed, express both results in the same conventions and state their common assumptions and
-domain. Agreement throughout that domain counts as an independent analytical check of the
-published expression. Record the particular expression and assumptions checked. A published
-expression supplies an external comparison target and does not add an execution to the blind
-derivation count.
+Derive from the defining premises with the published answer withheld. Freeze that derivation
+before comparing. Identify the source version and expression, align conventions and assumptions,
+and state the shared domain. If the expressions are mathematically equivalent throughout that
+domain, record the equivalence and accept the reproduction of this expression. The publication
+supplies the independent comparison. Stop here without commissioning another derivation;
+only actual executor runs count toward a blind-derivation matrix. A transcription checks source
+fidelity. Agreement at selected points or in a limit supports only those cases.
 
-If the expressions differ, trace which inputs and intermediate identities enter each
+If the expressions differ, keep the discrepancy open and preserve both forms. Search for errata,
+revised versions and later publications that discuss the difference. Cite any documented
+correction and compare the independent derivation with the corrected expression on the same
+terms. While investigating, trace which inputs and intermediate identities enter each
 discrepant quantity, including indirect dependencies and cancellations. Use that map to
 select a discriminating case: state where the candidate explanations predict different
 results and which observation would exclude one. Agreement in a limit where the disputed
 term vanishes verifies that limit alone. A discrepancy in a quantity proved independent of
 a proposed cause excludes it as the sole explanation. If the available identities leave
 several explanations equivalent, record which additional relation could distinguish them.
+
+For a discrepancy that persists, use the blind derivations described below with both candidates
+withheld. If they support the published result, correct the local derivation and repeat the
+comparison. If they establish the local result, retain it and record the precise difference as
+a possible source error, with the evidence and correction history. If the derivations remain
+inconclusive, leave the expression unresolved.
 
 ## When NOT to use (use a sibling instead)
 
@@ -130,7 +140,7 @@ for final file closeout. `none` declarations and a missing launcher grant no
 exception. `--result` is a scoped structural diagnostic; it cannot substitute for
 the full default check, whose structural scope includes every current result.
 
-## The contract and execution
+## The blind-derivation contract and execution
 
 Independent confirmation requires at least two evidence lanes independently constructed or derived and executed from a neutral question and raw inputs. Record method diversity, model-family diversity, execution independence and input independence separately. Same or similar methods, the same algorithm name, matching hashes or shared legitimate libraries do not by themselves disqualify a lane. Agent names, seeds, reworded prompts, copied answers and simple reruns of the original implementation do not establish independence. Different methods with contaminated input framing still fail. A fresh assessor must substantively inspect the actual steps, method preconditions, known defects and diagnostic power with exact source spans and reasons; a self-filled no-defect checkbox is insufficient. Missing, rejected, stale or non-diagnostic evidence does not count. Keep an explicit project-specific different-method risk requirement when that requirement tests a known shared failure mode.
 
