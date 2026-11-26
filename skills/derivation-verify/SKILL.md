@@ -22,10 +22,18 @@ and `statement` carry the domain. Example claim types (illustrative, not a fixed
 Each claim passed to the executor is phrased as an **atomic claim**: a thing to **DERIVE BLIND** (the answer is NOT given to the
 deriver) and report in a fixed canonical format.
 
+For a substantial blind derivation of comparable scope, allow at least the main
+derivation's elapsed time and account for the assigned model's speed and input
+size. Observe the same executor across wait intervals. The CLI's default leaves
+no hard deadline. Set an explicit limit only when the task requires one and
+size it for the complete run. Use the supervisor trace or observed host status
+to distinguish a healthy running lane from a confirmed failure.
+
 ### Comparing a derivation with a published expression
 
-Derive from the defining premises with the published answer withheld. Freeze that derivation
-before comparing. Identify the source version and expression, align conventions and assumptions,
+Derive from independently justified defining premises with the published answer and its
+downstream consequences withheld. Freeze that derivation before comparing. Identify the source
+version and expression, align conventions and assumptions,
 and state the shared domain. If the expressions are mathematically equivalent throughout that
 domain, record the equivalence and accept the reproduction of this expression. The publication
 supplies the independent comparison. Stop here without commissioning another derivation;

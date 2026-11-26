@@ -56,7 +56,7 @@ bash "${SKILL_DIR}/scripts/run_opencode.sh" \
   - Use `--tool-mode workspace` to expose a workspace via `--workspace-dir DIR` (defaults to the current cwd). This sets `opencode run --dir DIR`. Keep required inputs inside that directory; external-directory access can be rejected by the configured permissions. Permission refusal is distinct from a provider failure and must not trigger an identical retry.
   - `--skip-permissions` adds the current exposed `opencode run --auto` flag. Use it only for actions already explicitly authorized; workspace selection alone is not an authorization grant.
   - For a file deliverable: have the agent WRITE it to a file in DIR and read that file back (do not rely on stdout capture), and prefer INCREMENTAL writes (append each finding as it is established) so a token-cut run still leaves partial results on disk.
-- **Reasoning-heavy models can exhaust the PER-RESPONSE output/reasoning token cap** before emitting any text or writing any file — the last JSON `step_finish` event carries `reason:"length"` (observed: a hard review burned >30k reasoning tokens in a single step and died silently; the symptom is again `No text events found`, NOT a model failure). The runner now auto-continues such cuts: `--continue-on-length N` (default 2) resumes the SAME session via `opencode run -s <sessionID>` — the headless analog of an interactive "continue". Mitigate at the prompt level too: scope the task tightly (a few named focus points) and ask for terse output.
+- **A single response can exhaust its output or reasoning token budget** before emitting any answer. A final JSON `step_finish` with `reason:"length"` identifies that cause. `--continue-on-length N` (default 2) resumes the same session via `opencode run -s <sessionID>`. Use `--final-response-only` for a complete structured deliverable. It asks for the full deliverable in the final response and keeps earlier text in the capture. `--no-retry` suppresses fresh retries while allowing these continuations.
 - `--start-server` is useful when repeated one-shot runs would otherwise keep paying OpenCode backend/MCP cold-start costs; it follows the official `serve` + `run --attach` pattern.
 - The runner parses JSON events and writes only assistant text (`type=text`) to `--out`.
 - The runner treats JSON `type=error` events as failures even when `opencode` exits with code `0`.
@@ -74,6 +74,7 @@ bash "${SKILL_DIR}/scripts/run_opencode.sh" \
 - `0`: Completed nonblank output, clean execution, no error event or final length truncation
 - `1`: Run failed after retry/fallback policy
 - `2`: Invalid arguments or missing prerequisites/files
+- `15`: Observed per-response token limit remains unresolved after the allowed continuation path
 
 Quota exhaustion, usage/auth failures and deterministic permission refusals stop without an identical retry. Preserve their diagnostics separately from transient rate limiting, empty output, length truncation and timeout.
 

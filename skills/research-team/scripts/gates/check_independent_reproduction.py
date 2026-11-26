@@ -158,7 +158,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--assessment", type=Path, default=None, help="Historical assessment to recheck; cannot supply current execution authority.")
     p.add_argument("--assessor-model", default=None, help="Explicit model for a fresh assessor invocation in this gate; absent means unavailable.")
     p.add_argument("--assessor-runner", type=Path, default=None, help="Explicit task runner for the fresh assessor.")
-    p.add_argument("--assessor-timeout-secs", type=int, default=1200)
+    p.add_argument("--assessor-timeout-secs", type=int, default=0,
+                   help="Hard source-assessor deadline in seconds (0: no hard deadline).")
     p.add_argument("--assessor-context-bytes", type=int, default=None)
     p.add_argument("--assessor-context-tokens", type=int, default=200000)
     p.add_argument("--out-json", type=Path, default=None, help="Also write the convergence_gate_result_v1 JSON here.")
@@ -741,7 +742,7 @@ class _ObservedAssessment:
 def _invoke_assessor(args, packet: dict, project_root: Path, tag: str):
     if not args.assessor_model:
         raise ValueError("fresh source-assessor invocation is required; imported JSON has no execution authority")
-    if type(args.assessor_timeout_secs) is not int or args.assessor_timeout_secs <= 0:
+    if type(args.assessor_timeout_secs) is not int or args.assessor_timeout_secs < 0:
         raise ValueError("invalid source-assessor execution budget")
     path = project_root / f"artifacts/runs/{tag}/research_team/assessments/{uuid.uuid4().hex}/assessment.json"
     path.parent.mkdir(parents=True)
@@ -749,7 +750,7 @@ def _invoke_assessor(args, packet: dict, project_root: Path, tag: str):
                "--notes", str(args.notes.resolve()), "--project-root", str(project_root), "--tag", tag,
                "--member-a", str(args.member_a.resolve()), "--member-b", str(args.member_b.resolve()),
                "--model", args.assessor_model, "--out", str(path),
-               "--timeout-secs", str(min(1200, args.assessor_timeout_secs)),
+               "--timeout-secs", str(args.assessor_timeout_secs),
                "--context-tokens", str(args.assessor_context_tokens)]
     if args.assessor_runner is not None:
         command.extend(["--runner", str(args.assessor_runner.resolve())])

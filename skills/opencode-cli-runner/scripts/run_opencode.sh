@@ -18,6 +18,9 @@ CONTINUE_ON_LENGTH=2
 THINKING=0
 DRY_RUN=0
 NO_FALLBACK=0
+NO_RETRY=0
+FINAL_RESPONSE_ONLY=0
+RESPONSE_LIMIT_EXIT=15
 START_SERVER=0
 SERVER_HOSTNAME="127.0.0.1"
 SERVER_PORT=""
@@ -64,6 +67,8 @@ Options:
   --timeout-secs SECONDS  Total invocation deadline (default: 900; 0 disables)
   --trace-dir DIR         Retain every call's raw events and budget receipt here
   --no-fallback           Do not retry without -m when a model run fails
+  --no-retry              Disable fresh retries and keep same-session length continuations
+  --final-response-only   Publish only the final response after same-session continuations
   --dry-run               Print invocation details and exit 0
   --check-client           Show the selected client version and check the baseline CLI flags offline.
 EOF
@@ -121,7 +126,7 @@ parse_opencode_json() {
   local text_file="$2"
   local err_file="$3"
 
-  python3 - "$raw_file" "$text_file" "$err_file" <<'PY'
+  python3 - "$raw_file" "$text_file" "$err_file" "${4:-0}" "${5:-}" "${6:-0}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -129,14 +134,35 @@ from pathlib import Path
 raw_path = Path(sys.argv[1])
 text_path = Path(sys.argv[2])
 err_path = Path(sys.argv[3])
+expected_session = sys.argv[5]
+require_terminal = sys.argv[6] == "1"
+offset = int(sys.argv[4])
+previous_messages = set()
 
-raw = raw_path.read_text(encoding="utf-8", errors="replace")
+with raw_path.open("rb") as stream:
+    if require_terminal and offset:
+        for line in stream.read(offset).split(b"\n"):
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except (ValueError, UnicodeError):
+                continue
+            if isinstance(event, dict) and event.get("type") == "step_finish":
+                part = event.get("part")
+                if isinstance(part, dict) and isinstance(part.get("messageID"), str):
+                    previous_messages.add(part["messageID"])
+    stream.seek(offset)
+    raw = stream.read().decode("utf-8", errors="replace")
 lines = raw.split("\n")
 
 text_chunks = []
 error_msgs = []
 non_json_lines = []
 recognized_event = False
+last_finish = None
+unfinished = False
+observed_sessions = set()
 
 for line in lines:
     stripped = line.strip()
@@ -152,6 +178,15 @@ for line in lines:
         continue
 
     typ = obj.get("type")
+    session = obj.get("sessionID")
+    event_part = obj.get("part")
+    part_session = event_part.get("sessionID") if isinstance(event_part, dict) else None
+    observed_sessions.update(s for s in (session, part_session) if isinstance(s, str) and s)
+    if typ == "step_finish" and isinstance(event_part, dict):
+        last_finish = (session, event_part.get("reason"), event_part.get("messageID"))
+        unfinished = False
+    elif typ in ("step_start", "text", "reasoning", "tool_use"):
+        unfinished = True
     if typ in ("step_start", "step_finish", "reasoning", "tool_use", "error"):
         recognized_event = True
     if typ == "error" or obj.get("error"):
@@ -176,7 +211,18 @@ for line in lines:
             text = part.get("text")
             if isinstance(text, str):
                 recognized_event = True
-                text_chunks.append(text)
+                text_chunks.append((part.get("messageID"), text))
+
+if require_terminal:
+    if non_json_lines or last_finish is None or last_finish[1] != "stop" or unfinished:
+        error_msgs.append("OpenCode response lacks a complete successful terminal event.")
+    elif (not isinstance(last_finish[0], str) or not last_finish[0]
+          or observed_sessions != {last_finish[0]} or expected_session and expected_session != last_finish[0]):
+        error_msgs.append("OpenCode response returned a missing or different session ID.")
+    elif not isinstance(last_finish[2], str) or not last_finish[2]:
+        error_msgs.append("OpenCode terminal event lacks a message ID.")
+    elif last_finish[2] in previous_messages:
+        error_msgs.append("OpenCode continuation replayed an earlier terminal message ID.")
 
 if error_msgs:
     joined = " | ".join(error_msgs)
@@ -186,6 +232,8 @@ if error_msgs:
         raise SystemExit(10)
     raise SystemExit(11)
 
+message_id = last_finish[2] if require_terminal else None
+text_chunks = [text for identifier, text in text_chunks if message_id is None or identifier == message_id]
 if not text_chunks or not any(chunk.strip() for chunk in text_chunks):
     msg = "No text events found in OpenCode JSON output."
     if non_json_lines:
@@ -194,7 +242,7 @@ if not text_chunks or not any(chunk.strip() for chunk in text_chunks):
     raise SystemExit(13 if raw.strip() and not recognized_event else 12)
 
 merged = "".join(text_chunks)
-if not merged.endswith("\n"):
+if not require_terminal and not merged.endswith("\n"):
     merged += "\n"
 text_path.write_text(merged, encoding="utf-8")
 err_path.write_text("", encoding="utf-8")
@@ -354,6 +402,8 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --no-fallback) NO_FALLBACK=1; shift 1;;
+    --no-retry) NO_RETRY=1; shift 1;;
+    --final-response-only) FINAL_RESPONSE_ONLY=1; shift 1;;
     --dry-run) DRY_RUN=1; shift 1;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
@@ -667,13 +717,16 @@ fi
 # LAST step_finish event in the raw JSON stream has part.reason == "length" (prints nothing otherwise).
 # Reasoning-heavy models can burn the whole budget "thinking" before emitting text or writing files.
 detect_length_cut() {
-  python3 - "$1" <<'PY'
+  python3 - "$1" "${2:-0}" <<'PY'
 import json
 import sys
 
 sid = ""
 last_reason = ""
-for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+with open(sys.argv[1], "rb") as stream:
+    stream.seek(int(sys.argv[2]))
+    lines = stream.read().splitlines()
+for line in lines:
     line = line.strip()
     if not line:
         continue
@@ -683,15 +736,14 @@ for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
         continue
     if not isinstance(obj, dict):
         continue
-    if isinstance(obj.get("sessionID"), str):
-        sid = obj["sessionID"]
     part = obj.get("part")
     if obj.get("type") == "step_finish" and isinstance(part, dict):
         reason = part.get("reason")
         if isinstance(reason, str):
             last_reason = reason
+            sid = obj.get("sessionID")
 if last_reason == "length":
-    print(sid or "__LENGTH_WITHOUT_SESSION__")
+    print(sid if isinstance(sid, str) and sid else "__LENGTH_WITHOUT_SESSION__")
 PY
 }
 
@@ -719,6 +771,8 @@ run_once() {
   local -a cmd
   local cmd_code=0
   local parse_code=0
+  local response_offset=0
+  local continued_session=""
 
   cmd=(opencode run --format json)
   if [[ "${use_model}" -eq 1 && -n "${MODEL}" ]]; then
@@ -742,6 +796,10 @@ run_once() {
   fi
 
   run_process "${raw_file}" "${stderr_file}" "${stdin_file}" 0 "${cmd[@]}" || cmd_code=$?
+  if [[ ! -f "${raw_file}" ]]; then
+    if [[ "${cmd_code}" -eq 0 ]]; then return 12; fi
+    return "${cmd_code}"
+  fi
   local initial_parse=0
   parse_opencode_json "${raw_file}" "${text_file}" "${err_file}" || initial_parse=$?
 
@@ -753,9 +811,14 @@ run_once() {
   if [[ "${CONTINUE_ON_LENGTH}" -gt 0 && "${cmd_code}" -eq 0 && "${initial_parse}" -ne 10 && "${initial_parse}" -ne 11 ]]; then
     local cont=0 sid=""
     while (( cont < CONTINUE_ON_LENGTH )); do
-      sid="$(detect_length_cut "${raw_file}")"
+      sid="$(detect_length_cut "${raw_file}" "${response_offset}")"
       [[ -n "${sid}" ]] || break
       [[ "${sid}" != "__LENGTH_WITHOUT_SESSION__" ]] || break
+      if [[ -n "${continued_session}" && "${continued_session}" != "${sid}" ]]; then
+        echo "OpenCode continuation returned a different session ID." >>"${err_file}"
+        return 14
+      fi
+      continued_session="${sid}"
       local -a cont_cmd=(opencode run --format json -s "${sid}")
       if [[ "${use_model}" -eq 1 && -n "${MODEL}" ]]; then
         cont_cmd+=(-m "${MODEL}")
@@ -772,9 +835,22 @@ run_once() {
       if [[ "${SKIP_PERMS}" -eq 1 ]]; then
         cont_cmd+=(--auto)
       fi
-      printf 'Continue exactly where you left off. If a file deliverable was requested, write/finish it now, then stop.' >"${tmp_dir}/continue.txt"
-      run_process "${raw_file}" "${stderr_file}" "${tmp_dir}/continue.txt" 1 "${cont_cmd[@]}" || cmd_code=$?
+      local continuation_prompt="${TRACE_RUN_DIR}/continuation_prompt.log"
+      if [[ "${FINAL_RESPONSE_ONLY}" -eq 1 ]]; then
+        printf 'Continue the original task in this session. When finished, return the entire requested deliverable in your final response, following the original format.' >"${continuation_prompt}"
+      else
+        printf 'Continue exactly where you left off. If a file deliverable was requested, write/finish it now, then stop.' >"${continuation_prompt}"
+      fi
+      local next_offset
+      next_offset="$(file_size_bytes "${raw_file}")"
+      run_process "${raw_file}" "${stderr_file}" "${continuation_prompt}" 1 "${cont_cmd[@]}" || cmd_code=$?
       cont=$((cont + 1))
+      if [[ "${cmd_code}" -eq 125 ]]; then
+        # No further call can run. Classify the last observed length cut.
+        cmd_code=0
+        break
+      fi
+      response_offset="${next_offset}"
       [[ "${cmd_code}" -eq 0 ]] || break
       local continuation_parse=0
       parse_opencode_json "${raw_file}" "${text_file}" "${err_file}" || continuation_parse=$?
@@ -795,19 +871,28 @@ run_once() {
     parse_code=12
   fi
 
-  if [[ "${parse_code}" -eq 0 && ( "${cmd_code}" -ne 0 || -n "$(detect_length_cut "${raw_file}")" ) ]]; then
+  local length_cut
+  length_cut="$(detect_length_cut "${raw_file}" "${response_offset}")"
+  if [[ -n "${continued_session}" && -n "${length_cut}" && "${length_cut}" != "${continued_session}" ]]; then
+    echo "OpenCode continuation length event does not identify the requested session." >>"${err_file}"
+    return 14
+  fi
+  if [[ "${parse_code}" -eq 0 && ( "${cmd_code}" -ne 0 || -n "${length_cut}" ) ]]; then
     cp "${text_file}" "${OUT}.partial"
     printf 'Incomplete OpenCode execution (exit=%s, final length=%s); text retained as partial.\n' \
-      "${cmd_code}" "$(detect_length_cut "${raw_file}")" >>"${err_file}"
-    return 14
+      "${cmd_code}" "${length_cut}" >>"${err_file}"
   fi
   if [[ "${cmd_code}" -eq 124 || "${cmd_code}" -eq 125 || "${cmd_code}" -ge 128 ]]; then return "${cmd_code}"; fi
-  if [[ -n "$(detect_length_cut "${raw_file}")" ]]; then
+  if [[ "${cmd_code}" -eq 0 && "${parse_code}" -ne 10 && "${parse_code}" -ne 11 && -n "${length_cut}" ]]; then
     echo "Response remains length-truncated; continuation budget exhausted or session unavailable." >>"${err_file}"
-    return 14
+    return "${RESPONSE_LIMIT_EXIT}"
   fi
 
-  if [[ "${parse_code}" -eq 0 && "${cmd_code}" -eq 0 ]]; then
+  if [[ "${parse_code}" -eq 0 ]]; then
+    if [[ "${cmd_code}" -ne 0 ]]; then return 14; fi
+    if [[ "${FINAL_RESPONSE_ONLY}" -eq 1 ]]; then
+      parse_opencode_json "${raw_file}" "${text_file}" "${err_file}" "${response_offset}" "${continued_session}" 1 || return $?
+    fi
     return 0
   fi
 
@@ -914,7 +999,7 @@ run_with_retries() {
     if [[ "${rc}" -eq 10 ]]; then
       return 10
     fi
-    if [[ "${rc}" -eq 13 || "${rc}" -eq 14 || "${rc}" -eq 124 || "${rc}" -eq 125 || "${rc}" -ge 128 ]]; then return "${rc}"; fi
+    if [[ "${rc}" -eq 13 || "${rc}" -eq 14 || "${rc}" -eq "${RESPONSE_LIMIT_EXIT}" || "${rc}" -eq 124 || "${rc}" -eq 125 || "${rc}" -ge 128 ]]; then return "${rc}"; fi
 
     # Deterministic failures reproduce identically on every retry: fail
     # immediately with the diagnostic instead of burning the backoff budget.
@@ -927,7 +1012,7 @@ run_with_retries() {
     fi
     if [[ "${rc}" -eq 12 ]]; then return "${rc}"; fi
 
-    if [[ "${attempt}" -ge "${MAX_ATTEMPTS}" ]]; then
+    if [[ "${NO_RETRY}" -eq 1 || "${attempt}" -ge "${MAX_ATTEMPTS}" ]]; then
       return "${rc}"
     fi
 
@@ -967,6 +1052,10 @@ if [[ -n "${MODEL}" ]]; then
   if [[ "${primary_rc}" -eq 0 ]]; then
     exit 0
   fi
+  if [[ "${primary_rc}" -eq "${RESPONSE_LIMIT_EXIT}" ]]; then
+    print_failure "OpenCode response token limit exhausted for model '${MODEL}'."
+    exit "${RESPONSE_LIMIT_EXIT}"
+  fi
 
   if [[ "${NO_FALLBACK}" -eq 1 ]]; then
     print_failure "OpenCode run failed with model '${MODEL}' and fallback is disabled."
@@ -985,6 +1074,7 @@ if [[ -n "${MODEL}" ]]; then
   fi
 
   print_failure "OpenCode fallback run (default model) failed."
+  if [[ "${fallback_rc}" -eq "${RESPONSE_LIMIT_EXIT}" ]]; then exit "${RESPONSE_LIMIT_EXIT}"; fi
   exit 1
 fi
 
@@ -995,4 +1085,5 @@ if [[ "${single_rc}" -eq 0 ]]; then
 fi
 
 print_failure "OpenCode run failed."
+if [[ "${single_rc}" -eq "${RESPONSE_LIMIT_EXIT}" ]]; then exit "${RESPONSE_LIMIT_EXIT}"; fi
 exit 1

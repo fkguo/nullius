@@ -95,6 +95,33 @@ def test_refused_runner_lanes_do_not_mark_the_backend_down(tmp_path, monkeypatch
     assert out['unavailable_backends'] == []
 
 
+def test_response_limit_preserves_but_never_accepts_partial_derivations(tmp_path, monkeypatch):
+    import subprocess
+
+    def run_limited(cmd, **_kwargs):
+        directory = Path(cmd[cmd.index('--out-dir') + 1])
+        (directory / 'meta.json').write_text(json.dumps({
+            'agents': [{'success': False, 'failure_reason': 'response_token_limit'}],
+        }))
+        (directory / 'out.txt.partial').write_text(VERDICT)
+        return subprocess.CompletedProcess(cmd, 2, stdout='', stderr='')
+
+    monkeypatch.setattr(mb.subprocess, 'run', run_limited)
+    adapter = mb.MultiTaskRunner(runner_path=tmp_path / 'runner.py', work_dir=tmp_path, timeout=0,
+                                 tools=False, config=None)
+    model = 'fixture/model'
+    result = mb.run_gate({'claims': [CLAIM, {**CLAIM, 'id': 'other'}], 'max_iter': 3},
+                         pool=[model], comparators=[model], run=adapter.run)
+    assert len(adapter.invocations) == 4  # Two original seats per claim, no identical tie-break.
+    assert result['unavailable_backends'] == [] and result['provider_refusals'] == []
+    assert len(result['response_token_limits']) == 4
+    for row in result['matrix']:
+        assert not row['converged'] and row['independent_confirmations'] == 0
+        assert row['total_derivations'] == 0 and row['families'] == []
+        for failure in row['response_token_limits']:
+            assert (Path(failure['receipt']).parent / 'out.txt.partial').read_text() == VERDICT
+
+
 def test_a_derivation_that_quotes_the_safeguard_wording_is_still_a_derivation():
     quoted = json.dumps({**json.loads(VERDICT), 'derivation': 'Step 1: 17 + 25 = 42. (An error saying safeguards flagged this message would not apply.)'})
     refusals = []

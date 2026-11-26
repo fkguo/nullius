@@ -2,6 +2,15 @@
 
 This contract governs the blind-derivation executor. For an independently derived result that agrees with a published expression, use the [literature reproduction criteria](../SKILL.md#comparing-a-derivation-with-a-published-expression).
 
+Keep answer visibility fixed across a continuation of the same blind lane. A
+provider response cap that survives bounded continuation is recorded under
+`response_token_limits`, with no derivation or family credit from that attempt.
+Use another suitable model or divide the claim into verifiable lemmas, each
+with its own neutral premises, complete derivation and applicable acceptance
+checks. Verify the combination against the original claim and its full domain.
+Pass accepted lemmas as premises only when their establishment is independent
+of the conclusion under test.
+
 Independent confirmation requires at least two evidence lanes independently constructed or derived and executed from a neutral question and raw inputs. Record method diversity, model-family diversity, execution independence and input independence separately. Same or similar methods, the same algorithm name, matching hashes or shared legitimate libraries do not by themselves disqualify a lane. Agent names, seeds, reworded prompts, copied answers and simple reruns of the original implementation do not establish independence. Different methods with contaminated input framing still fail. A fresh assessor must substantively inspect the actual steps, method preconditions, known defects and diagnostic power with exact source spans and reasons; a self-filled no-defect checkbox is insufficient. Missing, rejected, stale or non-diagnostic evidence does not count. Keep an explicit project-specific different-method risk requirement when that requirement tests a known shared failure mode.
 
 Input independence also requires that a lane carry no operator memory: no user-level instruction files, no project instruction files of the operator's checkout and no auto memory of earlier sessions, because these routinely record the conclusion under test or the author's initial judgment; whatever a lane legitimately needs comes from its own request. The Claude CLI lanes exclude them by default and record the allowed sources per invocation (`context_sources.json`, carried in the lane's captured records).

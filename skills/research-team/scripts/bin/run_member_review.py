@@ -577,7 +577,7 @@ def main() -> int:
         "{\n"
         '  "files_written": [{"path": "...", "content": "complete original UTF-8 source", "purpose": "..."}],\n'
         '  "files_read": [{"path": "...", "anchor_or_line": "...", "purpose": "..."}],\n'
-        '  "commands_run": [{"command": "...", "cwd": ".", "purpose": "...", "timeout_secs": 600, "input_files": ["raw-input-path"], "expected_outputs": ["..."]}],\n'
+        '  "commands_run": [{"command": "...", "cwd": ".", "purpose": "...", "input_files": ["raw-input-path"], "expected_outputs": ["..."]}],\n'
         '  "network_queries": [{"query_or_url": "https://...", "justification": "...", "downloaded_to": "references/..."}]\n'
         "}\n"
         "\n"
@@ -587,6 +587,8 @@ def main() -> int:
         f"- Prefer producing an independent reproduction script under artifacts/runs/{safe_tag}/research_team/{member_id}/independent/ and at least one output file,\n"
         "  and list those output paths in expected_outputs. Use files_written for your complete source; writes run before reads/commands.\n"
         "- Writes must be inside your independent/ prefix. Commands are literal argv: no pipes, redirection, substitutions or inline -c.\n"
+        f"- Add a positive integer timeout_secs to commands based on their expected runtime and a safety margin. "
+        f"Omitted command timeouts use the {args.request_timeout_secs}-second proxy default.\n"
         "\n"
         "Team packet follows.\n"
         "----\n"

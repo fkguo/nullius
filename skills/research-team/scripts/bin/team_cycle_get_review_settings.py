@@ -15,9 +15,9 @@ def assessor_capacity_flags(data: dict) -> list[str]:
     tokens = block.get("assessor_context_tokens", 200000)
     byte_budget = block.get("assessor_context_bytes", None)
     request_budgets(tokens, byte_budget)
-    timeout = block.get("assessor_timeout_secs", 1200)
-    if type(timeout) is not int or not 1 <= timeout <= 1200:
-        raise ValueError("assessor_timeout_secs must be an integer in 1..1200")
+    timeout = block.get("assessor_timeout_secs", 0)
+    if type(timeout) is not int or timeout < 0:
+        raise ValueError("assessor_timeout_secs must be a nonnegative integer (0 means no hard deadline)")
     flags = ["--assessor-context-tokens", str(tokens), "--assessor-timeout-secs", str(timeout)]
     if byte_budget is not None:
         flags.extend(["--assessor-context-bytes", str(byte_budget)])

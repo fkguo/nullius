@@ -199,7 +199,8 @@ For an analytic expression, cite the exact printed form, its version and its loc
 If an independent derivation differs, check errata, revised versions and subsequent papers.
 Attribute a correction to the authors only when a cited passage supports that attribution.
 Keep the original discrepancy visible. For the mathematical verdict on either expression,
-use [derivation-verify](../derivation-verify/SKILL.md) with their shared assumptions and domain.
+use `derivation-verify` with their shared assumptions and domain.
+[Published-expression verification criteria](https://github.com/fkguo/nullius/blob/main/skills/derivation-verify/SKILL.md#comparing-a-derivation-with-a-published-expression)
 
 For each disputed quantity, use the entry's `notes` to identify the source
 version and locator, the case being compared, and the definitions and inputs

@@ -58,12 +58,14 @@ def main() -> int:
     p.add_argument("--member-b", type=Path, required=True)
     p.add_argument("--model", default="claude/opus")
     p.add_argument("--runner", type=Path, default=_DEFAULT_RUNNER, help="Explicit launcher path, including deterministic offline witnesses.")
-    p.add_argument("--timeout-secs", type=int, default=1200)
+    p.add_argument("--timeout-secs", type=int, default=0, help="Hard deadline in seconds (0: no hard deadline).")
     p.add_argument("--live-capture", action="store_true", help="Preserve actual Claude events, terminal result and usage receipt.")
     p.add_argument("--context-bytes", type=int, default=None)
     p.add_argument("--context-tokens", type=int, default=200000)
     p.add_argument("--out", type=Path, required=True)
     a = p.parse_args()
+    if a.timeout_secs < 0:
+        p.error("--timeout-secs must be nonnegative")
     from team_config import load_strict_team_config
     try:
         cfg = load_strict_team_config(a.notes)
@@ -93,7 +95,7 @@ def main() -> int:
         print(f"UNAVAILABLE: {e}", file=sys.stderr)
         return 1
     runner = MultiTaskRunner(runner_path=a.runner, work_dir=a.out.parent / "independence_assessor",
-                             timeout=min(1200, max(1, a.timeout_secs)), tools=False, config=None,
+                             timeout=a.timeout_secs, tools=False, config=None,
                              live_capture=a.live_capture or a.model.startswith("claude/"),
                              context_tokens=budgets["context_tokens"], context_bytes=budgets["context_bytes"])
     result = extract_json(runner.run(a.model, ASSESSOR_SYSTEM, prompt, "source-assessment"))

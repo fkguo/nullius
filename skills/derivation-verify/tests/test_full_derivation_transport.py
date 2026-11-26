@@ -850,6 +850,8 @@ def test_method_risk_evidence_must_anchor_actual_derivation_bodies():
 def test_each_actual_runner_call_uses_fresh_durable_directory(monkeypatch, tmp_path):
     from types import SimpleNamespace
     def invoke(cmd, **kwargs):
+        assert cmd[cmd.index('--timeout-secs') + 1] == '10'
+        assert kwargs.get('timeout') is None
         out = Path(cmd[cmd.index('--backend-output') + 1].split('=', 1)[1])
         out.write_text(json.dumps(verdict()), encoding='utf-8')
         (out.parent / 'meta.json').write_text('{"current":true}', encoding='utf-8')

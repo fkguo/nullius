@@ -132,7 +132,7 @@ Verification runs on events, not on reminders: each moment below names the workf
 
 | The moment | Verification workflow |
 |---|---|
-| Derived a formula, closed form, identity, or a sign/branch/boundary choice that later work will rely on | `derivation-verify` — at least two independent blind re-derivations |
+| Derived a formula, closed form, identity, or a sign/branch/boundary choice that later work will rely on | `derivation-verify` — for a published expression, compare an independent derivation on the common domain. For a new result or unresolved discrepancy, require at least two independent blind re-derivations. |
 | A computed number that a conclusion or durable artifact will rest on is about to be trusted, compared, or folded in (a number whose only consumer is a test, a fixture, or internal tooling is covered by ordinary tests; a diagnostic that establishes a headline claim's convergence is result-bearing, not exempt) | `numerical-reliability-gate` — convergence, independent methods, regression anchor |
 | Wrote citation-backed claims (introduction, related work, discussion) | `claim-grounding` — fetch each cited source and verify it supports the claim |
 | Freezing a bibliography, or admitting papers into a core reading set | `citation-triangulation` — cross-index metadata agreement per entry |

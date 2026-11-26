@@ -111,7 +111,7 @@ def test_exact_assessor_budget_reaches_the_single_final_cycle_route(tmp_path):
     # Execute the actual shell routing fragments with argv-only process spies.
     # They report no gate verdict, review, model output or scientific approval.
     notes = capacity_project(tmp_path, {"assessor_context_tokens": 1000000,
-        "assessor_context_bytes": 800000, "assessor_timeout_secs": 900})
+        "assessor_context_bytes": 800000, "assessor_timeout_secs": 7200})
     spy = tmp_path / "argv_spy.py"
     spy.write_text("import json,os,sys\nprint(json.dumps({'argv':sys.argv[1:],'pid':os.getpid()}))\n")
     cycle = SCRIPT.with_name("run_team_cycle.sh").read_text()
@@ -136,7 +136,7 @@ def test_exact_assessor_budget_reaches_the_single_final_cycle_route(tmp_path):
         argv = call["argv"]
         for flag, value in (("--assessor-model", "claude/opus"),
             ("--assessor-context-tokens", "1000000"), ("--assessor-context-bytes", "800000"),
-            ("--assessor-timeout-secs", "900")):
+            ("--assessor-timeout-secs", "7200")):
             assert argv.count(flag) == 1 and argv[argv.index(flag)+1] == value
     assert "--member-a-evidence" in calls[0]["argv"]
     assert "--assessment" not in calls[0]["argv"]
@@ -149,7 +149,7 @@ def test_unset_assessor_bytes_retains_the_conservative_executor_default(tmp_path
     proc = subprocess.run([sys.executable, str(CAPACITY_READER), "--notes", str(notes), "--assessor-capacity"],
         env=env, capture_output=True, text=True, timeout=10)
     assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.splitlines() == ["--assessor-context-tokens", "200000", "--assessor-timeout-secs", "1200"]
+    assert proc.stdout.splitlines() == ["--assessor-context-tokens", "200000", "--assessor-timeout-secs", "0"]
 
 
 @pytest.mark.parametrize('raw',[b'{ invalid JSON',b'[]',b'{"independent_reproduction":{"assessor_context_tokens":NaN}}',b'{"independent_reproduction":{},"independent_reproduction":{}}',b'\xff'])
@@ -182,8 +182,8 @@ def test_broken_or_explicit_missing_capacity_config_does_not_fall_back(tmp_path,
     ('assessor_context_tokens', True), ('assessor_context_tokens', '1000000'),
     ('assessor_context_tokens', 40960), ('assessor_context_bytes', False),
     ('assessor_context_bytes', '800000'), ('assessor_context_bytes', 11999),
-    ('assessor_timeout_secs', True), ('assessor_timeout_secs', 1201),
-    ('assessor_timeout_secs', 0), ('assessor_timeout_secs', '900'),
+    ('assessor_timeout_secs', True), ('assessor_timeout_secs', -1),
+    ('assessor_timeout_secs', 60.5), ('assessor_timeout_secs', '900'),
 ])
 def test_invalid_assessor_configuration_has_no_default_success_fallback(tmp_path, field, value):
     notes = capacity_project(tmp_path, {field: value})
@@ -203,7 +203,7 @@ def test_cycle_capacity_and_public_config_prose_stay_aligned():
     assert cycle.count('"${independence_assessor_capacity_flags[@]}"') == 1
     assert 'check_independent_reproduction.py' not in cycle
     assert 'it SKIPs (exit 0) on projects without a nullius' not in cycle
-    for key, value in (("assessor_context_tokens", 200000), ("assessor_context_bytes", None), ("assessor_timeout_secs", 1200)):
+    for key, value in (("assessor_context_tokens", 200000), ("assessor_context_bytes", None), ("assessor_timeout_secs", 0)):
         assert template["independent_reproduction"][key] == value
         assert key in guide
     assert "one fresh source-assessor invocation at the final convergence consumer" in guide

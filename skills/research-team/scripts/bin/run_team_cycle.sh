@@ -1183,7 +1183,7 @@ if [[ "${WORKFLOW_MODE}" == "asymmetric" ]] && has_phase 2; then
 fi
 
 # Source-assessor capacity settings: explicit configuration, never provider inference.
-# Both gates independently dispatch a fresh assessor with this same exact budget.
+# Final convergence dispatches the fresh assessor with this budget.
 if [[ ! -f "${REVIEW_SETTINGS_SCRIPT}" ]]; then
   echo "ERROR: source-assessor capacity config reader unavailable" >&2
   exit 2

@@ -1,7 +1,7 @@
 """Bind bounded requests to conservative bytes or actual observed usage.
 
-The window is caller configured. Captured Claude events provide a compaction
-witness; other routes have no equivalent event witness here.
+The window is caller configured. Supported captures can supply measured
+usage and reject observed compaction before a capacity verdict.
 """
 from __future__ import annotations
 
@@ -120,13 +120,22 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
     event_files = list(capture_root.glob("*.events.jsonl")) if capture_root else []
     result_files = []
     stream = None
+    open_code_usage = None
+    open_code_missing_usage = False
     if capture_root is not None:
-        complete = validate_stream_report(capture_root, output.read_bytes().decode("utf-8"))
+        complete = (observation.get("complete_output") if expected_backend == "opencode"
+                    else validate_stream_report(capture_root, output.read_bytes().decode("utf-8")))
+        if not isinstance(complete, dict):
+            raise ValueError("unavailable: missing complete report observation")
         if observation.get("complete_output") != complete:
             raise ValueError("unavailable: complete output is not bound by the original runtime observation")
         if complete.get("protocol") == "complete_assistant_text_v1":
             result_files = [capture_root / complete["terminal"]]
             stream = capture_root / complete["events"]
+        elif complete.get("protocol") == "opencode_review_stream_json":
+            open_code_usage = complete["step_usage"]
+            open_code_missing_usage = any(step is None or not step["input_tokens"] for step in open_code_usage)
+            observations = [step for step in open_code_usage if step is not None]
         elif complete.get("protocol") != "kimi_prompt_stream_json":
             raise ValueError("unavailable: unsupported complete-output capture protocol")
         # Native prompt completion is the observed local process exit. It
@@ -152,8 +161,12 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
         if any(type(n) is not int or n < 0 for n in fields) or type(emitted) is not int or emitted <= 0 or sum(fields) <= 0:
             continue
         observations.append({"input_tokens": sum(fields), "output_tokens": emitted})
-    if any(item["input_tokens"] + item["output_tokens"] > budgets["context_tokens"] for item in observations):
+    if any(item.get("window_tokens", item["input_tokens"] + item["output_tokens"]) > budgets["context_tokens"] for item in observations):
         raise ValueError("unavailable: observed request usage exceeds configured token window")
+    if open_code_missing_usage:
+        if len(open_code_usage) > 1:
+            raise ValueError("unavailable: multi-step OpenCode request has no complete per-step token usage witness")
+        observations = []  # Known overages were rejected above; use the original byte bound for a single step.
     if above_byte_budget and not observations:
         raise ValueError("unavailable: request above the byte budget has no observed token usage witness")
     if not observations and bound + OUTPUT_RESERVE > budgets["context_tokens"]:
@@ -161,5 +174,5 @@ def validate_request_capacity(system: str, prompt: str, invocation: dict, budget
     return {**budgets, "conservative_input_bound": bound, "observed_usage": observations,
             "capacity_evidence": "observed_usage" if observations else "conservative_configured_bound",
             "compaction_witness": "captured_claude_events" if event_files else "unavailable",
-            "usage_scope": "per_call" if usage_per_call and stream is not None and observations else "result" if result_files else "unavailable",
+            "usage_scope": "per_call" if observations and (open_code_usage is not None or usage_per_call and stream is not None) else "result" if result_files else "unavailable",
             "capture_stream": str(stream) if stream is not None else None}

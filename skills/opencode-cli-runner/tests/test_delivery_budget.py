@@ -27,7 +27,8 @@ with log.open('a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')
 calls = len(log.read_text().splitlines())
 case = os.environ['PROBE_CASE']
 def text(value):
-    event = {'role':'assistant','content':value} if provider == 'kimi' else {'type':'text','part':{'text':value}}
+    message = 'reply-1' if case in ('length_then_wrong_message', 'length_then_replay') else f'reply-{calls}'
+    event = {'role':'assistant','content':value} if provider == 'kimi' else {'type':'text','part':{'text':value,'messageID':message}}
     print(json.dumps(event), flush=True)
 def error(value):
     event = {'role':'error','content':value} if provider == 'kimi' else {'type':'error','error':{'message':value}}
@@ -35,9 +36,20 @@ def error(value):
 if case == 'blank': text('  ')
 elif case == 'nonzero': text('retained partial'); sys.exit(7)
 elif case.startswith('length'):
-    text('partial' if calls == 1 else 'continuation')
-    reason = 'stop' if case == 'length_then_stop' and calls > 1 else 'length'
-    print(json.dumps({'type':'step_finish','sessionID':'generic-session','part':{'reason':reason}}))
+    if case != 'length_reasoning_only' and not (case == 'length_then_blank' and calls > 1):
+        final = 'continuation without LF' if case == 'length_then_no_lf' else 'continuation  \\n\\n'
+        text('partial' if calls == 1 else final)
+    reason = 'stop' if case.startswith('length_then_') and calls > 1 else 'length'
+    session = 'foreign-session' if case == 'length_then_foreign' and calls > 1 else 'generic-session'
+    if case != 'length_then_no_terminal' or calls == 1:
+        message = 'reply-1' if case == 'length_then_replay' else f'reply-{calls}'
+        part = {'reason':reason,'messageID':message}
+        usage = json.loads(os.environ.get('PROBE_USAGE', '[]'))
+        if calls <= len(usage) and usage[calls - 1] is not None:
+            part['tokens'] = usage[calls - 1]
+        print(json.dumps({'type':'step_finish','sessionID':session,'part':part}))
+    if case == 'length_then_trailing_step' and calls > 1:
+        print(json.dumps({'type':'step_start','sessionID':session,'part':{'messageID':'unfinished'}}))
 elif case == 'fallback':
     if '-m' in sys.argv: error('model not found'); sys.exit(1)
     text('fallback complete')
@@ -104,7 +116,7 @@ def test_fallback_consumes_same_call_budget(tmp_path, provider):
 
 def test_final_length_is_partial_and_continuation_consumes_budget(tmp_path):
     proc, out, calls, _ = run_probe(tmp_path, "opencode", "length", ["--max-attempts", "2", "--continue-on-length", "5"])
-    assert proc.returncode != 0
+    assert proc.returncode == 15
     assert not out.exists()
     assert len(calls) == 2
     assert "partial" in Path(str(out)+".partial").read_text()
@@ -115,6 +127,107 @@ def test_length_continuation_can_complete_within_budget(tmp_path):
     assert proc.returncode == 0, proc.stderr
     assert len(calls) == 2
     assert out.read_text().strip() == "partialcontinuation"
+
+
+def run_swarm_probe(tmp_path, case, usage=None):
+    direct, env, out, log, _ = setup_invocation(tmp_path, "opencode", case, [])
+    env["REVIEW_SWARM_NO_AUTO_CONFIG"] = "1"
+    launcher = SKILLS / "review-swarm/scripts/bin/run_multi_task.py"
+    report_dir = tmp_path / "launcher"
+    system = tmp_path / "system.txt"
+    system.write_text("This is a generic offline runner fixture.")
+    prompt = Path(direct[direct.index("--prompt-file") + 1])
+    args = ["python3", str(launcher), "--out-dir", str(report_dir), "--models", "fixture/model", "--system", str(system),
+            "--prompt", str(prompt), "--backend-output", f"opencode={out}", "--opencode-runner", direct[1],
+            "--max-attempts", "1", "--retry-empty-output", "2"]
+    if usage is not None:
+        env["PROBE_USAGE"] = json.dumps(usage)
+        args += ["--context-tokens", "60000"]
+        # The capacity reader uses the launcher meta in the same directory as the report.
+        out = report_dir / out.name
+        args[args.index("--backend-output") + 1] = f"opencode={out}"
+    result = subprocess.run(args, env=env, text=True, capture_output=True, timeout=20)
+    meta = report_dir / "meta.json"
+    assert meta.is_file(), result.stderr
+    agent, = json.loads(meta.read_text())["agents"]
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    return result, agent, calls, out, system.read_text(), prompt.read_text()
+
+
+@pytest.mark.parametrize("case, success, reason, count", [
+    ("length_then_stop", True, None, 2),
+    ("length_then_no_lf", True, None, 2),
+    ("length_reasoning_only", False, "response_token_limit", 3),
+    ("length_then_blank", False, "exit_code_1", 2),
+    ("length_then_foreign", False, "exit_code_1", 2),
+    ("length_then_no_terminal", False, "exit_code_1", 2),
+    ("length_then_wrong_message", False, "exit_code_1", 2),
+    ("length_then_replay", False, "exit_code_1", 2),
+    ("length_then_trailing_step", False, "exit_code_1", 2),
+    ("transient", False, "transient_transport", 1),
+])
+def test_swarm_seat_uses_bounded_same_session_continuation(tmp_path, case, success, reason, count):
+    result, agent, calls, out, _, _ = run_swarm_probe(tmp_path, case)
+    assert agent["success"] is success, result.stderr
+    assert agent["failure_reason"] == reason
+    assert agent["seat_budget"]["runner_invocations"] == 1
+    assert len(calls) == count and "-s" not in calls[0]
+    for call in calls[1:]:
+        assert call[call.index("-s") + 1] == "generic-session"
+        assert call[call.index("-m") + 1] == "fixture/model"
+    if reason == "response_token_limit":
+        assert agent["failure_class"] == "capacity"
+    if success:
+        expected = b"continuation without LF" if case == "length_then_no_lf" else b"continuation  \n\n"
+        assert out.read_bytes() == expected
+        observation = json.loads(Path(str(out) + ".runtime-observation.json").read_text())["payload"]
+        assert observation["capture"]["complete_output"]["responses"] == count
+        assert "continuation_prompt.log" in observation["capture"]["files"]
+    else:
+        assert not out.exists()
+
+
+@pytest.mark.parametrize("change, failure", [
+    ("valid", None),
+    ("cached_and_reasoning", "observed request usage exceeds"),
+    ("provider_total", "observed request usage exceeds"),
+    ("missing", "no complete per-step token usage"),
+])
+def test_resumed_opencode_capacity_uses_each_signed_step(tmp_path, monkeypatch, change, failure):
+    monkeypatch.syspath_prepend(str(SKILLS / "research-team/scripts/lib"))
+    from request_capacity import request_budgets, validate_request_capacity
+
+    first = {"input": 37000, "output": 1200, "reasoning": 3800, "cache": {"read": 8000, "write": 0}}
+    final = {"input": 42000, "output": 2000, "reasoning": 1000, "cache": {"read": 7000, "write": 0}}
+    if change == "cached_and_reasoning":
+        final.update(reasoning=10000, total=59000)
+    elif change == "provider_total":
+        first["total"] = 60001
+    elif change == "missing":
+        final = None
+    result, agent, _, out, system, prompt = run_swarm_probe(tmp_path, "length_then_stop", [first, final])
+    assert agent["success"] is True, result.stderr
+    args = (system, prompt, {"exit_code": 0, "output": str(out)}, request_budgets(60000))
+    if failure:
+        with pytest.raises(ValueError, match=failure):
+            validate_request_capacity(*args)
+    else:
+        proof = validate_request_capacity(*args)
+        assert proof["usage_scope"] == "per_call"
+        assert [step["window_tokens"] for step in proof["observed_usage"]] == [50000, 52000]
+        receipt = Path(agent["capture_receipt"])
+        (receipt.parent / "attempt_2.stderr").write_text("mutated capture\n")
+        with pytest.raises(ValueError):
+            validate_request_capacity(*args)
+
+
+def test_strict_runner_rejects_replayed_terminal_message(tmp_path):
+    proc, out, calls, _ = run_probe(tmp_path, "opencode", "length_then_replay",
+                                    ["--no-retry", "--final-response-only"])
+    assert proc.returncode != 0
+    assert "replayed an earlier terminal message" in proc.stderr
+    assert len(calls) == 2
+    assert not out.exists()
 
 
 @pytest.mark.parametrize("provider", ["kimi", "opencode"])

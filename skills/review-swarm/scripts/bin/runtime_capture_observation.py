@@ -23,6 +23,7 @@ from pathlib import Path
 
 _LIVE: dict[int, tuple[object, subprocess.Popen]] = {}
 from complete_assistant_text import capture_profile, kimi_capture_files, validate_stream_report
+from opencode_capture import validate_opencode_capture
 
 _DOMAIN = b"nullius-runtime-capture-observation\x00"
 _MEMBER_DOMAIN = b"nullius-runtime-member-episode\x00"
@@ -340,11 +341,22 @@ def _finish(state: dict | None, proc: subprocess.Popen) -> dict | None:
         if "runtime_observation" in budget:
             raise ValueError("unavailable: capture already contains an authored observation")
         _successful_budget(budget, hashes)
-        expected_profile = {"claude": "claude_stream_json", "kimi": "kimi_prompt_stream_json"}.get(state["backend"])
-        if capture_profile(root) != expected_profile:
-            raise ValueError("unavailable: capture format does not match the invoked runner backend")
-        files = _capture_files(root)
-        complete_output = validate_stream_report(root, report)
+        if state["backend"] == "opencode":
+            if "--final-response-only" not in state["cmd"]:
+                raise ValueError("unavailable: OpenCode observation requires final-response delivery")
+            try:
+                original_files, complete_output = validate_opencode_capture(root, report)
+            except (ValueError, OSError):
+                output = state["output"]
+                output.replace(output.with_name(output.name + ".unverified"))
+                raise
+            files = {p.name: _identity(p) for p in original_files}
+        else:
+            expected_profile = {"claude": "claude_stream_json", "kimi": "kimi_prompt_stream_json"}.get(state["backend"])
+            if capture_profile(root) != expected_profile:
+                raise ValueError("unavailable: capture format does not match the invoked runner backend")
+            files = _capture_files(root)
+            complete_output = validate_stream_report(root, report)
         capture = {"budget_relative": str(receipt.relative_to(state["output"].parent)),
                    "budget_sha256": hashlib.sha256(_canonical(budget)).hexdigest(), "files": files,
                    "complete_output": complete_output}
@@ -427,9 +439,15 @@ def verify_capture_observation(budget_path: Path | None, report_path: Path, inpu
         unsigned = {key: value for key, value in budget.items() if key != "runtime_observation"}
         if hashlib.sha256(_canonical(unsigned)).hexdigest() != capture["budget_sha256"]:
             raise ValueError("unavailable: runtime observation budget mismatch")
-        if _capture_files(budget_path.parent) != capture["files"]:
+        if payload.get("backend") == "opencode":
+            originals, complete_output = validate_opencode_capture(budget_path.parent, report_path.read_bytes().decode("utf-8"))
+            files = {p.name: _identity(p) for p in originals}
+        else:
+            files = _capture_files(budget_path.parent)
+            complete_output = (validate_stream_report(budget_path.parent, report_path.read_bytes().decode("utf-8"))
+                               if "complete_output" in capture else None)
+        if files != capture["files"]:
             raise ValueError("unavailable: runtime observation captured/report bytes mismatch")
-        if "complete_output" in capture:
-            if validate_stream_report(budget_path.parent, report_path.read_bytes().decode("utf-8")) != capture["complete_output"]:
-                raise ValueError("unavailable: original complete-output binding mismatch")
+        if complete_output != capture.get("complete_output"):
+            raise ValueError("unavailable: original complete-output binding mismatch")
     return {"valid": True, "backend": payload.get("backend"), "capacity_policy": policy, "observation_id": payload["observation_id"], "request": payload["request"], "report": payload["report"], "working_directory": payload["working_directory"], "complete_output": capture.get("complete_output") if capture else None}

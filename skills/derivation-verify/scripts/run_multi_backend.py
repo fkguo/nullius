@@ -1198,8 +1198,9 @@ class MultiTaskRunner:
         # makes the gate reproducible and config-independent; an explicit --config is still honored.
         env = {**os.environ, "REVIEW_SWARM_NO_AUTO_CONFIG": "1"}
         try:
-            proc = subprocess.run(cmd, timeout=self.timeout if self.timeout else None,
-                                  capture_output=True, text=True, check=False, env=env, cwd=cwd)
+            # The launcher owns the deadline and process-group cleanup. A
+            # competing timer here can kill it before it stops its children.
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False, env=env, cwd=cwd)
             self.invocations[tag] = {"exit_code": proc.returncode, "model": spec, "stdout": proc.stdout, "stderr": proc.stderr,
                                      "system": str(sysf), "prompt": str(promptf), "output": str(outf),
                                      "work_dir": str(d), "meta": str(d / "meta.json")}
@@ -1209,8 +1210,15 @@ class MultiTaskRunner:
                 self.invocations[tag]["provider_stop"] = stop
                 return None
             if proc.returncode != 0:
+                try:
+                    agents = json.loads((d / "meta.json").read_text(encoding="utf-8")).get("agents", [])
+                except (OSError, ValueError, AttributeError):
+                    agents = []
+                if isinstance(agents, list) and any(isinstance(agent, dict) and
+                        agent.get("failure_reason") == "response_token_limit" for agent in agents):
+                    self.invocations[tag]["response_token_limit"] = True
                 return None
-        except (subprocess.TimeoutExpired, OSError):
+        except OSError:
             self.invocations[tag] = {"exit_code": None, "model": spec, "work_dir": str(d), "meta": str(d / "meta.json")}
             return None
         if not outf.exists():
@@ -1494,7 +1502,12 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
             receipts_now = getattr(run, "invocations", getattr(owner, "invocations", None))
             stop = (receipts_now.get(call_tag, {}).get("provider_stop") if isinstance(receipts_now, dict) else None) or (
                 provider_stop(raw) if isinstance(raw, str) and "{" not in raw else None)
-            record.update(status="provider_refusal", **stop) if stop else record.update(status="unavailable", reason=str(exc))
+            if stop:
+                record.update(status="provider_refusal", **stop)
+            elif isinstance(receipts_now, dict) and receipts_now.get(call_tag, {}).get("response_token_limit"):
+                record.update(status="unavailable", reason="response_token_limit")
+            else:
+                record.update(status="unavailable", reason=str(exc))
             return j, k, None
         finally:
             evidence[j]["requests"].append(record)
@@ -1543,11 +1556,16 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
     return cmp, n_ok
 
 
-def _execute_derivation(run, spec, system, prompt, tag, refusals: Optional[list] = None):
+def _execute_derivation(run, spec, system, prompt, tag, refusals: Optional[list] = None,
+                        response_limits: Optional[list] = None):
     raw = run(spec, system, prompt, tag)
     owner = getattr(run, "__self__", None)
     invocations = getattr(run, "invocations", getattr(owner, "invocations", None))
     invocation = invocations.get(tag, {}) if isinstance(invocations, dict) else {}
+    if invocation.get("response_token_limit"):
+        if response_limits is not None:
+            response_limits.append({"execution_id": tag, "model": spec, "receipt": invocation.get("meta")})
+        return None
     stop = invocation.get("provider_stop") or provider_stop(raw)
     if stop:
         # Recorded as a refusal of this lane; it never enters the derivations or their families.
@@ -1569,7 +1587,7 @@ def _execute_derivation(run, spec, system, prompt, tag, refusals: Optional[list]
             artifacts.append({"path": str(path), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)})
     if invocation.get("output"):
         text_suffixes = {".json", ".jsonl", ".log"}
-        if family_of(spec) == "kimi":
+        if family_of(spec) in {"kimi", "opencode"}:
             text_suffixes.update({".stdout", ".stderr"})
         for path in Path(invocation["output"] + ".attempts").glob("run.*/*"):
             if path.is_file():
@@ -1606,6 +1624,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     families: list[str] = []
     used: list[str] = []
     refusals: list[dict] = []
+    response_limits: list[dict] = []
 
     # External native records remain readable but cannot supply runtime-owned observation.
     # Unverifiable records are unavailable and do not suppress available CLI executions.
@@ -1665,7 +1684,8 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     def _derive(idx_spec):
         i, spec = idx_spec
         tag = f"{c['id']}/derive{i}_{roster_family_of(spec)}"
-        result = _execute_derivation(run, spec, _DERIVE_SYSTEM, _derive_prompt(ctx, c, methods[i % 2]), tag, refusals)
+        result = _execute_derivation(run, spec, _DERIVE_SYSTEM, _derive_prompt(ctx, c, methods[i % 2]), tag,
+                                     refusals, response_limits)
         if result:
             result.update(execution_id=tag, method=methods[i % 2] or "unspecified")
         return spec, result
@@ -1685,14 +1705,16 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
         rounds += 1
         # Re-filter each round: a backend can cross the failure threshold mid-claim, and re-trying
         # it every tie-break round is exactly the waste the tracker exists to stop.
-        spec = pick_next_spec([s for s in cli_pool if not is_down(s)], used)
+        capacity_limited = {failure["model"] for failure in response_limits}
+        spec = pick_next_spec([s for s in cli_pool if not is_down(s) and s not in capacity_limited], used)
         if spec is None:  # tie-break also never re-runs a host-native family
             break
         used.append(spec)
         method = methods[rounds % 2]
         d = _execute_derivation(run, spec, _DERIVE_SYSTEM,
                                  _tiebreak_prompt(ctx, c, method, derivations),
-                                 tag=f"{c['id']}/tiebreak{rounds}_{roster_family_of(spec)}", refusals=refusals)
+                                 tag=f"{c['id']}/tiebreak{rounds}_{roster_family_of(spec)}",
+                                 refusals=refusals, response_limits=response_limits)
         if d:
             d.update(execution_id=f"{c['id']}/tiebreak{rounds}_{roster_family_of(spec)}", method=method or "unspecified")
             derivations.append(d)
@@ -1733,6 +1755,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
         # Lanes the provider refused: their families are absent from `families` unless another
         # lane of the same family produced a derivation.
         "provider_refusals": sorted(refusals, key=lambda r: r["execution_id"]),
+        "response_token_limits": sorted(response_limits, key=lambda r: r["execution_id"]),
         "total_derivations": len(derivations),
         "derivation_records": derivations,
         "iterate_rounds": rounds,
@@ -1771,6 +1794,7 @@ def _summarize(rows: list[dict], n_claims: int, family_pool: list[str],
         # Provider safeguard refusals are listed apart from infrastructure failures and from
         # mathematical disagreement; a refused family did not take part in the comparison.
         "provider_refusals": [{"claim": r["claim"], **x} for r in rows for x in (r.get("provider_refusals") or [])],
+        "response_token_limits": [{"claim": r["claim"], **x} for r in rows for x in r.get("response_token_limits", [])],
         "matrix": rows,
     }
 
@@ -1799,10 +1823,10 @@ def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
     def tracked_run(model_spec: str, system: str, prompt: str, tag: str) -> Optional[str]:
         out = run(model_spec, system, prompt, tag)
         receipts = getattr(tracked_run, "invocations", None)
-        refused = (isinstance(receipts, dict) and bool(receipts.get(tag, {}).get("provider_stop")))
+        receipt = receipts.get(tag, {}) if isinstance(receipts, dict) else {}
         with streak_lock:
-            if refused:
-                pass  # a refusal of this request says nothing about whether the backend is up
+            if receipt.get("provider_stop") or receipt.get("response_token_limit"):
+                pass  # a request-level limit says nothing about backend availability
             elif out is None:
                 fail_streak[model_spec] = fail_streak.get(model_spec, 0) + 1
                 if fail_streak[model_spec] == _BACKEND_DISABLE_AFTER and model_spec not in announced:

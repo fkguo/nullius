@@ -135,7 +135,7 @@ def test_total_deadline_is_not_reset_for_next_call(launcher, monkeypatch, tmp_pa
     ('codex', ['--max-retries', '1']),
     ('claude', ['--max-retries', '1']),
     ('kimi', ['--max-attempts', '1', '--no-fallback']),
-    ('opencode', ['--max-attempts', '1', '--no-fallback']),
+    ('opencode', ['--max-attempts', '3', '--no-fallback', '--continue-on-length', '2', '--no-retry', '--final-response-only']),
     ('gemini', ['--no-fallback']),
 ])
 def test_build_cmd_uses_supported_inner_budget_flags(launcher, tmp_path, backend, expected):
@@ -149,7 +149,7 @@ def test_build_cmd_uses_supported_inner_budget_flags(launcher, tmp_path, backend
     if '--max-retries' in expected:
         assert cmd[cmd.index('--max-retries') + 1] == '1'
     if '--max-attempts' in expected:
-        assert cmd[cmd.index('--max-attempts') + 1] == '1'
+        assert cmd[cmd.index('--max-attempts') + 1] == ('3' if backend == 'opencode' else '1')
     if backend == 'gemini':
         assert '--max-attempts' not in cmd
         assert '--no-proxy-first' not in cmd

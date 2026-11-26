@@ -643,7 +643,8 @@ def main() -> int:
     p.add_argument("--member-b-evidence", type=Path)
     p.add_argument("--assessor-model", default=None)
     p.add_argument("--assessor-runner", type=Path, default=None)
-    p.add_argument("--assessor-timeout-secs", type=int, default=1200)
+    p.add_argument("--assessor-timeout-secs", type=int, default=0,
+                   help="Hard source-assessor deadline in seconds (0: no hard deadline).")
     p.add_argument("--assessor-context-bytes", type=int, default=None)
     p.add_argument("--assessor-context-tokens", type=int, default=200000)
     args = p.parse_args()

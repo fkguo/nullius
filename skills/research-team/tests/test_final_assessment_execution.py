@@ -52,8 +52,8 @@ def count_calls(path):
 def test_final_consumer_runs_once_per_acceptance_and_preserves_current_diagnostics(candidate):
     _, _, command, calls, historical, diagnostic = candidate
     previous_ref = str(historical)
-    for attempt in (1, 2):
-        process, result = invoke(command)
+    for attempt, timeout_args in enumerate(([], ["--assessor-timeout-secs", "7200"]), 1):
+        process, result = invoke(command + timeout_args)
         assert process.returncode == 0, process.stderr
         assert count_calls(calls) == attempt
         assert result["meta"]["independent_confirmations"] == 2
@@ -64,6 +64,9 @@ def test_final_consumer_runs_once_per_acceptance_and_preserves_current_diagnosti
         ref = result["meta"]["confirmation_refs"][0]
         assert ref["path"] != previous_ref
         assert ref["sha256"] == hashlib.sha256(Path(ref["path"]).read_bytes()).hexdigest()
+        assessor_dir = Path(ref["path"]).parent / "independence_assessor/source-assessment"
+        launcher_meta, = assessor_dir.glob("invocation-*/meta.json")
+        assert json.loads(launcher_meta.read_text())["hard_budget_secs"] == (7200 if timeout_args else None)
         assert "- Gate: PASS" in process.stderr
         previous_ref = ref["path"]
 

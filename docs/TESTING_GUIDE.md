@@ -145,6 +145,8 @@ python3 -m pytest -q skills/kimi-cli-runner/tests skills/opencode-cli-runner/tes
 
 Kimi/OpenCode/Qwen 需要 Python 3.10 或更新版本；不满足时在调用模型之前拒绝运行。`--max-attempts` 是包括 fallback/续写的总 CLI 调用数，`--timeout-secs` 是包括 backoff 的总期限。review launcher 的同名预算统计每个 seat 的 runner 进程调用；Gemini 没有内层尝试数控制，不能把该统计声称为准确的底层 HTTP 请求数。每次调用保留 trace；`OUT.partial` 不算完成的 `OUT`。复制安装须重新从当前源码构建/安装并验证；本地定向检查不更新其他安装或已有外部项目。
 
+review launcher 的单次 OpenCode 调用在收到 `length` 事件时最多续跑两次，原始会话与 seat 计数保持连续。测试覆盖正常完成、续跑耗尽、错误的会话或消息、报告原始字节绑定，以及续跑各步实际用量超出配置的上下文窗口时被来源评估容量门拒绝。
+
 #### 本地个人插件与项目 MCP
 
 [`project-mcp`](../packages/project-mcp/README.md) 复用 canonical `handleToolCall` / `runCli`，目前暴露 16 个 `orch_*` 操作和 8 个 transport 工具，共 24 个。默认个人插件组合 project 24、HEP standard 47、idea 6，共 77 个不同工具名；非默认 HEP 模式或 provider 开关会改变 HEP 数量。[构建器](../packages/skills-market/docs/PERSONAL_PLUGIN.md) 生成不含本机路径的 Codex/Claude Code 清单，通过目标机器的 `nullius runtime mcp` 启动，不创建远端连接。普通 skills copy 安装同样不记录源机器目录。

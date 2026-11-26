@@ -38,7 +38,12 @@ class TestResearchContinuityGuidance(unittest.TestCase):
                 '[Research workflow](research_guidance.md#research-workflow "nullius-guidance")',
                 entry,
             )
-            instructions = normalized(read_instruction_documents(root / "AGENTS.md"))
+            loaded = read_instruction_documents(root / "AGENTS.md")
+            instructions = normalized(loaded)
+
+        symbolic_row = next(line for line in loaded.splitlines() if "Derived a formula, closed form, identity" in line)
+        self.assertIn("for a published expression, compare an independent derivation on the common domain", symbolic_row)
+        self.assertIn("For a new result or unresolved discrepancy, require at least two independent blind re-derivations", symbolic_row)
 
         # These obligations must survive actual scaffold generation and marked
         # reference loading, including a host that starts with only AGENTS.md.
@@ -62,7 +67,6 @@ class TestResearchContinuityGuidance(unittest.TestCase):
                 self.assertIn(obligation, instructions)
 
         for retained_gate in (
-            "at least two independent blind re-derivations",
             "convergence, independent methods, regression anchor",
             "claim-grounding",
             "citation-triangulation",

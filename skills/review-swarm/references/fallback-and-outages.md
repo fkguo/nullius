@@ -50,6 +50,7 @@ mistaken for reviewer disagreement:
   auto-retried by this flag, and `--two-phase` rejects fallback — recover it
   with a manual same-model rerun (see the two-phase section).
 - Empty-output retries and outer fallback stop when the seat's attempt cap or deadline is exhausted. Failure reasons `attempt_budget_exhausted` and `deadline_exhausted` record this limit separately from content disagreement.
+- `response_token_limit` records an unfinished response in the `capacity` class. Resolve it through the recorded same-session continuation, a model with sufficient per-response capacity, or a scoped decomposition. Later claims can still use the same backend.
 - `meta.json` always includes `unavailable_backends`: the requested model specs
   whose runs ALL failed at the infrastructure level this invocation (a
   fallback-recovered run counts by its original failure). Read entries there as

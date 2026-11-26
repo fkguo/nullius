@@ -137,14 +137,14 @@ Configure complete source-assessor request budgets in `research_team_config.json
   "independent_reproduction": {
     "assessor_context_tokens": 1000000,
     "assessor_context_bytes": 800000,
-    "assessor_timeout_secs": 1200
+    "assessor_timeout_secs": 0
   }
 }
 ```
 
-These values are explicit caller configuration; choose a window supported by the selected executor/provider. They do not introspect or guarantee provider capacity. Defaults are 200,000 tokens, a conservative derived byte allowance (`null`), and 1200 seconds. Timeout must be an integer from 1 to 1200 seconds. The complete source/input/execution originals remain required; insufficient capacity, unavailable capture or compaction refuses acceptance without truncation. Existing generated projects keep their configuration; edit the project configuration explicitly when a different budget is needed.
+Choose a context window supported by the selected executor and provider. Defaults are 200,000 tokens, a conservative derived byte allowance (`null`), and `0` for a monitored call without a hard deadline. A positive integer sets an explicit deadline. Estimate the call from the full evidence and the selected model's speed, and observe it during execution. The complete source/input/execution originals remain required; insufficient capacity, unavailable capture or compaction refuses acceptance without truncation. Existing projects keep any explicitly configured deadline. Adjust it in their own configuration when a longer call is needed.
 
-A successful enabled `full_access` cycle dispatches one fresh source-assessor invocation at the final convergence consumer with these budgets. Postflight retains deterministic evidence, clean-room and isolation checks; consultation is advisory until final acceptance. Report failure or early stop grants no independent confirmation and spends no assessor call. Each later eligible acceptance attempt executes a fresh assessor and retains its original evidence; no prior verdict is reused. Allow one assessor timeout in addition to member execution. The final consumer preserves the complete diagnostic `independent_reproduction_gate.json` when it invokes the gate, but accepts only the current subprocess output and exit status, never an imported diagnostic file.
+A successful enabled `full_access` cycle dispatches one fresh source-assessor invocation at the final convergence consumer with these budgets. Postflight retains deterministic evidence, clean-room and isolation checks; consultation is advisory until final acceptance. Report failure or early stop grants no independent confirmation and spends no assessor call. Each later eligible acceptance attempt executes a fresh assessor and retains its original evidence; no prior verdict is reused. Reserve time for the assessor in addition to member execution. The final consumer preserves the complete diagnostic `independent_reproduction_gate.json` when it invokes the gate, but accepts only the current subprocess output and exit status, never an imported diagnostic file.
 
 The current source-assessor route accepts required source, raw inputs and command outputs as strict UTF-8. Binary or invalid UTF-8 originals are preserved but remain unavailable for a new text-route confirmation. Member proxy defaults are 20,000 characters per file read and 12,000 per command output; increase `--max-file-chars` or `--max-cmd-output-chars` before requesting larger complete material. A visibility shortfall refuses the episode.
 

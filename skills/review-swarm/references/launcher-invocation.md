@@ -27,6 +27,32 @@ python3 scripts/bin/run_multi_task.py \
 Choose the intended reviewer models explicitly. Verify actual identity and input/method independence
 before crediting the review; there is no automatic family rotation to rely on.
 
+## Observe long verification calls
+
+For an independent derivation or recomputation of comparable scope, start with
+at least the main execution's elapsed time. Allow extra time for a slower
+model, full source reading, and the required output. Use the same seat across
+observation intervals. The launcher defaults to `--timeout-secs 0`. Supply a
+positive hard limit when required by the operator or the task's resource budget.
+
+Check the host's running state and the launcher's `trace.jsonl`. For Claude,
+`--claude-live-capture` exposes stream progress and `--expected-secs` sets a soft
+observation threshold. For a backend that only writes at completion, an unchanged
+output file alone leaves progress unknown. Continue observing a healthy running
+seat until completion, a confirmed failure, an explicit stop, or a binding limit.
+Keep partial output for diagnosis and use the terminal receipt for acceptance.
+
+**Per-response token limits.** An OpenCode seat allows up to two same-session
+continuations after an observed `reason: "length"`. These share the seat's
+deadline and stay within one launcher invocation. The runner publishes the
+complete final response and preserves earlier material and continuation inputs
+as diagnostics. An exhausted continuation path reports `response_token_limit`.
+Use a model with a confirmed larger response budget, or split a complex task
+into independently checkable parts with their own full premises and receipts.
+Reassemble and check the result on the original domain. A resumed seat counts
+once for independence. The absence of an observed length signal leaves the
+cause of an incomplete result unknown.
+
 ## Convergence check
 
 ```bash

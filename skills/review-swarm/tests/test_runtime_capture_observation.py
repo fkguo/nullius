@@ -242,6 +242,8 @@ def observed_native(tmp_path, *, records=None, raw=None, report=None, exit_code=
     script.write_text(code)
     cmd = [sys.executable, str(script), "--system-prompt-file", str(system),
            "--prompt-file", str(prompt), "--out", str(output)]
+    if backend == "opencode":
+        cmd.append("--final-response-only")
     process = run_multi_task._run_with_timeout(cmd, timeout_secs=10, context_tokens=50000, backend=backend)
     return output, root / "budget.json", hashes, process, cmd, files
 
@@ -354,7 +356,8 @@ def test_native_raw_files_cannot_be_relabelled_as_claude_events(tmp_path):
 
 @pytest.mark.parametrize("backend", ["claude", "opencode", None])
 def test_other_runner_cannot_issue_native_prompt_receipt(tmp_path, backend):
-    with pytest.raises(ValueError, match="does not match the invoked runner"):
+    error = "OpenCode response lacks its expected terminal event" if backend == "opencode" else "does not match the invoked runner"
+    with pytest.raises(ValueError, match=error):
         observed_native(tmp_path, backend=backend)
     assert not (tmp_path / "project/report.runtime-observation.json").exists()
 

@@ -99,6 +99,17 @@ Required field groups of the full-tier contract, all machine-checked:
   record; it catches an extension that reuses old observations, not a false
   entry). There is no fixed number of extensions; a run that has stopped
   advancing is wrapped up instead.
+
+  For a substantial independent derivation or recomputation of comparable scope,
+  start the duration estimate at least at the time the main work actually took.
+  Add headroom for the assigned model's observed speed, complete input reading,
+  tool work, and output verification. Use a soft observation interval to check
+  the same execution. Inspect the host task state, trace, provider indicators,
+  or flushed checkpoints and continue while work advances. A runner without
+  streaming can stay quiet while active. Check its health again before declaring
+  it stalled. For work governed by a time box, make any permitted extension
+  before its enforcement point using the budget amendment above. Preserve the
+  attempt cap and honor cancellation and binding resource limits.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the
   delivered task (the `research-harness` attempt semantics), **not**
