@@ -26,6 +26,7 @@ Read each applicable reference **before** the named operation. References retain
 | Choose native versus CLI seats, establish identity/family quorum, or degrade an unavailable roster | [execution-and-identity.md](references/execution-and-identity.md "nullius-guidance") |
 | Launch multiple seats or interpret convergence similarity | [launcher-invocation.md](references/launcher-invocation.md "nullius-guidance") |
 | Launch one reviewer or assemble a source-extraction packet | [single-reviewer-invocation.md](references/single-reviewer-invocation.md "nullius-guidance") and applicable [review-one-flags.md](references/review-one-flags.md) |
+| Set the basis for a formal acceptance review or evaluate a new review rule | [gate-loop-and-freshness.md](references/gate-loop-and-freshness.md "nullius-guidance") |
 | Fix, confirm, reuse or fold a verdict | [gate-loop-and-freshness.md](references/gate-loop-and-freshness.md "nullius-guidance") and [delivery-and-runtime-evidence.md](references/delivery-and-runtime-evidence.md "nullius-guidance") |
 | Establish current full-notebook acceptance | [notebook-content-review.md](references/notebook-content-review.md "nullius-guidance"); whole current notebook and the selected profile’s necessary original-source coverage are always required, including confirmation |
 | Establish a method precondition or runtime invariant | [execution-adversary.md](references/execution-adversary.md "nullius-guidance"); execute at the result's production configuration |

@@ -107,6 +107,10 @@ for the corresponding correctness and measurement boundaries.
   higher precision, another representation, an external oracle or another
   algorithm. Sharing the same helper/reference data can share the same defect.
   Explain model, method and input independence separately when claimed.
+- For a public property such as round-trip equivalence or idempotency, generate
+  cases from its declared input domain and include explicit boundaries. Use an
+  explicit RNG and record its seed and the failing input. Keep a minimized
+  counterexample as a deterministic regression when it exposes a defect.
 - Set absolute and relative tolerances before inspecting the answer, with a
   scale and conditioning rationale. Near-zero results need an absolute error
   criterion. Reordered floating-point arithmetic need not be bit-identical;

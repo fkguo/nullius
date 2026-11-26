@@ -1,5 +1,21 @@
 Command, script and asset paths in this reference are relative to the `review-swarm` skill directory. Markdown links are relative to this reference. Cross-section names follow the routes in [SKILL.md](../SKILL.md).
 
+### Use an approved acceptance baseline
+
+Before a formal acceptance review, get the governing criteria, assertions, tolerances,
+exclusions, reference data and checking code from a project-approved revision or
+record outside the candidate's control. Bind the exact versions used, including any
+decision-critical checker dependencies, by revision or content hash separately from
+the candidate's snapshot. Freshness establishes which inputs the review used.
+The approved source establishes which rules may decide acceptance.
+
+When a candidate changes an applicable rule as well as the artifact it judges, assess
+the artifact under the approved rule and assess the proposed rule change on its own
+evidence. If the approved check cannot evaluate a new behavior, record it as unavailable
+until the project approves criteria for that behavior independently of the candidate's
+result. For a first acceptance review, use criteria established by the project before
+the candidate result is inspected.
+
 ### Re-review after every fix (gate-loop discipline)
 
 Convergence is a property of the **reviewers' agreement on the current artifact**, never a
@@ -77,3 +93,19 @@ The manifest is a trusted launch record, not a cryptographic signature over itse
 This gate catches accidental or uncoordinated post-review drift. If deliberate co-editing
 of both an input and its manifest is in scope, commit the review directory or persist the
 reported manifest SHA-256 in an external closeout record before accepting the verdict.
+
+### Replay historical cases when changing review rules
+
+When introducing or materially changing a review rule, replay known defects and comparable
+cases independently judged acceptable. Reconstruct the material available at the original
+review, withhold the expected findings and later fixes from the reviewer, and retain the
+answer key for scoring. Credit a finding only when it identifies the actual failure mode.
+Record missed defects and false alarms separately, and distinguish unavailable runs from
+both. Keep a fixed evaluation set separate from the cases used to tune the rule.
+
+For a recurring miss, record the affected behavior that triggers the check, the check to
+run, and the case that motivates it in the project. Inspect the relevant sources and
+affected callers when a diff triggers the check. A proposed engineering gate can first
+report which cases it would block so the project can assess false alarms and run cost.
+Observe-mode evidence evaluates the proposed rule. Formal acceptance still requires
+every applicable approved check.
